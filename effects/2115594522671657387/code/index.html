@@ -1,0 +1,53 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>时间の修理室 · Time Under Repair</title>
+<!-- AI 复刻：@MrLarus GPT-Image 生成的日式概念海报《时间修理》。SVG + JS：真实走时的巨型怀表，微型工人在表盘上修理、梯子与吊绳；复古版画噪点 -->
+<style>*{margin:0;box-sizing:border-box}body{min-height:100vh;display:grid;place-items:center;background:#111;font-family:"Futura","Avenir Next",system-ui,sans-serif}
+.p{width:min(92vw,62vh);aspect-ratio:2/3;background:#f1e6cf;position:relative;overflow:hidden;box-shadow:0 30px 80px #000b;color:#16264a}
+.p:after{content:"";position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;opacity:.35;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E")}
+h1{position:absolute;left:6%;top:4%;font-size:clamp(22px,5vh,44px);line-height:.92;font-weight:900;letter-spacing:-.01em}
+.jp{position:absolute;right:6%;top:4%;writing-mode:vertical-rl;font:900 clamp(22px,5.4vh,48px)/1 "Hiragino Mincho ProN","Noto Serif JP","Songti SC",serif}
+.sub{position:absolute;left:6%;top:16%;font-size:10px;max-width:38%;line-height:1.4}
+svg{position:absolute;left:-14%;top:22%;width:118%}
+.date{position:absolute;left:6%;bottom:5%;font-weight:800;font-size:clamp(16px,3.4vh,30px);line-height:1.05}
+.cn{position:absolute;right:6%;bottom:5%;font:900 clamp(14px,2.6vh,22px) "Songti SC",serif;writing-mode:vertical-rl}
+.redbar{position:absolute;right:0;bottom:0;width:4%;height:28%;background:#e0482b}
+</style></head><body><div class="p">
+<h1>TIME<br>UNDER REPAIR</h1><div class="jp">時間の<br>修理室</div>
+<div class="sub">An exhibition of tiny hands fixing the hours we broke.<br>小さな職人たちが、壊れた時間を直す。</div>
+<svg viewBox="0 0 500 500">
+ <defs><radialGradient id="face" cx=".45" cy=".4"><stop offset="0" stop-color="#f8cf55"/><stop offset="1" stop-color="#e6a52a"/></radialGradient></defs>
+ <circle cx="260" cy="250" r="215" fill="#16264a"/><circle cx="260" cy="250" r="200" fill="url(#face)"/>
+ <circle cx="260" cy="250" r="185" fill="none" stroke="#16264a" stroke-width="2" stroke-dasharray="2 9.68"/>
+ <g id="nums" fill="#16264a" font-size="34" font-weight="800" text-anchor="middle" font-family="Georgia,serif"></g>
+ <path d="M260 35 v-22 h-16 v-10 h32 v10 h-16" fill="#16264a"/>
+ <line id="hh" x1="260" y1="250" x2="260" y2="150" stroke="#16264a" stroke-width="12" stroke-linecap="round"/>
+ <line id="mh" x1="260" y1="250" x2="260" y2="90" stroke="#16264a" stroke-width="7" stroke-linecap="round"/>
+ <line id="sh" x1="260" y1="270" x2="260" y2="70" stroke="#e0482b" stroke-width="2.5"/>
+ <circle cx="260" cy="250" r="10" fill="#e0482b"/>
+ <!-- ladder -->
+ <g stroke="#7a3d1a" stroke-width="3"><line x1="120" y1="420" x2="175" y2="250"/><line x1="138" y1="426" x2="193" y2="256"/>
+ <g id="rungs"></g></g>
+ <!-- workers -->
+ <g id="w1" fill="#16264a"><circle r="5" cy="-14"/><rect x="-4" y="-9" width="8" height="12" rx="2" fill="#e0482b"/><path d="M-3 3 l-3 9 M3 3 l3 9" stroke="#16264a" stroke-width="2"/><rect x="-6" y="-21" width="12" height="4" fill="#f1e6cf"/></g>
+ <g id="w2" fill="#16264a"><circle r="5" cy="-14"/><rect x="-4" y="-9" width="8" height="12" rx="2" fill="#2f6fb5"/><path d="M-3 3 l-3 9 M3 3 l3 9" stroke="#16264a" stroke-width="2"/></g>
+ <line id="rope" stroke="#16264a" stroke-width="1"/><g id="w3" fill="#16264a"><circle r="4" cy="-11"/><rect x="-3" y="-7" width="6" height="10" fill="#e0482b"/></g>
+ <g id="spark"></g>
+</svg>
+<div class="date">2027.<br>08.07 — 09.19</div><div class="cn">时间修理所</div><div class="redbar"></div>
+</div>
+<script>
+const N=document.getElementById('nums');for(let i=1;i<=12;i++){const a=i*Math.PI/6;N.insertAdjacentHTML('beforeend',`<text x="${260+Math.sin(a)*150}" y="${250-Math.cos(a)*150+12}">${i}</text>`)}
+const R=document.getElementById('rungs');for(let i=1;i<9;i++){const t=i/9;R.insertAdjacentHTML('beforeend',`<line x1="${120+55*t}" y1="${420-170*t}" x2="${138+55*t}" y2="${426-170*t}"/>`)}
+const $=id=>document.getElementById(id);
+function rot(el,deg){el.setAttribute('transform',`rotate(${deg} 260 250)`)}
+function tick(ms){const d=new Date();const s=d.getSeconds()+d.getMilliseconds()/1000,m=d.getMinutes()+s/60,h=d.getHours()%12+m/60;
+ rot($('sh'),s*6);rot($('mh'),m*6);rot($('hh'),h*30);
+ // worker1 sits on minute hand tip, worker2 climbs ladder, worker3 dangles on rope from hour hand
+ const ma=m*6*Math.PI/180,mx=260+Math.sin(ma)*150,my=250-Math.cos(ma)*150;$('w1').setAttribute('transform',`translate(${mx},${my}) rotate(${Math.sin(ms/300)*8})`);
+ const k=(Math.sin(ms/1400)+1)/2;$('w2').setAttribute('transform',`translate(${128+55*k},${410-170*k})`);
+ const ha=h*30*Math.PI/180,hx=260+Math.sin(ha)*90,hy=250-Math.cos(ha)*90,sw=Math.sin(ms/700)*14;
+ $('rope').setAttribute('x1',hx);$('rope').setAttribute('y1',hy);$('rope').setAttribute('x2',hx+sw);$('rope').setAttribute('y2',hy+60);
+ $('w3').setAttribute('transform',`translate(${hx+sw},${hy+70})`);
+ const sp=$('spark');if(Math.random()<.3){sp.innerHTML=Array.from({length:4},()=>`<circle cx="${mx+(Math.random()-.5)*14}" cy="${my+(Math.random()-.5)*14}" r="1.4" fill="#fff"/>`).join('')}
+ requestAnimationFrame(tick)}requestAnimationFrame(tick);
+</script></body></html>
