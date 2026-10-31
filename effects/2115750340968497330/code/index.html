@@ -1,0 +1,41 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Levi's GO RODEO! · 半调网点海报</title>
+<!-- AI 复刻：@dwhilldesign #designoftheday 1978 Levi's GO RODEO! 海报。Canvas 程序化生成牛仔剪影 + 动态半调网点（Halftone），鼠标移动改变网点角度 -->
+<style>*{margin:0}body{min-height:100vh;display:grid;place-items:center;background:#222;font-family:Impact,"Anton","Arial Black",sans-serif}
+.p{width:min(90vw,64vh);aspect-ratio:3/4;background:#efe9da;position:relative;box-shadow:0 30px 80px #000a;overflow:hidden}
+.tag{position:absolute;top:3.5%;left:50%;transform:translateX(-50%);background:#c8102e;color:#fff;font:700 clamp(10px,2vh,16px)/1 Georgia,serif;font-style:italic;padding:.35em .9em;border-radius:40% 40% 8px 8px}
+h1{position:absolute;top:9%;width:100%;text-align:center;font-size:clamp(40px,10.5vh,92px);letter-spacing:-.02em;color:#151311;line-height:1;transform:scaleY(1.25)}
+canvas{position:absolute;left:0;bottom:0;width:100%;height:72%}</style></head><body>
+<div class="p"><div class="tag">Levi's</div><h1>GO RODEO!</h1><canvas id="c"></canvas></div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');const W=c.width=900,H=c.height=900;
+const src=document.createElement('canvas');src.width=W;src.height=H;const s=src.getContext('2d');
+function art(t){s.fillStyle='#fff';s.fillRect(0,0,W,H);
+ // crowd/arena gradient
+ const g=s.createLinearGradient(0,H*.55,0,H);g.addColorStop(0,'#bbb');g.addColorStop(1,'#666');s.fillStyle=g;s.fillRect(0,H*.6,W,H*.4);
+ for(let i=0;i<60;i++){s.fillStyle=`rgba(0,0,0,${.15+(i%5)*.06})`;s.beginPath();s.arc((i*67)%W,H*.6+((i*37)%120),18+(i%4)*6,0,7);s.fill()}
+ s.save();s.translate(W*.55,H*.55);s.rotate(Math.sin(t)*.08);s.fillStyle='#000';
+ // bucking horse
+ s.beginPath();s.ellipse(0,0,190,85,-.35,0,7);s.fill();
+ s.beginPath();s.moveTo(150,-80);s.quadraticCurveTo(240,-170,300,-120+Math.sin(t*2)*20);s.lineTo(250,-60);s.quadraticCurveTo(200,-60,150,-20);s.fill(); // neck/head
+ s.lineWidth=34;s.lineCap='round';s.strokeStyle='#000';
+ const k=Math.sin(t*2)*25;
+ s.beginPath();s.moveTo(-140,20);s.lineTo(-260,-60+k);s.lineTo(-330,-30+k);s.stroke(); // hind legs kicking
+ s.beginPath();s.moveTo(-110,40);s.lineTo(-220,10-k);s.lineTo(-290,40-k);s.stroke();
+ s.beginPath();s.moveTo(120,60);s.lineTo(150,180);s.lineTo(130,260);s.stroke();
+ s.beginPath();s.moveTo(70,60);s.lineTo(60,170);s.lineTo(90,250);s.stroke();
+ s.lineWidth=12;s.beginPath();s.moveTo(-180,-10);s.quadraticCurveTo(-280,-160,-230,-230);s.stroke(); // tail
+ // rider
+ s.lineWidth=26;s.beginPath();s.moveTo(-10,-90);s.lineTo(-40,-240);s.stroke();
+ s.beginPath();s.arc(-48,-280,30,0,7);s.fill();s.fillRect(-100,-318,110,14);s.fillRect(-75,-345,58,34);
+ s.lineWidth=16;s.beginPath();s.moveTo(-35,-210);s.lineTo(-140,-300-k);s.lineTo(-170,-380-k);s.stroke(); // waving arm
+ s.beginPath();s.moveTo(-30,-200);s.lineTo(60,-150);s.stroke();
+ s.lineWidth=20;s.beginPath();s.moveTo(-10,-95);s.lineTo(40,-20);s.lineTo(10,40);s.stroke();
+ s.restore()}
+let ang=.4;onpointermove=e=>ang=e.clientX/innerWidth*1.5;
+function frame(ms){const t=ms/700;art(t);const d=s.getImageData(0,0,W,H).data;
+ x.fillStyle='#efe9da';x.fillRect(0,0,W,H);x.fillStyle='#151311';const step=11,ca=Math.cos(ang),sa=Math.sin(ang);
+ for(let gy=-H;gy<H*2;gy+=step)for(let gx=-W;gx<W*2;gx+=step){const px=gx*ca-gy*sa,py=gx*sa+gy*ca;if(px<0||py<0||px>=W||py>=H)continue;
+  const v=1-d[((py|0)*W+(px|0))*4]/255;if(v<.04)continue;x.beginPath();x.arc(px,py,step*.62*Math.sqrt(v),0,7);x.fill()}
+ requestAnimationFrame(frame)}requestAnimationFrame(frame);
+</script></body></html>
