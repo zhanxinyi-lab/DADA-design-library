@@ -1,0 +1,80 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fluxora 风格 · AI 模型路由光核</title>
+<!-- AI 复刻：@Fluxora_Studios 「Fluxora Elements」路由光核交互。纯 HTML/CSS/Canvas，无依赖 -->
+<style>
+:root{--gold:#e9b86a;--gold2:#ffdca0;--bg:#0b0907}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;min-height:600px;background:radial-gradient(120% 80% at 50% 30%,#1b1510 0,#0b0907 60%);color:#d9c7a8;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"PingFang SC",sans-serif;overflow:hidden}
+.wrap{position:relative;width:min(420px,100vw);height:100%;min-height:600px;margin:auto;display:flex;flex-direction:column;align-items:center;padding:22px 16px}
+.prompt{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;width:72%;padding:9px 14px;border:1px solid #3a2f22;border-radius:8px;background:#120e0a;transition:.4s}
+.prompt.on{border-color:var(--gold);box-shadow:0 0 18px #e9b86a44}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+.models{position:absolute;left:0;right:0;top:61%;display:flex;justify-content:center;gap:6px;z-index:2}
+.m{width:62px;padding:8px 0;text-align:center;border:1px solid #2c241a;border-radius:6px;background:#0f0c09cc;font-size:11px;transition:.35s}
+.m.on{border-color:var(--gold);color:#fff;box-shadow:0 0 16px #e9b86a66,inset 0 0 12px #e9b86a22}
+.tip{position:absolute;top:69%;left:50%;transform:translateX(-50%) translateY(6px);width:78%;padding:10px 12px;border:1px solid #6b5332;border-radius:8px;background:#100c08ee;opacity:0;transition:.4s;z-index:3;font-size:11.5px}
+.tip.on{opacity:1;transform:translateX(-50%)}
+.tip b{display:block;font-size:9px;letter-spacing:.2em;color:var(--gold);margin-bottom:4px}
+.tip small{display:block;margin-top:6px;color:#8b7a60;font-family:ui-monospace,monospace}
+.try{position:absolute;bottom:68px;left:0;right:0;text-align:center;z-index:2}
+.try p{font-size:9px;letter-spacing:.3em;color:#8b7a60;margin-bottom:8px}
+.try div{display:flex;gap:6px;justify-content:center}
+.try button{all:unset;cursor:pointer;width:92px;padding:7px 4px;text-align:center;border:1px solid #2c241a;border-radius:6px;font-size:10.5px;background:#0f0c09;transition:.3s}
+.try button.on,.try button:hover{border-color:var(--gold);color:#fff}
+.logo{position:absolute;bottom:26px;letter-spacing:.5em;font-size:11px;color:#bba98b}
+</style></head><body><div class="wrap">
+<div class="prompt" id="prompt"><span id="ptext">Fix this stack trace</span><span>›</span></div>
+<canvas id="c"></canvas>
+<div class="models" id="models"></div>
+<div class="tip" id="tip"><b id="tipH">ROUTED TO CODE</b><span id="tipT"></span><small id="tipS"></small></div>
+<div class="try"><p>TRY A PROMPT</p><div id="tries"></div></div>
+<div class="logo">FLUX◎RA</div></div>
+<script>
+const M=['Fast','Reasoning','Code','Vision','Cheap'];
+const P=[{p:'Summarise this contract',m:1,t:'12-month term, 30-day exit, liability capped at fees paid.',s:'Latency 6.1 s · Cost $0.022'},
+{p:'Fix this stack trace',m:2,t:'Line 42: user is null. Guard it before reading user.id.',s:'Latency 1.9 s · Cost $0.004'},
+{p:'Describe this chart image',m:3,t:'Revenue up 18% QoQ, driven by APAC; churn flat.',s:'Latency 2.7 s · Cost $0.011'},
+{p:'Tag these 500 tickets',m:4,t:'Tagged 500: 212 billing, 181 bugs, 107 other.',s:'Latency 2.4 s · Cost $0.006'}];
+const $=id=>document.getElementById(id);
+$('models').innerHTML=M.map((m,i)=>`<div class="m" data-i="${i}">· <br>${m}</div>`).join('');
+$('tries').innerHTML=P.slice(0,3).map((p,i)=>`<button data-i="${i}">${p.p}</button>`).join('');
+const cv=$('c'),x=cv.getContext('2d');let W,H,dpr=devicePixelRatio||1;
+function rs(){W=cv.clientWidth;H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0)}rs();onresize=rs;
+let cur=null,t0=0,flare=0;
+function route(i){cur=P[i];t0=performance.now();$('ptext').textContent=cur.p;$('prompt').classList.add('on');
+ document.querySelectorAll('.m').forEach(e=>e.classList.remove('on'));$('tip').classList.remove('on');
+ document.querySelectorAll('.try button').forEach((b,j)=>b.classList.toggle('on',j==i));}
+document.querySelectorAll('.try button').forEach(b=>b.onclick=()=>{auto=false;route(+b.dataset.i)});
+let auto=true,ai=1;route(1);setInterval(()=>{if(auto){ai=(ai+1)%P.length;route(ai)}},4200);
+function modelPos(i){const el=document.querySelectorAll('.m')[i],r=el.getBoundingClientRect(),c=cv.getBoundingClientRect();return[r.left-c.left+r.width/2,r.top-c.top]}
+function diamond(cx,cy,s,w,a){x.beginPath();x.moveTo(cx,cy-s);x.lineTo(cx+s,cy);x.lineTo(cx,cy+s);x.lineTo(cx-s,cy);x.closePath();x.lineWidth=w;x.strokeStyle=`rgba(233,184,106,${a})`;x.stroke()}
+function draw(now){x.clearRect(0,0,W,H);const cx=W/2,cy=H*.33,S=Math.min(W*.33,150),t=now/1000;
+ // backdrop lines to models
+ for(let i=0;i<5;i++){const[mx,my]=modelPos(i);x.beginPath();x.moveTo(cx+(i-2)*S*.25,cy+S*.55);x.bezierCurveTo(cx+(i-2)*S*.35,cy+S*1.1,mx,my-60,mx,my);x.strokeStyle='rgba(120,95,60,.35)';x.lineWidth=1;x.stroke()}
+ // frame
+ x.save();x.shadowColor='#000';x.shadowBlur=20;diamond(cx,cy,S,14,.12);x.restore();
+ diamond(cx,cy,S,2,.55);diamond(cx,cy,S*.86,1,.35);diamond(cx,cy,S*.62,1.5,.5);diamond(cx,cy,S*.48,.8,.3);
+ for(let k=0;k<4;k++){const a=k*Math.PI/2,px=cx+Math.sin(a)*S,py=cy-Math.cos(a)*S;x.fillStyle='#6b5332';x.fillRect(px-3,py-3,6,6)}
+ // rings
+ for(let r=1;r<5;r++){x.beginPath();x.arc(cx,cy,S*.09*r+Math.sin(t*2+r)*1.5,0,7);x.strokeStyle=`rgba(255,210,150,${.25-r*.04})`;x.stroke()}
+ // vertical beam
+ const g=x.createLinearGradient(0,0,0,H*.6);g.addColorStop(0,'rgba(255,220,160,0)');g.addColorStop(.5,'rgba(255,220,160,.7)');g.addColorStop(1,'rgba(255,220,160,0)');
+ x.fillStyle=g;x.fillRect(cx-.75,40,1.5,cy-40);
+ // routing progress
+ if(cur){const e=(now-t0)/1000;const[mx,my]=modelPos(cur.m);
+  if(e<.6)flare=e/.6;else flare=Math.max(0,1-(e-.6)*1.2);
+  if(e>.5){const k=Math.min(1,(e-.5)/.8);x.beginPath();const sx=cx,sy=cy;const c1x=cx,c1y=cy+S*1.1,c2x=mx,c2y=my-80;
+   const pts=[];for(let u=0;u<=k;u+=.01){const v=1-u;pts.push([v*v*v*sx+3*v*v*u*c1x+3*v*u*u*c2x+u*u*u*mx,v*v*v*sy+3*v*v*u*c1y+3*v*u*u*c2y+u*u*u*my])}
+   x.moveTo(sx,sy);pts.forEach(p=>x.lineTo(p[0],p[1]));x.strokeStyle='#ffd590';x.lineWidth=2;x.shadowColor='#ffb44a';x.shadowBlur=14;x.stroke();x.shadowBlur=0;
+   const hp=pts[pts.length-1];if(hp){x.beginPath();x.arc(hp[0],hp[1],3,0,7);x.fillStyle='#fff';x.fill()}
+   if(k>=1&&!document.querySelectorAll('.m')[cur.m].classList.contains('on')){document.querySelectorAll('.m')[cur.m].classList.add('on');
+    $('tipH').textContent='ROUTED TO '+M[cur.m].toUpperCase();$('tipT').textContent=cur.t;$('tipS').textContent=cur.s+' · ILLUSTRATIVE';$('tip').classList.add('on')}}}
+ // star core
+ const fl=.6+flare*1.6+Math.sin(t*3)*.05,R=S*.5*fl;const rg=x.createRadialGradient(cx,cy,0,cx,cy,R);
+ rg.addColorStop(0,'rgba(255,255,240,1)');rg.addColorStop(.12,'rgba(255,220,150,.85)');rg.addColorStop(.4,'rgba(233,160,70,.25)');rg.addColorStop(1,'rgba(233,160,70,0)');
+ x.globalCompositeOperation='lighter';x.fillStyle=rg;x.beginPath();x.arc(cx,cy,R,0,7);x.fill();
+ x.beginPath();const s4=S*.14*fl;x.moveTo(cx,cy-s4*1.6);x.quadraticCurveTo(cx,cy,cx+s4,cy);x.quadraticCurveTo(cx,cy,cx,cy+s4*1.6);x.quadraticCurveTo(cx,cy,cx-s4,cy);x.quadraticCurveTo(cx,cy,cx,cy-s4*1.6);x.fillStyle='#fffbe8';x.fill();
+ if(flare>.2){x.fillStyle=`rgba(255,220,160,${flare*.6})`;x.fillRect(0,cy-.75,W,1.5)}
+ x.globalCompositeOperation='source-over';requestAnimationFrame(draw)}
+requestAnimationFrame(draw);
+</script></body></html>
