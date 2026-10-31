@@ -1,0 +1,38 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>瑞士平面 · Geigy Butazolidina 海报</title>
+<!-- AI 复刻：@formsarchive 分享的 Geigy 瑞士国际主义海报（Butazolidina 止痛药）。纯 HTML + SVG + CSS 动画：骨架上的橙色"痛点"依次脉冲 -->
+<style>
+*{margin:0;box-sizing:border-box}body{min-height:100vh;display:grid;place-items:center;background:#1a1a1a;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif}
+.poster{width:min(92vw,62vh);aspect-ratio:2/3;background:#f3c318;position:relative;overflow:hidden;box-shadow:0 30px 80px #0008}
+svg{position:absolute;inset:0;width:100%;height:100%}
+.bone{fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+.dot{fill:#ef5a1c;transform-box:fill-box;transform-origin:center;animation:p 2.6s ease-in-out infinite}
+.dot.r{fill:none;stroke:#ef5a1c;stroke-width:2;animation:ring 2.6s ease-out infinite}
+@keyframes p{0%,100%{transform:scale(.85);opacity:.85}40%{transform:scale(1.15);opacity:1}}
+@keyframes ring{0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.2);opacity:0}}
+.txt{position:absolute;right:7%;bottom:15%;width:38%;color:#111;font-size:clamp(7px,1.3vh,11px);line-height:1.35}
+.txt h1{font-size:clamp(12px,2.6vh,22px);font-weight:700;letter-spacing:-.02em;margin-bottom:.5em}
+.brand{position:absolute;right:7%;bottom:6%;font-weight:700;font-size:clamp(12px,2.4vh,20px)}
+.foot{position:absolute;left:6%;bottom:3%;font-size:8px;opacity:.6}
+</style></head><body>
+<div class="poster">
+<svg viewBox="0 0 400 600" id="s">
+ <g class="bone">
+  <circle cx="150" cy="62" r="30"/><path d="M135 92 v18 M165 92 v18"/>
+  <path d="M150 112 V330"/>
+  <path d="M110 140 Q150 128 190 140 M104 162 Q150 150 196 162 M104 184 Q150 172 196 184 M108 206 Q150 196 192 206 M114 226 Q150 218 186 226"/>
+  <path d="M95 128 L80 210 L70 290 M205 128 L220 210 L230 290 M70 290 l-8 40 M230 290 l8 40"/>
+  <path d="M110 330 Q150 300 190 330 Q200 360 175 372 Q150 352 125 372 Q100 360 110 330Z"/>
+  <path d="M128 372 L118 470 L122 560 M172 372 L182 470 L178 560"/>
+  <path d="M110 560 h22 M168 560 h22"/>
+ </g>
+ <g id="dots"></g>
+</svg>
+<div class="txt"><h1>Butazolidina</h1>antireumatico<br>antiflogistico<br>analgesico<br>contro i dolori reumatici,<br>artralgie e mialgie.<br><br>Confetti · Supposte · Fiale</div>
+<div class="brand">Geigy</div><div class="foot">Geigy S.A. · Milano</div>
+</div>
+<script>
+const P=[[150,62,14],[100,132,16],[200,132,16],[150,180,12],[150,240,18],[150,300,14],[80,210,12],[220,210,12],[66,300,10],[234,300,10],[125,345,16],[175,345,16],[118,470,15],[182,470,15],[120,545,10],[180,545,10]];
+const g=document.getElementById('dots');P.forEach(([x,y,r],i)=>{const d=(i*.17)%2.6;
+ g.insertAdjacentHTML('beforeend',`<circle class="dot r" cx="${x}" cy="${y}" r="${r}" style="animation-delay:${d}s"/><circle class="dot" cx="${x}" cy="${y}" r="${r}" style="animation-delay:${d}s"/>`)});
+</script></body></html>
