@@ -1,5 +1,6 @@
-# 2115793825658798525
+# 发光路径动画 / 节点连线光效
 
-- 分类：品牌 · 网页交互
+- 作者：@Fluxora_Studios
+- 分类：网页实验
 - 状态：ai_recreated
 - 原文：https://x.com/Fluxora_Studios/status/2115793825658798525
