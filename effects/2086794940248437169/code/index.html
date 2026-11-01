@@ -6,9 +6,11 @@
   <title>AXION</title>
   <style>
     :root {
-      --lime: #A3FF00;
-      --cyan: #00E5FF;
-      --bg: #000000;
+      --lime: #85F24D;
+      --sky: #3385D9;
+      --teal: #38BFAA;
+      --green: #66EB7A;
+      --bg: #000105;
       --text: #ffffff;
       --muted: rgba(255, 255, 255, 0.58);
     }
@@ -251,14 +253,20 @@
       mask-image: radial-gradient(circle, transparent 34%, #000 46%, #000 58%, transparent 74%);
     }
     .blob-a {
-      background: var(--lime);
+      background: var(--sky);
       opacity: 0.92;
       transform: translate(-7%, -5%) scale(1.04);
     }
     .blob-b {
-      background: var(--cyan);
+      background: var(--teal);
       opacity: 0.88;
       transform: translate(8%, 6%) scale(1.08);
+      mix-blend-mode: screen;
+    }
+    .blob-c {
+      background: var(--green);
+      opacity: 0.72;
+      transform: translate(1%, -9%) scale(0.96);
       mix-blend-mode: screen;
     }
     .ring {
@@ -268,10 +276,11 @@
       background: radial-gradient(
         circle,
         transparent 42%,
-        rgba(255,255,255,0.55) 50%,
-        var(--lime) 56%,
-        var(--cyan) 64%,
-        transparent 74%
+        rgba(255,255,255,0.50) 50%,
+        var(--sky) 56%,
+        var(--teal) 62%,
+        var(--green) 68%,
+        transparent 76%
       );
       filter: blur(10px);
       opacity: 0.95;
@@ -334,6 +343,7 @@
     <div class="loader-halo" id="halo">
       <div class="blob blob-a"></div>
       <div class="blob blob-b"></div>
+      <div class="blob blob-c"></div>
       <div class="ring"></div>
     </div>
     <div class="loader-pct" id="pct">%0</div>
@@ -383,9 +393,11 @@
       note: 'Currently booking new collaborations for 2026',
       btnPrimary: 'Start a project',
       btnSecondary: 'See the work',
-      lime: '#A3FF00',
-      cyan: '#00E5FF',
-      bg: '#000000',
+      lime: '#85F24D',
+      sky: '#3385D9',
+      teal: '#38BFAA',
+      green: '#66EB7A',
+      bg: '#000105',
       loadPrefix: '%'
     };
 
@@ -395,7 +407,9 @@
 
       const root = document.documentElement;
       root.style.setProperty('--lime', BRAND.lime);
-      root.style.setProperty('--cyan', BRAND.cyan);
+      root.style.setProperty('--sky', BRAND.sky);
+      root.style.setProperty('--teal', BRAND.teal);
+      root.style.setProperty('--green', BRAND.green);
       root.style.setProperty('--bg', BRAND.bg);
       document.title = BRAND.name;
       document.body.style.background = BRAND.bg;
@@ -410,7 +424,7 @@
       document.getElementById('btnSecondaryLabel').textContent = BRAND.btnSecondary;
 
       const nav = document.getElementById('nav');
-      BRAND.nav.forEach(function (label, i) {
+      BRAND.nav.forEach(function (label) {
         const a = document.createElement('a');
         a.href = '#' + label.toLowerCase().replace(/\s+/g, '-');
         a.textContent = label;
@@ -428,58 +442,32 @@
       function hexToVec(hex) {
         return hexToRgb(hex).map(function (v) { return v / 255; });
       }
-      function hash(n) {
-        var s = Math.sin(n * 127.1) * 43758.5453;
-        return s - Math.floor(s);
-      }
-      function noise1(x) {
-        var i = Math.floor(x);
-        var f = x - i;
-        var u = f * f * (3 - 2 * f);
-        return hash(i) * (1 - u) + hash(i + 1) * u;
-      }
-      function fbm(x) {
-        return noise1(x) * 0.55 + noise1(x * 2.07 + 11.3) * 0.3 + noise1(x * 4.13 + 23.7) * 0.15;
-      }
       function lerp(a, b, t) { return a + (b - a) * t; }
       function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-      var lime = hexToVec(BRAND.lime);
-      var cyan = hexToVec(BRAND.cyan);
-      var bg = hexToVec(BRAND.bg);
-
-      var BEAM_N = 20;
-      var beams = [];
-      for (var i = 0; i < BEAM_N; i++) {
-        var t = (i + 0.35 + hash(i * 3.1) * 0.4) / BEAM_N;
-        var wide = hash(i * 9.7) > 0.62;
-        beams.push({
-          baseX: clamp(t * 1.12 - 0.06, -0.05, 1.05),
-          w: wide ? (0.08 + hash(i * 2.2) * 0.07) : (0.02 + hash(i * 4.8) * 0.055),
-          mix: hash(i * 6.6),
-          amp: 0.025 + hash(i * 1.9) * 0.07,
-          speed: 0.07 + hash(i * 5.5) * 0.16,
-          phase: hash(i * 8.1) * 40,
-          bSpeed: 0.25 + hash(i * 3.3) * 0.55,
-          bPhase: hash(i * 7.4) * 12,
-          baseI: (wide ? 0.45 : 0.7) + hash(i * 2.8) * 0.55,
-          x: 0.5,
-          i: 1
-        });
+      function smoothstep(e0, e1, x) {
+        var t = clamp((x - e0) / (e1 - e0), 0, 1);
+        return t * t * (3 - 2 * t);
       }
 
-      var gapX = 0.58;
-      var gapTarget = 0.58;
-      var gapA = 1;
+      var colBg = hexToVec(BRAND.bg);
+      var colSky = hexToVec(BRAND.sky);
+      var colTeal = hexToVec(BRAND.teal);
+      var colGreen = hexToVec(BRAND.green);
+      var colLime = hexToVec(BRAND.lime);
+
+      var mouseX = 0.5;
+      var mouseTarget = 0.5;
       var pointerLive = false;
       var lastPointer = 0;
-      var pointerX = 0.58;
+      var pointerX = 0.5;
+      var stripPx = 32;
+      var fieldTime = 1.2;
 
       function setPointer(clientX) {
         pointerLive = true;
         lastPointer = performance.now();
         pointerX = clamp(clientX / window.innerWidth, 0, 1);
-        gapTarget = pointerX;
+        mouseTarget = pointerX;
       }
       window.addEventListener('pointermove', function (e) { setPointer(e.clientX); }, { passive: true });
       window.addEventListener('pointerdown', function (e) { setPointer(e.clientX); }, { passive: true });
@@ -525,14 +513,13 @@
       var gl = null;
       var glState = null;
       var ctx2d = null;
-      var noiseTile = null;
 
-      function makeShader(gl, type, src) {
-        var sh = gl.createShader(type);
-        gl.shaderSource(sh, src);
-        gl.compileShader(sh);
-        if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-          gl.deleteShader(sh);
+      function makeShader(glCtx, type, src) {
+        var sh = glCtx.createShader(type);
+        glCtx.shaderSource(sh, src);
+        glCtx.compileShader(sh);
+        if (!glCtx.getShaderParameter(sh, glCtx.COMPILE_STATUS)) {
+          glCtx.deleteShader(sh);
           return null;
         }
         return sh;
@@ -551,34 +538,64 @@
           'precision mediump float;',
           '#endif',
           'uniform vec2 uRes;',
-          'uniform vec3 uLime;',
-          'uniform vec3 uCyan;',
           'uniform vec3 uBg;',
-          'uniform float uGapX;',
-          'uniform float uGapW;',
-          'uniform float uGapA;',
-          'uniform float uGrain;',
+          'uniform vec3 uSky;',
+          'uniform vec3 uTeal;',
+          'uniform vec3 uGreen;',
+          'uniform vec3 uLime;',
           'uniform float uTime;',
-          'uniform vec4 uBeams[20];',
+          'uniform float uMouseX;',
+          'uniform float uStripPx;',
           'void main(){',
           '  vec2 uv = gl_FragCoord.xy / uRes;',
-          '  vec3 col = uBg;',
-          '  for (int i = 0; i < 20; i++){',
-          '    vec4 b = uBeams[i];',
-          '    float d = abs(uv.x - b.x);',
-          '    float sigma = max(b.y * 0.33, 0.004);',
-          '    float g = exp(-0.5 * (d / sigma) * (d / sigma));',
-          '    float core = exp(-0.5 * (d / (sigma * 0.42)) * (d / (sigma * 0.42)));',
-          '    vec3 bc = mix(uLime, uCyan, clamp(b.z, 0.0, 1.0));',
-          '    col += bc * (g * 0.48 + core * 0.28) * b.w;',
-          '    col += vec3(0.85, 0.95, 0.88) * core * 0.12 * b.w;',
-          '  }',
-          '  float dg = abs(uv.x - uGapX);',
-          '  float hole = exp(-0.5 * pow(dg / max(uGapW, 0.001), 2.0));',
-          '  col *= 1.0 - hole * uGapA;',
-          '  float n = fract(sin(dot(gl_FragCoord.xy + vec2(uTime * 37.0, uTime * 19.0), vec2(12.9898, 78.233))) * 43758.5453);',
-          '  col += (n - 0.5) * uGrain;',
-          '  col = col / (1.0 + col * 0.18);',
+          '  float nStrips = max(floor(uRes.x / max(uStripPx, 8.0) + 0.5), 8.0);',
+          '  float stripW = 1.0 / nStrips;',
+          '  float idx = min(floor(uv.x / stripW), nStrips - 1.0);',
+          '  float x = (idx + 0.5) * stripW;',
+          '  float localX = clamp((uv.x - idx * stripW) / stripW, 0.0, 1.0);',
+          '  float t = uTime;',
+          '  float mx = uMouseX - 0.5;',
+          '  float bendL = 0.33 + sin(t * 0.37) * 0.030 + mx * 0.048;',
+          '  float bendR = 0.67 + sin(t * 0.33 + 1.15) * 0.030 + mx * 0.048;',
+          '  float y0 = 0.48 + sin(t * 0.31) * 0.032;',
+          '  float y1 = 0.33 + sin(t * 0.27 + 0.80) * 0.036;',
+          '  float y2 = 0.50 + sin(t * 0.29 + 2.05) * 0.032;',
+          '  float sL = smoothstep(bendL - 0.16, bendL + 0.16, x);',
+          '  float sR = smoothstep(bendR - 0.16, bendR + 0.16, x);',
+          '  float cy = mix(mix(y0, y1, sL), y2, sR);',
+          '  float thick = 0.255 + sin(t * 0.36 + 0.50) * 0.030;',
+          '  float foldL = 1.0 - abs(x - bendL) / 0.20;',
+          '  float foldR = 1.0 - abs(x - bendR) / 0.20;',
+          '  float fold = max(clamp(foldL, 0.0, 1.0), clamp(foldR, 0.0, 1.0));',
+          '  thick *= 1.0 + 0.12 * fold;',
+          '  float dy = abs(uv.y - cy);',
+          '  float plateau = 1.0 - smoothstep(thick * 0.56, thick * 0.90, dy);',
+          '  float edge = 1.0 - smoothstep(thick * 0.86, thick * 1.22, dy);',
+          '  float bright = plateau * 0.80 + edge * 0.22;',
+          '  float v = clamp((uv.y - (cy - thick)) / max(thick * 2.0, 0.001), 0.0, 1.0);',
+          '  bright *= 0.95 + 0.10 * v;',
+          '  bright *= smoothstep(-0.02, 0.08, x);',
+          '  bright *= 1.0 - smoothstep(0.84, 1.02, x);',
+          '  float dC = abs(x - 0.5);',
+          '  float centerMul = mix(0.28, 1.0, smoothstep(0.14, 0.34, dC));',
+          '  float peakL = exp(-pow((x - bendL) * 6.4, 2.0));',
+          '  float peakR = exp(-pow((x - bendR) * 6.4, 2.0));',
+          '  bright *= centerMul;',
+          '  bright *= 1.0 + 0.26 * max(peakL, peakR);',
+          '  float nearM = 1.0 - smoothstep(0.0, 0.38, abs(x - uMouseX));',
+          '  bright *= 1.0 + 0.10 * nearM;',
+          '  bright = clamp(bright, 0.0, 1.0);',
+          '  vec3 col = mix(uBg, uSky, pow(bright, 0.90));',
+          '  float tealAmt = smoothstep(0.22, 0.70, bright) * mix(0.12, 0.58, smoothstep(0.42, 0.88, x));',
+          '  col = mix(col, uTeal, tealAmt);',
+          '  float endR = smoothstep(0.68, 0.92, x);',
+          '  float endL = 1.0 - smoothstep(0.05, 0.24, x);',
+          '  float ends = max(endR, endL * 0.38);',
+          '  float greenAmt = smoothstep(0.50, 0.90, bright) * ends;',
+          '  col = mix(col, uGreen, greenAmt * 0.78);',
+          '  float limeAmt = smoothstep(0.74, 1.0, bright) * endR * 0.30;',
+          '  col = mix(col, uLime, limeAmt);',
+          '  col *= 1.0 + (localX - 0.5) * 0.08;',
           '  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);',
           '}'
         ].join('\n'));
@@ -595,44 +612,89 @@
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
         gl.enableVertexAttribArray(0);
         gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-        var locs = {
-          uRes: gl.getUniformLocation(prog, 'uRes'),
-          uLime: gl.getUniformLocation(prog, 'uLime'),
-          uCyan: gl.getUniformLocation(prog, 'uCyan'),
-          uBg: gl.getUniformLocation(prog, 'uBg'),
-          uGapX: gl.getUniformLocation(prog, 'uGapX'),
-          uGapW: gl.getUniformLocation(prog, 'uGapW'),
-          uGapA: gl.getUniformLocation(prog, 'uGapA'),
-          uGrain: gl.getUniformLocation(prog, 'uGrain'),
-          uTime: gl.getUniformLocation(prog, 'uTime'),
-          beams: []
+        glState = {
+          prog: prog,
+          locs: {
+            uRes: gl.getUniformLocation(prog, 'uRes'),
+            uBg: gl.getUniformLocation(prog, 'uBg'),
+            uSky: gl.getUniformLocation(prog, 'uSky'),
+            uTeal: gl.getUniformLocation(prog, 'uTeal'),
+            uGreen: gl.getUniformLocation(prog, 'uGreen'),
+            uLime: gl.getUniformLocation(prog, 'uLime'),
+            uTime: gl.getUniformLocation(prog, 'uTime'),
+            uMouseX: gl.getUniformLocation(prog, 'uMouseX'),
+            uStripPx: gl.getUniformLocation(prog, 'uStripPx')
+          }
         };
-        for (var i = 0; i < BEAM_N; i++) {
-          locs.beams[i] = gl.getUniformLocation(prog, 'uBeams[' + i + ']');
-        }
         gl.disable(gl.DEPTH_TEST);
         gl.disable(gl.BLEND);
-        glState = { prog: prog, locs: locs };
         return true;
+      }
+
+      function sampleField(x, yGL, t, mx) {
+        var m = mx - 0.5;
+        var bendL = 0.33 + Math.sin(t * 0.37) * 0.030 + m * 0.048;
+        var bendR = 0.67 + Math.sin(t * 0.33 + 1.15) * 0.030 + m * 0.048;
+        var y0 = 0.48 + Math.sin(t * 0.31) * 0.032;
+        var y1 = 0.33 + Math.sin(t * 0.27 + 0.80) * 0.036;
+        var y2 = 0.50 + Math.sin(t * 0.29 + 2.05) * 0.032;
+        var sL = smoothstep(bendL - 0.16, bendL + 0.16, x);
+        var sR = smoothstep(bendR - 0.16, bendR + 0.16, x);
+        var cy = lerp(lerp(y0, y1, sL), y2, sR);
+        var thick = 0.255 + Math.sin(t * 0.36 + 0.50) * 0.030;
+        var foldL = 1 - Math.abs(x - bendL) / 0.20;
+        var foldR = 1 - Math.abs(x - bendR) / 0.20;
+        var fold = Math.max(clamp(foldL, 0, 1), clamp(foldR, 0, 1));
+        thick *= 1 + 0.12 * fold;
+        var dy = Math.abs(yGL - cy);
+        var plateau = 1 - smoothstep(thick * 0.56, thick * 0.90, dy);
+        var edge = 1 - smoothstep(thick * 0.86, thick * 1.22, dy);
+        var bright = plateau * 0.80 + edge * 0.22;
+        var v = clamp((yGL - (cy - thick)) / Math.max(thick * 2, 0.001), 0, 1);
+        bright *= 0.95 + 0.10 * v;
+        bright *= smoothstep(-0.02, 0.08, x);
+        bright *= 1 - smoothstep(0.84, 1.02, x);
+        var dC = Math.abs(x - 0.5);
+        var centerMul = lerp(0.28, 1.0, smoothstep(0.14, 0.34, dC));
+        var peakL = Math.exp(-Math.pow((x - bendL) * 6.4, 2));
+        var peakR = Math.exp(-Math.pow((x - bendR) * 6.4, 2));
+        bright *= centerMul;
+        bright *= 1 + 0.26 * Math.max(peakL, peakR);
+        var nearM = 1 - smoothstep(0.0, 0.38, Math.abs(x - mx));
+        bright *= 1 + 0.10 * nearM;
+        bright = clamp(bright, 0, 1);
+        var col = [
+          lerp(colBg[0], colSky[0], Math.pow(bright, 0.90)),
+          lerp(colBg[1], colSky[1], Math.pow(bright, 0.90)),
+          lerp(colBg[2], colSky[2], Math.pow(bright, 0.90))
+        ];
+        var tealAmt = smoothstep(0.22, 0.70, bright) * lerp(0.12, 0.58, smoothstep(0.42, 0.88, x));
+        col[0] = lerp(col[0], colTeal[0], tealAmt);
+        col[1] = lerp(col[1], colTeal[1], tealAmt);
+        col[2] = lerp(col[2], colTeal[2], tealAmt);
+        var endR = smoothstep(0.68, 0.92, x);
+        var endL = 1 - smoothstep(0.05, 0.24, x);
+        var ends = Math.max(endR, endL * 0.38);
+        var greenAmt = smoothstep(0.50, 0.90, bright) * ends * 0.78;
+        col[0] = lerp(col[0], colGreen[0], greenAmt);
+        col[1] = lerp(col[1], colGreen[1], greenAmt);
+        col[2] = lerp(col[2], colGreen[2], greenAmt);
+        var limeAmt = smoothstep(0.74, 1.0, bright) * endR * 0.30;
+        col[0] = lerp(col[0], colLime[0], limeAmt);
+        col[1] = lerp(col[1], colLime[1], limeAmt);
+        col[2] = lerp(col[2], colLime[2], limeAmt);
+        return col;
+      }
+
+      function rgbCss(vec) {
+        return 'rgb(' + Math.round(clamp(vec[0], 0, 1) * 255) + ',' +
+          Math.round(clamp(vec[1], 0, 1) * 255) + ',' +
+          Math.round(clamp(vec[2], 0, 1) * 255) + ')';
       }
 
       function init2D() {
         ctx2d = canvas.getContext('2d', { alpha: false });
-        if (!ctx2d) return false;
-        noiseTile = document.createElement('canvas');
-        noiseTile.width = 128;
-        noiseTile.height = 128;
-        var nctx = noiseTile.getContext('2d');
-        var img = nctx.createImageData(128, 128);
-        for (var p = 0; p < img.data.length; p += 4) {
-          var v = (hash(p * 0.13) * 255) | 0;
-          img.data[p] = v;
-          img.data[p + 1] = v;
-          img.data[p + 2] = v;
-          img.data[p + 3] = 28;
-        }
-        nctx.putImageData(img, 0, 0);
-        return true;
+        return !!ctx2d;
       }
 
       var useGL = initGL();
@@ -641,109 +703,85 @@
       function resize() {
         var w = window.innerWidth;
         var h = window.innerHeight;
-        var scale = 0.42;
-        var rw = Math.max(280, Math.floor(w * scale));
-        var rh = Math.max(160, Math.floor(h * scale));
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var rw = Math.max(2, Math.floor(w * dpr));
+        var rh = Math.max(2, Math.floor(h * dpr));
         if (canvas.width !== rw || canvas.height !== rh) {
           canvas.width = rw;
           canvas.height = rh;
         }
+        var cssStrip = clamp(w / 48, 24, 40);
+        stripPx = cssStrip * (rw / Math.max(w, 1));
       }
       resize();
       window.addEventListener('resize', resize);
 
-      function updateBeams(now, dt) {
-        var t = now * 0.001;
-        var idle = !pointerLive || (now - lastPointer > 1600);
+      function updateField(now, dt) {
+        var tSec = now * 0.001;
+        var idle = !pointerLive || (now - lastPointer > 1800);
         if (idle) {
-          gapTarget = clamp(0.5 + (fbm(t * 0.18) - 0.5) * 1.05, 0.12, 0.88);
+          mouseTarget = 0.5 + Math.sin(tSec * 0.28) * 0.16;
         } else {
-          gapTarget = pointerX;
+          mouseTarget = pointerX;
         }
-        var k = 1 - Math.exp(-(reduced ? 18 : 5.2) * dt);
-        gapX = lerp(gapX, gapTarget, k);
-
-        for (var i = 0; i < beams.length; i++) {
-          var b = beams[i];
-          if (reduced) {
-            b.x = b.baseX;
-            b.i = b.baseI * 0.85;
-          } else {
-            var n = fbm(t * b.speed + b.phase);
-            b.x = b.baseX + (n - 0.5) * 2 * b.amp;
-            b.i = b.baseI * (0.72 + 0.28 * Math.sin(t * b.bSpeed + b.bPhase));
-          }
+        var k = 1 - Math.exp(-(reduced ? 18 : 3.6) * dt);
+        mouseX = lerp(mouseX, mouseTarget, k);
+        if (reduced) {
+          fieldTime = 1.2;
+          mouseX = 0.5;
+        } else {
+          fieldTime = tSec;
         }
       }
 
-      function drawGL(now) {
+      function drawGL() {
         var w = canvas.width;
         var h = canvas.height;
         gl.viewport(0, 0, w, h);
         var L = glState.locs;
         gl.uniform2f(L.uRes, w, h);
-        gl.uniform3fv(L.uLime, lime);
-        gl.uniform3fv(L.uCyan, cyan);
-        gl.uniform3fv(L.uBg, bg);
-        gl.uniform1f(L.uGapX, gapX);
-        gl.uniform1f(L.uGapW, 0.04);
-        gl.uniform1f(L.uGapA, gapA);
-        gl.uniform1f(L.uGrain, reduced ? 0.015 : 0.035);
-        gl.uniform1f(L.uTime, now * 0.001);
-        for (var i = 0; i < BEAM_N; i++) {
-          var b = beams[i];
-          gl.uniform4f(L.beams[i], b.x, b.w, b.mix, b.i);
-        }
+        gl.uniform3fv(L.uBg, colBg);
+        gl.uniform3fv(L.uSky, colSky);
+        gl.uniform3fv(L.uTeal, colTeal);
+        gl.uniform3fv(L.uGreen, colGreen);
+        gl.uniform3fv(L.uLime, colLime);
+        gl.uniform1f(L.uTime, fieldTime);
+        gl.uniform1f(L.uMouseX, mouseX);
+        gl.uniform1f(L.uStripPx, stripPx);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
-      }
-
-      function rgbCss(vec, a) {
-        return 'rgba(' + ((vec[0] * 255) | 0) + ',' + ((vec[1] * 255) | 0) + ',' + ((vec[2] * 255) | 0) + ',' + a + ')';
       }
 
       function draw2D() {
         var w = canvas.width;
         var h = canvas.height;
         var c = ctx2d;
+        var nStrips = Math.max(Math.round(w / Math.max(stripPx, 8)), 8);
+        var sw = w / nStrips;
+        var t = fieldTime;
+        var mx = mouseX;
+        var stops = [0, 0.12, 0.24, 0.36, 0.48, 0.58, 0.68, 0.80, 0.90, 1];
         c.setTransform(1, 0, 0, 1, 0, 0);
         c.globalCompositeOperation = 'source-over';
         c.fillStyle = BRAND.bg;
         c.fillRect(0, 0, w, h);
-        c.globalCompositeOperation = 'lighter';
-        for (var i = 0; i < beams.length; i++) {
-          var b = beams[i];
-          var x = b.x * w;
-          var hw = b.w * w * 0.95;
-          var col = [
-            lerp(lime[0], cyan[0], b.mix),
-            lerp(lime[1], cyan[1], b.mix),
-            lerp(lime[2], cyan[2], b.mix)
-          ];
-          var g = c.createLinearGradient(x - hw, 0, x + hw, 0);
-          g.addColorStop(0, rgbCss(col, 0));
-          g.addColorStop(0.38, rgbCss(col, 0.18 * b.i));
-          g.addColorStop(0.5, rgbCss([1, 1, 1], 0.22 * b.i));
-          g.addColorStop(0.62, rgbCss(col, 0.18 * b.i));
-          g.addColorStop(1, rgbCss(col, 0));
+        for (var i = 0; i < nStrips; i++) {
+          var x0 = i * sw;
+          var xc = (i + 0.5) / nStrips;
+          var g = c.createLinearGradient(0, 0, 0, h);
+          for (var s = 0; s < stops.length; s++) {
+            var yCanvas = stops[s];
+            var yGL = 1 - yCanvas;
+            var col = sampleField(xc, yGL, t, mx);
+            g.addColorStop(yCanvas, rgbCss(col));
+          }
           c.fillStyle = g;
-          c.fillRect(x - hw, 0, hw * 2, h);
-        }
-        c.globalCompositeOperation = 'destination-out';
-        var gx = gapX * w;
-        var gw = 0.04 * w * 3.2;
-        var gg = c.createLinearGradient(gx - gw, 0, gx + gw, 0);
-        gg.addColorStop(0, 'rgba(0,0,0,0)');
-        gg.addColorStop(0.5, 'rgba(0,0,0,' + (0.96 * gapA) + ')');
-        gg.addColorStop(1, 'rgba(0,0,0,0)');
-        c.fillStyle = gg;
-        c.fillRect(gx - gw, 0, gw * 2, h);
-        c.globalCompositeOperation = 'source-over';
-        if (noiseTile) {
-          c.globalAlpha = 0.12;
-          var pat = c.createPattern(noiseTile, 'repeat');
-          c.fillStyle = pat;
-          c.fillRect(0, 0, w, h);
-          c.globalAlpha = 1;
+          c.fillRect(Math.floor(x0), 0, Math.ceil(sw) + 1, h);
+          var hg = c.createLinearGradient(x0, 0, x0 + sw, 0);
+          hg.addColorStop(0, 'rgba(0,0,0,0.04)');
+          hg.addColorStop(0.5, 'rgba(255,255,255,0.00)');
+          hg.addColorStop(1, 'rgba(255,255,255,0.04)');
+          c.fillStyle = hg;
+          c.fillRect(Math.floor(x0), 0, Math.ceil(sw) + 1, h);
         }
       }
 
@@ -751,8 +789,8 @@
       function tick(now) {
         var dt = Math.min(0.05, (now - lastT) / 1000);
         lastT = now;
-        updateBeams(now, dt);
-        if (useGL && gl) drawGL(now);
+        updateField(now, dt);
+        if (useGL && gl) drawGL();
         else if (ctx2d) draw2D();
 
         if (finePointer && cursorOn) {
