@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AXION</title>
+  <style>
+    :root {
+      --lime: #85F24D;
+      --sky: #3385D9;
+      --teal: #38BFAA;
+      --green: #66EB7A;
+      --bg: #000105;
+      --text: #ffffff;
+      --muted: rgba(255, 255, 255, 0.58);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, Helvetica, Arial, system-ui, sans-serif;
+      overflow: hidden;
+      color-scheme: dark;
+      -webkit-font-smoothing: antialiased;
+    }
+    @media (pointer: fine) {
+      html, body, a, button { cursor: none !important; }
+    }
+    #view {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 0;
+      opacity: 0;
+      transition: opacity 0.9s ease;
+      pointer-events: none;
+    }
+    #view.ready { opacity: 1; }
+
+    .ui {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      opacity: 0;
+      transform: translateY(14px);
+      transition: opacity 0.85s ease, transform 0.85s ease;
+      pointer-events: none;
+    }
+    .ui.ready {
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+    .ui a { pointer-events: auto; }
+
+    header {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 1.35rem 2.2rem;
+      z-index: 3;
+    }
+    .logo {
+      font-weight: 800;
+      font-size: 0.92rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      justify-self: start;
+      color: #fff;
+      text-decoration: none;
+    }
+    nav {
+      display: flex;
+      gap: 1.55rem;
+      justify-content: center;
+    }
+    nav a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 0.68rem;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      opacity: 0.82;
+      transition: opacity 0.2s ease;
+    }
+    nav a:hover { opacity: 1; }
+    .btn-nav {
+      justify-self: end;
+      background: var(--lime);
+      color: #000;
+      text-decoration: none;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.58rem 1.05rem;
+      border-radius: 999px;
+      transition: transform 0.25s ease, filter 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+    }
+    .btn-nav:hover { transform: scale(1.06); }
+
+    .hero-copy {
+      position: absolute;
+      left: 4.4vw;
+      top: max(92px, 24vh);
+      max-width: min(78vw, 920px);
+    }
+    .brand-line {
+      display: block;
+      font-size: clamp(44px, 7.4vw, 124px);
+      font-weight: 800;
+      letter-spacing: -0.038em;
+      line-height: 0.92;
+      text-transform: uppercase;
+      color: #fff;
+    }
+    .title-line {
+      display: block;
+      font-size: clamp(22px, 3.15vw, 52px);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.12;
+      margin-top: 0.22em;
+      color: #fff;
+    }
+    .sub {
+      margin-top: 1.35em;
+      font-size: clamp(12px, 1.05vw, 15px);
+      line-height: 1.55;
+      color: var(--muted);
+      max-width: 34ch;
+      font-weight: 400;
+    }
+
+    .hero-bottom {
+      position: absolute;
+      right: 2.4rem;
+      bottom: 2.1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1rem;
+      max-width: min(92vw, 560px);
+    }
+    .note {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.78);
+      letter-spacing: 0.01em;
+    }
+    .note-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #fff;
+      flex-shrink: 0;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 0.55rem;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      text-decoration: none;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.72rem 1.15rem;
+      transition: transform 0.25s ease, background 0.2s ease, border-color 0.2s ease;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .btn:hover { transform: scale(1.06); }
+    .btn-primary {
+      background: var(--lime);
+      color: #000;
+    }
+    .btn-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #000;
+      display: inline-block;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.28);
+      padding-right: 1.05rem;
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.55); }
+    .btn-ghost svg { display: block; }
+
+    .cursor {
+      position: fixed;
+      top: 0; left: 0;
+      width: 14px;
+      height: 14px;
+      margin: -7px 0 0 -7px;
+      background: #fff;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 50;
+      opacity: 0;
+      will-change: transform, opacity, width, height;
+      transition: width 0.22s ease, height 0.22s ease, opacity 0.22s ease, margin 0.22s ease;
+    }
+    .cursor.on { opacity: 1; }
+    .cursor.hot {
+      width: 0;
+      height: 0;
+      margin: 0;
+      opacity: 0;
+    }
+
+    .loader {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background: #000;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+      transition: background 0.55s ease 0.18s;
+    }
+    .loader-halo {
+      position: absolute;
+      width: 28vmin;
+      height: 28vmin;
+      will-change: transform, opacity;
+      transition: transform 1s cubic-bezier(0.14, 0.82, 0.22, 1), opacity 0.55s ease 0.28s;
+    }
+    .blob {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      filter: blur(18px);
+      -webkit-mask-image: radial-gradient(circle, transparent 34%, #000 46%, #000 58%, transparent 74%);
+      mask-image: radial-gradient(circle, transparent 34%, #000 46%, #000 58%, transparent 74%);
+    }
+    .blob-a {
+      background: var(--sky);
+      opacity: 0.92;
+      transform: translate(-7%, -5%) scale(1.04);
+    }
+    .blob-b {
+      background: var(--teal);
+      opacity: 0.88;
+      transform: translate(8%, 6%) scale(1.08);
+      mix-blend-mode: screen;
+    }
+    .blob-c {
+      background: var(--green);
+      opacity: 0.72;
+      transform: translate(1%, -9%) scale(0.96);
+      mix-blend-mode: screen;
+    }
+    .ring {
+      position: absolute;
+      inset: 10%;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle,
+        transparent 42%,
+        rgba(255,255,255,0.50) 50%,
+        var(--sky) 56%,
+        var(--teal) 62%,
+        var(--green) 68%,
+        transparent 76%
+      );
+      filter: blur(10px);
+      opacity: 0.95;
+    }
+    .loader-pct {
+      position: relative;
+      z-index: 2;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      font-variant-numeric: tabular-nums;
+      transition: opacity 0.28s ease;
+    }
+    .loader.burst {
+      background: transparent;
+    }
+    .loader.burst .loader-halo {
+      transform: scale(18);
+      opacity: 0;
+    }
+    .loader.burst .loader-pct { opacity: 0; }
+    .loader.gone {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      nav { display: none; }
+      header { grid-template-columns: 1fr auto; padding: 1.1rem 1.15rem; }
+      .hero-copy { left: 1.15rem; right: 1.15rem; top: max(78px, 18vh); }
+      .brand-line { font-size: clamp(40px, 14vw, 72px); }
+      .title-line { font-size: clamp(18px, 6.2vw, 32px); }
+      .hero-bottom {
+        left: 1.15rem;
+        right: 1.15rem;
+        bottom: 1.2rem;
+        align-items: stretch;
+      }
+      .note { justify-content: flex-start; }
+      .hero-actions { justify-content: flex-start; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.2s !important;
+      }
+      .ui { transform: none; }
+      .loader-halo { transition: opacity 0.25s ease; }
+      .loader.burst .loader-halo { transform: none; opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div class="cursor" id="cursor"></div>
+
+  <div class="loader" id="loader">
+    <div class="loader-halo" id="halo">
+      <div class="blob blob-a"></div>
+      <div class="blob blob-b"></div>
+      <div class="blob blob-c"></div>
+      <div class="ring"></div>
+    </div>
+    <div class="loader-pct" id="pct">%0</div>
+  </div>
+
+  <div class="ui" id="ui">
+    <header>
+      <a class="logo" id="logo" href="#top"></a>
+      <nav id="nav"></nav>
+      <a class="btn-nav hot" id="cta" href="#talk"></a>
+    </header>
+    <div class="hero-copy">
+      <h1>
+        <span class="brand-line" id="brandName"></span>
+        <span class="title-line" id="titleLine"></span>
+      </h1>
+      <p class="sub" id="subtitle"></p>
+    </div>
+    <div class="hero-bottom">
+      <div class="note">
+        <span class="note-dot"></span>
+        <span id="noteText"></span>
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-primary hot" id="btnPrimary" href="#start">
+          <span class="btn-dot"></span>
+          <span id="btnPrimaryLabel"></span>
+        </a>
+        <a class="btn btn-ghost hot" id="btnSecondary" href="#work">
+          <span id="btnSecondaryLabel"></span>
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M3 11L11 3M11 3H4.5M11 3V9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BRAND = {
+      name: 'AXION',
+      logo: 'AXION',
+      title: 'We sculpt light into brands.',
+      subtitle: 'An independent studio for luminous identities, immersive sites and campaigns that linger in the dark.',
+      nav: ['Index', 'Work', 'Studio', 'Expertise', 'Journal', 'Contact'],
+      cta: "Let's talk",
+      note: 'Currently booking new collaborations for 2026',
+      btnPrimary: 'Start a project',
+      btnSecondary: 'See the work',
+      lime: '#85F24D',
+      sky: '#3385D9',
+      teal: '#38BFAA',
+      green: '#66EB7A',
+      bg: '#000105',
+      loadPrefix: '%'
+    };
+
+    (function () {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const finePointer = window.matchMedia('(pointer: fine)').matches;
+
+      const root = document.documentElement;
+      root.style.setProperty('--lime', BRAND.lime);
+      root.style.setProperty('--sky', BRAND.sky);
+      root.style.setProperty('--teal', BRAND.teal);
+      root.style.setProperty('--green', BRAND.green);
+      root.style.setProperty('--bg', BRAND.bg);
+      document.title = BRAND.name;
+      document.body.style.background = BRAND.bg;
+
+      document.getElementById('logo').textContent = BRAND.logo;
+      document.getElementById('brandName').textContent = BRAND.name;
+      document.getElementById('titleLine').textContent = BRAND.title;
+      document.getElementById('subtitle').textContent = BRAND.subtitle;
+      document.getElementById('cta').textContent = BRAND.cta;
+      document.getElementById('noteText').textContent = BRAND.note;
+      document.getElementById('btnPrimaryLabel').textContent = BRAND.btnPrimary;
+      document.getElementById('btnSecondaryLabel').textContent = BRAND.btnSecondary;
+
+      const nav = document.getElementById('nav');
+      BRAND.nav.forEach(function (label) {
+        const a = document.createElement('a');
+        a.href = '#' + label.toLowerCase().replace(/\s+/g, '-');
+        a.textContent = label;
+        a.className = 'hot';
+        nav.appendChild(a);
+      });
+
+      function hexToRgb(hex) {
+        var h = String(hex || '').replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        var n = parseInt(h, 16);
+        if (isNaN(n)) return [0, 0, 0];
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      }
+      function hexToVec(hex) {
+        return hexToRgb(hex).map(function (v) { return v / 255; });
+      }
+      function lerp(a, b, t) { return a + (b - a) * t; }
+      function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+      function smoothstep(e0, e1, x) {
+        var t = clamp((x - e0) / (e1 - e0), 0, 1);
+        return t * t * (3 - 2 * t);
+      }
+
+      var colBg = hexToVec(BRAND.bg);
+      var colSky = hexToVec(BRAND.sky);
+      var colTeal = hexToVec(BRAND.teal);
+      var colGreen = hexToVec(BRAND.green);
+      var colLime = hexToVec(BRAND.lime);
+
+      var mouseX = 0.5;
+      var mouseTarget = 0.5;
+      var pointerLive = false;
+      var lastPointer = 0;
+      var pointerX = 0.5;
+      var stripPx = 32;
+      var fieldTime = 1.2;
+
+      function setPointer(clientX) {
+        pointerLive = true;
+        lastPointer = performance.now();
+        pointerX = clamp(clientX / window.innerWidth, 0, 1);
+        mouseTarget = pointerX;
+      }
+      window.addEventListener('pointermove', function (e) { setPointer(e.clientX); }, { passive: true });
+      window.addEventListener('pointerdown', function (e) { setPointer(e.clientX); }, { passive: true });
+      window.addEventListener('touchmove', function (e) {
+        if (e.touches && e.touches[0]) setPointer(e.touches[0].clientX);
+      }, { passive: true });
+      window.addEventListener('pointerleave', function () { pointerLive = false; });
+
+      var cursor = document.getElementById('cursor');
+      var curX = window.innerWidth * 0.5;
+      var curY = window.innerHeight * 0.5;
+      var curTX = curX;
+      var curTY = curY;
+      var cursorOn = false;
+      var cursorHot = false;
+
+      if (finePointer) {
+        window.addEventListener('mousemove', function (e) {
+          curTX = e.clientX;
+          curTY = e.clientY;
+          if (!cursorOn) {
+            cursorOn = true;
+            curX = curTX;
+            curY = curTY;
+            cursor.classList.add('on');
+          }
+        });
+        document.addEventListener('mouseover', function (e) {
+          var t = e.target;
+          var hot = t && t.closest && t.closest('a, button, .hot');
+          if (!!hot !== cursorHot) {
+            cursorHot = !!hot;
+            cursor.classList.toggle('hot', cursorHot);
+          }
+        });
+        window.addEventListener('mouseleave', function () {
+          cursor.classList.remove('on');
+          cursorOn = false;
+        });
+      }
+
+      var canvas = document.getElementById('view');
+      var gl = null;
+      var glState = null;
+      var ctx2d = null;
+
+      function makeShader(glCtx, type, src) {
+        var sh = glCtx.createShader(type);
+        glCtx.shaderSource(sh, src);
+        glCtx.compileShader(sh);
+        if (!glCtx.getShaderParameter(sh, glCtx.COMPILE_STATUS)) {
+          glCtx.deleteShader(sh);
+          return null;
+        }
+        return sh;
+      }
+
+      function initGL() {
+        var opts = { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, powerPreference: 'high-performance' };
+        gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+        if (!gl) return false;
+        var vs = makeShader(gl, gl.VERTEX_SHADER,
+          'attribute vec2 aPos;\nvoid main(){ gl_Position = vec4(aPos, 0.0, 1.0); }');
+        var fs = makeShader(gl, gl.FRAGMENT_SHADER, [
+          '#ifdef GL_FRAGMENT_PRECISION_HIGH',
+          'precision highp float;',
+          '#else',
+          'precision mediump float;',
+          '#endif',
+          'uniform vec2 uRes;',
+          'uniform vec3 uBg;',
+          'uniform vec3 uSky;',
+          'uniform vec3 uTeal;',
+          'uniform vec3 uGreen;',
+          'uniform vec3 uLime;',
+          'uniform float uTime;',
+          'uniform float uMouseX;',
+          'uniform float uStripPx;',
+          'void main(){',
+          '  vec2 uv = gl_FragCoord.xy / uRes;',
+          '  float nStrips = max(floor(uRes.x / max(uStripPx, 8.0) + 0.5), 8.0);',
+          '  float stripW = 1.0 / nStrips;',
+          '  float idx = min(floor(uv.x / stripW), nStrips - 1.0);',
+          '  float x = (idx + 0.5) * stripW;',
+          '  float localX = clamp((uv.x - idx * stripW) / stripW, 0.0, 1.0);',
+          '  float t = uTime;',
+          '  float mx = uMouseX - 0.5;',
+          '  float bendL = 0.33 + sin(t * 0.37) * 0.030 + mx * 0.048;',
+          '  float bendR = 0.67 + sin(t * 0.33 + 1.15) * 0.030 + mx * 0.048;',
+          '  float y0 = 0.48 + sin(t * 0.31) * 0.032;',
+          '  float y1 = 0.33 + sin(t * 0.27 + 0.80) * 0.036;',
+          '  float y2 = 0.50 + sin(t * 0.29 + 2.05) * 0.032;',
+          '  float sL = smoothstep(bendL - 0.16, bendL + 0.16, x);',
+          '  float sR = smoothstep(bendR - 0.16, bendR + 0.16, x);',
+          '  float cy = mix(mix(y0, y1, sL), y2, sR);',
+          '  float thick = 0.255 + sin(t * 0.36 + 0.50) * 0.030;',
+          '  float foldL = 1.0 - abs(x - bendL) / 0.20;',
+          '  float foldR = 1.0 - abs(x - bendR) / 0.20;',
+          '  float fold = max(clamp(foldL, 0.0, 1.0), clamp(foldR, 0.0, 1.0));',
+          '  thick *= 1.0 + 0.12 * fold;',
+          '  float dy = abs(uv.y - cy);',
+          '  float plateau = 1.0 - smoothstep(thick * 0.56, thick * 0.90, dy);',
+          '  float edge = 1.0 - smoothstep(thick * 0.86, thick * 1.22, dy);',
+          '  float bright = plateau * 0.80 + edge * 0.22;',
+          '  float v = clamp((uv.y - (cy - thick)) / max(thick * 2.0, 0.001), 0.0, 1.0);',
+          '  bright *= 0.95 + 0.10 * v;',
+          '  bright *= smoothstep(-0.02, 0.08, x);',
+          '  bright *= 1.0 - smoothstep(0.84, 1.02, x);',
+          '  float dC = abs(x - 0.5);',
+          '  float centerMul = mix(0.28, 1.0, smoothstep(0.14, 0.34, dC));',
+          '  float peakL = exp(-pow((x - bendL) * 6.4, 2.0));',
+          '  float peakR = exp(-pow((x - bendR) * 6.4, 2.0));',
+          '  bright *= centerMul;',
+          '  bright *= 1.0 + 0.26 * max(peakL, peakR);',
+          '  float nearM = 1.0 - smoothstep(0.0, 0.38, abs(x - uMouseX));',
+          '  bright *= 1.0 + 0.10 * nearM;',
+          '  bright = clamp(bright, 0.0, 1.0);',
+          '  vec3 col = mix(uBg, uSky, pow(bright, 0.90));',
+          '  float tealAmt = smoothstep(0.22, 0.70, bright) * mix(0.12, 0.58, smoothstep(0.42, 0.88, x));',
+          '  col = mix(col, uTeal, tealAmt);',
+          '  float endR = smoothstep(0.68, 0.92, x);',
+          '  float endL = 1.0 - smoothstep(0.05, 0.24, x);',
+          '  float ends = max(endR, endL * 0.38);',
+          '  float greenAmt = smoothstep(0.50, 0.90, bright) * ends;',
+          '  col = mix(col, uGreen, greenAmt * 0.78);',
+          '  float limeAmt = smoothstep(0.74, 1.0, bright) * endR * 0.30;',
+          '  col = mix(col, uLime, limeAmt);',
+          '  col *= 1.0 + (localX - 0.5) * 0.08;',
+          '  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);',
+          '}'
+        ].join('\n'));
+        if (!vs || !fs) return false;
+        var prog = gl.createProgram();
+        gl.attachShader(prog, vs);
+        gl.attachShader(prog, fs);
+        gl.bindAttribLocation(prog, 0, 'aPos');
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+        gl.useProgram(prog);
+        var buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+        glState = {
+          prog: prog,
+          locs: {
+            uRes: gl.getUniformLocation(prog, 'uRes'),
+            uBg: gl.getUniformLocation(prog, 'uBg'),
+            uSky: gl.getUniformLocation(prog, 'uSky'),
+            uTeal: gl.getUniformLocation(prog, 'uTeal'),
+            uGreen: gl.getUniformLocation(prog, 'uGreen'),
+            uLime: gl.getUniformLocation(prog, 'uLime'),
+            uTime: gl.getUniformLocation(prog, 'uTime'),
+            uMouseX: gl.getUniformLocation(prog, 'uMouseX'),
+            uStripPx: gl.getUniformLocation(prog, 'uStripPx')
+          }
+        };
+        gl.disable(gl.DEPTH_TEST);
+        gl.disable(gl.BLEND);
+        return true;
+      }
+
+      function sampleField(x, yGL, t, mx) {
+        var m = mx - 0.5;
+        var bendL = 0.33 + Math.sin(t * 0.37) * 0.030 + m * 0.048;
+        var bendR = 0.67 + Math.sin(t * 0.33 + 1.15) * 0.030 + m * 0.048;
+        var y0 = 0.48 + Math.sin(t * 0.31) * 0.032;
+        var y1 = 0.33 + Math.sin(t * 0.27 + 0.80) * 0.036;
+        var y2 = 0.50 + Math.sin(t * 0.29 + 2.05) * 0.032;
+        var sL = smoothstep(bendL - 0.16, bendL + 0.16, x);
+        var sR = smoothstep(bendR - 0.16, bendR + 0.16, x);
+        var cy = lerp(lerp(y0, y1, sL), y2, sR);
+        var thick = 0.255 + Math.sin(t * 0.36 + 0.50) * 0.030;
+        var foldL = 1 - Math.abs(x - bendL) / 0.20;
+        var foldR = 1 - Math.abs(x - bendR) / 0.20;
+        var fold = Math.max(clamp(foldL, 0, 1), clamp(foldR, 0, 1));
+        thick *= 1 + 0.12 * fold;
+        var dy = Math.abs(yGL - cy);
+        var plateau = 1 - smoothstep(thick * 0.56, thick * 0.90, dy);
+        var edge = 1 - smoothstep(thick * 0.86, thick * 1.22, dy);
+        var bright = plateau * 0.80 + edge * 0.22;
+        var v = clamp((yGL - (cy - thick)) / Math.max(thick * 2, 0.001), 0, 1);
+        bright *= 0.95 + 0.10 * v;
+        bright *= smoothstep(-0.02, 0.08, x);
+        bright *= 1 - smoothstep(0.84, 1.02, x);
+        var dC = Math.abs(x - 0.5);
+        var centerMul = lerp(0.28, 1.0, smoothstep(0.14, 0.34, dC));
+        var peakL = Math.exp(-Math.pow((x - bendL) * 6.4, 2));
+        var peakR = Math.exp(-Math.pow((x - bendR) * 6.4, 2));
+        bright *= centerMul;
+        bright *= 1 + 0.26 * Math.max(peakL, peakR);
+        var nearM = 1 - smoothstep(0.0, 0.38, Math.abs(x - mx));
+        bright *= 1 + 0.10 * nearM;
+        bright = clamp(bright, 0, 1);
+        var col = [
+          lerp(colBg[0], colSky[0], Math.pow(bright, 0.90)),
+          lerp(colBg[1], colSky[1], Math.pow(bright, 0.90)),
+          lerp(colBg[2], colSky[2], Math.pow(bright, 0.90))
+        ];
+        var tealAmt = smoothstep(0.22, 0.70, bright) * lerp(0.12, 0.58, smoothstep(0.42, 0.88, x));
+        col[0] = lerp(col[0], colTeal[0], tealAmt);
+        col[1] = lerp(col[1], colTeal[1], tealAmt);
+        col[2] = lerp(col[2], colTeal[2], tealAmt);
+        var endR = smoothstep(0.68, 0.92, x);
+        var endL = 1 - smoothstep(0.05, 0.24, x);
+        var ends = Math.max(endR, endL * 0.38);
+        var greenAmt = smoothstep(0.50, 0.90, bright) * ends * 0.78;
+        col[0] = lerp(col[0], colGreen[0], greenAmt);
+        col[1] = lerp(col[1], colGreen[1], greenAmt);
+        col[2] = lerp(col[2], colGreen[2], greenAmt);
+        var limeAmt = smoothstep(0.74, 1.0, bright) * endR * 0.30;
+        col[0] = lerp(col[0], colLime[0], limeAmt);
+        col[1] = lerp(col[1], colLime[1], limeAmt);
+        col[2] = lerp(col[2], colLime[2], limeAmt);
+        return col;
+      }
+
+      function rgbCss(vec) {
+        return 'rgb(' + Math.round(clamp(vec[0], 0, 1) * 255) + ',' +
+          Math.round(clamp(vec[1], 0, 1) * 255) + ',' +
+          Math.round(clamp(vec[2], 0, 1) * 255) + ')';
+      }
+
+      function init2D() {
+        ctx2d = canvas.getContext('2d', { alpha: false });
+        return !!ctx2d;
+      }
+
+      var useGL = initGL();
+      if (!useGL) init2D();
+
+      function resize() {
+        var w = window.innerWidth;
+        var h = window.innerHeight;
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var rw = Math.max(2, Math.floor(w * dpr));
+        var rh = Math.max(2, Math.floor(h * dpr));
+        if (canvas.width !== rw || canvas.height !== rh) {
+          canvas.width = rw;
+          canvas.height = rh;
+        }
+        var cssStrip = clamp(w / 48, 24, 40);
+        stripPx = cssStrip * (rw / Math.max(w, 1));
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      function updateField(now, dt) {
+        var tSec = now * 0.001;
+        var idle = !pointerLive || (now - lastPointer > 1800);
+        if (idle) {
+          mouseTarget = 0.5 + Math.sin(tSec * 0.28) * 0.16;
+        } else {
+          mouseTarget = pointerX;
+        }
+        var k = 1 - Math.exp(-(reduced ? 18 : 3.6) * dt);
+        mouseX = lerp(mouseX, mouseTarget, k);
+        if (reduced) {
+          fieldTime = 1.2;
+          mouseX = 0.5;
+        } else {
+          fieldTime = tSec;
+        }
+      }
+
+      function drawGL() {
+        var w = canvas.width;
+        var h = canvas.height;
+        gl.viewport(0, 0, w, h);
+        var L = glState.locs;
+        gl.uniform2f(L.uRes, w, h);
+        gl.uniform3fv(L.uBg, colBg);
+        gl.uniform3fv(L.uSky, colSky);
+        gl.uniform3fv(L.uTeal, colTeal);
+        gl.uniform3fv(L.uGreen, colGreen);
+        gl.uniform3fv(L.uLime, colLime);
+        gl.uniform1f(L.uTime, fieldTime);
+        gl.uniform1f(L.uMouseX, mouseX);
+        gl.uniform1f(L.uStripPx, stripPx);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+
+      function draw2D() {
+        var w = canvas.width;
+        var h = canvas.height;
+        var c = ctx2d;
+        var nStrips = Math.max(Math.round(w / Math.max(stripPx, 8)), 8);
+        var sw = w / nStrips;
+        var t = fieldTime;
+        var mx = mouseX;
+        var stops = [0, 0.12, 0.24, 0.36, 0.48, 0.58, 0.68, 0.80, 0.90, 1];
+        c.setTransform(1, 0, 0, 1, 0, 0);
+        c.globalCompositeOperation = 'source-over';
+        c.fillStyle = BRAND.bg;
+        c.fillRect(0, 0, w, h);
+        for (var i = 0; i < nStrips; i++) {
+          var x0 = i * sw;
+          var xc = (i + 0.5) / nStrips;
+          var g = c.createLinearGradient(0, 0, 0, h);
+          for (var s = 0; s < stops.length; s++) {
+            var yCanvas = stops[s];
+            var yGL = 1 - yCanvas;
+            var col = sampleField(xc, yGL, t, mx);
+            g.addColorStop(yCanvas, rgbCss(col));
+          }
+          c.fillStyle = g;
+          c.fillRect(Math.floor(x0), 0, Math.ceil(sw) + 1, h);
+          var hg = c.createLinearGradient(x0, 0, x0 + sw, 0);
+          hg.addColorStop(0, 'rgba(0,0,0,0.04)');
+          hg.addColorStop(0.5, 'rgba(255,255,255,0.00)');
+          hg.addColorStop(1, 'rgba(255,255,255,0.04)');
+          c.fillStyle = hg;
+          c.fillRect(Math.floor(x0), 0, Math.ceil(sw) + 1, h);
+        }
+      }
+
+      var lastT = performance.now();
+      function tick(now) {
+        var dt = Math.min(0.05, (now - lastT) / 1000);
+        lastT = now;
+        updateField(now, dt);
+        if (useGL && gl) drawGL();
+        else if (ctx2d) draw2D();
+
+        if (finePointer && cursorOn) {
+          var ck = 1 - Math.exp(-18 * dt);
+          curX = lerp(curX, curTX, ck);
+          curY = lerp(curY, curTY, ck);
+          cursor.style.transform = 'translate3d(' + curX + 'px,' + curY + 'px,0)';
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+
+      var pctEl = document.getElementById('pct');
+      var loader = document.getElementById('loader');
+      var ui = document.getElementById('ui');
+
+      function reveal() {
+        pctEl.textContent = BRAND.loadPrefix + '100';
+        loader.classList.add('burst');
+        ui.classList.add('ready');
+        canvas.classList.add('ready');
+        var hideAt = reduced ? 240 : 1100;
+        setTimeout(function () { loader.classList.add('gone'); }, hideAt);
+      }
+
+      function runLoader() {
+        if (reduced) {
+          pctEl.textContent = BRAND.loadPrefix + '100';
+          reveal();
+          return;
+        }
+        var start = performance.now();
+        var dur = 1000;
+        function step(now) {
+          var t = clamp((now - start) / dur, 0, 1);
+          var eased = 1 - Math.pow(1 - t, 2.2);
+          var p = Math.round(eased * 100);
+          pctEl.textContent = BRAND.loadPrefix + p;
+          if (t < 1) requestAnimationFrame(step);
+          else reveal();
+        }
+        requestAnimationFrame(step);
+      }
+      runLoader();
+    })();
+  </script>
+</body>
+</html>

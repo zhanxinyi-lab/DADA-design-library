@@ -1,0 +1,34 @@
+# 合进 main 之后：给每个“版本号变了”的效果打一个标签，例如 2115793825658798525@1.0.1。
+# 项目里用到哪一版，就记这个标签；以后随时能找回当时那份代码。
+# 需要写权限（只创建标签，不改文件）。启用前要 dada 同意。
+name: tag-versions
+
+on:
+  push:
+    branches: [main]
+    paths: ['effects/*/README.md']
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 为新版本打标签
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          git diff --name-only "$BEFORE" HEAD -- 'effects/*/README.md' | while read -r f; do
+            id=$(echo "$f" | cut -d/ -f2)
+            v=$(grep -m1 -oP '^-\s*版本[：:]\s*\K[0-9]+\.[0-9]+\.[0-9]+' "$f" || true)
+            [ -z "$v" ] && continue
+            tag="$id@$v"
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then continue; fi
+            git tag "$tag" HEAD && git push origin "refs/tags/$tag"
+            echo "打了标签 $tag" >> "$GITHUB_STEP_SUMMARY"
+          done
