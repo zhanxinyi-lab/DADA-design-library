@@ -1,0 +1,106 @@
+# PR 闸门：每次开 PR / 往 PR 里再推代码，都自动检查一遍。
+# 只有「pr-gate」这个总灯是绿的，并且 dada 点了批准，才允许合进 main。
+# （“不绿不能合”要靠仓库设置里的分支保护把 pr-gate 设为必需检查，这个文件自己改不了设置。）
+name: pr-gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: static-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: README / HTML 结构 / 外链 / 脚本语法 / 体积 / 版本记录
+        run: node scripts/check-effects.mjs .
+      - name: 改了代码就必须涨版本
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-version-bump.mjs "${{ github.event.pull_request.base.sha }}"
+      - name: 只允许改 effects/（改闸门本身需要 dada 亲自审）
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          outside=$(git diff --name-only "$BASE"...HEAD | grep -v '^effects/' || true)
+          if [ -n "$outside" ]; then
+            echo "## 注意：这次改了 effects/ 以外的文件" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"; echo "$outside" >> "$GITHUB_STEP_SUMMARY"; echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "这些文件归 CODEOWNERS 里的 dada 审，不会自动放行。" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  browser:
+    name: browser-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 装无头浏览器
+        run: |
+          npm install --no-save --no-package-lock playwright-core@1.64.1 playwright@1.64.1
+          npx playwright install --with-deps chromium
+      - name: 打开每个效果：断网、看报错、截图、查白屏
+        run: node scripts/smoke-effects.mjs .
+      - name: 保存截图给人看
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: effect-screenshots
+          path: shots/
+          retention-days: 14
+          if-no-files-found: warn
+
+  secrets:
+    name: secret-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 总灯：上面任何一项没成功（失败 / 跳过 / 取消）都算红。分支保护只要求这一个名字。
+  pr-gate:
+    name: pr-gate
+    if: always()
+    needs: [static, browser, secrets]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: 全部检查都必须成功
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          r = json.loads(os.environ['RESULTS'])
+          bad = [k for k, v in r.items() if v['result'] != 'success']
+          if bad:
+              raise SystemExit('没通过：' + ', '.join(bad) + '。看各项的 Summary。')
+          print('全部检查通过，等 dada 批准后可以合并。')
+          PY
