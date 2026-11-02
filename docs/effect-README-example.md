@@ -5,6 +5,9 @@
 - 状态：ai_recreated
 - 版本：1.1.0
 - 原文：https://x.com/Fluxora_Studios/status/2115793825658798525
+- 素材 ID：2115793825658798525
+
+目录名是效果名，素材 ID 写在 README。
 
 ## 用在哪些项目
 

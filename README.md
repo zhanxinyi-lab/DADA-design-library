@@ -11,4 +11,4 @@ DADA 的精选设计素材与创意代码库。当前精选 10 条效果，按�
 - 角色与插画
 - AI 工具
 
-每条素材使用 effects/<素材 ID>/ 独立目录；已复刻效果放在 code/index.html。
+每条素材使用 effects/<效果名>/ 独立目录，例如 sonia-aurora-loader。目录名只用小写字母、数字和横线；素材 ID 写在 README 里。已复刻效果放在 code/index.html。
