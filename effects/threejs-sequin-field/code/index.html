@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SEQUIN</title>
+  <style>
+    :root { --dark: #8d8d8d; --lit: #f4f4f4; --back: #d8d8d8; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: #9a9a9a;
+      overflow: hidden;
+      font-family: Inter, Helvetica, Arial, sans-serif;
+    }
+    canvas { display: block; width: 100%; height: 100%; }
+    .name {
+      position: absolute;
+      left: 16px;
+      bottom: 12px;
+      font-size: 11px;
+      letter-spacing: 0.32em;
+      color: #444;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="name" id="name"></div>
+  <script>
+    // 改这里即可换品牌
+    const BRAND = {
+      name: 'SEQUIN',
+      dark: '#8d8d8d',
+      lit: '#f4f4f4',
+      back: '#d8d8d8',
+      gap: 2
+    };
+
+    (function () {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.title = BRAND.name;
+      document.getElementById('name').textContent = BRAND.name;
+      const canvas = document.getElementById('c');
+      const ctx = canvas.getContext('2d');
+      let W = 0, H = 0, cols = 0, rows = 0, size = 0;
+      let mx = 0, my = 0, t0 = performance.now();
+
+      function hexToRgb(hex) {
+        const n = parseInt(hex.slice(1), 16);
+        return { r: n >> 16 & 255, g: n >> 8 & 255, b: n & 255 };
+      }
+      const dark = hexToRgb(BRAND.dark);
+      const lit = hexToRgb(BRAND.lit);
+      const back = hexToRgb(BRAND.back);
+
+      function resize() {
+        const dpr = Math.min(2, devicePixelRatio || 1);
+        W = innerWidth;
+        H = innerHeight;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const mobile = W < 600;
+        cols = mobile ? 36 : 70;
+        rows = mobile ? 22 : 40;
+        size = Math.min(W / cols, H / rows);
+      }
+      resize();
+      addEventListener('resize', resize);
+      addEventListener('pointermove', function (e) { mx = e.clientX; my = e.clientY; });
+
+      function mix(a, b, t) {
+        return {
+          r: a.r + (b.r - a.r) * t,
+          g: a.g + (b.g - a.g) * t,
+          b: a.b + (b.b - a.b) * t
+        };
+      }
+      function rgb(c) { return 'rgb(' + (c.r | 0) + ',' + (c.g | 0) + ',' + (c.b | 0) + ')'; }
+
+      function tick(now) {
+        const t = (now - t0) / 1000;
+        const speed = reduced ? 0.4 : 1;
+        const vx = W * 0.5 + Math.sin(t * 0.9 * speed) * W * 0.28;
+        const vy = H * 0.5 + Math.sin(t * 1.3 * speed) * H * 0.22;
+        const px = mx || vx;
+        const py = my || vy;
+        ctx.fillStyle = '#9a9a9a';
+        ctx.fillRect(0, 0, W, H);
+        const ox = (W - cols * size) / 2;
+        const oy = (H - rows * size) / 2;
+        const gap = BRAND.gap;
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            const cx = ox + x * size + size / 2;
+            const cy = oy + y * size + size / 2;
+            const dx = cx - px;
+            const dy = cy - py;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            const infl = Math.max(0, 1 - d / 140);
+            const ang = infl * 1.45;
+            const flip = Math.abs(Math.cos(ang));
+            const face = ang > 0.9 ? mix(lit, back, (ang - 0.9) / 0.55) : mix(dark, lit, infl);
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, (size - gap) / 2, ((size - gap) / 2) * Math.max(0.12, flip), 0, 0, Math.PI * 2);
+            ctx.fillStyle = rgb(face);
+            ctx.fill();
+          }
+        }
+        requestAnimationFrame(tick);
+      }
+      mx = 0;
+      my = 0;
+      requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>

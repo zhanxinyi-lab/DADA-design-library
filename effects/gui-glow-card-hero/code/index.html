@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Colombel</title>
+  <style>
+    :root { --sky-top: #2a140e; --sky-bot: #6a3018; --sand: #3a2014; --glow: #e07050; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: Inter, Helvetica, Arial, sans-serif;
+      color: #f6e4d4;
+      background: #2a140e;
+    }
+    .sky {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(120% 70% at 50% 20%, #8a3a1c 0%, transparent 55%),
+        linear-gradient(180deg, var(--sky-top), var(--sky-bot) 55%, var(--sand));
+    }
+    .ground {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 32%;
+      background: linear-gradient(180deg, transparent, #1a0c08 40%, #0c0604);
+    }
+    .scene {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+    }
+    .stone-wrap {
+      position: relative;
+      width: min(280px, 58vw);
+      height: min(460px, 70vh);
+    }
+    .stone {
+      position: absolute;
+      inset: 0;
+      border-radius: 48% 52% 46% 54% / 42% 46% 54% 58%;
+      background:
+        radial-gradient(circle at 35% 30%, #ffd2b8 0%, transparent 32%),
+        radial-gradient(circle at 60% 55%, var(--glow) 0%, #c05038 42%, #7a2818 78%);
+      box-shadow:
+        0 0 80px 20px color-mix(in srgb, var(--glow) 45%, transparent),
+        inset 0 0 60px rgba(255,220,190,0.28);
+      filter: blur(0.2px);
+      display: grid;
+      place-items: center;
+      text-align: left;
+      padding: 18%;
+      overflow: hidden;
+    }
+    .stone .copy { position: relative; z-index: 1; }
+    .kicker { font-size: 13px; letter-spacing: 0.08em; opacity: 0.9; }
+    .date { font-size: 13px; opacity: 0.7; margin: 6px 0 10px; }
+    .ttl { font-size: clamp(18px, 3vw, 26px); font-weight: 650; line-height: 1.25; }
+    .mark {
+      position: absolute;
+      right: 12%;
+      bottom: 28%;
+      font-weight: 800;
+      font-size: clamp(64px, 12vw, 140px);
+      color: #c24a3a;
+      transform: perspective(400px) rotateY(-28deg) rotateX(8deg);
+      text-shadow: 10px 8px 0 #6a2018, 18px 14px 0 #3a100c;
+      pointer-events: none;
+    }
+    .refl {
+      position: absolute;
+      left: 50%;
+      bottom: 6%;
+      width: min(240px, 50vw);
+      height: 90px;
+      transform: translateX(-50%) scaleY(-1);
+      border-radius: 48% 52% 46% 54% / 42% 46% 54% 58%;
+      background: radial-gradient(circle at 50% 40%, var(--glow), transparent 70%);
+      opacity: 0.28;
+      filter: blur(8px);
+    }
+    .brand {
+      position: absolute;
+      left: 18px;
+      bottom: 12px;
+      font-size: 11px;
+      letter-spacing: 0.24em;
+      opacity: 0.6;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .stone { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sky"></div>
+  <div class="ground"></div>
+  <div class="mark" id="mark"></div>
+  <div class="scene">
+    <div class="stone-wrap" id="wrap">
+      <div class="stone" id="stone">
+        <div class="copy">
+          <div class="kicker" id="kicker"></div>
+          <div class="date" id="date"></div>
+          <div class="ttl" id="ttl"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="refl"></div>
+  <div class="brand" id="brand"></div>
+  <script>
+    // 改这里即可换品牌
+    const BRAND = {
+      name: 'Colombel',
+      mark: 'W.',
+      cards: [
+        { kicker: 'Site of the Day', date: 'Oct 28, 2026', title: 'G. Colombel — Portfolio 2026', glow: '#e07050' },
+        { kicker: 'Developer Award', date: 'Oct 28, 2026', title: 'Interactive stone, dusk desert', glow: '#d4a078' }
+      ],
+      skyTop: '#2a140e',
+      skyBot: '#6a3018',
+      sand: '#3a2014'
+    };
+
+    (function () {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const root = document.documentElement;
+      root.style.setProperty('--sky-top', BRAND.skyTop);
+      root.style.setProperty('--sky-bot', BRAND.skyBot);
+      root.style.setProperty('--sand', BRAND.sand);
+      document.title = BRAND.name;
+      document.body.style.background = BRAND.skyTop;
+      document.getElementById('brand').textContent = BRAND.name;
+      document.getElementById('mark').textContent = BRAND.mark;
+
+      const stone = document.getElementById('stone');
+      let i = 0;
+      function show(index, animate) {
+        const card = BRAND.cards[index];
+        root.style.setProperty('--glow', card.glow);
+        document.getElementById('kicker').textContent = card.kicker;
+        document.getElementById('date').textContent = card.date;
+        document.getElementById('ttl').textContent = card.title;
+        if (!animate || reduced) return;
+        stone.animate(
+          [
+            { transform: 'translateX(-40%) scale(0.92)', opacity: 0.3 },
+            { transform: 'none', opacity: 1 }
+          ],
+          { duration: 700, easing: 'cubic-bezier(.22,1,.36,1)' }
+        );
+      }
+      show(0, false);
+      function next() {
+        i = (i + 1) % BRAND.cards.length;
+        show(i, true);
+      }
+      document.body.addEventListener('click', next);
+      setInterval(next, reduced ? 8000 : 4000);
+    })();
+  </script>
+</body>
+</html>

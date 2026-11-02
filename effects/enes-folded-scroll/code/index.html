@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FOLIO</title>
+  <style>
+    :root { --bg: #121212; --panel: #1c1c1e; --text: #f2f2f3; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, Helvetica, Arial, system-ui, sans-serif;
+      overflow: hidden;
+    }
+    .wrap {
+      height: 100%;
+      display: grid;
+      place-items: center;
+    }
+    .stage {
+      width: min(420px, 92vw);
+      height: min(640px, 86vh);
+      perspective: 900px;
+      position: relative;
+    }
+    .panel {
+      height: 100%;
+      background: var(--panel);
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.45);
+      display: flex;
+      flex-direction: column;
+    }
+    .search {
+      padding: 22px 22px 8px;
+      color: #8d8d93;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .list {
+      flex: 1;
+      overflow: auto;
+      padding: 8px 10px 24px;
+      scrollbar-width: none;
+    }
+    .list::-webkit-scrollbar { display: none; }
+    .section {
+      color: #fff;
+      font-size: 18px;
+      font-weight: 650;
+      padding: 16px 12px 8px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      transform-origin: center center;
+    }
+    .glyph { font-size: 28px; width: 36px; text-align: center; }
+    .label { font-size: 16px; color: #e8e8ea; }
+    .fold {
+      position: absolute;
+      left: 0; right: 0;
+      height: 72px;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .fold.top {
+      top: 0;
+      background: linear-gradient(180deg, rgba(0,0,0,0.55), transparent);
+      border-radius: 28px 28px 0 0;
+    }
+    .fold.bot {
+      bottom: 0;
+      background: linear-gradient(0deg, rgba(0,0,0,0.7), transparent);
+      border-radius: 0 0 28px 28px;
+    }
+    .brand {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="stage">
+      <div class="panel">
+        <div class="search" id="search"></div>
+        <div class="list" id="list"></div>
+      </div>
+      <div class="fold top"></div>
+      <div class="fold bot"></div>
+    </div>
+    <div class="brand" id="brand"></div>
+  </div>
+  <script>
+    // 改这里即可换品牌
+    const BRAND = {
+      name: 'FOLIO',
+      bg: '#121212',
+      panel: '#1c1c1e',
+      text: '#f2f2f3',
+      items: [
+        { glyph: '★', label: 'Lookbook 01' },
+        { glyph: '✿', label: 'Lookbook 02' },
+        { glyph: '◆', label: 'Lookbook 03' },
+        { glyph: '▲', label: 'Studio still' },
+        { glyph: '●', label: 'Night rack' },
+        { glyph: '☀', label: 'Daylight cast' },
+        { glyph: '☽', label: 'Moon fittings' },
+        { glyph: '❖', label: 'Archive 08' },
+        { glyph: '✦', label: 'Silver edit' },
+        { glyph: '✧', label: 'Gold edit' },
+        { glyph: '❖', label: 'Backstage' },
+        { glyph: '♥', label: 'Cast notes' },
+        { glyph: '♣', label: 'Set flowers' },
+        { glyph: '♠', label: 'Black wool' },
+        { glyph: '♦', label: 'Red glove' },
+        { glyph: '★', label: 'Finale walk' }
+      ]
+    };
+
+    (function () {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const root = document.documentElement;
+      root.style.setProperty('--bg', BRAND.bg);
+      root.style.setProperty('--panel', BRAND.panel);
+      root.style.setProperty('--text', BRAND.text);
+      document.title = BRAND.name;
+      document.body.style.background = BRAND.bg;
+      document.getElementById('brand').textContent = BRAND.name;
+      document.getElementById('search').textContent = 'Search ' + BRAND.name.toLowerCase() + '…';
+
+      const list = document.getElementById('list');
+      const head = document.createElement('div');
+      head.className = 'section';
+      head.textContent = 'Frequently used';
+      list.appendChild(head);
+      BRAND.items.forEach(function (item, i) {
+        if (i === 8) {
+          const h = document.createElement('div');
+          h.className = 'section';
+          h.textContent = 'Archive';
+          list.appendChild(h);
+        }
+        const row = document.createElement('div');
+        row.className = 'row';
+        const g = document.createElement('div');
+        g.className = 'glyph';
+        g.textContent = item.glyph;
+        const lab = document.createElement('div');
+        lab.className = 'label';
+        lab.textContent = item.label;
+        row.appendChild(g);
+        row.appendChild(lab);
+        list.appendChild(row);
+      });
+
+      function fold() {
+        const box = list.getBoundingClientRect();
+        list.querySelectorAll('.row').forEach(function (row) {
+          const r = row.getBoundingClientRect();
+          const topDist = r.top - box.top;
+          const botDist = box.bottom - r.bottom;
+          let ang = 0;
+          if (topDist < 70) ang = (1 - topDist / 70) * 52;
+          if (botDist < 70) ang = -(1 - botDist / 70) * 52;
+          row.style.transform = 'rotateX(' + ang + 'deg) translateZ(' + Math.abs(ang) * 0.6 + 'px)';
+          row.style.filter = 'brightness(' + (1 - Math.abs(ang) / 160) + ')';
+        });
+      }
+      list.addEventListener('scroll', fold, { passive: true });
+      fold();
+
+      if (!reduced) {
+        let dir = 1;
+        setInterval(function () {
+          const max = list.scrollHeight - list.clientHeight;
+          list.scrollTop += dir * 1.4;
+          if (list.scrollTop <= 0 || list.scrollTop >= max - 1) dir *= -1;
+          fold();
+        }, 32);
+      }
+    })();
+  </script>
+</body>
+</html>
