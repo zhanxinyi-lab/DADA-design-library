@@ -1,0 +1,8 @@
+# 旋钮交互
+
+- 作者：Wuraoladesigns
+- 分类：品牌 · 网页交互
+- 状态：ai_recreated
+- 原文：https://x.com/Wuraoladesigns/status/2116551748848345362
+- 素材 ID：2116551748848345362
+- 版本：1.0.0
