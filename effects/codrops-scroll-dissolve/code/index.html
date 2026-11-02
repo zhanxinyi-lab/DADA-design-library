@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CANOPY</title>
+  <style>
+    :root { --sky: #9aa3a8; --tree: #2c3c34; --fog: #c5c8c6; --paper: #f6f4f0; --ink: #161616; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--sky);
+      color: #fff;
+      font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
+      overflow: auto;
+    }
+    .scroller { height: 200vh; }
+    .forest {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--sky), var(--fog) 58%, var(--tree));
+    }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .copy {
+      position: absolute;
+      left: 6vw;
+      top: 28vh;
+      z-index: 2;
+    }
+    .title {
+      font-weight: 700;
+      font-size: clamp(64px, 14vw, 160px);
+      letter-spacing: -0.04em;
+      line-height: 0.9;
+    }
+    .kicker {
+      position: absolute;
+      right: 5vw;
+      top: 42vh;
+      font-size: 11px;
+      letter-spacing: 0.28em;
+      opacity: 0.7;
+      white-space: pre;
+    }
+    .paper {
+      position: relative;
+      height: 100vh;
+      background: var(--paper);
+      color: var(--ink);
+      display: grid;
+      place-items: center;
+      z-index: 3;
+    }
+    .paper h2 { font-size: clamp(48px, 10vw, 120px); letter-spacing: -0.04em; }
+    .seam {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 4;
+      mix-blend-mode: normal;
+    }
+    .modes {
+      position: fixed;
+      right: 18px;
+      top: 18px;
+      z-index: 6;
+      display: flex;
+      gap: 6px;
+    }
+    .modes button {
+      border: 1px solid rgba(255,255,255,0.45);
+      background: rgba(20,20,20,0.35);
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      cursor: pointer;
+    }
+    .modes button.on { background: #fff; color: #111; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="modes" id="modes"></div>
+  <div class="scroller" id="scroller">
+    <section class="forest" id="forest">
+      <canvas id="trees"></canvas>
+      <div class="copy"><div class="title" id="title"></div></div>
+      <div class="kicker" id="kicker"></div>
+    </section>
+    <canvas class="seam" id="seam"></canvas>
+    <section class="paper"><h2 id="paperTitle"></h2></section>
+  </div>
+  <script>
+    // 改这里即可换品牌
+    const BRAND = {
+      name: 'CANOPY',
+      kicker: 'NATIVE FOREST  SINCE 2011',
+      sections: [
+        { id: 'forest', title: 'CANOPY', sky: '#9aa3a8', tree: '#2c3c34', fog: '#c5c8c6' },
+        { id: 'paper', title: 'LOOKBOOK', bg: '#f6f4f0', ink: '#161616' }
+      ]
+    };
+
+    (function () {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const forest = BRAND.sections[0];
+      const paper = BRAND.sections[1];
+      const root = document.documentElement;
+      root.style.setProperty('--sky', forest.sky);
+      root.style.setProperty('--tree', forest.tree);
+      root.style.setProperty('--fog', forest.fog);
+      root.style.setProperty('--paper', paper.bg);
+      root.style.setProperty('--ink', paper.ink);
+      document.title = BRAND.name;
+      document.body.style.background = forest.sky;
+      document.getElementById('title').textContent = forest.title;
+      document.getElementById('kicker').textContent = BRAND.kicker;
+      document.getElementById('paperTitle').textContent = paper.title;
+
+      const modes = document.getElementById('modes');
+      const tornBtn = document.createElement('button');
+      const disBtn = document.createElement('button');
+      tornBtn.textContent = 'Torn';
+      disBtn.textContent = 'Dissolve';
+      tornBtn.className = 'on';
+      modes.appendChild(tornBtn);
+      modes.appendChild(disBtn);
+      let mode = 'torn';
+      tornBtn.onclick = function () { mode = 'torn'; tornBtn.className = 'on'; disBtn.className = ''; };
+      disBtn.onclick = function () { mode = 'dissolve'; disBtn.className = 'on'; tornBtn.className = ''; };
+
+      const trees = document.getElementById('trees');
+      const seam = document.getElementById('seam');
+      const rng = function (i) { return Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1; };
+
+      function drawForest() {
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const w = trees.width = Math.floor(innerWidth * dpr);
+        const h = trees.height = Math.floor(innerHeight * dpr);
+        const ctx = trees.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const W = innerWidth, H = innerHeight;
+        const sky = ctx.createLinearGradient(0, 0, 0, H);
+        sky.addColorStop(0, forest.sky);
+        sky.addColorStop(0.55, forest.fog);
+        sky.addColorStop(1, forest.tree);
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = forest.tree;
+        for (let layer = 0; layer < 3; layer++) {
+          ctx.globalAlpha = 0.35 + layer * 0.22;
+          const y0 = H * (0.42 + layer * 0.12);
+          ctx.beginPath();
+          ctx.moveTo(0, H);
+          for (let x = 0; x <= W; x += 18) {
+            const n = rng(x * 0.2 + layer * 9);
+            const peak = y0 - n * (80 + layer * 40);
+            ctx.lineTo(x, peak);
+          }
+          ctx.lineTo(W, H);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        for (let i = 0; i < 28; i++) {
+          const x = (i / 28) * W + rng(i) * 20;
+          const base = H * 0.72 + rng(i + 3) * 40;
+          const ht = 90 + rng(i + 7) * 140;
+          ctx.fillStyle = forest.tree;
+          ctx.beginPath();
+          ctx.moveTo(x, base - ht);
+          ctx.lineTo(x + 28 + rng(i) * 18, base);
+          ctx.lineTo(x - 28 - rng(i + 1) * 18, base);
+          ctx.fill();
+        }
+      }
+
+      function jaggedY(x, W, amp, seed) {
+        return (Math.sin(x / 18 + seed) * 0.4 + Math.sin(x / 7 + seed * 2) * 0.3 + ((x * 13 + seed * 9) % 11) / 11 * 0.3) * amp;
+      }
+
+      function drawSeam() {
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const max = document.documentElement.scrollHeight - innerHeight;
+        const p = max > 0 ? Math.min(1, scrollY / max) : 0;
+        seam.width = Math.floor(innerWidth * dpr);
+        seam.height = Math.floor(innerHeight * dpr);
+        const ctx = seam.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const W = innerWidth, H = innerHeight;
+        ctx.clearRect(0, 0, W, H);
+        const edge = H * (0.78 - p * 0.7);
+        ctx.fillStyle = paper.bg;
+        if (mode === 'torn') {
+          ctx.beginPath();
+          ctx.moveTo(0, H);
+          ctx.lineTo(0, edge);
+          for (let x = 0; x <= W; x += 6) ctx.lineTo(x, edge + jaggedY(x, W, 28, 2));
+          ctx.lineTo(W, H);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          const size = 10;
+          for (let y = edge - 40; y < H; y += size) {
+            for (let x = 0; x < W; x += size) {
+              const n = rng(x * 0.07 + y * 0.13 + p * 8);
+              if (y > edge + n * 90) {
+                ctx.fillRect(x, y, size - 1, size - 1);
+              }
+            }
+          }
+        }
+      }
+
+      drawForest();
+      drawSeam();
+      addEventListener('resize', function () { drawForest(); drawSeam(); });
+      addEventListener('scroll', drawSeam, { passive: true });
+
+      if (!reduced) {
+        let dir = 1, start = performance.now(), going = true;
+        function auto(now) {
+          if (!going) return;
+          const t = Math.min(1, (now - start) / 2200);
+          const y = (dir > 0 ? t : 1 - t) * (document.documentElement.scrollHeight - innerHeight) * 0.42;
+          scrollTo(0, y);
+          if (t >= 1) {
+            dir *= -1;
+            start = now;
+            if (dir > 0) going = false;
+          }
+          requestAnimationFrame(auto);
+        }
+        requestAnimationFrame(auto);
+      }
+    })();
+  </script>
+</body>
+</html>

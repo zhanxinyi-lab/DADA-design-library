@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Liber Bestiarium</title>
+  <style>
+    :root { --paper: #f4efe4; --ink: #2a241c; --drop: #a33b2c; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Georgia, 'Times New Roman', serif;
+      overflow: hidden;
+    }
+    .page {
+      position: relative;
+      height: 100%;
+      padding: 8vh 10vw 8vh 18vw;
+      max-width: 1100px;
+    }
+    .folio {
+      font-size: 12px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      opacity: 0.55;
+      margin-bottom: 18px;
+    }
+    h1 {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 500;
+      margin-bottom: 28px;
+    }
+    .body { font-size: 20px; line-height: 1.55; max-width: 42em; }
+    .body p { margin-bottom: 1.1em; }
+    .drop {
+      float: left;
+      font-size: 92px;
+      line-height: 0.8;
+      color: var(--drop);
+      padding-right: 10px;
+      font-weight: 600;
+    }
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    @media (max-width: 720px) {
+      .page { padding: 6vh 7vw; }
+      .body { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="folio" id="folio"></div>
+    <h1 id="title"></h1>
+    <div class="body" id="body"></div>
+  </div>
+  <canvas id="wash"></canvas>
+  <script>
+    // 改这里即可换品牌
+    const BRAND = {
+      name: 'Liber Bestiarium',
+      folio: 'Folio XLVII',
+      title: 'De Dracone',
+      drop: 'I',
+      body: [
+        't was late in the scriptorium, and the lamp had burned down to a thread. No original folio is copied here; this leaf is a stand-in for a bestiary margin.',
+        'A dragon is kept in the gutter, small enough to be missed and red enough to be found. The scribe watched the ink seem to move, then found that it did.',
+        'Scribes have always known a margin is not empty. It is where a book keeps its animals, and where a hand may wake them.',
+        'Most stay where they were put. A few decide that the page is a field, and the words are only grass.',
+        'Move your hand and it will follow. Press, and it will breathe.'
+      ],
+      paper: '#f4efe4',
+      ink: '#2a241c',
+      dropColor: '#a33b2c',
+      wash: ['#c9a070', '#6a8aaa', '#d8c4b0']
+    };
+
+    (function () {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const root = document.documentElement;
+      root.style.setProperty('--paper', BRAND.paper);
+      root.style.setProperty('--ink', BRAND.ink);
+      root.style.setProperty('--drop', BRAND.dropColor);
+      document.title = BRAND.name;
+      document.body.style.background = BRAND.paper;
+      document.getElementById('folio').textContent = BRAND.name + '  ·  ' + BRAND.folio;
+      document.getElementById('title').textContent = BRAND.title;
+      const body = document.getElementById('body');
+      BRAND.body.forEach(function (para, i) {
+        const p = document.createElement('p');
+        if (i === 0) {
+          const d = document.createElement('span');
+          d.className = 'drop';
+          d.textContent = BRAND.drop;
+          p.appendChild(d);
+        }
+        p.appendChild(document.createTextNode(para));
+        body.appendChild(p);
+      });
+
+      const canvas = document.getElementById('wash');
+      const ctx = canvas.getContext('2d');
+      const blobs = [];
+      let mx = innerWidth * 0.12, my = innerHeight * 0.28, down = false, auto = 0;
+
+      function resize() {
+        const dpr = Math.min(2, devicePixelRatio || 1);
+        canvas.width = innerWidth * dpr;
+        canvas.height = innerHeight * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      resize();
+      addEventListener('resize', resize);
+      addEventListener('pointermove', function (e) {
+        mx = e.clientX; my = e.clientY;
+        blobs.push({ x: mx, y: my, r: down ? 70 : 28, a: 0.18, c: BRAND.wash[blobs.length % BRAND.wash.length] });
+      });
+      addEventListener('pointerdown', function () { down = true; });
+      addEventListener('pointerup', function () { down = false; });
+
+      function tick() {
+        auto += reduced ? 0.4 : 1;
+        const ax = innerWidth * 0.1 + Math.sin(auto / 80) * 20;
+        const ay = innerHeight * 0.32 + auto * 0.35;
+        if (auto < 180) blobs.push({ x: ax, y: ay, r: 18 + auto * 0.2, a: 0.12, c: BRAND.wash[0] });
+        ctx.clearRect(0, 0, innerWidth, innerHeight);
+        ctx.globalCompositeOperation = 'multiply';
+        for (let i = 0; i < blobs.length; i++) {
+          const b = blobs[i];
+          b.r += down ? 0.8 : 0.25;
+          b.a *= 0.992;
+          ctx.beginPath();
+          ctx.fillStyle = b.c;
+          ctx.globalAlpha = Math.max(0, b.a);
+          ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        if (blobs.length > 90) blobs.splice(0, blobs.length - 90);
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>
