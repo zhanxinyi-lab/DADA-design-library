@@ -132,8 +132,8 @@
       modes.appendChild(tornBtn);
       modes.appendChild(disBtn);
       let mode = 'torn';
-      tornBtn.onclick = function () { mode = 'torn'; tornBtn.className = 'on'; disBtn.className = ''; };
-      disBtn.onclick = function () { mode = 'dissolve'; disBtn.className = 'on'; tornBtn.className = ''; };
+      tornBtn.onclick = function () { mode = 'torn'; tornBtn.className = 'on'; disBtn.className = ''; drawSeam(); };
+      disBtn.onclick = function () { mode = 'dissolve'; disBtn.className = 'on'; tornBtn.className = ''; drawSeam(); };
 
       const trees = document.getElementById('trees');
       const seam = document.getElementById('seam');
@@ -187,8 +187,8 @@
 
       function drawSeam() {
         const dpr = Math.min(2, window.devicePixelRatio || 1);
-        const max = document.documentElement.scrollHeight - innerHeight;
-        const p = max > 0 ? Math.min(1, scrollY / max) : 0;
+        const max = (document.scrollingElement || document.documentElement).scrollHeight - (document.scrollingElement || document.documentElement).clientHeight;
+        const p = max > 0 ? Math.min(1, (document.scrollingElement || document.documentElement).scrollTop / max) : 0;
         seam.width = Math.floor(innerWidth * dpr);
         seam.height = Math.floor(innerHeight * dpr);
         const ctx = seam.getContext('2d');
@@ -221,15 +221,15 @@
       drawForest();
       drawSeam();
       addEventListener('resize', function () { drawForest(); drawSeam(); });
-      addEventListener('scroll', drawSeam, { passive: true });
+      document.addEventListener('scroll', drawSeam, { passive: true, capture: true });
 
       if (!reduced) {
         let dir = 1, start = performance.now(), going = true;
         function auto(now) {
           if (!going) return;
           const t = Math.min(1, (now - start) / 2200);
-          const y = (dir > 0 ? t : 1 - t) * (document.documentElement.scrollHeight - innerHeight) * 0.42;
-          scrollTo(0, y);
+          const y = (dir > 0 ? t : 1 - t) * ((document.scrollingElement || document.documentElement).scrollHeight - (document.scrollingElement || document.documentElement).clientHeight) * 0.42;
+          (document.scrollingElement || document.documentElement).scrollTop = y;
           if (t >= 1) {
             dir *= -1;
             start = now;
