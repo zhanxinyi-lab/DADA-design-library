@@ -1,1 +1,90 @@
-<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=width=device-width,initial-scale=1><title>TLG</title><style>body{margin:0;display:grid;place-items:center;height:100vh;background:#111;color:#fff;font:16px Arial}a{color:#9be7ff}</style></head><body><main><h1>TLG Fluted Glass</h1><p>MIT source is forked separately.</p><p><a href=https://github.com/zhanxinyi-lab/tlg-fluted-glass>Open forked source</a></p></main></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TLG 棱纹玻璃</title>
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.min.js" } }
+  </script>
+  <style>
+    html, body { margin: 0; background: #111; color: #f4efe6; font: 13px/1.4 "Segoe UI", sans-serif; }
+    body.scroll-mode { min-height: 220vh; }
+    .stage { position: relative; height: 100vh; height: 100dvh; overflow: hidden; background: #111; }
+    body.scroll-mode .stage { height: 72vh; margin: 12vh auto 80vh; }
+    .stage img { display: none; }
+    .stage canvas { width: 100%; height: 100%; }
+    .bar {
+      position: fixed; z-index: 2; left: 12px; right: 12px; bottom: 12px;
+      display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end;
+      padding: 10px 12px; border: 1px solid rgba(255,255,255,.14); border-radius: 14px;
+      background: rgba(8,8,8,.72);
+    }
+    label { display: grid; gap: 4px; min-width: 108px; color: #c8c2b8; font-size: 11px; }
+    input, select { width: 100%; color: #f4efe6; background: transparent; border: 0; }
+    .credit { margin-left: auto; max-width: 280px; color: #9d978e; font-size: 11px; }
+    .credit a { color: #9be7ff; }
+  </style>
+</head>
+<body>
+  <div id="stage" class="stage"
+    tlg-fluted-glass-canvas
+    tlg-fluted-glass-mode="mouse"
+    tlg-fluted-glass-segments="64"
+    tlg-fluted-glass-motion="1.4"
+    tlg-fluted-glass-rotation="12"
+    tlg-fluted-glass-overlay="55">
+    <img tlg-fluted-glass-image alt="" src="./texture.png">
+  </div>
+  <form class="bar">
+    <label>交互
+      <select name="mode">
+        <option value="mouse">鼠标</option>
+        <option value="scroll">滚动</option>
+        <option value="static">静止</option>
+      </select>
+    </label>
+    <label>棱纹 <span id="segments-out"></span>
+      <input name="segments" type="range" min="8" max="160" step="1">
+    </label>
+    <label>旋转 <span id="rotation-out"></span>
+      <input name="rotation" type="range" min="0" max="180" step="1">
+    </label>
+    <label>运动 <span id="motion-out"></span>
+      <input name="motion" type="range" min="-3" max="3" step="0.1">
+    </label>
+    <label>叠层 <span id="overlay-out"></span>
+      <input name="overlay" type="range" min="0" max="100" step="1">
+    </label>
+    <p class="credit">MIT 源码 © 2024 thelazygod。<a href="https://github.com/the-lazy-god/tlg-fluted-glass">原仓库</a></p>
+  </form>
+  <script>
+    const defaults = { mode: "mouse", segments: "64", motion: "1.4", rotation: "12", overlay: "55" };
+    const query = new URLSearchParams(location.search);
+    const values = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, query.get(key) || fallback]));
+    const stage = document.getElementById("stage");
+    stage.setAttribute("tlg-fluted-glass-mode", values.mode);
+    stage.setAttribute("tlg-fluted-glass-segments", values.segments);
+    stage.setAttribute("tlg-fluted-glass-motion", values.motion);
+    stage.setAttribute("tlg-fluted-glass-rotation", values.rotation);
+    stage.setAttribute("tlg-fluted-glass-overlay", values.overlay);
+    document.body.classList.toggle("scroll-mode", values.mode === "scroll");
+    const form = document.querySelector("form");
+    for (const [key, value] of Object.entries(values)) form.elements[key].value = value;
+    const show = () => {
+      document.getElementById("segments-out").textContent = form.elements.segments.value;
+      document.getElementById("rotation-out").textContent = form.elements.rotation.value + "°";
+      document.getElementById("motion-out").textContent = form.elements.motion.value;
+      document.getElementById("overlay-out").textContent = form.elements.overlay.value;
+    };
+    show();
+    form.addEventListener("input", show);
+    form.addEventListener("change", () => {
+      const next = new URLSearchParams();
+      for (const key of Object.keys(defaults)) next.set(key, form.elements[key].value);
+      location.search = next.toString();
+    });
+  </script>
+  <script type="module" src="./tlg-fluted-glass.js"></script>
+</body>
+</html>
