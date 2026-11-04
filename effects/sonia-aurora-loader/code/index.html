@@ -398,7 +398,10 @@
       teal: '#38BFAA',
       green: '#66EB7A',
       bg: '#000105',
-      loadPrefix: '%'
+      loadPrefix: '%',
+      intro: 'rise',   // 'rise' = 黑场里颜色跟着节拍从下往上蔓延（1.1.0 新增）；'loader' = 原版 %0→%100 圆环加载
+      flow: true,      // 光柱里的颜色按节拍上下起伏（1.1.0 新增）；false = 原版只随时间轻微摆动
+      bpm: 112
     };
 
     (function () {
@@ -546,6 +549,9 @@
           'uniform float uTime;',
           'uniform float uMouseX;',
           'uniform float uStripPx;',
+          'uniform float uFlow;',
+          'uniform float uRise;',
+          'uniform float uBeat;',
           'void main(){',
           '  vec2 uv = gl_FragCoord.xy / uRes;',
           '  float nStrips = max(floor(uRes.x / max(uStripPx, 8.0) + 0.5), 8.0);',
@@ -553,6 +559,16 @@
           '  float idx = min(floor(uv.x / stripW), nStrips - 1.0);',
           '  float x = (idx + 0.5) * stripW;',
           '  float localX = clamp((uv.x - idx * stripW) / stripW, 0.0, 1.0);',
+          '  float yIn = uv.y;',
+          '  float tw = uTime + 2.6 * (1.0 - exp(-uTime / 1.5));',
+          '  float en = 1.0 + 0.7 * exp(-uTime / 1.8);',
+          '  float bq = max(uTime, 0.0) / (2.0 * uBeat);',
+          '  float kq = floor(bq); float fq = bq - kq;',
+          '  float hA = sin(idx * 0.48 + kq * 1.9) * 0.5 + sin(idx * 0.21 - kq * 1.3) * 0.25;',
+          '  float hB = sin(idx * 0.48 + (kq + 1.0) * 1.9) * 0.5 + sin(idx * 0.21 - (kq + 1.0) * 1.3) * 0.25;',
+          '  float ease = mix(fq, smoothstep(0.0, 1.0, fq), 0.65);',
+          '  float wv = (sin(tw * 1.4 - idx * 0.55) * 0.07 + sin(tw * 0.6 + idx * 0.27) * 0.03) * en + mix(hA, hB, ease) * 0.07;',
+          '  uv.y += wv * uFlow;',
           '  float t = uTime;',
           '  float mx = uMouseX - 0.5;',
           '  float bendL = 0.33 + sin(t * 0.37) * 0.030 + mx * 0.048;',
@@ -596,6 +612,10 @@
           '  float limeAmt = smoothstep(0.74, 1.0, bright) * endR * 0.30;',
           '  col = mix(col, uLime, limeAmt);',
           '  col *= 1.0 + (localX - 0.5) * 0.08;',
+          '  float soft = 0.23;',
+          '  float front = uRise * (1.0 + soft * 1.55) - soft * 0.35 + (sin(uv.x * 7.8 + uTime * 2.2) * 0.043 + sin(uv.x * 19.2 - uTime * 3.4) * 0.021 + sin(uv.x * 3.5 + uTime * 1.1) * 0.053);',
+          '  float rv = pow(1.0 - smoothstep(front - soft * 0.15, front + soft, yIn), 1.3);',
+          '  col = mix(uBg, col, rv);',
           '  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);',
           '}'
         ].join('\n'));
@@ -623,7 +643,10 @@
             uLime: gl.getUniformLocation(prog, 'uLime'),
             uTime: gl.getUniformLocation(prog, 'uTime'),
             uMouseX: gl.getUniformLocation(prog, 'uMouseX'),
-            uStripPx: gl.getUniformLocation(prog, 'uStripPx')
+            uStripPx: gl.getUniformLocation(prog, 'uStripPx'),
+            uFlow: gl.getUniformLocation(prog, 'uFlow'),
+            uRise: gl.getUniformLocation(prog, 'uRise'),
+            uBeat: gl.getUniformLocation(prog, 'uBeat')
           }
         };
         gl.disable(gl.DEPTH_TEST);
@@ -716,6 +739,13 @@
       resize();
       window.addEventListener('resize', resize);
 
+      var riseStart = 0;
+      function riseValue() {
+        if (BRAND.intro !== 'rise' || reduced) return 1;
+        var u = Math.max((performance.now() - riseStart) / 1000 - 0.15, 0) / (30 / BRAND.bpm);
+        var nb = 7, k = Math.min(Math.floor(u), nb), fr = u - Math.floor(u);
+        return Math.min((k + (k < nb ? fr * fr * (3 - 2 * fr) : 0)) / nb, 1);
+      }
       function updateField(now, dt) {
         var tSec = now * 0.001;
         var idle = !pointerLive || (now - lastPointer > 1800);
@@ -748,6 +778,9 @@
         gl.uniform1f(L.uTime, fieldTime);
         gl.uniform1f(L.uMouseX, mouseX);
         gl.uniform1f(L.uStripPx, stripPx);
+        gl.uniform1f(L.uFlow, (BRAND.flow && !reduced) ? 1 : 0);
+        gl.uniform1f(L.uRise, riseValue());
+        gl.uniform1f(L.uBeat, 60 / BRAND.bpm);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       }
 
@@ -834,7 +867,15 @@
         }
         requestAnimationFrame(step);
       }
-      runLoader();
+      if (BRAND.intro === 'rise') {
+        loader.classList.add('gone');
+        canvas.classList.add('ready');
+        canvas.style.transition = 'none';
+        riseStart = performance.now();
+        setTimeout(function () { ui.classList.add('ready'); }, reduced ? 0 : 1900);
+      } else {
+        runLoader();
+      }
     })();
   </script>
 </body>
