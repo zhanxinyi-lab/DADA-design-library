@@ -1,0 +1,5 @@
+interface:
+  display_name: "figma导出"
+  short_description: "中文触发词 figma导出，按链接导出到文件夹。"
+  default_prompt: "用 $figma-export（figma导出）按我给的 Figma 链接和命名方式导出到文件夹。"
+  brand_color: "#F24E1E"

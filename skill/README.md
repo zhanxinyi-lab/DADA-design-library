@@ -5,10 +5,13 @@
 | Skill | 用途 |
 | --- | --- |
 | [social-aurora-sizes](social-aurora-sizes/SKILL.md) | 将分层 SVG 导出为微信、X 的五种尺寸，包含 JPG、SVG、预览及尺寸报告 |
+| [figma-export](figma-export/SKILL.md) | 按 Figma 链接把节点导出到本地文件夹，支持命名模板和多尺寸 PNG |
 
 ## 使用
 
 下载所需 Skill 的完整目录（不要只下载 SKILL.md），放到支持的 Agent 技能目录中。在 Cindy 本地可使用用户级 ~/.agents/skills/ 或项目级 .agents/skills/，新建或重启会话后加载。仓库收录不等于自动安装或发布到 SkillHub。
+
+Figma 导出 Skill 需要 Python 3.9+ 和只读 FIGMA_TOKEN。多尺寸缩放需安装其 requirements.txt 中的 Pillow。
 
 社媒导出 Skill 需要 Python 3.9+。按需在自己的 Python 环境安装其 requirements.txt 中的依赖，然后提供背景与字标分层、图片内嵌、文字已转曲的完整 SVG。复杂 SVG 可能需要先整理背景图层；详细限制及用法见各 Skill 的 SKILL.md。
 
