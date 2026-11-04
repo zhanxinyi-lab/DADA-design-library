@@ -1,0 +1,2 @@
+Pillow>=9.1
+resvg_py==0.5.0
