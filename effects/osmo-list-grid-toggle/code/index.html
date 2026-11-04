@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OSMO</title>
+  <style>
+    :root {
+      --bg: #e8d5c4;
+      --board: #16110c;
+      --text: #f3ece4;
+      --muted: #9a8d82;
+      --pill-on: #f4efe8;
+      --cols: 3;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, Helvetica, Arial, system-ui, sans-serif;
+      overflow: hidden;
+    }
+    .page {
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 4vh 4vw;
+    }
+    .board {
+      width: min(1080px, 100%);
+      height: min(720px, 92vh);
+      background: var(--board);
+      border-radius: 4px;
+      padding: 36px 40px 28px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .toggle {
+      align-self: center;
+      display: flex;
+      background: #2a221c;
+      border-radius: 999px;
+      padding: 4px;
+      margin-bottom: 28px;
+      flex-shrink: 0;
+    }
+    .toggle button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: 600 13px/1 Inter, system-ui, sans-serif;
+      padding: 8px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .toggle button.on {
+      background: var(--pill-on);
+      color: #1a140f;
+    }
+    .grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(var(--cols), 1fr);
+      gap: 22px 18px;
+      align-content: start;
+      overflow: auto;
+    }
+    .board.list .grid {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    .item { min-width: 0; }
+    .art {
+      width: 100%;
+      aspect-ratio: 16 / 11;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #000;
+      transform-origin: top left;
+    }
+    .art canvas { display: block; width: 100%; height: 100%; }
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-top: 10px;
+      min-height: 1.2em;
+    }
+    .title { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+    .tags { display: flex; gap: 8px; color: var(--muted); font-size: 10px; letter-spacing: 0.14em; }
+    .chip {
+      border: 1px solid #3a322c;
+      border-radius: 999px;
+      padding: 2px 8px;
+    }
+    .rule {
+      display: none;
+      height: 1px;
+      background: #2c2620;
+      margin: 14px 0 4px;
+    }
+    .board.list .item {
+      display: grid;
+      grid-template-columns: 92px 1fr auto;
+      grid-template-rows: auto auto;
+      column-gap: 18px;
+      align-items: center;
+      padding: 10px 0;
+    }
+    .board.list .art {
+      width: 92px;
+      aspect-ratio: 1.2;
+      grid-row: 1;
+    }
+    .board.list .meta {
+      margin: 0;
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .board.list .tags { grid-column: 3; grid-row: 1; }
+    .board.list .rule {
+      display: block;
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+    @media (max-width: 720px) {
+      :root { --cols: 1; }
+      .board { padding: 20px 16px; height: 94vh; }
+      .board.list .item { grid-template-columns: 72px 1fr; }
+      .board.list .tags { grid-column: 2; justify-content: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .art, .meta, .rule { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="board" id="board">
+      <div class="toggle" id="toggle"></div>
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+  <script>
+    // 改这里即可换品牌
+    const BRAND = {
+      name: 'OSMO',
+      bg: '#e8d5c4',
+      board: '#16110c',
+      text: '#f3ece4',
+      muted: '#9a8d82',
+      pillOn: '#f4efe8',
+      cols: 3,
+      items: [
+        { title: 'After Hours', tag: 'PHOTOGRAPHY', year: '2026', palette: ['#2f5c3a', '#8aa86a'] },
+        { title: 'Still Rooms', tag: 'INTERIORS', year: '2026', palette: ['#c4a07a', '#5a4638'] },
+        { title: 'Northern Light', tag: 'FASHION', year: '2025', palette: ['#c45a32', '#f0c8b0'] },
+        { title: 'Cave Shadow', tag: 'PORTRAIT', year: '2025', palette: ['#c48a4a', '#3a2418'] },
+        { title: 'Night Drive', tag: 'AUTO', year: '2026', palette: ['#101014', '#c03030'] },
+        { title: 'Salt Air', tag: 'PORTRAIT', year: '2025', palette: ['#d08a48', '#1c3040'] }
+      ]
+    };
+
+    (function () {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const root = document.documentElement;
+      root.style.setProperty('--bg', BRAND.bg);
+      root.style.setProperty('--board', BRAND.board);
+      root.style.setProperty('--text', BRAND.text);
+      root.style.setProperty('--muted', BRAND.muted);
+      root.style.setProperty('--pill-on', BRAND.pillOn);
+      root.style.setProperty('--cols', String(window.innerWidth < 720 ? 1 : BRAND.cols));
+      document.title = BRAND.name;
+      document.body.style.background = BRAND.bg;
+
+      const board = document.getElementById('board');
+      const grid = document.getElementById('grid');
+      const toggle = document.getElementById('toggle');
+      const listBtn = document.createElement('button');
+      const gridBtn = document.createElement('button');
+      listBtn.textContent = 'List';
+      gridBtn.textContent = 'Grid';
+      gridBtn.className = 'on';
+      toggle.appendChild(listBtn);
+      toggle.appendChild(gridBtn);
+
+      function paint(canvas, item, index) {
+        const w = canvas.width = 480;
+        const h = canvas.height = 330;
+        const ctx = canvas.getContext('2d');
+        const a = item.palette[0];
+        const b = item.palette[1];
+        const g = ctx.createLinearGradient(0, 0, w, h);
+        g.addColorStop(0, a);
+        g.addColorStop(1, b);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalAlpha = 0.88;
+        if (index === 0) {
+          ctx.fillStyle = '#1a3a24';
+          for (let i = 0; i < 4; i++) {
+            ctx.beginPath();
+            ctx.ellipse(80 + i * 90, 220, 110, 90 - i * 8, -0.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.fillStyle = '#f4f7f2';
+          ctx.beginPath();
+          ctx.moveTo(140, 92);
+          ctx.lineTo(168, 108);
+          ctx.lineTo(138, 112);
+          ctx.fill();
+        } else if (index === 1) {
+          ctx.fillStyle = '#d8c4a8';
+          ctx.fillRect(40, 30, w - 80, 180);
+          ctx.fillStyle = '#8a6a4a';
+          for (let x = 70; x < w - 70; x += 52) ctx.fillRect(x, 48, 28, 70);
+          ctx.fillStyle = '#f2e6d4';
+          ctx.fillRect(180, 150, 28, 90);
+          ctx.fillRect(250, 150, 24, 90);
+        } else if (index === 2) {
+          ctx.filter = 'blur(18px)';
+          ctx.fillStyle = '#e07040';
+          ctx.fillRect(80, 20, 280, 280);
+          ctx.fillStyle = '#2a1810';
+          ctx.beginPath();
+          ctx.ellipse(240, 210, 90, 120, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.filter = 'none';
+        } else if (index === 3) {
+          ctx.fillStyle = '#e0c090';
+          ctx.beginPath();
+          ctx.arc(240, 400, 280, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#1a100c';
+          ctx.beginPath();
+          ctx.moveTo(150, 300);
+          ctx.lineTo(200, 140);
+          ctx.lineTo(250, 300);
+          ctx.fill();
+          ctx.fillRect(188, 138, 24, 18);
+        } else if (index === 4) {
+          ctx.fillStyle = '#08080c';
+          ctx.fillRect(0, 0, w, h);
+          ctx.fillStyle = '#1a1a22';
+          ctx.beginPath();
+          ctx.moveTo(90, 250);
+          ctx.lineTo(390, 250);
+          ctx.lineTo(340, 180);
+          ctx.lineTo(140, 180);
+          ctx.fill();
+          ctx.strokeStyle = '#e04040';
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.moveTo(150, 248);
+          ctx.lineTo(330, 248);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = '#1c3040';
+          ctx.fillRect(0, 180, w, 150);
+          ctx.fillStyle = '#d08a48';
+          ctx.beginPath();
+          ctx.ellipse(240, 210, 70, 90, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#f0d8b0';
+          ctx.beginPath();
+          ctx.ellipse(240, 150, 42, 48, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      BRAND.items.forEach(function (item, index) {
+        const el = document.createElement('article');
+        el.className = 'item';
+        const art = document.createElement('div');
+        art.className = 'art';
+        const canvas = document.createElement('canvas');
+        art.appendChild(canvas);
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const title = document.createElement('div');
+        title.className = 'title';
+        title.textContent = item.title;
+        const tags = document.createElement('div');
+        tags.className = 'tags';
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = item.tag;
+        const year = document.createElement('span');
+        year.textContent = item.year;
+        tags.appendChild(chip);
+        tags.appendChild(year);
+        meta.appendChild(title);
+        meta.appendChild(tags);
+        const rule = document.createElement('div');
+        rule.className = 'rule';
+        el.appendChild(art);
+        el.appendChild(meta);
+        el.appendChild(rule);
+        grid.appendChild(el);
+        paint(canvas, item, index);
+      });
+
+      let mode = 'grid';
+      let busy = false;
+      let touched = false;
+      const duration = reduced ? 1 : 720;
+
+      function fadeCopy(hide) {
+        grid.querySelectorAll('.meta, .rule').forEach(function (n) {
+          n.style.opacity = hide ? '0' : '1';
+          n.style.transition = reduced ? 'none' : 'opacity 220ms ease';
+        });
+      }
+
+      function flipTo(next) {
+        if (busy || next === mode) return;
+        busy = true;
+        const arts = Array.from(grid.querySelectorAll('.art'));
+        const first = arts.map(function (n) { return n.getBoundingClientRect(); });
+        fadeCopy(true);
+        board.classList.toggle('list', next === 'list');
+        mode = next;
+        listBtn.classList.toggle('on', next === 'list');
+        gridBtn.classList.toggle('on', next === 'grid');
+        arts.forEach(function (n, i) {
+          const last = n.getBoundingClientRect();
+          const dx = first[i].left - last.left;
+          const dy = first[i].top - last.top;
+          const sx = first[i].width / last.width;
+          const sy = first[i].height / last.height;
+          if (reduced) {
+            n.style.transform = 'none';
+            return;
+          }
+          n.animate(
+            [
+              { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sx + ',' + sy + ')' },
+              { transform: 'none' }
+            ],
+            { duration: duration, easing: 'cubic-bezier(.22,1,.36,1)' }
+          );
+        });
+        window.setTimeout(function () {
+          fadeCopy(false);
+          busy = false;
+        }, duration);
+      }
+
+      listBtn.addEventListener('click', function () { touched = true; flipTo('list'); });
+      gridBtn.addEventListener('click', function () { touched = true; flipTo('grid'); });
+
+      window.addEventListener('resize', function () {
+        root.style.setProperty('--cols', String(window.innerWidth < 720 ? 1 : BRAND.cols));
+      });
+
+      window.setTimeout(function () {
+        if (touched) return;
+        flipTo('list');
+        window.setTimeout(function () { if (!touched) flipTo('grid'); }, reduced ? 400 : 1100);
+      }, reduced ? 400 : 1600);
+    })();
+  </script>
+</body>
+</html>

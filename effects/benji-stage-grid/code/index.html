@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>STAGE</title>
+<style>*{box-sizing:border-box;margin:0}html,body{height:100%;overflow:hidden;background:#f7f4ee;color:#171717;font-family:Inter,Arial,sans-serif}canvas{position:fixed;inset:0;width:100%;height:100%}.ui{position:relative;z-index:2;height:100%;display:grid;place-items:center;text-align:center}.name{font-size:clamp(64px,12vw,150px);font-weight:800;letter-spacing:-.06em;line-height:.85}.sub{margin-top:12px;letter-spacing:.24em;font-size:12px;opacity:.72}</style></head>
+<body><canvas id="c"></canvas><div class="ui"><div><div class="name" id="name"></div><div class="sub" id="sub"></div></div></div>
+<script>
+const BRAND={name:'STAGE',bg:'#f7f4ee',fg:'#171717',accent:'#6d5efc',subtitle:'????'};
+(function(){const cv=document.getElementById('c'),x=cv.getContext('2d');document.getElementById('name').textContent=BRAND.name;document.getElementById('sub').textContent=BRAND.subtitle;document.body.style.background=BRAND.bg;document.body.style.color=BRAND.fg;function rs(){cv.width=innerWidth*devicePixelRatio;cv.height=innerHeight*devicePixelRatio;x.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}rs();addEventListener('resize',rs);let t=0;function draw(n){t=n/1000;x.clearRect(0,0,innerWidth,innerHeight);for(let i=0;i<18;i++){const a=i/18*Math.PI*2+t*.4,r=Math.min(innerWidth,innerHeight)*(0.18+i%3*.05),px=innerWidth/2+Math.cos(a)*r,py=innerHeight/2+Math.sin(a*1.3)*r*.45;x.fillStyle=i%2?BRAND.accent:BRAND.fg;x.globalAlpha=.18+i%4*.12;x.beginPath();x.roundRect(px-70,py-34,140,68,18);x.fill()}x.globalAlpha=1;requestAnimationFrame(draw)}requestAnimationFrame(draw)})();
+</script></body></html>
