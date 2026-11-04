@@ -2,7 +2,7 @@
 
 - 作者：rebrandgallery
 - 分类：品牌 · 网页交互
-- 状态：ai_recreated
+- 状态：待复刻（当前预览只是占位，不是原效果）
 - 原文：https://x.com/rebrandgallery/status/2117059339978493964
 - 素材 ID：2117059339978493964
 - 版本：1.0.0

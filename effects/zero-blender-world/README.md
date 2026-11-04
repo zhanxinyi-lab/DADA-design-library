@@ -2,7 +2,7 @@
 
 - 作者：zer0point_eth
 - 分类：3D
-- 状态：ai_recreated
+- 状态：待复刻（当前预览只是占位，不是原效果）
 - 原文：https://x.com/zer0point_eth/status/2116567613551636679
 - 素材 ID：2116567613551636679
 - 版本：1.0.0
