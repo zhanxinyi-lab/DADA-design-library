@@ -35,7 +35,7 @@ DADA 的设计素材、可复用效果和设计工作流 Skill。站点：https:
 
 - [agent-robot-avatar](https://github.com/zhanxinyi-lab/agent-robot-avatar)：MIT，来自 CX-ArtLab/agent-robot-avatar。
 - [avatar-studio](https://github.com/zhanxinyi-lab/avatar-studio)：MIT，来自 ai-calypse/avatar-studio。
-- [robo-face](https://github.com/zhanxinyi-lab/robo-face)、[animate-bot](https://github.com/zhanxinyi-lab/animate-bot)、[bloub](https://github.com/zhanxinyi-lab/bloub)：MIT。bloub 的默认形象只作内部对照。
+- [robo-face](https://github.com/zhanxinyi-lab/robo-face)、[animate-bot](https://github.com/zhanxinyi-lab/animate-bot)：MIT。bloub 与 animate-bot 的演示图相同，网站只保留 animate-bot，避免重复展示。
 - [procedural-expression-library](https://github.com/zhanxinyi-lab/procedural-expression-library)、[mascots](https://github.com/zhanxinyi-lab/mascots)：GPL-3.0，只保留 fork，不把源码抄进本仓库。
 - [openrive](https://github.com/zhanxinyi-lab/openrive)：MIT。
 
