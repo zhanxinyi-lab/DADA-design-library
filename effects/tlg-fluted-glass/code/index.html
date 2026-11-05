@@ -4,16 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TLG 棱纹玻璃</title>
-  <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.min.js" } }
-  </script>
   <style>
     html, body { margin: 0; background: #111; color: #f4efe6; font: 13px/1.4 "Segoe UI", sans-serif; }
     body.scroll-mode { min-height: 220vh; }
     .stage { position: relative; height: 100vh; height: 100dvh; overflow: hidden; background: #111; }
     body.scroll-mode .stage { height: 72vh; margin: 12vh auto 80vh; }
-    .stage img { display: none; }
-    .stage canvas { width: 100%; height: 100%; }
+    .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
     .bar {
       position: fixed; z-index: 2; left: 12px; right: 12px; bottom: 12px;
       display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end;
@@ -34,7 +30,6 @@
     tlg-fluted-glass-motion="1.4"
     tlg-fluted-glass-rotation="12"
     tlg-fluted-glass-overlay="55">
-    <img tlg-fluted-glass-image alt="" src="./texture.png">
   </div>
   <form class="bar">
     <label>交互
@@ -85,6 +80,199 @@
       location.search = next.toString();
     });
   </script>
-  <script type="module" src="./tlg-fluted-glass.js"></script>
+  <script>
+/*
+ * 棱纹着色器与交互逻辑移植自 tlg-fluted-glass v2.0.0
+ * https://github.com/the-lazy-god/tlg-fluted-glass
+ * 原版通过 Three.js 渲染；这里改成原生 WebGL，纹理在页面里画，离线可运行。
+ *
+ * MIT License
+ *
+ * Copyright (c) 2024 thelazygod
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+(() => {
+  const FRAG = `precision mediump float;
+uniform sampler2D uTexture;
+uniform vec4 resolution;
+varying vec2 vUv;
+uniform float uImageAspect;
+uniform vec3 uOverlayColor;
+uniform vec3 uOverlayColorWhite;
+uniform float uMotionValue;
+uniform float uRotation;
+uniform float uSegments;
+uniform float uOverlayOpacity;
+
+void main() {
+    float canvasAspect = resolution.x / resolution.y;
+    float numSlices = uSegments;
+    float rotationRadians = uRotation * (3.14159265 / 180.0); // Convert rotation to radians
+
+    // Adjust the UV coordinates for aspect ratio
+    vec2 scaledUV = vUv;
+    if (uImageAspect > canvasAspect) {
+        float scale = canvasAspect / uImageAspect;
+        scaledUV.x = (vUv.x - 0.5) * scale + 0.5;
+    } else {
+        float scale = uImageAspect / canvasAspect;
+        scaledUV.y = (vUv.y - 0.5) * scale + 0.5;
+    }
+
+    // Rotate the texture to align it with the warping axis
+    vec2 rotatedUV = vec2(
+        cos(rotationRadians) * (scaledUV.x - 0.5) - sin(rotationRadians) * (scaledUV.y - 0.5) + 0.5,
+        sin(rotationRadians) * (scaledUV.x - 0.5) + cos(rotationRadians) * (scaledUV.y - 0.5) + 0.5
+    );
+
+    // Apply the warping effect along the aligned axis (now horizontal after rotation)
+    float sliceProgress = fract(rotatedUV.x * numSlices + uMotionValue);
+    float amplitude = 0.015; // The amplitude of the sine wave
+    rotatedUV.x += amplitude * sin(sliceProgress * 3.14159265 * 2.0) * (1.0 - 0.5 * abs(sliceProgress - 0.5));
+
+    // Rotate the UVs back to the original orientation
+    vec2 finalUV = vec2(
+        cos(-rotationRadians) * (rotatedUV.x - 0.5) - sin(-rotationRadians) * (rotatedUV.y - 0.5) + 0.5,
+        sin(-rotationRadians) * (rotatedUV.x - 0.5) + cos(-rotationRadians) * (rotatedUV.y - 0.5) + 0.5
+    );
+
+    // Tile texture on edges using the final UVs
+    vec2 tileIndex = floor(finalUV);
+    vec2 oddTile = mod(tileIndex, 2.0);
+    vec2 mirroredUV = mix(fract(finalUV), 1.0 - fract(finalUV), oddTile);
+    vec4 color = texture2D(uTexture, mirroredUV);
+
+    if (uOverlayOpacity > 0.0) {
+        // Apply overlays with the specified opacity
+        float blackOverlayAlpha = 0.05 * (1.0 - abs(sin(sliceProgress * 3.14159265 * 0.5 + 1.57))) * (uOverlayOpacity / 100.0);
+        color.rgb *= (1.0 - blackOverlayAlpha);
+
+        float whiteOverlayAlpha = 0.15 * (1.0 - abs(sin(sliceProgress * 3.14159265 * 0.7 - 0.7))) * (uOverlayOpacity / 100.0);
+        color.rgb = mix(color.rgb, uOverlayColorWhite, whiteOverlayAlpha);
+    }
+
+    gl_FragColor = color;
+}
+`;
+  const VERT = `
+attribute vec2 aPos;
+varying vec2 vUv;
+void main() {
+  vUv = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+  // 库内自绘纹理：蓝绿底、左侧白光、右侧橙色光斑、一道白色横线
+  function makeTexture() {
+    const c = document.createElement('canvas'); c.width = 960; c.height = 640;
+    const g = c.getContext('2d');
+    let gr = g.createLinearGradient(0, 0, 960, 640);
+    gr.addColorStop(0, '#0d4f8f'); gr.addColorStop(.55, '#17964f'); gr.addColorStop(1, '#2e6b26');
+    g.fillStyle = gr; g.fillRect(0, 0, 960, 640);
+    gr = g.createRadialGradient(960, 0, 0, 960, 0, 560);
+    gr.addColorStop(0, 'rgba(225,70,55,1)'); gr.addColorStop(1, 'rgba(225,70,55,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 960, 640);
+    const blob = (x, y, rx, ry, col) => {
+      g.save(); g.translate(x, y); g.scale(rx / ry, 1);
+      const r = g.createRadialGradient(0, 0, 0, 0, 0, ry);
+      r.addColorStop(0, col + '1)'); r.addColorStop(.55, col + '.85)'); r.addColorStop(1, col + '0)');
+      g.fillStyle = r; g.beginPath(); g.arc(0, 0, ry, 0, Math.PI * 2); g.fill(); g.restore();
+    };
+    blob(345, 300, 210, 210, 'rgba(242,240,228,');
+    blob(710, 320, 140, 260, 'rgba(240,105,75,');
+    gr = g.createLinearGradient(0, 438, 0, 486);
+    gr.addColorStop(0, 'rgba(255,255,248,0)'); gr.addColorStop(.5, 'rgba(255,255,248,1)'); gr.addColorStop(1, 'rgba(255,255,248,0)');
+    g.fillStyle = gr; g.fillRect(0, 438, 960, 48);
+    return c;
+  }
+
+  class Sketch {
+    constructor(dom) {
+      this.container = dom;
+      const modeAttr = dom.getAttribute('tlg-fluted-glass-mode');
+      this.mode = ['static', 'mouse', 'scroll'].includes(modeAttr) ? modeAttr : 'static';
+      this.motionFactor = -50 * parseFloat(dom.getAttribute('tlg-fluted-glass-motion')) || -50;
+      this.rotationAngle = parseFloat(dom.getAttribute('tlg-fluted-glass-rotation')) || 0;
+      this.segments = parseInt(dom.getAttribute('tlg-fluted-glass-segments'), 10) || 80;
+      this.overlayOpacity = Math.max(0, Math.min(100, parseFloat(dom.getAttribute('tlg-fluted-glass-overlay')) || 0));
+      this.motion = 0.5;
+
+      this.canvas = document.createElement('canvas');
+      dom.appendChild(this.canvas);
+      const gl = this.gl = this.canvas.getContext('webgl');
+      if (!gl) { dom.style.background = '#17964f'; return; }
+      const sh = (type, s) => { const o = gl.createShader(type); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+      const p = this.prog = gl.createProgram();
+      gl.attachShader(p, sh(gl.VERTEX_SHADER, VERT)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, FRAG));
+      gl.linkProgram(p); gl.useProgram(p);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(p, 'aPos'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      this.u = n => gl.getUniformLocation(p, n);
+
+      const img = makeTexture();
+      gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+      gl.uniform1i(this.u('uTexture'), 0);
+      gl.uniform1f(this.u('uImageAspect'), img.width / img.height);
+      gl.uniform1f(this.u('uRotation'), this.rotationAngle);
+      gl.uniform1f(this.u('uSegments'), this.segments);
+      gl.uniform1f(this.u('uOverlayOpacity'), this.overlayOpacity);
+      gl.uniform3f(this.u('uOverlayColor'), 0, 0, 0);
+      gl.uniform3f(this.u('uOverlayColorWhite'), 1, 1, 1);
+
+      this.resize();
+      window.addEventListener('resize', () => this.resize());
+      if (this.mode === 'mouse') dom.addEventListener('mousemove', e => { this.motion = 0.5 + (e.clientX / window.innerWidth) * this.motionFactor * 0.1; });
+      if (this.mode === 'scroll') { window.addEventListener('scroll', () => this.handleScroll()); this.handleScroll(); }
+      const loop = () => { this.render(); requestAnimationFrame(loop); };
+      loop();
+    }
+
+    handleScroll() {
+      const rect = this.container.getBoundingClientRect();
+      if (rect.top < window.innerHeight && rect.bottom >= 0) {
+        const progress = (window.innerHeight - rect.top) / (window.innerHeight + this.container.offsetHeight);
+        this.motion = progress * 0.2 * this.motionFactor;
+      }
+    }
+
+    resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      this.width = this.container.offsetWidth; this.height = this.container.offsetHeight;
+      this.canvas.width = Math.max(1, Math.round(this.width * dpr)); this.canvas.height = Math.max(1, Math.round(this.height * dpr));
+      this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+      this.gl.uniform4f(this.u('resolution'), this.width, this.height, 0, 0);
+    }
+
+    render() {
+      const gl = this.gl;
+      gl.uniform1f(this.u('uMotionValue'), this.motion);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+  }
+
+  document.querySelectorAll('[tlg-fluted-glass-canvas]').forEach(el => new Sketch(el));
+})();
+  </script>
 </body>
 </html>

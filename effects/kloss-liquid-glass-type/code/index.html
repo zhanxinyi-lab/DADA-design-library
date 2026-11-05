@@ -20,7 +20,7 @@
 <script>
 // ===== 改这里 =====
 const BRAND = {
-  word: 'LIQUID',                 // 最后成形的字
+  word: 'DADA',                 // 最后成形的字
   font: '900 300px "Arial Black", Inter, Helvetica, sans-serif',
   rim:  [0.70, 1.00, 0.90],       // 边缘虹彩往这个颜色收（0~1）
   glowA:[0.10, 0.55, 0.45],       // 背景两团柔光的颜色
@@ -107,7 +107,7 @@ float field(vec2 b){
   return min(max(fb*(1.-smoothstep(.35,.85,uMorph)),letters),3.); }
 void main(){
   vec2 f=gl_FragCoord.xy; f.y=uRes.y-f.y;
-  float s=max(uRes.x/BOARD.x,uRes.y/BOARD.y); vec2 b=(f-uRes*.5)/s+BOARD*.5;
+  float s=min(uRes.x/BOARD.x,uRes.y/BOARD.y); vec2 b=(f-uRes*.5)/s+BOARD*.5;
   vec3 col=backdrop(b);
   float lw=smoothstep(0.,1.,uLine)*(1.-smoothstep(0.,1.,abs(b.x-C.x)/(700.*uLine+1.)));
   col+=vec3(.85,1.,.95)*exp(-pow((b.y-LINEY)/1.4,2.))*lw*.9 + vec3(.4,.9,.75)*exp(-pow((b.y-LINEY)/12.,2.))*lw*.1;

@@ -2,7 +2,7 @@
 
 - 作者：CopilotKit
 - 分类：AI工具/工作流
-- 状态：待复刻。占位预览已从仓库删除，不是可复用代码。
+- 状态：needs_recreation
 - 原文：https://x.com/CopilotKit/status/2116580645149507928
 - 素材 ID：2116580645149507928
 - 版本：1.0.0
