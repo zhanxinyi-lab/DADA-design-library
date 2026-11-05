@@ -29,6 +29,16 @@ DADA 的设计素材、可复用效果和设计工作流 Skill。站点：https:
 
 其余效果目录只保留说明。原先那套通用占位动画已删除，不能再当成复刻结果。
 
+## 单独 fork 的头像仓库
+
+这几个没有并进本仓库，也还没放进上面的效果目录。它们各自留在 zhanxinyi-lab 名下的 fork，网站「设计」分类只放预览和链接。
+
+- [agent-robot-avatar](https://github.com/zhanxinyi-lab/agent-robot-avatar)：MIT，来自 CX-ArtLab/agent-robot-avatar。
+- [avatar-studio](https://github.com/zhanxinyi-lab/avatar-studio)：MIT，来自 ai-calypse/avatar-studio。
+- [robo-face](https://github.com/zhanxinyi-lab/robo-face)、[animate-bot](https://github.com/zhanxinyi-lab/animate-bot)、[bloub](https://github.com/zhanxinyi-lab/bloub)：MIT。bloub 的默认形象只作内部对照。
+- [procedural-expression-library](https://github.com/zhanxinyi-lab/procedural-expression-library)、[mascots](https://github.com/zhanxinyi-lab/mascots)：GPL-3.0，只保留 fork，不把源码抄进本仓库。
+- [openrive](https://github.com/zhanxinyi-lab/openrive)：MIT。
+
 ## Skill
 
 设计工作流 Skill 放在 `skill/`。每个 Skill 一个目录，名称与 SKILL.md 的 name 一致。收录不等于已经安装。
