@@ -3,151 +3,733 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Liber Bestiarium</title>
+  <title>Margin Dragon — De Dracone</title>
   <style>
-    :root { --paper: #f4efe4; --ink: #2a241c; --drop: #a33b2c; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      height: 100%;
+    :root {
+      --paper: #f5f3ed;
+      --ink: #292722;
+      --red: #bd3c32;
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; margin: 0; }
+    body {
+      min-height: 100vh;
+      padding: clamp(18px, 4vw, 48px);
+      overflow-x: hidden;
       background: var(--paper);
       color: var(--ink);
       font-family: Georgia, 'Times New Roman', serif;
-      overflow: auto;
     }
     .page {
       position: relative;
-      height: 100%;
-      padding: 8vh 10vw 8vh 18vw;
-      max-width: 1100px;
+      isolation: isolate;
+      width: min(100%, 820px);
+      min-height: calc(100vh - clamp(36px, 8vw, 96px));
+      margin: 0 auto;
+      padding: clamp(32px, 6vh, 62px) clamp(20px, 6vw, 58px) 34px;
+      overflow: hidden;
     }
     .folio {
-      font-size: 12px;
-      letter-spacing: 0.28em;
+      margin-bottom: 12px;
+      color: rgba(41, 39, 34, .62);
+      font-size: 11px;
+      letter-spacing: .22em;
       text-transform: uppercase;
-      opacity: 0.55;
-      margin-bottom: 18px;
     }
     h1 {
-      font-size: clamp(36px, 6vw, 64px);
+      margin: 0 0 23px;
+      font-size: clamp(38px, 6vw, 58px);
       font-weight: 500;
-      margin-bottom: 28px;
+      line-height: 1.05;
     }
-    .body { font-size: 20px; line-height: 1.55; max-width: 42em; }
-    .body p { margin-bottom: 1.1em; }
-    .drop {
-      float: left;
-      font-size: 92px;
-      line-height: 0.8;
-      color: var(--drop);
-      padding-right: 10px;
-      font-weight: 600;
+    .body {
+      position: relative;
+      min-height: 470px;
+      font-size: clamp(16px, 1.65vw, 19px);
+      line-height: 1.7;
+      overflow: visible;
+      touch-action: none;
     }
-    canvas {
-      position: fixed;
+    .body:focus-visible {
+      outline: 2px solid var(--red);
+      outline-offset: 4px;
+    }
+    #wash, #dragon {
+      position: absolute;
       inset: 0;
+      display: block;
       width: 100%;
       height: 100%;
       pointer-events: none;
     }
-    @media (max-width: 720px) {
-      .page { padding: 6vh 7vw; }
-      .body { font-size: 16px; }
+    #wash { z-index: 0; }
+    #text-flow { position: absolute; inset: 0; z-index: 1; }
+    #dragon { z-index: 2; }
+    .paragraph {
+      position: absolute;
+      inset-inline: 0;
+      margin: 0;
+      line-height: inherit;
+    }
+    .text-line {
+      position: absolute;
+      inset-inline: 0;
+      height: 1.7em;
+      white-space: nowrap;
+    }
+    .text-run {
+      position: absolute;
+      top: 0;
+      white-space: pre;
+    }
+    .dropcap {
+      position: absolute;
+      z-index: 3;
+      top: -1px;
+      left: 0;
+      color: var(--red);
+      font-size: 78px;
+      font-weight: 600;
+      line-height: .8;
+      pointer-events: none;
+    }
+    .hint {
+      position: relative;
+      z-index: 3;
+      margin: 18px 0 0;
+      color: rgba(41, 39, 34, .62);
+      font-size: 11px;
+      letter-spacing: .04em;
+    }
+    @media (max-width: 520px) {
+      body { padding: 0; }
+      .page {
+        min-height: 100vh;
+        padding: 34px 20px 28px;
+      }
+      .folio { font-size: 10px; }
+      h1 { margin-bottom: 19px; }
+      .body { min-height: 560px; font-size: 16px; }
+      .dropcap { font-size: 68px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; }
     }
   </style>
 </head>
 <body>
-  <div class="page">
+  <main class="page">
     <div class="folio" id="folio"></div>
     <h1 id="title"></h1>
-    <div class="body" id="body"></div>
-  </div>
-  <canvas id="wash"></canvas>
+    <section class="body" id="body" aria-label="An illustrated bestiary page" aria-describedby="interaction-help" tabindex="0">
+      <canvas id="wash" aria-hidden="true"></canvas>
+      <div id="text-flow" aria-live="off"></div>
+      <canvas id="dragon" aria-hidden="true"></canvas>
+    </section>
+    <p class="hint" id="interaction-help">Drag with a mouse or touch to guide the dragon. Keyboard: focus this page, use the arrow keys to steer, and hold Space or Enter to let it breathe. On touch, swipe outside this interactive area to scroll the page.</p>
+  </main>
   <script>
-    // 改这里即可换品牌
+    // Keep these fields editable so the effect can be rebranded without changing its behavior.
     const BRAND = {
-      name: 'Liber Bestiarium',
+      name: 'Liber Bestiarum',
       folio: 'Folio XLVII',
       title: 'De Dracone',
       drop: 'I',
       body: [
-        't was late in the scriptorium, and the lamp had burned down to a thread. No original folio is copied here; this leaf is a stand-in for a bestiary margin.',
-        'A dragon is kept in the gutter, small enough to be missed and red enough to be found. The scribe watched the ink seem to move, then found that it did.',
-        'Scribes have always known a margin is not empty. It is where a book keeps its animals, and where a hand may wake them.',
-        'Most stay where they were put. A few decide that the page is a field, and the words are only grass.',
+        't was the ninth hour, and the lamp in the copying room had burned down to a thread. The scribe had been told twice to put out the light, and twice she had not. On the desk lay the bestiary, open at the leaf where a dragon had been painted coiled about a capital, and she had been staring at it so long that the ink seemed to move. Then it did move. The tail slid out of the letter. The head lifted from the vellum, and the dragon looked at the words around it the way a cat looks at birds.',
+        'It did not eat them. It pushed through them, and the lines parted to let it pass, closing again behind its tail like water behind a boat. Where it breathed, the page browned and curled. The scribe watched a whole sentence blacken and fall away, and found that she was not afraid, only sorry for the sentence.',
+        'Scribes have always known that a margin is not empty. It is where a book keeps its animals. They are drawn small so that no one will notice them, and drawn in red so that they will be noticed anyway. Most of them stay where they were put. A few, on long nights, when the lamp is low and the reader has not gone to bed, decide that the page is a field, and the words are only grass.',
         'Move your hand and it will follow. Press, and it will breathe.'
       ],
-      paper: '#f4efe4',
-      ink: '#2a241c',
-      dropColor: '#a33b2c',
-      wash: ['#c9a070', '#6a8aaa', '#d8c4b0']
+      paper: '#f5f3ed',
+      ink: '#292722',
+      dropColor: '#bd3c32',
+      wash: ['#ce7569', '#7191c2', '#c99f60']
     };
 
-    (function () {
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    (() => {
+      const body = document.getElementById('body');
+      const flow = document.getElementById('text-flow');
+      const washCanvas = document.getElementById('wash');
+      const dragonCanvas = document.getElementById('dragon');
+      const washCtx = washCanvas.getContext('2d');
+      const dragonCtx = dragonCanvas.getContext('2d');
+      const probe = document.createElement('canvas').getContext('2d');
+      const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let reducedMotion = motionPreference.matches;
+      const points = Array.from({ length: 30 }, () => ({ x: 0, y: 0 }));
+      const lastLayoutPoints = Array.from({ length: 30 }, () => ({ x: -1000, y: -1000 }));
+      const washes = [];
       const root = document.documentElement;
+      const cap = document.createElement('span');
+      let width = 0;
+      let height = 0;
+      let lineHeight = 30;
+      let spacing = 14;
+      let targetX = 0;
+      let targetY = 0;
+      let pointerInside = false;
+      let pointerPressed = false;
+      let keyboardPressed = false;
+      let keyboardSteering = false;
+      let activePointerId = null;
+      let pressed = false;
+      let animationId = 0;
+      let elapsed = 0;
+      let frame = 0;
+      let lastWashX = -1000;
+      let lastWashY = -1000;
+      let lastTime = 0;
+
       root.style.setProperty('--paper', BRAND.paper);
       root.style.setProperty('--ink', BRAND.ink);
-      root.style.setProperty('--drop', BRAND.dropColor);
-      document.title = BRAND.name;
+      root.style.setProperty('--red', BRAND.dropColor);
       document.body.style.background = BRAND.paper;
-      document.getElementById('folio').textContent = BRAND.name + '  ·  ' + BRAND.folio;
+      document.title = BRAND.name + ' — ' + BRAND.title;
+      document.getElementById('folio').textContent = BRAND.name + ' · ' + BRAND.folio;
       document.getElementById('title').textContent = BRAND.title;
-      const body = document.getElementById('body');
-      BRAND.body.forEach(function (para, i) {
-        const p = document.createElement('p');
-        if (i === 0) {
-          const d = document.createElement('span');
-          d.className = 'drop';
-          d.textContent = BRAND.drop;
-          p.appendChild(d);
-        }
-        p.appendChild(document.createTextNode(para));
-        body.appendChild(p);
-      });
+      cap.className = 'dropcap';
+      cap.textContent = BRAND.drop;
+      cap.setAttribute('aria-hidden', 'true');
+      const accessibleBody = BRAND.body.map((paragraph, i) => i === 0 ? BRAND.drop + paragraph : paragraph).join(' ');
+      flow.setAttribute('aria-label', accessibleBody);
 
-      const canvas = document.getElementById('wash');
-      const ctx = canvas.getContext('2d');
-      const blobs = [];
-      let mx = innerWidth * 0.12, my = innerHeight * 0.28, down = false, auto = 0;
+      function resizeCanvas(canvas, context) {
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
 
       function resize() {
-        const dpr = Math.min(2, devicePixelRatio || 1);
-        canvas.width = innerWidth * dpr;
-        canvas.height = innerHeight * dpr;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      }
-      resize();
-      addEventListener('resize', resize);
-      addEventListener('pointermove', function (e) {
-        mx = e.clientX; my = e.clientY;
-        blobs.push({ x: mx, y: my, r: down ? 70 : 28, a: 0.18, c: BRAND.wash[blobs.length % BRAND.wash.length] });
-      });
-      addEventListener('pointerdown', function () { down = true; });
-      addEventListener('pointerup', function () { down = false; });
-
-      function tick() {
-        auto += reduced ? 0.4 : 1;
-        const ax = innerWidth * 0.1 + Math.sin(auto / 80) * 20;
-        const ay = innerHeight * 0.32 + auto * 0.35;
-        if (auto < 180) blobs.push({ x: ax, y: ay, r: 18 + auto * 0.2, a: 0.12, c: BRAND.wash[0] });
-        ctx.clearRect(0, 0, innerWidth, innerHeight);
-        ctx.globalCompositeOperation = 'multiply';
-        for (let i = 0; i < blobs.length; i++) {
-          const b = blobs[i];
-          b.r += down ? 0.8 : 0.25;
-          b.a *= 0.992;
-          ctx.beginPath();
-          ctx.fillStyle = b.c;
-          ctx.globalAlpha = Math.max(0, b.a);
-          ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-          ctx.fill();
+        width = body.clientWidth;
+        lineHeight = parseFloat(getComputedStyle(body).lineHeight) || 30;
+        spacing = Math.max(8, Math.min(20, width / 34));
+        const font = getComputedStyle(body).font;
+        probe.font = font;
+        height = Math.max(470, body.clientHeight);
+        if (!points[0].x) {
+          targetX = width * .7;
+          targetY = Math.min(height - lineHeight * 2, lineHeight * 7);
+          points.forEach((point, i) => {
+            point.x = targetX - i * spacing;
+            point.y = targetY;
+          });
+        } else {
+          points.forEach((point) => {
+            point.x = Math.max(-24, Math.min(width + 24, point.x));
+            point.y = Math.max(lineHeight, Math.min(height - lineHeight, point.y));
+          });
         }
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = 'source-over';
-        if (blobs.length > 90) blobs.splice(0, blobs.length - 90);
-        requestAnimationFrame(tick);
+        layoutText();
+        fitHeight();
+        resizeCanvas(washCanvas, washCtx);
+        resizeCanvas(dragonCanvas, dragonCtx);
+        seedWash();
+        drawWash();
+        drawDragon();
+        rememberLayoutPoints();
       }
-      requestAnimationFrame(tick);
+
+      function fitHeight() {
+        let nextHeight = Math.max(470, flow.offsetHeight);
+        for (let pass = 0; pass < 2; pass++) {
+          const maxY = Math.max(lineHeight * 2, nextHeight - lineHeight * 2);
+          let clamped = false;
+          points.forEach((point) => {
+            const y = Math.max(lineHeight * 2, Math.min(maxY, point.y));
+            if (y !== point.y) {
+              point.y = y;
+              clamped = true;
+            }
+          });
+          targetY = Math.max(lineHeight * 2, Math.min(maxY, targetY));
+          if (!clamped) break;
+          layoutText();
+          nextHeight = Math.max(470, flow.offsetHeight);
+        }
+        const changed = Math.abs(nextHeight - height) > 8;
+        height = nextHeight;
+        body.style.height = height + 'px';
+        return changed;
+      }
+
+      function seedWash() {
+        washes.length = 0;
+        washes.push(
+          { x: width * .04, y: height * .1, r: 120, a: .055, color: BRAND.wash[0] },
+          { x: width * .94, y: height * .88, r: 150, a: .06, color: BRAND.wash[1] }
+        );
+      }
+
+      function freeIntervals(y) {
+        let intervals = [[0, width]];
+        const mid = y + lineHeight / 2;
+        const head = points[0];
+        const neck = points[1];
+        const angle = Math.atan2(head.y - neck.y, head.x - neck.x);
+        const obstacles = [{
+          x: head.x + Math.cos(angle) * 14,
+          y: head.y + Math.sin(angle) * 14,
+          radius: 43
+        }];
+        for (let i = 1; i < points.length; i += 2) {
+          obstacles.push({
+            x: points[i].x,
+            y: points[i].y,
+            radius: 13 + (1 - i / points.length) * 5 + 11
+          });
+        }
+        for (const obstacle of obstacles) {
+          const dy = Math.max(0, Math.abs(obstacle.y - mid) - lineHeight / 2);
+          if (dy >= obstacle.radius) continue;
+          const halfWidth = Math.sqrt(obstacle.radius * obstacle.radius - dy * dy);
+          const cutLeft = obstacle.x - halfWidth;
+          const cutRight = obstacle.x + halfWidth;
+          intervals = intervals.flatMap(([left, right]) => {
+            if (cutRight <= left || cutLeft >= right) return [[left, right]];
+            const parts = [];
+            if (cutLeft > left) parts.push([left, cutLeft]);
+            if (cutRight < right) parts.push([cutRight, right]);
+            return parts;
+          });
+        }
+        return intervals.filter(([left, right]) => right - left >= 30);
+      }
+
+      function layoutText() {
+        flow.replaceChildren();
+        flow.appendChild(cap);
+        let top = 0;
+        BRAND.body.forEach((paragraph, paragraphIndex) => {
+          const words = paragraph.trim().split(/\s+/);
+          const paragraphEl = document.createElement('p');
+          paragraphEl.className = 'paragraph';
+          paragraphEl.style.top = top + 'px';
+          flow.appendChild(paragraphEl);
+          let localY = 0;
+          let wordIndex = 0;
+          let lineIndex = 0;
+          while (wordIndex < words.length) {
+            const row = document.createElement('span');
+            row.className = 'text-line';
+            row.style.top = localY + 'px';
+            paragraphEl.appendChild(row);
+            const intervals = freeIntervals(top + localY);
+            if (paragraphIndex === 0 && lineIndex < 2 && intervals.length) {
+              intervals[0][0] = Math.max(intervals[0][0], 48);
+            }
+            for (const [left, right] of intervals) {
+              const available = right - left;
+              let run = '';
+              while (wordIndex < words.length) {
+                const candidate = run ? run + ' ' + words[wordIndex] : words[wordIndex];
+                if (probe.measureText(candidate).width > available + .5) break;
+                run = candidate;
+                wordIndex++;
+              }
+              if (run) {
+                const span = document.createElement('span');
+                span.className = 'text-run';
+                span.style.left = left + 'px';
+                span.textContent = run;
+                row.appendChild(span);
+              }
+            }
+            localY += lineHeight;
+            lineIndex++;
+            if (lineIndex > 120) break;
+          }
+          top += localY + lineHeight * .55;
+        });
+        flow.style.height = Math.max(top, 420) + 'px';
+      }
+
+      function addWash(x, y, strength) {
+        washes.push({
+          x, y,
+          r: 20 + Math.random() * 14,
+          a: strength,
+          color: BRAND.wash[washes.length % BRAND.wash.length]
+        });
+        if (washes.length > 34) washes.splice(0, washes.length - 34);
+      }
+
+      function drawWash() {
+        washCtx.clearRect(0, 0, width, height);
+        washCtx.globalCompositeOperation = 'multiply';
+        for (let i = washes.length - 1; i >= 0; i--) {
+          const blot = washes[i];
+          const gradient = washCtx.createRadialGradient(blot.x, blot.y, 0, blot.x, blot.y, blot.r);
+          gradient.addColorStop(0, blot.color + '44');
+          gradient.addColorStop(.55, blot.color + '22');
+          gradient.addColorStop(1, blot.color + '00');
+          washCtx.globalAlpha = Math.max(0, blot.a);
+          washCtx.fillStyle = gradient;
+          washCtx.beginPath();
+          washCtx.arc(blot.x, blot.y, blot.r, 0, Math.PI * 2);
+          washCtx.fill();
+          blot.r += .12;
+          blot.a *= .996;
+          if (blot.a < .008) washes.splice(i, 1);
+        }
+        washCtx.globalAlpha = 1;
+        washCtx.globalCompositeOperation = 'source-over';
+      }
+
+      function traceBody() {
+        dragonCtx.beginPath();
+        dragonCtx.moveTo(points[points.length - 1].x, points[points.length - 1].y);
+        for (let i = points.length - 2; i >= 0; i--) {
+          const current = points[i];
+          const next = points[i + 1];
+          const midX = (current.x + next.x) / 2;
+          const midY = (current.y + next.y) / 2;
+          dragonCtx.quadraticCurveTo(next.x, next.y, midX, midY);
+        }
+        dragonCtx.lineTo(points[0].x, points[0].y);
+      }
+
+      function drawLeg(index, side) {
+        const point = points[index];
+        const before = points[Math.max(0, index - 1)];
+        const angle = Math.atan2(point.y - before.y, point.x - before.x);
+        dragonCtx.save();
+        dragonCtx.translate(point.x, point.y);
+        dragonCtx.rotate(angle);
+        dragonCtx.beginPath();
+        dragonCtx.moveTo(0, side * 3);
+        dragonCtx.quadraticCurveTo(-2, side * 12, 5, side * 16);
+        dragonCtx.lineTo(12, side * 15);
+        dragonCtx.strokeStyle = '#a43c33';
+        dragonCtx.lineWidth = 2;
+        dragonCtx.lineCap = 'round';
+        dragonCtx.stroke();
+        dragonCtx.restore();
+      }
+
+      function drawHead() {
+        const head = points[0];
+        const neck = points[1];
+        const angle = Math.atan2(head.y - neck.y, head.x - neck.x);
+        dragonCtx.save();
+        dragonCtx.translate(head.x, head.y);
+        dragonCtx.rotate(angle);
+        dragonCtx.lineWidth = 1.4;
+        dragonCtx.strokeStyle = '#91352d';
+        dragonCtx.fillStyle = '#f3c8ad';
+        dragonCtx.beginPath();
+        dragonCtx.moveTo(-10, -7);
+        dragonCtx.quadraticCurveTo(1, -13, 12, -7);
+        dragonCtx.lineTo(25, -4);
+        dragonCtx.quadraticCurveTo(34, 0, 25, 4);
+        dragonCtx.lineTo(11, 5);
+        dragonCtx.quadraticCurveTo(0, 12, -10, 7);
+        dragonCtx.closePath();
+        dragonCtx.fill();
+        dragonCtx.stroke();
+        dragonCtx.beginPath();
+        dragonCtx.moveTo(-5, -8);
+        dragonCtx.quadraticCurveTo(-11, -19, -2, -15);
+        dragonCtx.moveTo(2, -9);
+        dragonCtx.quadraticCurveTo(3, -20, 9, -15);
+        dragonCtx.strokeStyle = '#b64a3c';
+        dragonCtx.lineWidth = 2;
+        dragonCtx.stroke();
+        dragonCtx.beginPath();
+        dragonCtx.arc(10, -4, 1.6, 0, Math.PI * 2);
+        dragonCtx.fillStyle = '#32251f';
+        dragonCtx.fill();
+        dragonCtx.beginPath();
+        dragonCtx.moveTo(23, 0);
+        dragonCtx.quadraticCurveTo(34, 5, 41, 1);
+        dragonCtx.moveTo(22, 2);
+        dragonCtx.quadraticCurveTo(32, 9, 40, 6);
+        dragonCtx.strokeStyle = '#bc5543';
+        dragonCtx.lineWidth = 1;
+        dragonCtx.stroke();
+        if (pressed) {
+          const pulse = .65 + Math.sin(elapsed * 18) * .18;
+          dragonCtx.shadowColor = 'rgba(220, 105, 47, .72)';
+          dragonCtx.shadowBlur = 15;
+          dragonCtx.beginPath();
+          dragonCtx.moveTo(25, -1);
+          dragonCtx.quadraticCurveTo(38, -7 * pulse, 48, -2 * pulse);
+          dragonCtx.quadraticCurveTo(41, 3 * pulse, 27, 3);
+          dragonCtx.closePath();
+          dragonCtx.fillStyle = 'rgba(224, 126, 45, .82)';
+          dragonCtx.fill();
+          dragonCtx.shadowBlur = 0;
+          dragonCtx.beginPath();
+          dragonCtx.arc(33, 0, 2.5, 0, Math.PI * 2);
+          dragonCtx.fillStyle = '#ffe2a2';
+          dragonCtx.fill();
+        }
+        dragonCtx.restore();
+      }
+
+      function drawDragon() {
+        dragonCtx.clearRect(0, 0, width, height);
+        traceBody();
+        dragonCtx.lineCap = 'round';
+        dragonCtx.lineJoin = 'round';
+        dragonCtx.strokeStyle = 'rgba(124, 45, 39, .28)';
+        dragonCtx.lineWidth = 21;
+        dragonCtx.stroke();
+        const bodyGradient = dragonCtx.createLinearGradient(points[points.length - 1].x, points[points.length - 1].y, points[0].x, points[0].y);
+        bodyGradient.addColorStop(0, '#d7a36d');
+        bodyGradient.addColorStop(.32, '#c74f3b');
+        bodyGradient.addColorStop(.68, '#e48666');
+        bodyGradient.addColorStop(1, '#bf4035');
+        dragonCtx.strokeStyle = bodyGradient;
+        dragonCtx.lineWidth = 15;
+        dragonCtx.stroke();
+        dragonCtx.strokeStyle = 'rgba(255, 230, 198, .78)';
+        dragonCtx.lineWidth = 2.2;
+        dragonCtx.stroke();
+        for (let i = 4; i < points.length - 5; i += 5) {
+          drawLeg(i, -1);
+          drawLeg(i, 1);
+        }
+        const tail = points[points.length - 1];
+        const tailNext = points[points.length - 2];
+        const tailAngle = Math.atan2(tail.y - tailNext.y, tail.x - tailNext.x);
+        dragonCtx.save();
+        dragonCtx.translate(tail.x, tail.y);
+        dragonCtx.rotate(tailAngle);
+        dragonCtx.beginPath();
+        dragonCtx.moveTo(0, 0);
+        dragonCtx.lineTo(-19, -9);
+        dragonCtx.lineTo(-14, 0);
+        dragonCtx.lineTo(-19, 9);
+        dragonCtx.closePath();
+        dragonCtx.fillStyle = '#d5684e';
+        dragonCtx.strokeStyle = '#a43c33';
+        dragonCtx.lineWidth = 1.3;
+        dragonCtx.fill();
+        dragonCtx.stroke();
+        dragonCtx.restore();
+        drawHead();
+      }
+
+      function constrainBody() {
+        for (let i = 1; i < points.length; i++) {
+          const previous = points[i - 1];
+          const point = points[i];
+          const dx = point.x - previous.x;
+          const dy = point.y - previous.y;
+          const distance = Math.hypot(dx, dy) || 1;
+          const correction = (distance - spacing) / distance;
+          point.x -= dx * correction;
+          point.y -= dy * correction;
+        }
+      }
+
+      function updateDragon(delta) {
+        elapsed += delta;
+        if (!pointerInside) {
+          const margin = Math.min(52, width * .16);
+          targetX = width * .55 + Math.sin(elapsed * .46) * Math.max(0, width * .27 - margin / 2);
+          targetY = Math.min(height - lineHeight * 2, lineHeight * 6 + Math.sin(elapsed * .72) * lineHeight * 1.7);
+        }
+        targetX = Math.max(22, Math.min(width - 28, targetX));
+        targetY = Math.max(lineHeight * 2, Math.min(height - lineHeight * 2, targetY));
+        points[0].x += (targetX - points[0].x) * .13;
+        points[0].y += (targetY - points[0].y) * .13;
+        constrainBody();
+      }
+
+      function rememberLayoutPoints() {
+        points.forEach((point, i) => {
+          lastLayoutPoints[i].x = point.x;
+          lastLayoutPoints[i].y = point.y;
+        });
+      }
+
+      function renderReducedMotion() {
+        if (!reducedMotion) return;
+        if (pointerInside || keyboardSteering) {
+          targetX = Math.max(22, Math.min(width - 28, targetX));
+          targetY = Math.max(lineHeight * 2, Math.min(height - lineHeight * 2, targetY));
+          points[0].x = targetX;
+          points[0].y = targetY;
+          constrainBody();
+        }
+        layoutText();
+        if (fitHeight()) {
+          resizeCanvas(washCanvas, washCtx);
+          resizeCanvas(dragonCanvas, dragonCtx);
+        }
+        drawWash();
+        drawDragon();
+        rememberLayoutPoints();
+      }
+
+      function startAnimation() {
+        if (!reducedMotion && !animationId) {
+          lastTime = 0;
+          animationId = requestAnimationFrame(animate);
+        }
+      }
+
+      function stopAnimation() {
+        if (animationId) cancelAnimationFrame(animationId);
+        animationId = 0;
+        lastTime = 0;
+      }
+
+      function animate(now) {
+        animationId = 0;
+        if (reducedMotion) {
+          renderReducedMotion();
+          return;
+        }
+        const delta = Math.min(.05, Math.max(0, (now - (lastTime || now)) / 1000));
+        lastTime = now;
+        updateDragon(delta);
+        drawWash();
+        drawDragon();
+        frame++;
+        if (frame % 4 === 0 && points.some((point, i) =>
+          Math.hypot(point.x - lastLayoutPoints[i].x, point.y - lastLayoutPoints[i].y) > 1.5
+        )) {
+          rememberLayoutPoints();
+          layoutText();
+          if (fitHeight()) {
+            resizeCanvas(washCanvas, washCtx);
+            resizeCanvas(dragonCanvas, dragonCtx);
+            drawWash();
+            drawDragon();
+          }
+        }
+        animationId = requestAnimationFrame(animate);
+      }
+
+      function releaseKeyboard() {
+        keyboardPressed = false;
+        pressed = pointerPressed;
+        keyboardSteering = false;
+        if (!activePointerId) pointerInside = false;
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      }
+
+      function releaseAllInput() {
+        keyboardPressed = false;
+        pointerPressed = false;
+        activePointerId = null;
+        pressed = false;
+        keyboardSteering = false;
+        pointerInside = false;
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      }
+
+      body.addEventListener('pointermove', (event) => {
+        pointerInside = true;
+        keyboardSteering = false;
+        const rect = body.getBoundingClientRect();
+        targetX = event.clientX - rect.left;
+        targetY = event.clientY - rect.top;
+        if (Math.hypot(targetX - lastWashX, targetY - lastWashY) > 28) {
+          addWash(targetX, targetY, .12);
+          lastWashX = targetX;
+          lastWashY = targetY;
+        }
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      });
+      body.addEventListener('pointerleave', () => {
+        if (!keyboardSteering) pointerInside = false;
+      });
+      body.addEventListener('pointerdown', (event) => {
+        activePointerId = event.pointerId;
+        pointerPressed = true;
+        pressed = true;
+        pointerInside = true;
+        keyboardSteering = false;
+        const rect = body.getBoundingClientRect();
+        targetX = event.clientX - rect.left;
+        targetY = event.clientY - rect.top;
+        addWash(targetX, targetY, .2);
+        try { body.setPointerCapture(event.pointerId); } catch { /* Synthetic or already-cancelled pointer. */ }
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      });
+      function finishPointer(event, cancelled) {
+        if (activePointerId === null || event.pointerId !== activePointerId) return;
+        activePointerId = null;
+        pointerPressed = false;
+        pressed = keyboardPressed;
+        if (cancelled && !keyboardSteering) pointerInside = false;
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      }
+      window.addEventListener('pointerup', (event) => finishPointer(event, false));
+      window.addEventListener('pointercancel', (event) => finishPointer(event, true));
+
+      const directions = {
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1]
+      };
+      body.addEventListener('keydown', (event) => {
+        if (document.activeElement !== body) return;
+        const direction = directions[event.key];
+        if (direction) {
+          event.preventDefault();
+          if (!keyboardSteering) {
+            targetX = points[0].x;
+            targetY = points[0].y;
+          }
+          keyboardSteering = true;
+          pointerInside = true;
+          const step = Math.max(18, Math.min(42, width * .08));
+          targetX += direction[0] * step;
+          targetY += direction[1] * step;
+        } else if (event.code === 'Space' || event.key === 'Enter') {
+          event.preventDefault();
+          if (!keyboardSteering) {
+            targetX = points[0].x;
+            targetY = points[0].y;
+            keyboardSteering = true;
+            pointerInside = true;
+          }
+          keyboardPressed = true;
+          pressed = true;
+        } else {
+          return;
+        }
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      });
+      body.addEventListener('keyup', (event) => {
+        if (event.code !== 'Space' && event.key !== 'Enter') return;
+        keyboardPressed = false;
+        pressed = pointerPressed;
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      });
+      body.addEventListener('blur', releaseKeyboard);
+      window.addEventListener('blur', releaseAllInput);
+      function handleMotionPreferenceChange(event) {
+        reducedMotion = event.matches;
+        if (reducedMotion) {
+          stopAnimation();
+          renderReducedMotion();
+        } else {
+          startAnimation();
+        }
+      }
+      if (motionPreference.addEventListener) motionPreference.addEventListener('change', handleMotionPreferenceChange);
+      else motionPreference.addListener(handleMotionPreferenceChange);
+      window.addEventListener('resize', () => {
+        resize();
+        startAnimation();
+      });
+      resize();
+      startAnimation();
     })();
   </script>
 </body>
