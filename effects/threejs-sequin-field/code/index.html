@@ -92,7 +92,7 @@
       const colorSteps = 64;
       const maxCells = 4800;
       const spotRadius = 140;
-      let W = 0, H = 0, cols = 0, rows = 0, size = 0;
+      let W = 0, H = 0, cols = 0, rows = 0, cellW = 0, cellH = 0;
       let mx = null, my = null, t0 = performance.now(), rafId = 0;
       let activePointerId = null, pointerStartY = null, flipProgress = 0, flipTarget = 0;
 
@@ -126,18 +126,20 @@
 
       function resize() {
         const dpr = Math.min(2, devicePixelRatio || 1);
-        W = innerWidth;
-        H = innerHeight;
+        W = Math.max(1, innerWidth);
+        H = Math.max(1, innerHeight);
         canvas.width = W * dpr;
         canvas.height = H * dpr;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        cols = W < 600 ? 36 : 96;
-        rows = Math.max(1, Math.ceil(H / Math.max(1, W / cols)));
-        while (cols * rows > maxCells && cols > 1) {
-          cols--;
-          rows = Math.max(1, Math.ceil(H / Math.max(1, W / cols)));
+        cols = Math.max(1, Math.min(W < 600 ? 36 : 96, Math.floor(W / 4)));
+        rows = Math.max(1, Math.ceil(H / (W / cols)));
+        if (cols * rows > maxCells) {
+          cols = Math.max(1, Math.min(cols, Math.floor(Math.sqrt(maxCells * W / H))));
+          rows = Math.max(1, Math.floor(maxCells / cols));
         }
-        size = Math.min(W / cols, H / rows);
+        rows = Math.max(1, Math.min(rows, Math.floor(maxCells / cols)));
+        cellW = W / cols;
+        cellH = H / rows;
       }
 
       function drawFrame(now) {
@@ -152,14 +154,15 @@
 
         ctx.fillStyle = '#9a9a9a';
         ctx.fillRect(0, 0, W, H);
-        const ox = (W - cols * size) / 2;
-        const oy = (H - rows * size) / 2;
-        const radius = (size - BRAND.gap) / 2;
-        ctx.lineWidth = Math.max(0.45, size * 0.035);
+        const gapX = Math.min(BRAND.gap, cellW * 0.2);
+        const gapY = Math.min(BRAND.gap, cellH * 0.2);
+        const radiusX = Math.max(0.12, (cellW - gapX) / 2);
+        const radiusY = Math.max(0.12, (cellH - gapY) / 2);
+        ctx.lineWidth = Math.max(0.02, Math.min(0.75, Math.min(cellW, cellH) * 0.035));
         for (let y = 0; y < rows; y++) {
           for (let x = 0; x < cols; x++) {
-            const cx = ox + x * size + size / 2;
-            const cy = oy + y * size + size / 2;
+            const cx = x * cellW + cellW / 2;
+            const cy = y * cellH + cellH / 2;
             const dx = cx - px;
             const dy = cy - py;
             const distanceSquared = dx * dx + dy * dy;
@@ -169,17 +172,17 @@
             const tone = Math.round(infl * colorSteps);
             const angle = flipProgress * Math.PI + infl * 1.45 * (1 - flipProgress);
             const cosine = Math.cos(angle);
-            const ry = radius * Math.max(0.12, Math.abs(cosine));
+            const ry = radiusY * Math.max(0.12, Math.abs(cosine));
 
             ctx.beginPath();
-            ctx.ellipse(cx, cy, radius, ry, 0, 0, Math.PI * 2);
+            ctx.ellipse(cx, cy, radiusX, ry, 0, 0, Math.PI * 2);
             ctx.fillStyle = cosine >= 0 ? frontPalette[tone] : reversePalette[tone];
             ctx.fill();
             ctx.strokeStyle = rimPalette[tone];
             ctx.stroke();
 
             ctx.beginPath();
-            ctx.ellipse(cx - radius * 0.25, cy - ry * 0.28, radius * 0.22, ry * 0.18, -0.45, 0, Math.PI * 2);
+            ctx.ellipse(cx - radiusX * 0.25, cy - ry * 0.28, radiusX * 0.22, ry * 0.18, -0.45, 0, Math.PI * 2);
             ctx.fillStyle = highlightPalette[tone];
             ctx.fill();
           }
