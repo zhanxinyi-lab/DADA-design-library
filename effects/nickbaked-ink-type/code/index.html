@@ -48,6 +48,11 @@
       font-size: clamp(16px, 1.65vw, 19px);
       line-height: 1.7;
       overflow: visible;
+      touch-action: none;
+    }
+    .body:focus-visible {
+      outline: 2px solid var(--red);
+      outline-offset: 4px;
     }
     #wash, #dragon {
       position: absolute;
@@ -116,12 +121,12 @@
   <main class="page">
     <div class="folio" id="folio"></div>
     <h1 id="title"></h1>
-    <section class="body" id="body" aria-label="An illustrated bestiary page">
+    <section class="body" id="body" aria-label="An illustrated bestiary page" aria-describedby="interaction-help" tabindex="0">
       <canvas id="wash" aria-hidden="true"></canvas>
       <div id="text-flow" aria-live="off"></div>
       <canvas id="dragon" aria-hidden="true"></canvas>
     </section>
-    <p class="hint">Move across the page to lead the dragon. Press to let it breathe.</p>
+    <p class="hint" id="interaction-help">Drag with a mouse or touch to guide the dragon. Keyboard: focus this page, use the arrow keys to steer, and hold Space or Enter to let it breathe. On touch, swipe outside this interactive area to scroll the page.</p>
   </main>
   <script>
     // Keep these fields editable so the effect can be rebranded without changing its behavior.
@@ -150,7 +155,8 @@
       const washCtx = washCanvas.getContext('2d');
       const dragonCtx = dragonCanvas.getContext('2d');
       const probe = document.createElement('canvas').getContext('2d');
-      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let reducedMotion = motionPreference.matches;
       const points = Array.from({ length: 30 }, () => ({ x: 0, y: 0 }));
       const lastLayoutPoints = Array.from({ length: 30 }, () => ({ x: -1000, y: -1000 }));
       const washes = [];
@@ -163,7 +169,12 @@
       let targetX = 0;
       let targetY = 0;
       let pointerInside = false;
+      let pointerPressed = false;
+      let keyboardPressed = false;
+      let keyboardSteering = false;
+      let activePointerId = null;
       let pressed = false;
+      let animationId = 0;
       let elapsed = 0;
       let frame = 0;
       let lastWashX = -1000;
@@ -217,6 +228,7 @@
         seedWash();
         drawWash();
         drawDragon();
+        rememberLayoutPoints();
       }
 
       function fitHeight() {
@@ -500,18 +512,7 @@
         drawHead();
       }
 
-      function updateDragon(delta) {
-        elapsed += delta;
-        if (!pointerInside) {
-          const margin = Math.min(52, width * .16);
-          targetX = width * .55 + Math.sin(elapsed * .46) * Math.max(0, width * .27 - margin / 2);
-          targetY = Math.min(height - lineHeight * 2, lineHeight * 6 + Math.sin(elapsed * .72) * lineHeight * 1.7);
-        }
-        targetX = Math.max(22, Math.min(width - 28, targetX));
-        targetY = Math.max(lineHeight * 2, Math.min(height - lineHeight * 2, targetY));
-        const easing = reducedMotion && !pointerInside ? .01 : .13;
-        points[0].x += (targetX - points[0].x) * easing;
-        points[0].y += (targetY - points[0].y) * easing;
+      function constrainBody() {
         for (let i = 1; i < points.length; i++) {
           const previous = points[i - 1];
           const point = points[i];
@@ -524,32 +525,110 @@
         }
       }
 
+      function updateDragon(delta) {
+        elapsed += delta;
+        if (!pointerInside) {
+          const margin = Math.min(52, width * .16);
+          targetX = width * .55 + Math.sin(elapsed * .46) * Math.max(0, width * .27 - margin / 2);
+          targetY = Math.min(height - lineHeight * 2, lineHeight * 6 + Math.sin(elapsed * .72) * lineHeight * 1.7);
+        }
+        targetX = Math.max(22, Math.min(width - 28, targetX));
+        targetY = Math.max(lineHeight * 2, Math.min(height - lineHeight * 2, targetY));
+        points[0].x += (targetX - points[0].x) * .13;
+        points[0].y += (targetY - points[0].y) * .13;
+        constrainBody();
+      }
+
+      function rememberLayoutPoints() {
+        points.forEach((point, i) => {
+          lastLayoutPoints[i].x = point.x;
+          lastLayoutPoints[i].y = point.y;
+        });
+      }
+
+      function renderReducedMotion() {
+        if (!reducedMotion) return;
+        if (pointerInside || keyboardSteering) {
+          targetX = Math.max(22, Math.min(width - 28, targetX));
+          targetY = Math.max(lineHeight * 2, Math.min(height - lineHeight * 2, targetY));
+          points[0].x = targetX;
+          points[0].y = targetY;
+          constrainBody();
+        }
+        layoutText();
+        if (fitHeight()) {
+          resizeCanvas(washCanvas, washCtx);
+          resizeCanvas(dragonCanvas, dragonCtx);
+        }
+        drawWash();
+        drawDragon();
+        rememberLayoutPoints();
+      }
+
+      function startAnimation() {
+        if (!reducedMotion && !animationId) {
+          lastTime = 0;
+          animationId = requestAnimationFrame(animate);
+        }
+      }
+
+      function stopAnimation() {
+        if (animationId) cancelAnimationFrame(animationId);
+        animationId = 0;
+        lastTime = 0;
+      }
+
       function animate(now) {
+        animationId = 0;
+        if (reducedMotion) {
+          renderReducedMotion();
+          return;
+        }
         const delta = Math.min(.05, Math.max(0, (now - (lastTime || now)) / 1000));
         lastTime = now;
-        if (!reducedMotion || pointerInside || pressed) updateDragon(delta);
+        updateDragon(delta);
         drawWash();
         drawDragon();
         frame++;
         if (frame % 4 === 0 && points.some((point, i) =>
           Math.hypot(point.x - lastLayoutPoints[i].x, point.y - lastLayoutPoints[i].y) > 1.5
         )) {
-          points.forEach((point, i) => {
-            lastLayoutPoints[i].x = point.x;
-            lastLayoutPoints[i].y = point.y;
-          });
+          rememberLayoutPoints();
           layoutText();
           if (fitHeight()) {
             resizeCanvas(washCanvas, washCtx);
             resizeCanvas(dragonCanvas, dragonCtx);
+            drawWash();
+            drawDragon();
           }
         }
-        requestAnimationFrame(animate);
+        animationId = requestAnimationFrame(animate);
+      }
+
+      function releaseKeyboard() {
+        keyboardPressed = false;
+        pressed = pointerPressed;
+        keyboardSteering = false;
+        if (!activePointerId) pointerInside = false;
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      }
+
+      function releaseAllInput() {
+        keyboardPressed = false;
+        pointerPressed = false;
+        activePointerId = null;
+        pressed = false;
+        keyboardSteering = false;
+        pointerInside = false;
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
       }
 
       body.addEventListener('pointermove', (event) => {
-        const rect = body.getBoundingClientRect();
         pointerInside = true;
+        keyboardSteering = false;
+        const rect = body.getBoundingClientRect();
         targetX = event.clientX - rect.left;
         targetY = event.clientY - rect.top;
         if (Math.hypot(targetX - lastWashX, targetY - lastWashY) > 28) {
@@ -557,20 +636,100 @@
           lastWashX = targetX;
           lastWashY = targetY;
         }
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
       });
-      body.addEventListener('pointerleave', () => { pointerInside = false; });
+      body.addEventListener('pointerleave', () => {
+        if (!keyboardSteering) pointerInside = false;
+      });
       body.addEventListener('pointerdown', (event) => {
+        activePointerId = event.pointerId;
+        pointerPressed = true;
         pressed = true;
+        pointerInside = true;
+        keyboardSteering = false;
         const rect = body.getBoundingClientRect();
         targetX = event.clientX - rect.left;
         targetY = event.clientY - rect.top;
         addWash(targetX, targetY, .2);
+        try { body.setPointerCapture(event.pointerId); } catch { /* Synthetic or already-cancelled pointer. */ }
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
       });
-      window.addEventListener('pointerup', () => { pressed = false; });
-      window.addEventListener('pointercancel', () => { pressed = false; });
-      window.addEventListener('resize', resize);
+      function finishPointer(event, cancelled) {
+        if (activePointerId === null || event.pointerId !== activePointerId) return;
+        activePointerId = null;
+        pointerPressed = false;
+        pressed = keyboardPressed;
+        if (cancelled && !keyboardSteering) pointerInside = false;
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      }
+      window.addEventListener('pointerup', (event) => finishPointer(event, false));
+      window.addEventListener('pointercancel', (event) => finishPointer(event, true));
+
+      const directions = {
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1]
+      };
+      body.addEventListener('keydown', (event) => {
+        if (document.activeElement !== body) return;
+        const direction = directions[event.key];
+        if (direction) {
+          event.preventDefault();
+          if (!keyboardSteering) {
+            targetX = points[0].x;
+            targetY = points[0].y;
+          }
+          keyboardSteering = true;
+          pointerInside = true;
+          const step = Math.max(18, Math.min(42, width * .08));
+          targetX += direction[0] * step;
+          targetY += direction[1] * step;
+        } else if (event.code === 'Space' || event.key === 'Enter') {
+          event.preventDefault();
+          if (!keyboardSteering) {
+            targetX = points[0].x;
+            targetY = points[0].y;
+            keyboardSteering = true;
+            pointerInside = true;
+          }
+          keyboardPressed = true;
+          pressed = true;
+        } else {
+          return;
+        }
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      });
+      body.addEventListener('keyup', (event) => {
+        if (event.code !== 'Space' && event.key !== 'Enter') return;
+        keyboardPressed = false;
+        pressed = pointerPressed;
+        if (reducedMotion) renderReducedMotion();
+        else startAnimation();
+      });
+      body.addEventListener('blur', releaseKeyboard);
+      window.addEventListener('blur', releaseAllInput);
+      function handleMotionPreferenceChange(event) {
+        reducedMotion = event.matches;
+        if (reducedMotion) {
+          stopAnimation();
+          renderReducedMotion();
+        } else {
+          startAnimation();
+        }
+      }
+      if (motionPreference.addEventListener) motionPreference.addEventListener('change', handleMotionPreferenceChange);
+      else motionPreference.addListener(handleMotionPreferenceChange);
+      window.addEventListener('resize', () => {
+        resize();
+        startAnimation();
+      });
       resize();
-      requestAnimationFrame(animate);
+      startAnimation();
     })();
   </script>
 </body>
