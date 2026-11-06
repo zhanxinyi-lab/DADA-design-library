@@ -11,7 +11,7 @@ const MAX_HTML_BYTES = Number(process.env.MAX_HTML_BYTES || 1_500_000); // 1.5 M
 const REQUIRED_FIELDS = ['作者', '分类', '状态', '原文'];
 const STATUSES = ['needs_recreation', 'has_code', 'ai_recreated', 'pending_cindy', 'video_recreated'];
 const NEEDS_CODE = new Set(['has_code', 'ai_recreated', 'video_recreated']);
-const ALLOWED_FILE = /^(README\.md|CHANGELOG\.md|code\/index\.html|code\/[^/]+\.(png|jpe?g|webp|gif|svg|mp4|webm|glb|json))$/;
+const ALLOWED_FILE = /^(README\.md|CHANGELOG\.md|code\/index\.html|code\/fonts\/[^/]+\.woff2|code\/fonts\/OFL\.txt|code\/[^/]+\.(png|jpe?g|webp|gif|svg|mp4|webm|glb|json))$/;
 const SECRET = /(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
 
 const problems = []; // { id, what, why }

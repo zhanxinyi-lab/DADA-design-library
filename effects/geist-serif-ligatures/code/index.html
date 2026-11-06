@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Geist Serif 的 ELSH 与 ss01 样例，以及同系列 Geist Sans 的 OpenType 连字对照。">
+<title>Geist Serif · 字体样例</title>
+<style>
+@font-face{
+  font-family:"Geist Serif Local";
+  src:url("./fonts/GeistSerif.woff2") format("woff2");
+  font-weight:400;
+  font-display:swap;
+}
+@font-face{
+  font-family:"Geist Sans Ligatures";
+  src:url("./fonts/GeistSans.woff2") format("woff2");
+  font-weight:100 900;
+  font-display:swap;
+}
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0;background:#09090b;color:#f4f4f5}
+body{font:14px/1.55 ui-sans-serif,system-ui,"PingFang SC",sans-serif}
+main{width:min(100%,1040px);margin:0 auto;padding:clamp(22px,5vw,54px) clamp(16px,4vw,32px) 48px}
+.eyebrow{margin:0 0 12px;color:#aaaab3;font-size:11px;letter-spacing:.14em;text-transform:uppercase;overflow-wrap:anywhere}
+h1,h2,p{margin-top:0}
+h1{margin-bottom:10px;font-family:"Geist Serif Local",Georgia,serif;font-size:clamp(38px,8vw,76px);font-weight:400;letter-spacing:-.045em;line-height:1}
+.lead,.section-intro{max-width:740px;color:#b7b7be;line-height:1.7}
+.panel{margin-top:clamp(24px,5vw,42px);padding:clamp(16px,3.5vw,28px);border:1px solid #ffffff24;border-radius:14px;background:#ffffff06}
+.axis-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.axis-top h2,.section-heading h2{margin:0;font-size:clamp(21px,4vw,30px);font-weight:500;letter-spacing:-.025em}
+.axis-value{flex:none;color:#d2c5f4;font-variant-numeric:tabular-nums;white-space:nowrap}
+.range-label{display:block;margin-top:20px;color:#aaaab3;font-size:12px}
+.range-label input{display:block;width:100%;margin:10px 0 0;accent-color:#d2c5f4}
+.axis-stops{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px;color:#aaaab3;font-size:10px}
+.axis-stops span:last-child{text-align:right}
+.axis-card{margin-top:22px;padding:clamp(12px,3vw,22px);border:1px solid #ffffff1c;border-radius:10px;background:#0003}
+.sample-label{margin:0;color:#aaaab3;font-size:10px;letter-spacing:.1em}
+.axis-specimen{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 clamp(10px,2vw,24px);margin:16px 0 4px;font-family:"Geist Serif Local",Georgia,serif;font-size:clamp(62px,13vw,132px);font-weight:400;font-variation-settings:"ELSH" 0;font-feature-settings:"rclt" 1;letter-spacing:-.045em;line-height:1.05}
+.axis-note{margin:8px 0 0;color:#aaaab3;font-size:11px;line-height:1.65}
+.section{margin-top:clamp(34px,7vw,64px)}
+.section-heading{margin-bottom:16px}
+.section-heading .eyebrow{margin-bottom:6px}
+.section-heading h2{margin-bottom:8px}
+.section-intro{margin:0;font-size:13px}
+.sample-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sample-card{min-width:0;padding:clamp(14px,3vw,24px);border:1px solid #ffffff24;border-radius:10px;background:#ffffff06}
+.ss-sample{margin:16px 0 0;font-family:"Geist Serif Local",Georgia,serif;font-size:clamp(72px,12vw,120px);font-weight:400;letter-spacing:-.045em;line-height:1}
+.ss-off{font-feature-settings:"ss01" 0}
+.ss-on{font-feature-settings:"ss01" 1}
+.liga-card{font-family:"Geist Sans Ligatures",Arial,sans-serif}
+.liga-on{font-variant-ligatures:common-ligatures;font-feature-settings:"liga" 1}
+.liga-off{font-variant-ligatures:none;font-feature-settings:"liga" 0}
+.liga-sample{margin:18px 0 10px;color:#d2c5f4;font-size:clamp(52px,9vw,96px);letter-spacing:-.04em;line-height:1}
+.liga-words{margin:0;font-size:clamp(16px,2.2vw,22px);line-height:1.5;overflow-wrap:anywhere}
+.footnote{margin:16px 0 0;color:#aaaab3;font-size:11px;line-height:1.7}
+code{font-size:.92em}
+@media(max-width:620px){.sample-grid{grid-template-columns:1fr}.axis-stops{grid-template-columns:repeat(2,minmax(0,1fr))}.axis-stops span:last-child{text-align:left}}
+@media(max-width:480px){.axis-top{flex-wrap:wrap}.axis-value{white-space:normal}}
+@media(max-width:360px){.axis-specimen{gap:0 10px;font-size:clamp(34px,14vw,58px)}.liga-sample{font-size:50px}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">字体样例 · 素材 2116499499548045336</p>
+    <h1>Geist Serif</h1>
+    <p class="lead">用本地字体文件展示 ELSH（Element Shape）与 ss01 替代字形。连字对照另用同系列 Geist Sans 的实际字体特性，清楚标明字体归属。</p>
+  </header>
+
+  <section class="panel" aria-labelledby="elsh-heading">
+    <div class="axis-top">
+      <div>
+        <p class="eyebrow">Geist Serif · 可变轴</p>
+        <h2 id="elsh-heading">元素形状 · ELSH</h2>
+      </div>
+      <output class="axis-value" id="elsh-value" for="elsh" aria-live="polite">0 · 尖齿</output>
+    </div>
+    <label class="range-label" for="elsh">拖动滑块，查看本地字体里的点号与标点字形变化
+      <input id="elsh" type="range" min="0" max="100" step="1" value="0" aria-describedby="elsh-note">
+    </label>
+    <div class="axis-stops" aria-hidden="true">
+      <span>0 · 尖齿</span><span>25 · 方头</span><span>50 · 三角</span><span>100 · 心形</span>
+    </div>
+    <div class="axis-card">
+      <p class="sample-label">同一组字形 · 实时变化</p>
+      <div class="axis-specimen" id="axis-specimen" lang="en"><span>i</span><span>.</span><span>,</span><span>:</span><span>;</span><span>!</span><span>?</span></div>
+      <p class="axis-note" id="elsh-note">此字体的 ELSH 变化作用于点号、标点与附加符号；样例特意选用这些受影响的字形。</p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="ss01-heading">
+    <div class="section-heading">
+      <p class="eyebrow">Geist Serif · Stylistic Set 01</p>
+      <h2 id="ss01-heading">替代字形 · ss01</h2>
+      <p class="section-intro">同一组 <span lang="en">aR</span> 并排对照默认字形与开启 <code>ss01</code> 后的实际替代字形。</p>
+    </div>
+    <div class="sample-grid">
+      <article class="sample-card ss-off">
+        <p class="sample-label">默认字形</p>
+        <p class="ss-sample" lang="en">aR</p>
+      </article>
+      <article class="sample-card ss-on">
+        <p class="sample-label">Stylistic Set 01 · 开</p>
+        <p class="ss-sample" lang="en">aR</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="liga-heading">
+    <div class="section-heading">
+      <p class="eyebrow">Geist Sans · OpenType</p>
+      <h2 id="liga-heading">常规连字 · liga</h2>
+      <p class="section-intro">随包的 Geist Sans 字体实际包含 <code>fi</code>、<code>fl</code> 与 <code>ff</code> 替代。下方并排比较同一组文字在连字开启与关闭时的形态。</p>
+    </div>
+    <div class="sample-grid">
+      <article class="sample-card liga-card liga-on">
+        <p class="sample-label">常规连字 · 开</p>
+        <p class="liga-sample" lang="en">fi · fl · ff</p>
+        <p class="liga-words" lang="en">fine · profile · fluent · waffle</p>
+      </article>
+      <article class="sample-card liga-card liga-off">
+        <p class="sample-label">常规连字 · 关</p>
+        <p class="liga-sample" lang="en">fi · fl · ff</p>
+        <p class="liga-words" lang="en">fine · profile · fluent · waffle</p>
+      </article>
+    </div>
+    <p class="footnote">随附的 Geist Serif 文件没有标准 <code>liga</code> 表；fi/fl/ff 样例因此使用同系列 Geist Sans，并明确标注。两个本地字体文件与原始 SIL Open Font License 1.1 一并收录。本页展示静态字形与字体特性，不声称复刻未证实的动画。</p>
+  </section>
+</main>
+<script>
+const slider=document.getElementById('elsh');
+const specimen=document.getElementById('axis-specimen');
+const output=document.getElementById('elsh-value');
+const stops=[[0,'尖齿'],[25,'方头'],[50,'三角'],[100,'心形']];
+function updateAxis(){
+  const value=Number(slider.value);
+  let nearest=stops[0];
+  for(const stop of stops) if(Math.abs(value-stop[0])<Math.abs(value-nearest[0])) nearest=stop;
+  specimen.style.fontVariationSettings=`"ELSH" ${value}`;
+  output.textContent=`${value} · ${Math.abs(value-nearest[0])<=8?nearest[1]:'过渡'}`;
+}
+slider.addEventListener('input',updateAxis);
+updateAxis();
+</script>
+</body>
+</html>

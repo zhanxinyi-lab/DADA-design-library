@@ -20,6 +20,7 @@ DADA 的设计素材、可复用效果和设计工作流 Skill。站点：https:
 - tlg-fluted-glass（MIT，许可证见同目录 LICENSE）
 - codrops-scroll-dissolve
 - enes-folded-scroll
+- geist-serif-ligatures
 - gui-glow-card-hero
 - marina-orbit-hero
 - nickbaked-ink-type
