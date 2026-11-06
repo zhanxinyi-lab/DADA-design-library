@@ -120,7 +120,7 @@
       grid-column: 2;
       grid-row: 1;
     }
-    .board.list .tags { grid-column: 3; grid-row: 1; }
+    .board.list .tags { justify-content: flex-start; }
     .board.list .rule {
       display: block;
       grid-column: 1 / -1;
@@ -129,8 +129,17 @@
     @media (max-width: 720px) {
       :root { --cols: 1; }
       .board { padding: 20px 16px; height: 94vh; }
-      .board.list .item { grid-template-columns: 72px 1fr; }
-      .board.list .tags { grid-column: 2; justify-content: flex-start; }
+      .board.list .item { grid-template-columns: 72px minmax(0, 1fr); column-gap: 12px; }
+      .board.list .art { width: 72px; }
+      .board.list .meta {
+        min-width: 0;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 6px;
+      }
+      .board.list .title { overflow-wrap: anywhere; }
+      .board.list .tags { flex-wrap: wrap; gap: 6px; }
     }
     @media (prefers-reduced-motion: reduce) {
       .art, .meta, .rule { transition: none !important; }
@@ -139,7 +148,7 @@
 </head>
 <body>
   <div class="page">
-    <div class="board" id="board">
+    <div class="board list" id="board">
       <div class="toggle" id="toggle"></div>
       <div class="grid" id="grid"></div>
     </div>
@@ -183,7 +192,9 @@
       const gridBtn = document.createElement('button');
       listBtn.textContent = 'List';
       gridBtn.textContent = 'Grid';
-      gridBtn.className = 'on';
+      listBtn.className = 'on';
+      listBtn.setAttribute('aria-pressed', 'true');
+      gridBtn.setAttribute('aria-pressed', 'false');
       toggle.appendChild(listBtn);
       toggle.appendChild(gridBtn);
 
@@ -304,8 +315,9 @@
         paint(canvas, item, index);
       });
 
-      let mode = 'grid';
+      let mode = 'list';
       let busy = false;
+      let queuedMode = null;
       let touched = false;
       const duration = reduced ? 1 : 720;
 
@@ -317,7 +329,11 @@
       }
 
       function flipTo(next) {
-        if (busy || next === mode) return;
+        if (busy) {
+          queuedMode = next;
+          return;
+        }
+        if (next === mode) return;
         busy = true;
         const arts = Array.from(grid.querySelectorAll('.art'));
         const first = arts.map(function (n) { return n.getBoundingClientRect(); });
@@ -326,6 +342,8 @@
         mode = next;
         listBtn.classList.toggle('on', next === 'list');
         gridBtn.classList.toggle('on', next === 'grid');
+        listBtn.setAttribute('aria-pressed', String(next === 'list'));
+        gridBtn.setAttribute('aria-pressed', String(next === 'grid'));
         arts.forEach(function (n, i) {
           const last = n.getBoundingClientRect();
           const dx = first[i].left - last.left;
@@ -347,6 +365,10 @@
         window.setTimeout(function () {
           fadeCopy(false);
           busy = false;
+          if (queuedMode === null) return;
+          const requestedMode = queuedMode;
+          queuedMode = null;
+          flipTo(requestedMode);
         }, duration);
       }
 
@@ -357,11 +379,17 @@
         root.style.setProperty('--cols', String(window.innerWidth < 720 ? 1 : BRAND.cols));
       });
 
-      window.setTimeout(function () {
-        if (touched) return;
-        flipTo('list');
-        window.setTimeout(function () { if (!touched) flipTo('grid'); }, reduced ? 400 : 1100);
-      }, reduced ? 400 : 1600);
+      if (!reduced) {
+        window.setTimeout(function () {
+          if (touched) return;
+          flipTo('grid');
+          window.setTimeout(function () {
+            if (touched) return;
+            flipTo('list');
+            window.setTimeout(function () { if (!touched) flipTo('grid'); }, 1100);
+          }, 1100);
+        }, 1600);
+      }
     })();
   </script>
 </body>
