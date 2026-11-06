@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SEQUIN</title>
   <style>
-    :root { --dark: #8d8d8d; --lit: #f4f4f4; --back: #d8d8d8; }
+    :root { --dark: #777b82; --lit: #ffffff; --back: #4b5058; --background: #17191d; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       height: 100%;
-      background: #9a9a9a;
+      background: #17191d;
       overflow: hidden;
       font-family: Inter, Helvetica, Arial, sans-serif;
     }
@@ -20,7 +20,7 @@
       bottom: 12px;
       font-size: 11px;
       letter-spacing: 0.32em;
-      color: #444;
+      color: #e5e7eb;
       pointer-events: none;
     }
     .controls {
@@ -51,7 +51,7 @@
       top: 50px;
       right: 16px;
       max-width: min(360px, calc(100vw - 32px));
-      color: #444;
+      color: #c5c9cf;
       font-size: 10px;
       line-height: 1.4;
       text-align: right;
@@ -75,10 +75,10 @@
     // 改这里即可换品牌
     const BRAND = {
       name: 'SEQUIN',
-      dark: '#8d8d8d',
-      lit: '#f4f4f4',
-      back: '#d8d8d8',
-      gap: 2
+      background: '#17191d',
+      dark: '#777b82',
+      lit: '#ffffff',
+      back: '#4b5058'
     };
 
     (function () {
@@ -90,9 +90,9 @@
       const flipButton = document.getElementById('flip');
       const resetButton = document.getElementById('reset');
       const colorSteps = 64;
-      const maxCells = 4800;
+      const maxCells = 1200;
       const spotRadius = 140;
-      let W = 0, H = 0, cols = 0, rows = 0, cellW = 0, cellH = 0;
+      let W = 0, H = 0, cols = 0, rows = 0, cellW = 0, cellH = 0, plateW = 0, plateH = 0, corner = 0, tiles = [];
       let mx = null, my = null, t0 = performance.now(), rafId = 0;
       let activePointerId = null, pointerStartY = null, flipProgress = 0, flipTarget = 0;
 
@@ -108,20 +108,33 @@
         };
       }
       function rgb(c) { return 'rgb(' + (c.r | 0) + ',' + (c.g | 0) + ',' + (c.b | 0) + ')'; }
+      function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+      function seeded(x, y, salt) {
+        const value = Math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453;
+        return value - Math.floor(value);
+      }
+      function platePath(cut) {
+        ctx.beginPath();
+        ctx.moveTo(-plateW / 2 + cut, -plateH / 2);
+        ctx.lineTo(plateW / 2 - cut, -plateH / 2);
+        ctx.lineTo(plateW / 2, -plateH / 2 + cut);
+        ctx.lineTo(plateW / 2, plateH / 2 - cut);
+        ctx.lineTo(plateW / 2 - cut, plateH / 2);
+        ctx.lineTo(-plateW / 2 + cut, plateH / 2);
+        ctx.lineTo(-plateW / 2, plateH / 2 - cut);
+        ctx.lineTo(-plateW / 2, -plateH / 2 + cut);
+        ctx.closePath();
+      }
 
       const dark = hexToRgb(BRAND.dark);
       const lit = hexToRgb(BRAND.lit);
       const back = hexToRgb(BRAND.back);
       const frontPalette = [];
       const reversePalette = [];
-      const rimPalette = [];
-      const highlightPalette = [];
       for (let i = 0; i <= colorSteps; i++) {
         const tone = i / colorSteps;
         frontPalette.push(rgb(mix(dark, lit, tone * 0.78)));
         reversePalette.push(rgb(mix(back, lit, tone * 0.38)));
-        rimPalette.push('rgba(45,45,45,' + (0.14 + (1 - tone) * 0.08) + ')');
-        highlightPalette.push('rgba(255,255,255,' + (0.12 + tone * 0.28) + ')');
       }
 
       function resize() {
@@ -140,6 +153,86 @@
         rows = Math.max(1, Math.min(rows, Math.floor(maxCells / cols)));
         cellW = W / cols;
         cellH = H / rows;
+        plateW = Math.max(2, cellW * 0.74);
+        plateH = Math.max(2, cellH * 0.74);
+        corner = Math.min(plateW, plateH) * 0.16;
+        tiles = [];
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            tiles.push({
+              x, y,
+              rotation: (seeded(x, y, 1) - 0.5) * 0.24,
+              delay: seeded(x, y, 2) * 0.28,
+              sparkle: seeded(x, y, 3) * Math.PI * 2
+            });
+          }
+        }
+      }
+
+      function drawSequin(tile, px, py, t) {
+        const cx = tile.x * cellW + cellW / 2;
+        const cy = tile.y * cellH + cellH / 2;
+        const dx = cx - px;
+        const dy = cy - py;
+        const distanceSquared = dx * dx + dy * dy;
+        const influence = distanceSquared < spotRadius * spotRadius
+          ? 1 - Math.sqrt(distanceSquared) / spotRadius
+          : 0;
+        const progress = clamp((flipProgress - tile.delay) / (1 - tile.delay), 0, 1);
+        const angle = progress * Math.PI + influence * 0.3 * (1 - progress);
+        const cosine = Math.cos(angle);
+        const sine = Math.abs(Math.sin(angle));
+        const front = cosine >= 0;
+        const shimmer = Math.pow(Math.max(0, Math.sin(t * 1.8 + tile.sparkle + tile.x * 0.04 + tile.y * 0.03)), 12);
+        const tone = Math.round(clamp(0.16 + influence * 0.3 + shimmer * 0.52, 0, 1) * colorSteps);
+        const faceScaleY = Math.max(0.09, Math.abs(cosine));
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(tile.rotation);
+        ctx.save();
+        ctx.scale(front ? 1 : -1, faceScaleY);
+        platePath(corner);
+        ctx.fillStyle = front ? frontPalette[tone] : reversePalette[tone];
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(8,10,13,0.82)';
+        ctx.lineWidth = Math.max(0.45, Math.min(cellW, cellH) * 0.055);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(-plateW * 0.34, -plateH * 0.38);
+        ctx.lineTo(plateW * 0.32, -plateH * 0.38);
+        ctx.lineTo(plateW * 0.06, -plateH * 0.12);
+        ctx.lineTo(-plateW * 0.34, -plateH * 0.12);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.12 + influence * 0.18 + shimmer * 0.58) + ')';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(plateW * 0.38, -plateH * 0.2);
+        ctx.lineTo(plateW * 0.38, plateH * 0.34);
+        ctx.lineTo(plateW * 0.1, plateH * 0.42);
+        ctx.lineTo(plateW * 0.1, -plateH * 0.08);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0,0,0,' + (front ? 0.2 : 0.38) + ')';
+        ctx.fill();
+        if (shimmer > 0.72) {
+          ctx.beginPath();
+          ctx.moveTo(-plateW * 0.08, -plateH * 0.3);
+          ctx.lineTo(plateW * 0.28, -plateH * 0.16);
+          ctx.strokeStyle = 'rgba(255,255,255,' + (shimmer * 0.9) + ')';
+          ctx.lineWidth = Math.max(0.5, Math.min(cellW, cellH) * 0.045);
+          ctx.stroke();
+        }
+        ctx.restore();
+        if (sine > 0.12) {
+          ctx.beginPath();
+          ctx.moveTo(-plateW * 0.47, 0);
+          ctx.lineTo(plateW * 0.47, 0);
+          ctx.strokeStyle = front ? 'rgba(238,242,248,' + (sine * 0.72) + ')' : 'rgba(8,10,13,' + (sine * 0.8) + ')';
+          ctx.lineWidth = Math.max(0.7, Math.min(cellW, cellH) * 0.13 * sine);
+          ctx.stroke();
+        }
+        ctx.restore();
       }
 
       function drawFrame(now) {
@@ -152,41 +245,9 @@
         if (reduced) flipProgress = flipTarget;
         else flipProgress += (flipTarget - flipProgress) * 0.12;
 
-        ctx.fillStyle = '#9a9a9a';
+        ctx.fillStyle = BRAND.background;
         ctx.fillRect(0, 0, W, H);
-        const gapX = Math.min(BRAND.gap, cellW * 0.2);
-        const gapY = Math.min(BRAND.gap, cellH * 0.2);
-        const radiusX = Math.max(0.12, (cellW - gapX) / 2);
-        const radiusY = Math.max(0.12, (cellH - gapY) / 2);
-        ctx.lineWidth = Math.max(0.02, Math.min(0.75, Math.min(cellW, cellH) * 0.035));
-        for (let y = 0; y < rows; y++) {
-          for (let x = 0; x < cols; x++) {
-            const cx = x * cellW + cellW / 2;
-            const cy = y * cellH + cellH / 2;
-            const dx = cx - px;
-            const dy = cy - py;
-            const distanceSquared = dx * dx + dy * dy;
-            const infl = distanceSquared < spotRadius * spotRadius
-              ? 1 - Math.sqrt(distanceSquared) / spotRadius
-              : 0;
-            const tone = Math.round(infl * colorSteps);
-            const angle = flipProgress * Math.PI + infl * 1.45 * (1 - flipProgress);
-            const cosine = Math.cos(angle);
-            const ry = radiusY * Math.max(0.12, Math.abs(cosine));
-
-            ctx.beginPath();
-            ctx.ellipse(cx, cy, radiusX, ry, 0, 0, Math.PI * 2);
-            ctx.fillStyle = cosine >= 0 ? frontPalette[tone] : reversePalette[tone];
-            ctx.fill();
-            ctx.strokeStyle = rimPalette[tone];
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.ellipse(cx - radiusX * 0.25, cy - ry * 0.28, radiusX * 0.22, ry * 0.18, -0.45, 0, Math.PI * 2);
-            ctx.fillStyle = highlightPalette[tone];
-            ctx.fill();
-          }
-        }
+        for (const tile of tiles) drawSequin(tile, px, py, t);
       }
 
       function tick(now) {
