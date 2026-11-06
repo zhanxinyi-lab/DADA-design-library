@@ -401,7 +401,7 @@
           case 'mist': offset = 9 * Math.sin(x * .009) + 8 * (smoothNoise(x * .025, 23) - .5); break;
           case 'kintsugi': offset = 9 * Math.sin(x * .017) + 7 * Math.sin(x * .043 + 1); break;
           case 'roots': offset = 8 * Math.sin(x * .015) + 10 * (smoothNoise(x * .04, 31) - .5); break;
-          case 'sediment': offset = Math.round((9 * Math.sin(x * .011) + 8 * Math.sin(x * .025)) / 8) * 8; break;
+          case 'sediment': offset = Math.round((12 * Math.sin(x * .009) + 8 * Math.sin(x * .03) + 10 * (smoothNoise(x / 28, 37) - .5)) / 16) * 16; break;
           case 'shavings': offset = 13 * Math.sin(x * .019 + 2 * Math.sin(x * .004)) + 7 * Math.sin(x * .051); break;
         }
         return clamp(base + offset * e + Math.sin(n * Math.PI * 2) * e * 2, 0, height);
@@ -500,15 +500,16 @@
       function drawFray() {
         seam.save();
         seam.lineCap = 'round';
-        for (let x = 0; x < width; x += 6) {
+        for (let x = 0; x < width; x += 3) {
           const seed = random(x + 100);
           const y = boundaryY(x);
-          const length = (8 + seed * 42) * envelope();
+          const length = (12 + seed * 64) * envelope();
+          const drift = (seed - .5) * 24;
           seam.beginPath();
-          seam.moveTo(x, y - 2);
-          seam.bezierCurveTo(x + (seed - .5) * 7, y + length * .28, x + (seed - .5) * 13, y + length * .72, x + (seed - .5) * 18, y + length);
-          seam.strokeStyle = seed > .68 ? 'rgba(246,241,229,.78)' : 'rgba(44,60,52,.6)';
-          seam.lineWidth = .45 + seed * 1.3;
+          seam.moveTo(x, y - 3);
+          seam.bezierCurveTo(x + drift * .25, y + length * .25, x + drift * .6, y + length * .72, x + drift, y + length);
+          seam.strokeStyle = seed > .72 ? 'rgba(246,241,229,.82)' : 'rgba(44,60,52,.68)';
+          seam.lineWidth = .35 + seed * .9;
           seam.stroke();
         }
         seam.restore();
@@ -547,15 +548,30 @@
       }
       function drawMarble() {
         seam.save();
-        for (let line = 0; line < 12; line++) {
+        const bands = ['#315b77', '#efe6d0', '#a76a52', '#d2b174', '#375b66', '#f4f1e9', '#576e72', '#a9785f', '#283f50', '#e7dcc3', '#ba9261', '#405e69'];
+        for (let band = 0; band < bands.length; band++) {
+          const phase = band * .46 + progress * 3;
+          const centerOffset = (band - (bands.length - 1) / 2) * 8;
+          const thickness = 3 + (band % 3) * 1.4;
+          const amplitude = 14 + (band % 4) * 4;
           seam.beginPath();
-          const phase = line * .55 + progress * 5;
           for (let x = 0; x <= width + 8; x += 8) {
-            const y = boundaryY(x) + Math.sin(x * .012 + phase + Math.sin(x * .003 + phase) * 4) * (8 + line * 2) + (line - 5) * 4;
+            const flow = Math.sin(x * .011 + phase + Math.sin(x * .003 + phase) * 3.5);
+            const y = boundaryY(x) + centerOffset + flow * amplitude - thickness;
             if (x === 0) seam.moveTo(x, y); else seam.lineTo(Math.min(x, width), y);
           }
-          seam.strokeStyle = line % 3 === 0 ? 'rgba(72,93,83,.48)' : 'rgba(255,255,255,.34)';
-          seam.lineWidth = line % 3 === 0 ? 1.3 : .7;
+          for (let x = width; x >= 0; x -= 8) {
+            const flow = Math.sin(x * .011 + phase + Math.sin(x * .003 + phase) * 3.5);
+            const y = boundaryY(x) + centerOffset + flow * amplitude + thickness;
+            seam.lineTo(x, y);
+          }
+          seam.closePath();
+          seam.globalAlpha = (.55 + (band % 3) * .12) * envelope();
+          seam.fillStyle = bands[band];
+          seam.fill();
+          seam.globalAlpha = .62 * envelope();
+          seam.strokeStyle = band % 2 ? 'rgba(255,255,255,.75)' : 'rgba(33,49,55,.62)';
+          seam.lineWidth = .9;
           seam.stroke();
         }
         seam.restore();
@@ -578,76 +594,114 @@
       function drawKintsugi() {
         seam.save();
         seam.lineCap = 'round';
+        seam.lineJoin = 'round';
         pathAlongEdge(seam, 0, 5, 3);
         seam.strokeStyle = 'rgba(182,139,66,.96)';
-        seam.lineWidth = 2.1;
+        seam.lineWidth = 2.4;
         seam.stroke();
-        for (let x = 12; x < width; x += 54) {
+        for (let x = 18; x < width; x += 82) {
           const seed = random(x + 8);
           const y = boundaryY(x);
-          const length = 14 + seed * 34;
-          seam.beginPath();
-          seam.moveTo(x, y);
-          seam.lineTo(x + (seed - .5) * 12, y + length * .35);
-          seam.lineTo(x + (seed - .5) * 22, y + length);
-          seam.strokeStyle = 'rgba(182,139,66,' + (.42 + seed * .5) * envelope() + ')';
-          seam.lineWidth = .8 + seed * 1.1;
-          seam.stroke();
+          for (const side of [-1, 1]) {
+            const branchSeed = random(x + side * 29 + 90);
+            const length = (48 + branchSeed * 138) * envelope();
+            const drift = (seed - .5) * 26 + (branchSeed - .5) * 20;
+            seam.beginPath();
+            seam.moveTo(x, y);
+            seam.lineTo(x + drift * .2, y + side * length * .28);
+            seam.lineTo(x + drift * .75, y + side * length * .64);
+            seam.lineTo(x + drift + (branchSeed - .5) * 18, y + side * length);
+            seam.strokeStyle = 'rgba(182,139,66,' + (.58 + branchSeed * .36) * envelope() + ')';
+            seam.lineWidth = .9 + branchSeed * 1.7;
+            seam.stroke();
+            if (branchSeed > .38) {
+              seam.beginPath();
+              seam.moveTo(x + drift * .7, y + side * length * .62);
+              seam.lineTo(x + drift * .7 + (seed - .5) * 34, y + side * length * .78);
+              seam.lineTo(x + drift * .7 + (seed - .5) * 46, y + side * length * .91);
+              seam.lineWidth = .8 + seed;
+              seam.stroke();
+            }
+          }
         }
         seam.restore();
       }
       function drawRoots() {
         seam.save();
         seam.lineCap = 'round';
-        for (let x = 12; x < width; x += 38) {
+        for (let x = 10; x < width; x += 26) {
           const seed = random(x + 310);
           const y = boundaryY(x);
-          const length = (24 + seed * 90) * envelope();
+          const length = (58 + seed * 165) * envelope();
+          const drift = (seed - .5) * 26;
           seam.beginPath();
           seam.moveTo(x, y);
-          seam.bezierCurveTo(x + (seed - .5) * 12, y + length * .42, x + (seed - .5) * 18, y + length * .72, x + (seed - .5) * 28, y + length);
-          seam.strokeStyle = 'rgba(55,73,60,' + (.42 + seed * .32) + ')';
-          seam.lineWidth = 2.2 - seed * 1.5;
+          seam.bezierCurveTo(x + drift * .25, y + length * .3, x + drift * .4, y + length * .68, x + drift, y + length);
+          seam.strokeStyle = 'rgba(55,73,60,' + (.48 + seed * .3) + ')';
+          seam.lineWidth = 2.4 - seed * 1.5;
           seam.stroke();
-          if (seed > .32) {
-            seam.beginPath();
-            seam.moveTo(x + (seed - .5) * 16, y + length * .64);
-            seam.quadraticCurveTo(x + 14 + seed * 15, y + length * .78, x + 10 + seed * 26, y + length * .91);
-            seam.lineWidth = .8;
-            seam.stroke();
+          if (seed > .12) {
+            const splitY = y + length * (.45 + seed * .16);
+            for (const side of [-1, 1]) {
+              const branchLength = length * (.2 + random(x + side * 13) * .22);
+              const branchX = x + drift * .45;
+              seam.beginPath();
+              seam.moveTo(branchX, splitY);
+              seam.quadraticCurveTo(branchX + side * branchLength * .2, splitY + branchLength * .3, branchX + side * branchLength * .5, splitY + branchLength);
+              seam.strokeStyle = 'rgba(55,73,60,' + (.36 + seed * .3) + ')';
+              seam.lineWidth = .65 + seed * .65;
+              seam.stroke();
+            }
           }
         }
         seam.restore();
       }
       function drawSediment() {
         seam.save();
-        const colors = ['rgba(84,99,84,.38)', 'rgba(182,139,66,.46)', 'rgba(129,142,121,.5)', 'rgba(44,60,52,.28)'];
+        const colors = ['rgba(84,99,84,.42)', 'rgba(182,139,66,.52)', 'rgba(129,142,121,.58)', 'rgba(44,60,52,.34)'];
         for (let layer = -3; layer <= 3; layer++) {
           seam.beginPath();
           for (let x = 0; x <= width + 10; x += 10) {
-            const y = boundaryY(x) + layer * 8 + Math.sin(x * .008 + layer * 2) * (3 + Math.abs(layer));
+            const y = boundaryY(x) + layer * 7 + Math.sin(x * .008 + layer * 2) * (3 + Math.abs(layer));
             if (x === 0) seam.moveTo(x, y); else seam.lineTo(Math.min(x, width), y);
           }
           seam.strokeStyle = colors[(layer + 4) % colors.length];
           seam.lineWidth = layer === 0 ? 2 : 1;
           seam.stroke();
         }
+        for (let center = 24; center < width; center += 92) {
+          const mound = random(center + 110);
+          const rows = 3 + Math.floor(mound * 4);
+          const baseY = boundaryY(center) + height * (.2 + mound * .08);
+          for (let row = 0; row < rows; row++) {
+            for (let col = -5; col <= 5; col++) {
+              const grit = random(center * .7 + row * 19 + col * 7);
+              if (grit < .5) continue;
+              const x = center + col * 5 + (grit - .5) * 7;
+              const y = baseY + row * 4 + (grit - .5) * 6;
+              seam.globalAlpha = (.42 + grit * .35) * envelope();
+              seam.fillStyle = colors[Math.floor(grit * colors.length) % colors.length];
+              seam.fillRect(x, y, 2 + grit * 4, 2 + grit * 3);
+            }
+          }
+        }
         seam.restore();
       }
       function drawShavings() {
         seam.save();
         seam.lineCap = 'round';
-        for (let x = 14; x < width; x += 38) {
+        for (let x = 26; x < width; x += 92) {
           const seed = random(x + 910);
           const y = boundaryY(x);
-          const length = (10 + seed * 30) * envelope();
-          const radius = 4 + seed * 9;
+          const length = (30 + seed * 72) * envelope();
+          const radius = 9 + seed * 20;
           seam.beginPath();
-          seam.moveTo(x, y);
-          seam.bezierCurveTo(x + radius, y + length * .2, x + radius * 1.4, y + length * .7, x + radius * .3, y + length);
-          seam.bezierCurveTo(x - radius * 2, y + length * .7, x - radius * 1.2, y + length * .28, x + radius * .2, y + length * .45);
-          seam.strokeStyle = seed > .55 ? 'rgba(230,216,184,.8)' : 'rgba(50,68,56,.72)';
-          seam.lineWidth = .8 + seed * 1.4;
+          seam.moveTo(x, y + 2);
+          seam.bezierCurveTo(x + radius * 1.4, y + length * .12, x + radius * 1.5, y + length * .52, x + radius * .25, y + length * .62);
+          seam.bezierCurveTo(x - radius * 1.3, y + length * .74, x - radius * 1.1, y + length * .28, x + radius * .15, y + length * .38);
+          seam.bezierCurveTo(x + radius * .9, y + length * .47, x + radius * .8, y + length * .58, x + radius * .35, y + length * .55);
+          seam.strokeStyle = seed > .55 ? 'rgba(230,216,184,.88)' : 'rgba(50,68,56,.78)';
+          seam.lineWidth = 1 + seed * 1.8;
           seam.stroke();
         }
         seam.restore();
