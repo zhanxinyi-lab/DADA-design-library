@@ -59,7 +59,8 @@
     const cardCtx = cardCanvas.getContext('2d');
     const noiseCanvas = document.createElement('canvas');
     const noiseCtx = noiseCanvas.getContext('2d');
-    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
+    let reducedMotion = motionPreference.matches;
     const pointer = { x: 0, y: 0, active: false };
     const shards = [];
     let width = 0;
@@ -385,6 +386,19 @@
       requestDraw();
     });
     control.addEventListener('click', nextCard);
+    motionPreference.addEventListener('change', (event) => {
+      reducedMotion = event.matches;
+      if (reducedMotion) {
+        phase = 'glass';
+        phaseTime = 0;
+        shards.length = 0;
+      }
+      if (frameRequest) {
+        cancelAnimationFrame(frameRequest);
+        frameRequest = 0;
+      }
+      requestDraw();
+    });
     window.addEventListener('resize', resize);
     resize();
   </script>
