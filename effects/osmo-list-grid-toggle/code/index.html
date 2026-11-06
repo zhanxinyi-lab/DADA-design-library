@@ -139,7 +139,7 @@
 </head>
 <body>
   <div class="page">
-    <div class="board" id="board">
+    <div class="board list" id="board">
       <div class="toggle" id="toggle"></div>
       <div class="grid" id="grid"></div>
     </div>
@@ -183,7 +183,7 @@
       const gridBtn = document.createElement('button');
       listBtn.textContent = 'List';
       gridBtn.textContent = 'Grid';
-      gridBtn.className = 'on';
+      listBtn.className = 'on';
       toggle.appendChild(listBtn);
       toggle.appendChild(gridBtn);
 
@@ -304,7 +304,7 @@
         paint(canvas, item, index);
       });
 
-      let mode = 'grid';
+      let mode = 'list';
       let busy = false;
       let touched = false;
       const duration = reduced ? 1 : 720;
@@ -359,8 +359,12 @@
 
       window.setTimeout(function () {
         if (touched) return;
-        flipTo('list');
-        window.setTimeout(function () { if (!touched) flipTo('grid'); }, reduced ? 400 : 1100);
+        flipTo('grid');
+        window.setTimeout(function () {
+          if (touched) return;
+          flipTo('list');
+          window.setTimeout(function () { if (!touched) flipTo('grid'); }, reduced ? 400 : 1100);
+        }, reduced ? 400 : 1100);
       }, reduced ? 400 : 1600);
     })();
   </script>
