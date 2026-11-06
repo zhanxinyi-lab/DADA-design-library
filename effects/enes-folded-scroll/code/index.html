@@ -29,8 +29,8 @@
       background: var(--bg);
     }
     .stage {
-      width: min(420px, 90vw);
-      height: min(320px, 67vw, 96vh);
+      width: min(420px, 90vw, 72vh);
+      aspect-ratio: 3 / 4;
       perspective: 900px;
       position: relative;
     }
@@ -62,10 +62,17 @@
       font-size: 16px;
     }
     .search::placeholder { color: var(--muted); opacity: 1; }
+    .search:focus-visible {
+      outline: 2px solid rgba(255, 255, 255, .75);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    .search-row:focus-within { border-bottom-color: rgba(255, 255, 255, .42); }
     .list {
       flex: 1;
       overflow: auto;
       padding: 8px 14px 24px;
+      container-type: inline-size;
       scrollbar-width: none;
       overscroll-behavior: contain;
       perspective: 900px;
@@ -81,7 +88,7 @@
     }
     .emoji-row {
       display: grid;
-      grid-template-columns: repeat(8, minmax(0, 1fr));
+      grid-template-columns: repeat(9, minmax(0, 1fr));
       transform-origin: center center;
       transform-style: preserve-3d;
       backface-visibility: hidden;
@@ -97,12 +104,17 @@
       background: transparent;
       color: inherit;
       font-family: inherit;
-      font-size: clamp(19px, 5.5vw, 25px);
+      font-size: clamp(15px, 7.1cqi, 28px);
       line-height: 1;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
     }
-    .emoji:hover, .emoji:focus-visible { background: rgba(255, 255, 255, .09); outline: none; }
+    .emoji:hover { background: rgba(255, 255, 255, .09); }
+    .emoji:focus-visible {
+      background: rgba(255, 255, 255, .09);
+      outline: 2px solid rgba(255, 255, 255, .75);
+      outline-offset: -2px;
+    }
     .empty { padding: 22px 2px; color: var(--muted); font-size: 14px; }
     .fold {
       position: absolute;
@@ -123,7 +135,7 @@
       backdrop-filter: blur(1.2px);
     }
     @media (max-width: 360px) {
-      .stage { width: calc(100vw - 24px); }
+      .stage { width: min(calc(100vw - 24px), 72vh); }
       .search-row { padding: 0 14px; }
       .list { padding-right: 10px; padding-left: 10px; }
     }
@@ -149,10 +161,8 @@
   <script>
     const GROUPS = [
       { label: 'Frequently used', items: [
-        ['😂', 'face tears of joy laugh'], ['❤️', 'red heart love'], ['😍', 'smiling face heart eyes'], ['🥰', 'smiling face hearts'],
-        ['😭', 'loudly crying face sad'], ['😊', 'smiling face blush'], ['🙏', 'folded hands thanks'], ['✨', 'sparkles'],
-        ['🔥', 'fire hot'], ['👍', 'thumbs up'], ['🥹', 'face holding back tears'], ['🤔', 'thinking face'],
-        ['😎', 'smiling face sunglasses'], ['💀', 'skull'], ['👀', 'eyes'], ['🎉', 'party popper celebration']
+        ['👍', 'thumbs up'], ['👌', 'ok hand'], ['🙏', 'folded hands'], ['😂', 'face tears of joy laugh'], ['❤️', 'red heart love'], ['👀', 'eyes'], ['✅', 'check mark'], ['🙂', 'slightly smiling face'], ['😀', 'grinning face'],
+        ['😁', 'beaming face'], ['😅', 'grinning face sweat'], ['🤔', 'thinking face'], ['😬', 'grimacing face'], ['⚠️', 'warning'], ['🙁', 'slightly frowning face'], ['❌', 'cross mark'], ['🙌', 'raising hands'], ['🎉', 'party popper celebration']
       ]},
       { label: 'Smileys & People', items: [
         ['😀', 'grinning face'], ['😃', 'grinning face big eyes'], ['😄', 'grinning face smiling eyes'], ['😁', 'beaming face'],
@@ -212,7 +222,7 @@
     (function () {
       const list = document.getElementById('list');
       const search = document.getElementById('search');
-      const columns = 8;
+      const columns = 9;
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
       function render() {
@@ -287,7 +297,7 @@
       if (!reducedMotion) {
         let direction = 1;
         function autoScroll() {
-          if (!search.value && document.activeElement !== search) {
+          if (!search.value && document.activeElement !== search && !list.contains(document.activeElement)) {
             const max = list.scrollHeight - list.clientHeight;
             if (max > 0) {
               list.scrollTop += direction * 0.55;
