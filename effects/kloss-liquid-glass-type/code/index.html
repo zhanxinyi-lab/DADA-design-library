@@ -12,6 +12,7 @@
   #replay{position:fixed;right:16px;bottom:14px;z-index:2;background:rgba(255,255,255,.08);color:#fff;
     border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:7px 14px;font:12px/1 inherit;letter-spacing:.12em;cursor:pointer;opacity:.0;transition:opacity .3s}
   body:hover #replay{opacity:.85}
+  #replay:focus-visible{opacity:.95;outline:2px solid #fff;outline-offset:3px}
 </style>
 </head>
 <body>
@@ -85,7 +86,7 @@ function beadTargets(fc){
 const VS='attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
 const FS=`precision highp float;
 uniform vec2 uRes; uniform float uTime; uniform sampler2D uField;
-uniform vec4 uB[16]; uniform float uMorph; uniform float uLine; uniform float uClip; uniform float uSettle;
+uniform vec4 uB[16]; uniform float uMorph; uniform float uLine; uniform float uClip;
 uniform vec3 uRim; uniform vec3 uGA; uniform vec3 uGB;
 const vec2 BOARD=vec2(${W}.,${H}.); const vec2 C=vec2(${CX}.,${CY}.); const float LINEY=${LINEY}.;
 vec3 backdrop(vec2 b){
@@ -125,7 +126,6 @@ void main(){
     vec3 iri=mix(.5+.5*cos(hue+vec3(0.,2.1,4.2)),uRim,.45);
     vec3 c=refr*(1.-.2*rim)+pow(rim,2.2)*(iri*.75+.35);
     c+=pow(max(dot(n,normalize(vec3(-.5,.55,.68))),0.),40.)*1.1+.05*inner;
-    c=mix(c,vec3(.97),uSettle*inner);                                   // 定版：玻璃字慢慢变成实心白字
     col=mix(col,c,a);
   }
   gl_FragColor=vec4(col,1.);
@@ -136,7 +136,7 @@ const prog=gl.createProgram(); gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS)); gl
 gl.bindAttribLocation(prog,0,'p'); gl.linkProgram(prog); gl.useProgram(prog);
 gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
 gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
-const U={}; ['uRes','uTime','uField','uB','uMorph','uLine','uClip','uSettle','uRim','uGA','uGB'].forEach(k=>U[k]=gl.getUniformLocation(prog,k));
+const U={}; ['uRes','uTime','uField','uB','uMorph','uLine','uClip','uRim','uGA','uGB'].forEach(k=>U[k]=gl.getUniformLocation(prog,k));
 const fc=wordField(); const BEADS=beadTargets(fc);
 const tx=gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,tx);
 gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,fc);
@@ -164,13 +164,12 @@ let t0=performance.now(); document.getElementById('replay').onclick=()=>{t0=perf
 const freeze=new URLSearchParams(location.search).get('freeze');
 function frame(now){
   fit(); let t=freeze!==null?parseFloat(freeze):(now-t0)/1000;
-  if (BRAND.loop && t>T.end+1.5){ t0=now; t=0; }
+  if (BRAND.loop && t>T.end){ t0=now; t=0; }
   gl.viewport(0,0,cv.width,cv.height);
   gl.uniform2f(U.uRes,cv.width,cv.height); gl.uniform1f(U.uTime,t);
   gl.uniform4fv(U.uB,blobsAt(t)); gl.uniform1f(U.uMorph,eIO(seg(T.morph,t)));
   gl.uniform1f(U.uLine,ss(T.line[0],T.line[1],t)*(1-ss(T.emerge[0]+.6,T.float[0]+.4,t)));
   gl.uniform1f(U.uClip,1-ss(.55,.8,seg(T.emerge,t)));
-  gl.uniform1f(U.uSettle,ss(T.morph[1]+.3,T.morph[1]+1.2,t)*.75);
   gl.drawArrays(gl.TRIANGLES,0,3);
   requestAnimationFrame(frame);
 }
