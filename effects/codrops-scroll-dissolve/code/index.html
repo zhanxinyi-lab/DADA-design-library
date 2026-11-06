@@ -1,244 +1,728 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CANOPY</title>
+  <meta name="theme-color" content="#222d2b">
+  <title>Seam Transitions — CANOPY</title>
   <style>
-    :root { --sky: #9aa3a8; --tree: #2c3c34; --fog: #c5c8c6; --paper: #f6f4f0; --ink: #161616; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      height: 100%;
-      background: var(--sky);
-      color: #fff;
-      font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
-      overflow: auto;
+    :root {
+      --sky: #9aa5a5;
+      --forest: #26372f;
+      --fog: #c7cbc5;
+      --paper: #f4f1e9;
+      --ink: #1d211e;
+      --accent: #b68b42;
+      color-scheme: light;
     }
-    .scroller { height: 200vh; }
-    .forest {
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    html { background: var(--paper); scroll-behavior: auto; }
+    body {
+      color: #fff;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--sky);
+      overflow-x: hidden;
+    }
+    button { font: inherit; }
+    .masthead {
+      position: fixed;
+      z-index: 10;
+      top: 0;
+      left: 0;
+      right: 0;
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0 24px;
+      border-bottom: 1px solid rgba(255,255,255,.2);
+      background: rgba(23,31,29,.18);
+      color: rgba(255,255,255,.88);
+      font-size: 10px;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .masthead strong { font-weight: 600; }
+    .masthead span:last-child { text-align: right; opacity: .75; }
+    .variation-nav {
+      position: fixed;
+      z-index: 11;
+      top: 58px;
+      left: 24px;
+      right: 24px;
+      display: flex;
+      width: max-content;
+      max-width: calc(100% - 48px);
+      gap: 3px;
+      padding: 5px;
+      overflow-x: auto;
+      border: 1px solid rgba(255,255,255,.42);
+      border-radius: 7px;
+      background: rgba(246,244,238,.95);
+      color: #1c2421;
+      scrollbar-width: thin;
+    }
+    .variation-nav button {
+      flex: 0 0 auto;
+      min-width: 31px;
+      border: 0;
+      border-radius: 4px;
+      padding: 7px 8px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font-size: 10px;
+      letter-spacing: .04em;
+    }
+    .variation-nav button:hover { background: rgba(38,55,47,.1); }
+    .variation-nav button[aria-pressed="true"] { background: #25312d; color: #fff; }
+    .variation-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .story { position: relative; height: 200vh; }
+    .stage {
       position: sticky;
       top: 0;
       height: 100vh;
+      height: 100svh;
       overflow: hidden;
-      background: linear-gradient(180deg, var(--sky), var(--fog) 58%, var(--tree));
+      isolation: isolate;
+      background: var(--sky);
     }
-    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-    .copy {
+    .panel { position: absolute; inset: 0; overflow: hidden; }
+    .panel--forest {
+      z-index: 1;
+      background: linear-gradient(180deg, var(--sky) 0%, var(--fog) 55%, #63766b 100%);
+    }
+    #trees { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    body[data-variation="04"] .forest-copy { opacity: 0; }
+    .forest-copy {
       position: absolute;
-      left: 6vw;
-      top: 28vh;
+      top: 34%;
+      left: clamp(20px, 6vw, 92px);
+      max-width: 86vw;
+      text-shadow: 0 2px 28px rgba(16,28,24,.13);
+    }
+    .forest-copy h1 {
+      margin: 0;
+      font-size: clamp(62px, 14vw, 174px);
+      font-weight: 600;
+      line-height: .82;
+      letter-spacing: -.075em;
+    }
+    .forest-copy p {
+      margin: 22px 0 0 6px;
+      font-size: 10px;
+      line-height: 1.6;
+      letter-spacing: .23em;
+      text-transform: uppercase;
+    }
+    .side-note {
+      position: absolute;
+      right: clamp(18px, 5vw, 72px);
+      top: 48%;
+      max-width: 110px;
+      font-size: 9px;
+      line-height: 1.6;
+      letter-spacing: .12em;
+      text-align: right;
+      text-transform: uppercase;
+      opacity: .76;
+    }
+    .panel--paper {
       z-index: 2;
-    }
-    .title {
-      font-weight: 700;
-      font-size: clamp(64px, 14vw, 160px);
-      letter-spacing: -0.04em;
-      line-height: 0.9;
-    }
-    .kicker {
-      position: absolute;
-      right: 5vw;
-      top: 42vh;
-      font-size: 11px;
-      letter-spacing: 0.28em;
-      opacity: 0.7;
-      white-space: pre;
-    }
-    .paper {
-      position: relative;
-      height: 100vh;
       background: var(--paper);
       color: var(--ink);
-      display: grid;
-      place-items: center;
-      z-index: 3;
+      clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0 100%);
     }
-    .paper h2 { font-size: clamp(48px, 10vw, 120px); letter-spacing: -0.04em; }
-    .seam {
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      pointer-events: none;
-      z-index: 4;
-      mix-blend-mode: normal;
-    }
-    .modes {
-      position: fixed;
-      right: 18px;
-      top: 18px;
-      z-index: 6;
+    .paper-layout {
+      position: absolute;
+      inset: 0;
       display: flex;
-      gap: 6px;
+      flex-direction: column;
+      justify-content: center;
+      padding: clamp(78px, 12vh, 122px) clamp(22px, 8vw, 120px) clamp(42px, 8vh, 84px);
     }
-    .modes button {
-      border: 1px solid rgba(255,255,255,0.45);
-      background: rgba(20,20,20,0.35);
-      color: #fff;
-      padding: 6px 10px;
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      cursor: pointer;
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 10px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: #60695f;
     }
-    .modes button.on { background: #fff; color: #111; }
-    @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
+    .paper-layout h2 {
+      margin: 0;
+      font-size: clamp(45px, 9vw, 112px);
+      line-height: .9;
+      letter-spacing: -.065em;
+      font-weight: 600;
+    }
+    .paper-intro {
+      max-width: 470px;
+      margin: 18px 0 24px;
+      color: #596058;
+      font-size: clamp(13px, 1.5vw, 16px);
+      line-height: 1.6;
+    }
+    .project-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 10px;
+      max-width: 840px;
+    }
+    .project {
+      min-height: 74px;
+      padding: 13px 14px;
+      border-top: 1px solid rgba(29,33,30,.36);
+    }
+    .project strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .project span { color: #72786f; font-size: 10px; }
+    #seam { position: absolute; z-index: 4; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .scroll-cue {
+      position: absolute;
+      z-index: 8;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255,255,255,.8);
+      font-size: 9px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+    .scroll-cue::after { content: ""; width: 1px; height: 22px; background: currentColor; }
+    .afterword {
+      min-height: 80vh;
+      padding: clamp(56px, 10vw, 120px) clamp(22px, 10vw, 160px);
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .afterword-inner { max-width: 900px; margin: auto; }
+    .afterword h2 {
+      margin: 0;
+      font-size: clamp(34px, 6vw, 72px);
+      line-height: .95;
+      letter-spacing: -.06em;
+    }
+    .afterword p { max-width: 570px; color: #596058; font-size: 14px; line-height: 1.7; }
+    .afterword small { color: #767b72; letter-spacing: .12em; text-transform: uppercase; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 600px) {
+      .masthead { min-height: 42px; padding: 0 14px; font-size: 9px; }
+      .variation-nav { top: 51px; left: 14px; right: 14px; max-width: calc(100% - 28px); }
+      .variation-nav button { min-width: 28px; padding: 7px 6px; }
+      .forest-copy { top: 38%; }
+      .forest-copy p { max-width: 210px; margin-top: 15px; font-size: 8px; }
+      .side-note { top: auto; bottom: 19%; max-width: 90px; font-size: 8px; }
+      .paper-layout { justify-content: center; padding: 90px 22px 40px; }
+      .paper-layout h2 { font-size: clamp(44px, 14vw, 72px); }
+      .paper-intro { margin: 14px 0 18px; font-size: 12px; }
+      .project-list { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0 8px; }
+      .project { min-height: 58px; padding: 10px 4px; }
+      .project strong, .project span { font-size: 8px; }
+    }
+    @media (max-height: 500px) and (orientation: landscape) {
+      .paper-layout {
+        display: grid;
+        grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+        grid-template-rows: auto auto auto;
+        align-content: start;
+        justify-content: initial;
+        gap: 8px 18px;
+        padding: 108px 28px 14px;
+      }
+      .paper-layout .eyebrow { grid-column: 1 / -1; margin: 0; }
+      .paper-layout h2 {
+        grid-column: 1;
+        grid-row: 2;
+        align-self: center;
+        font-size: clamp(30px, 8vh, 52px);
+      }
+      .paper-intro {
+        grid-column: 2;
+        grid-row: 2;
+        max-width: none;
+        margin: 0;
+        font-size: 11px;
+        line-height: 1.4;
+      }
+      .project-list { grid-column: 2; grid-row: 3; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+      .project { min-height: 40px; padding: 6px; }
+      .project strong, .project span { font-size: 8px; line-height: 1.2; }
     }
   </style>
 </head>
 <body>
-  <div class="modes" id="modes"></div>
-  <div class="scroller" id="scroller">
-    <section class="forest" id="forest">
-      <canvas id="trees"></canvas>
-      <div class="copy"><div class="title" id="title"></div></div>
-      <div class="kicker" id="kicker"></div>
+  <header class="masthead">
+    <strong>Seam Transitions</strong>
+    <span>11 scroll-driven edge studies</span>
+  </header>
+  <nav class="variation-nav" id="variations" aria-label="Transition variation"></nav>
+
+  <main>
+    <section class="story" id="story" aria-label="Scroll through the selected seam transition">
+      <div class="stage">
+        <section class="panel panel--forest" aria-labelledby="forestTitle">
+          <canvas id="trees" aria-hidden="true"></canvas>
+          <div class="forest-copy">
+            <h1 id="forestTitle">CANOPY</h1>
+            <p id="forestKicker">Native forest · since 2011</p>
+          </div>
+          <p class="side-note">Scroll to reveal<br>the next section</p>
+        </section>
+        <section class="panel panel--paper" id="paper" aria-labelledby="paperTitle">
+          <div class="paper-layout">
+            <p class="eyebrow" id="paperKicker">(02) Field notes</p>
+            <h2 id="paperTitle">GROWING<br>BACK</h2>
+            <p class="paper-intro" id="paperIntro">A scroll-led transition study: the edge between two sections becomes the animation, not a divider placed on top.</p>
+            <div class="project-list" id="projects"></div>
+          </div>
+        </section>
+        <canvas id="seam" aria-hidden="true"></canvas>
+        <div class="scroll-cue" aria-hidden="true">Scroll</div>
+      </div>
     </section>
-    <canvas class="seam" id="seam"></canvas>
-    <section class="paper"><h2 id="paperTitle"></h2></section>
-  </div>
+    <section class="afterword">
+      <div class="afterword-inner">
+        <small id="selectedVariation">01 / Ink bleeding</small>
+        <h2 id="variationTitle">The edge is the transition.</h2>
+        <p id="variationDescription">Scroll through the pinned scene to reveal the next panel. Use the numbered controls to compare the 11 edge treatments.</p>
+      </div>
+    </section>
+  </main>
+
   <script>
-    // 改这里即可换品牌
+    // Adapted as a self-contained study of the 11 edge treatments in Codrops SeamTransitions.
+    // Edit BRAND to change the sample copy; the transition remains driven by scroll progress.
     const BRAND = {
       name: 'CANOPY',
-      kicker: 'NATIVE FOREST  SINCE 2011',
-      sections: [
-        { id: 'forest', title: 'CANOPY', sky: '#9aa3a8', tree: '#2c3c34', fog: '#c5c8c6' },
-        { id: 'paper', title: 'LOOKBOOK', bg: '#f6f4f0', ink: '#161616' }
+      kicker: 'Native forest · since 2011',
+      nextTitle: 'GROWING<br>BACK',
+      nextKicker: '(02) Field notes',
+      intro: 'A scroll-led transition study: the edge between two sections becomes the animation, not a divider placed on top.',
+      projects: [
+        ['Birch hollow', '2012 · young woodland'],
+        ['Upper loch', '2014 · native pines'],
+        ['Rowan ridge', '2016 · hillside renewal']
       ]
     };
 
+    const VARIATIONS = [
+      { id: '01', key: 'bleed', name: 'Ink bleeding', title: 'Ink bleeding', description: 'Pigment spreads and feathers across the meeting edge.' },
+      { id: '02', key: 'tiles', name: 'Tiles crumble', title: 'Tiles crumbling off', description: 'Small pieces break away from the edge as the next section appears.' },
+      { id: '03', key: 'fray', name: 'Blanket fray', title: 'A blanket fraying', description: 'Loose threads trail from a rough woven seam.' },
+      { id: '04', key: 'type', name: 'Photo in type', title: 'Photograph set in type', description: 'Oversized type interrupts the reveal like a photograph held in letterforms.' },
+      { id: '05', key: 'contour', name: 'Contour map', title: 'Contour map', description: 'Topographic lines follow the changing boundary.' },
+      { id: '06', key: 'marble', name: 'Marbling', title: 'Marbling', description: 'Fluid bands fold and drift along the edge.' },
+      { id: '07', key: 'mist', name: 'Mist', title: 'Mist', description: 'A soft, clouded veil dissolves between the sections.' },
+      { id: '08', key: 'kintsugi', name: 'Kintsugi', title: 'Kintsugi cracks', description: 'A fine gold fracture traces the seam.' },
+      { id: '09', key: 'roots', name: 'Roots', title: 'Roots', description: 'Roots branch down from the upper landscape.' },
+      { id: '10', key: 'sediment', name: 'Sediment', title: 'Sediment', description: 'Layered strata expose the next section in bands.' },
+      { id: '11', key: 'shavings', name: 'Wood shavings', title: 'Wood shavings', description: 'Curled ribbons peel away from the boundary.' }
+    ];
+
     (function () {
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const forest = BRAND.sections[0];
-      const paper = BRAND.sections[1];
-      const root = document.documentElement;
-      root.style.setProperty('--sky', forest.sky);
-      root.style.setProperty('--tree', forest.tree);
-      root.style.setProperty('--fog', forest.fog);
-      root.style.setProperty('--paper', paper.bg);
-      root.style.setProperty('--ink', paper.ink);
-      document.title = BRAND.name;
-      document.body.style.background = forest.sky;
-      document.getElementById('title').textContent = forest.title;
-      document.getElementById('kicker').textContent = BRAND.kicker;
-      document.getElementById('paperTitle').textContent = paper.title;
+      const story = document.getElementById('story');
+      const forestCanvas = document.getElementById('trees');
+      const seamCanvas = document.getElementById('seam');
+      const forest = forestCanvas.getContext('2d');
+      const seam = seamCanvas.getContext('2d');
+      const paper = document.getElementById('paper');
+      const nav = document.getElementById('variations');
+      const scrollCue = document.querySelector('.scroll-cue');
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let width = 0, height = 0, dpr = 1, progress = 0, active = VARIATIONS[0], pending = false;
 
-      const modes = document.getElementById('modes');
-      const tornBtn = document.createElement('button');
-      const disBtn = document.createElement('button');
-      tornBtn.textContent = 'Torn';
-      disBtn.textContent = 'Dissolve';
-      tornBtn.className = 'on';
-      modes.appendChild(tornBtn);
-      modes.appendChild(disBtn);
-      let mode = 'torn';
-      tornBtn.onclick = function () { mode = 'torn'; tornBtn.className = 'on'; disBtn.className = ''; drawSeam(); };
-      disBtn.onclick = function () { mode = 'dissolve'; disBtn.className = 'on'; tornBtn.className = ''; drawSeam(); };
+      document.title = 'Seam Transitions — ' + BRAND.name;
+      document.getElementById('forestTitle').textContent = BRAND.name;
+      document.getElementById('forestKicker').textContent = BRAND.kicker;
+      document.getElementById('paperTitle').innerHTML = BRAND.nextTitle;
+      document.getElementById('paperKicker').textContent = BRAND.nextKicker;
+      document.getElementById('paperIntro').textContent = BRAND.intro;
+      document.getElementById('projects').innerHTML = BRAND.projects.map(([name, detail]) =>
+        '<article class="project"><strong>' + name + '</strong><span>' + detail + '</span></article>'
+      ).join('');
 
-      const trees = document.getElementById('trees');
-      const seam = document.getElementById('seam');
-      const rng = function (i) { return Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1; };
+      for (const variation of VARIATIONS) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = variation.id;
+        button.setAttribute('aria-label', variation.id + ' — ' + variation.name);
+        button.setAttribute('aria-pressed', variation.id === active.id ? 'true' : 'false');
+        button.addEventListener('click', () => selectVariation(variation));
+        nav.appendChild(button);
+      }
 
-      function drawForest() {
-        const dpr = Math.min(2, window.devicePixelRatio || 1);
-        const w = trees.width = Math.floor(innerWidth * dpr);
-        const h = trees.height = Math.floor(innerHeight * dpr);
-        const ctx = trees.getContext('2d');
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        const W = innerWidth, H = innerHeight;
-        const sky = ctx.createLinearGradient(0, 0, 0, H);
-        sky.addColorStop(0, forest.sky);
-        sky.addColorStop(0.55, forest.fog);
-        sky.addColorStop(1, forest.tree);
-        ctx.fillStyle = sky;
-        ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = forest.tree;
-        for (let layer = 0; layer < 3; layer++) {
-          ctx.globalAlpha = 0.35 + layer * 0.22;
-          const y0 = H * (0.42 + layer * 0.12);
-          ctx.beginPath();
-          ctx.moveTo(0, H);
-          for (let x = 0; x <= W; x += 18) {
-            const n = rng(x * 0.2 + layer * 9);
-            const peak = y0 - n * (80 + layer * 40);
-            ctx.lineTo(x, peak);
-          }
-          ctx.lineTo(W, H);
-          ctx.closePath();
-          ctx.fill();
+      function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+      function random(seed) {
+        const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+        return value - Math.floor(value);
+      }
+      function smoothNoise(value, seed) {
+        const left = Math.floor(value);
+        const t = value - left;
+        const eased = t * t * (3 - 2 * t);
+        const a = random(left + seed), b = random(left + 1 + seed);
+        return a + (b - a) * eased;
+      }
+      function envelope() { return Math.sin(Math.PI * progress); }
+      function boundaryY(x) {
+        const base = height * (1 - progress);
+        const e = envelope();
+        const n = x / Math.max(1, width);
+        let offset = 0;
+        switch (active.key) {
+          case 'bleed': offset = 18 * Math.sin(x * .014) + 12 * Math.sin(x * .031 + 1.4) + 16 * (smoothNoise(x * .035, 4) - .5); break;
+          case 'tiles': offset = (random(Math.floor(x / 24) + 17) - .5) * 38; break;
+          case 'fray': offset = 11 * Math.sin(x * .12) + 20 * (smoothNoise(x * .22, 7) - .5); break;
+          case 'type': offset = 10 * Math.sin(x * .019) + 7 * Math.sin(x * .047 + 2); break;
+          case 'contour': offset = 24 * Math.sin(x * .012 + 1.5 * Math.sin(x * .003)) + 8 * Math.sin(x * .038); break;
+          case 'marble': offset = 27 * Math.sin(x * .011 + 12 * Math.sin(x * .0028 + progress * 3)) + 9 * Math.sin(x * .034); break;
+          case 'mist': offset = 9 * Math.sin(x * .009) + 8 * (smoothNoise(x * .025, 23) - .5); break;
+          case 'kintsugi': offset = 9 * Math.sin(x * .017) + 7 * Math.sin(x * .043 + 1); break;
+          case 'roots': offset = 8 * Math.sin(x * .015) + 10 * (smoothNoise(x * .04, 31) - .5); break;
+          case 'sediment': offset = Math.round((9 * Math.sin(x * .011) + 8 * Math.sin(x * .025)) / 8) * 8; break;
+          case 'shavings': offset = 13 * Math.sin(x * .019 + 2 * Math.sin(x * .004)) + 7 * Math.sin(x * .051); break;
         }
-        ctx.globalAlpha = 1;
-        for (let i = 0; i < 28; i++) {
-          const x = (i / 28) * W + rng(i) * 20;
-          const base = H * 0.72 + rng(i + 3) * 40;
-          const ht = 90 + rng(i + 7) * 140;
-          ctx.fillStyle = forest.tree;
-          ctx.beginPath();
-          ctx.moveTo(x, base - ht);
-          ctx.lineTo(x + 28 + rng(i) * 18, base);
-          ctx.lineTo(x - 28 - rng(i + 1) * 18, base);
-          ctx.fill();
+        return clamp(base + offset * e + Math.sin(n * Math.PI * 2) * e * 2, 0, height);
+      }
+      function pathAlongEdge(ctx, offset, step, wobble) {
+        ctx.beginPath();
+        for (let x = 0; x <= width + step; x += step) {
+          const y = boundaryY(x) + offset + (wobble ? (smoothNoise(x * .025, offset + 3) - .5) * wobble : 0);
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(Math.min(x, width), y);
         }
       }
 
-      function jaggedY(x, W, amp, seed) {
-        return (Math.sin(x / 18 + seed) * 0.4 + Math.sin(x / 7 + seed * 2) * 0.3 + ((x * 13 + seed * 9) % 11) / 11 * 0.3) * amp;
+      function drawForest() {
+        forest.clearRect(0, 0, width, height);
+        const sky = forest.createLinearGradient(0, 0, 0, height);
+        sky.addColorStop(0, '#9aa5a5');
+        sky.addColorStop(.52, '#c7cbc5');
+        sky.addColorStop(1, '#26372f');
+        forest.fillStyle = sky;
+        forest.fillRect(0, 0, width, height);
+        for (let layer = 0; layer < 4; layer++) {
+          forest.beginPath();
+          forest.moveTo(0, height);
+          const base = height * (.48 + layer * .095);
+          for (let x = 0; x <= width + 12; x += 12) {
+            const variation = random(x * .09 + layer * 21);
+            const peak = base - variation * (38 + layer * 42);
+            forest.lineTo(x, peak);
+          }
+          forest.lineTo(width, height);
+          forest.closePath();
+          forest.globalAlpha = .12 + layer * .16;
+          forest.fillStyle = layer < 2 ? '#76877e' : '#26372f';
+          forest.fill();
+        }
+        forest.globalAlpha = 1;
+        const count = Math.ceil(width / 26);
+        for (let i = 0; i < count; i++) {
+          const x = (i / count) * width + random(i + 3) * 22;
+          const base = height * (.76 + random(i + 17) * .18);
+          const treeHeight = height * (.12 + random(i + 41) * .16);
+          const treeWidth = 16 + random(i + 70) * 20;
+          forest.fillStyle = i % 4 === 0 ? '#34483e' : '#26372f';
+          forest.beginPath();
+          forest.moveTo(x, base - treeHeight);
+          forest.lineTo(x + treeWidth, base);
+          forest.lineTo(x - treeWidth, base);
+          forest.closePath();
+          forest.fill();
+        }
+        const haze = forest.createLinearGradient(0, height * .35, 0, height * .8);
+        haze.addColorStop(0, 'rgba(244,244,235,0)');
+        haze.addColorStop(.55, 'rgba(244,244,235,.24)');
+        haze.addColorStop(1, 'rgba(244,244,235,0)');
+        forest.fillStyle = haze;
+        forest.fillRect(0, height * .3, width, height * .55);
+      }
+
+      function drawInk() {
+        seam.save();
+        for (let x = -12; x < width + 20; x += 18) {
+          const y = boundaryY(x);
+          const r = 8 + random(x + 50) * 18;
+          const gradient = seam.createRadialGradient(x, y, 1, x, y, r * 2.5);
+          gradient.addColorStop(0, 'rgba(37,48,42,.23)');
+          gradient.addColorStop(1, 'rgba(37,48,42,0)');
+          seam.fillStyle = gradient;
+          seam.beginPath();
+          seam.ellipse(x, y + r * .45, r * 1.8, r * 1.15, random(x + 9) * .8, 0, Math.PI * 2);
+          seam.fill();
+        }
+        pathAlongEdge(seam, 0, 4, 2);
+        seam.strokeStyle = 'rgba(35,46,39,.72)';
+        seam.lineWidth = 2;
+        seam.stroke();
+        seam.restore();
+      }
+      function drawTiles() {
+        const size = Math.max(16, Math.min(26, Math.round(width / 42)));
+        seam.save();
+        for (let x = 0, column = 0; x < width; x += size, column++) {
+          const seed = random(column + 70);
+          const y = boundaryY(x + size / 2) + (seed - .5) * size;
+          const fall = clamp((progress - (.12 + seed * .32)) / .42, 0, 1);
+          if (fall <= 0 || fall >= 1) continue;
+          seam.save();
+          seam.translate(x + size / 2 + (seed - .5) * 12 * fall, y + fall * (18 + seed * 56));
+          seam.rotate((seed - .5) * fall * .9);
+          seam.globalAlpha = (1 - fall) * .78 * envelope();
+          seam.fillStyle = column % 3 === 0 ? '#43594e' : (column % 3 === 1 ? '#819187' : '#2c3c34');
+          seam.fillRect(-size * .46, -size * .42, size * .9, size * .82);
+          seam.restore();
+        }
+        seam.restore();
+      }
+      function drawFray() {
+        seam.save();
+        seam.lineCap = 'round';
+        for (let x = 0; x < width; x += 6) {
+          const seed = random(x + 100);
+          const y = boundaryY(x);
+          const length = (8 + seed * 42) * envelope();
+          seam.beginPath();
+          seam.moveTo(x, y - 2);
+          seam.bezierCurveTo(x + (seed - .5) * 7, y + length * .28, x + (seed - .5) * 13, y + length * .72, x + (seed - .5) * 18, y + length);
+          seam.strokeStyle = seed > .68 ? 'rgba(246,241,229,.78)' : 'rgba(44,60,52,.6)';
+          seam.lineWidth = .45 + seed * 1.3;
+          seam.stroke();
+        }
+        seam.restore();
+      }
+      function drawType() {
+        seam.save();
+        const size = Math.max(38, Math.min(142, width * .17));
+        seam.font = '700 ' + size + 'px Arial, Helvetica, sans-serif';
+        seam.textAlign = 'left';
+        seam.textBaseline = 'middle';
+        seam.globalAlpha = .92 * envelope();
+        seam.fillStyle = '#fff';
+        seam.fillText(BRAND.name, width * .06, clamp(boundaryY(width * .5) - size * .28, size, height - 25), width * .84);
+        seam.globalCompositeOperation = 'source-in';
+        seam.globalAlpha = .9;
+        seam.filter = 'sepia(1) saturate(1.8) contrast(1.25)';
+        seam.drawImage(forestCanvas, 0, 0, width, height);
+        seam.filter = 'none';
+        seam.globalCompositeOperation = 'source-over';
+        seam.globalAlpha = .7 * envelope();
+        seam.strokeStyle = 'rgba(29,33,30,.42)';
+        seam.lineWidth = 1;
+        pathAlongEdge(seam, 0, 6, 3);
+        seam.stroke();
+        seam.restore();
+      }
+      function drawContour() {
+        seam.save();
+        for (let line = -5; line <= 5; line++) {
+          pathAlongEdge(seam, line * 8, 8, 5 + Math.abs(line));
+          seam.strokeStyle = 'rgba(53,75,64,' + (.16 + (5 - Math.abs(line)) * .025) + ')';
+          seam.lineWidth = line === 0 ? 1.5 : .75;
+          seam.stroke();
+        }
+        seam.restore();
+      }
+      function drawMarble() {
+        seam.save();
+        for (let line = 0; line < 12; line++) {
+          seam.beginPath();
+          const phase = line * .55 + progress * 5;
+          for (let x = 0; x <= width + 8; x += 8) {
+            const y = boundaryY(x) + Math.sin(x * .012 + phase + Math.sin(x * .003 + phase) * 4) * (8 + line * 2) + (line - 5) * 4;
+            if (x === 0) seam.moveTo(x, y); else seam.lineTo(Math.min(x, width), y);
+          }
+          seam.strokeStyle = line % 3 === 0 ? 'rgba(72,93,83,.48)' : 'rgba(255,255,255,.34)';
+          seam.lineWidth = line % 3 === 0 ? 1.3 : .7;
+          seam.stroke();
+        }
+        seam.restore();
+      }
+      function drawMist() {
+        seam.save();
+        for (let x = -30; x < width + 30; x += 28) {
+          const y = boundaryY(x);
+          const spread = 28 + random(x + 400) * 48;
+          const gradient = seam.createRadialGradient(x, y, 2, x, y, spread);
+          gradient.addColorStop(0, 'rgba(241,242,233,' + (.24 * envelope()) + ')');
+          gradient.addColorStop(1, 'rgba(241,242,233,0)');
+          seam.fillStyle = gradient;
+          seam.beginPath();
+          seam.ellipse(x, y, spread * 1.5, spread * .55, 0, 0, Math.PI * 2);
+          seam.fill();
+        }
+        seam.restore();
+      }
+      function drawKintsugi() {
+        seam.save();
+        seam.lineCap = 'round';
+        pathAlongEdge(seam, 0, 5, 3);
+        seam.strokeStyle = 'rgba(182,139,66,.96)';
+        seam.lineWidth = 2.1;
+        seam.stroke();
+        for (let x = 12; x < width; x += 54) {
+          const seed = random(x + 8);
+          const y = boundaryY(x);
+          const length = 14 + seed * 34;
+          seam.beginPath();
+          seam.moveTo(x, y);
+          seam.lineTo(x + (seed - .5) * 12, y + length * .35);
+          seam.lineTo(x + (seed - .5) * 22, y + length);
+          seam.strokeStyle = 'rgba(182,139,66,' + (.42 + seed * .5) * envelope() + ')';
+          seam.lineWidth = .8 + seed * 1.1;
+          seam.stroke();
+        }
+        seam.restore();
+      }
+      function drawRoots() {
+        seam.save();
+        seam.lineCap = 'round';
+        for (let x = 12; x < width; x += 38) {
+          const seed = random(x + 310);
+          const y = boundaryY(x);
+          const length = (24 + seed * 90) * envelope();
+          seam.beginPath();
+          seam.moveTo(x, y);
+          seam.bezierCurveTo(x + (seed - .5) * 12, y + length * .42, x + (seed - .5) * 18, y + length * .72, x + (seed - .5) * 28, y + length);
+          seam.strokeStyle = 'rgba(55,73,60,' + (.42 + seed * .32) + ')';
+          seam.lineWidth = 2.2 - seed * 1.5;
+          seam.stroke();
+          if (seed > .32) {
+            seam.beginPath();
+            seam.moveTo(x + (seed - .5) * 16, y + length * .64);
+            seam.quadraticCurveTo(x + 14 + seed * 15, y + length * .78, x + 10 + seed * 26, y + length * .91);
+            seam.lineWidth = .8;
+            seam.stroke();
+          }
+        }
+        seam.restore();
+      }
+      function drawSediment() {
+        seam.save();
+        const colors = ['rgba(84,99,84,.38)', 'rgba(182,139,66,.46)', 'rgba(129,142,121,.5)', 'rgba(44,60,52,.28)'];
+        for (let layer = -3; layer <= 3; layer++) {
+          seam.beginPath();
+          for (let x = 0; x <= width + 10; x += 10) {
+            const y = boundaryY(x) + layer * 8 + Math.sin(x * .008 + layer * 2) * (3 + Math.abs(layer));
+            if (x === 0) seam.moveTo(x, y); else seam.lineTo(Math.min(x, width), y);
+          }
+          seam.strokeStyle = colors[(layer + 4) % colors.length];
+          seam.lineWidth = layer === 0 ? 2 : 1;
+          seam.stroke();
+        }
+        seam.restore();
+      }
+      function drawShavings() {
+        seam.save();
+        seam.lineCap = 'round';
+        for (let x = 14; x < width; x += 38) {
+          const seed = random(x + 910);
+          const y = boundaryY(x);
+          const length = (10 + seed * 30) * envelope();
+          const radius = 4 + seed * 9;
+          seam.beginPath();
+          seam.moveTo(x, y);
+          seam.bezierCurveTo(x + radius, y + length * .2, x + radius * 1.4, y + length * .7, x + radius * .3, y + length);
+          seam.bezierCurveTo(x - radius * 2, y + length * .7, x - radius * 1.2, y + length * .28, x + radius * .2, y + length * .45);
+          seam.strokeStyle = seed > .55 ? 'rgba(230,216,184,.8)' : 'rgba(50,68,56,.72)';
+          seam.lineWidth = .8 + seed * 1.4;
+          seam.stroke();
+        }
+        seam.restore();
       }
 
       function drawSeam() {
-        const dpr = Math.min(2, window.devicePixelRatio || 1);
-        const max = (document.scrollingElement || document.documentElement).scrollHeight - (document.scrollingElement || document.documentElement).clientHeight;
-        const p = max > 0 ? Math.min(1, (document.scrollingElement || document.documentElement).scrollTop / max) : 0;
-        seam.width = Math.floor(innerWidth * dpr);
-        seam.height = Math.floor(innerHeight * dpr);
-        const ctx = seam.getContext('2d');
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        const W = innerWidth, H = innerHeight;
-        ctx.clearRect(0, 0, W, H);
-        const edge = H * (0.78 - p * 0.7);
-        ctx.fillStyle = paper.bg;
-        if (mode === 'torn') {
-          ctx.beginPath();
-          ctx.moveTo(0, H);
-          ctx.lineTo(0, edge);
-          for (let x = 0; x <= W; x += 6) ctx.lineTo(x, edge + jaggedY(x, W, 28, 2));
-          ctx.lineTo(W, H);
-          ctx.closePath();
-          ctx.fill();
-        } else {
-          const size = 10;
-          for (let y = edge - 40; y < H; y += size) {
-            for (let x = 0; x < W; x += size) {
-              const n = rng(x * 0.07 + y * 0.13 + p * 8);
-              if (y > edge + n * 90) {
-                ctx.fillRect(x, y, size - 1, size - 1);
-              }
-            }
-          }
+        seam.clearRect(0, 0, width, height);
+        if (progress <= 0 || progress >= 1) return;
+        switch (active.key) {
+          case 'bleed': drawInk(); break;
+          case 'tiles': drawTiles(); break;
+          case 'fray': drawFray(); break;
+          case 'type': drawType(); break;
+          case 'contour': drawContour(); break;
+          case 'marble': drawMarble(); break;
+          case 'mist': drawMist(); break;
+          case 'kintsugi': drawKintsugi(); break;
+          case 'roots': drawRoots(); break;
+          case 'sediment': drawSediment(); break;
+          case 'shavings': drawShavings(); break;
         }
       }
-
-      drawForest();
-      drawSeam();
-      addEventListener('resize', function () { drawForest(); drawSeam(); });
-      document.addEventListener('scroll', drawSeam, { passive: true, capture: true });
-
-      if (!reduced) {
-        let dir = 1, start = performance.now(), going = true;
-        function auto(now) {
-          if (!going) return;
-          const t = Math.min(1, (now - start) / 2200);
-          const y = (dir > 0 ? t : 1 - t) * ((document.scrollingElement || document.documentElement).scrollHeight - (document.scrollingElement || document.documentElement).clientHeight) * 0.42;
-          (document.scrollingElement || document.documentElement).scrollTop = y;
-          if (t >= 1) {
-            dir *= -1;
-            start = now;
-            if (dir > 0) going = false;
-          }
-          requestAnimationFrame(auto);
+      function render() {
+        pending = false;
+        const rect = story.getBoundingClientRect();
+        const travel = Math.max(1, story.offsetHeight - height);
+        const rawProgress = clamp(-rect.top / travel, 0, 1);
+        progress = reducedMotion.matches ? (rawProgress < .5 ? 0 : 1) : rawProgress;
+        scrollCue.style.opacity = String(1 - progress);
+        const samples = Math.max(32, Math.min(100, Math.ceil(width / 12)));
+        const polygon = [];
+        for (let i = 0; i <= samples; i++) {
+          const x = width * i / samples;
+          polygon.push((i / samples * 100).toFixed(2) + '% ' + (boundaryY(x) / height * 100).toFixed(2) + '%');
         }
-        requestAnimationFrame(auto);
+        polygon.push('100% 100%', '0% 100%');
+        paper.style.clipPath = 'polygon(' + polygon.join(',') + ')';
+        drawSeam();
       }
+      function scheduleRender() {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(render);
+      }
+      function selectVariation(variation) {
+        active = variation;
+        document.body.dataset.variation = variation.id;
+        const buttons = nav.querySelectorAll('button');
+        buttons.forEach((button, index) => button.setAttribute('aria-pressed', VARIATIONS[index].id === active.id ? 'true' : 'false'));
+        document.getElementById('selectedVariation').textContent = variation.id + ' / ' + variation.title;
+        document.getElementById('variationTitle').textContent = 'The edge is the transition.';
+        document.getElementById('variationDescription').textContent = variation.description + ' Scroll through the pinned scene to preview it.';
+        scheduleRender();
+      }
+      function resize() {
+        dpr = Math.min(2, window.devicePixelRatio || 1);
+        width = window.innerWidth;
+        height = window.innerHeight;
+        for (const canvas of [forestCanvas, seamCanvas]) {
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(height * dpr);
+          canvas.style.width = width + 'px';
+          canvas.style.height = height + 'px';
+          const context = canvas.getContext('2d');
+          context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        drawForest();
+        scheduleRender();
+      }
+
+      window.addEventListener('scroll', scheduleRender, { passive: true });
+      window.addEventListener('resize', resize, { passive: true });
+      if (reducedMotion.addEventListener) reducedMotion.addEventListener('change', scheduleRender);
+      resize();
+      render();
     })();
   </script>
 </body>
