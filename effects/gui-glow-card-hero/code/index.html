@@ -7,12 +7,38 @@
   <style>
     * { box-sizing: border-box; margin: 0; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #2a120e; }
-    canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
-    @media (prefers-reduced-motion: reduce) { canvas { cursor: pointer; } }
+    #scene-control {
+      position: fixed;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: crosshair;
+    }
+    #scene-control:focus-visible { outline: 2px solid #f6e4d4; outline-offset: -4px; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
   </style>
 </head>
 <body>
-  <canvas id="scene" tabindex="0" role="img" aria-label="Guillaume Colombel portfolio awards, interactive glowing glass hero"></canvas>
+  <button id="scene-control" type="button" aria-label="Show the next award card. Activate with Enter or Space." aria-describedby="card-announcement">
+    <canvas id="scene" aria-hidden="true"></canvas>
+  </button>
+  <p id="card-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
   <script>
     // Self-contained recreation of the portfolio hero: warm glass, pointer light,
     // floating W. mark, reflection, and the card-breaking award transition.
@@ -26,6 +52,8 @@
     };
 
     const canvas = document.getElementById('scene');
+    const control = document.getElementById('scene-control');
+    const announcement = document.getElementById('card-announcement');
     const ctx = canvas.getContext('2d');
     const cardCanvas = document.createElement('canvas');
     const cardCtx = cardCanvas.getContext('2d');
@@ -41,6 +69,7 @@
     let phase = 'glass';
     let phaseTime = 0;
     let lastFrame = performance.now();
+    let frameRequest = 0;
 
     noiseCanvas.width = noiseCanvas.height = 128;
     {
@@ -81,9 +110,16 @@
       return lines;
     }
 
+    function syncAccessibleCard() {
+      const card = BRAND.cards[cardIndex];
+      const text = `${card.kicker}. ${card.date}. ${card.title}.`;
+      if (announcement.textContent !== text) announcement.textContent = text;
+    }
+
     function paintCard() {
       const b = bounds();
       const card = BRAND.cards[cardIndex];
+      syncAccessibleCard();
       cardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
       cardCtx.clearRect(0, 0, width, height);
       cardCtx.save();
@@ -264,6 +300,7 @@
       if (reducedMotion) {
         cardIndex = (cardIndex + 1) % BRAND.cards.length;
         paintCard();
+        requestDraw();
         return;
       }
       phase = 'break';
@@ -288,21 +325,39 @@
       pointer.y = height * 0.46;
       paintCard();
       if (phase === 'break') makeShards();
+      requestDraw();
+    }
+
+    function drawBranding() {
+      ctx.globalAlpha = 0.58;
+      ctx.fillStyle = '#f6e4d4';
+      ctx.font = '11px Inter, Helvetica, Arial, sans-serif';
+      ctx.letterSpacing = '0.18em';
+      ctx.fillText(BRAND.name.toUpperCase(), 18, height - 16);
+      ctx.globalAlpha = 1;
+    }
+
+    function requestDraw() {
+      if (!frameRequest) frameRequest = requestAnimationFrame(frame);
     }
 
     function frame(now) {
+      frameRequest = 0;
       const dt = Math.min(0.033, (now - lastFrame) / 1000);
       lastFrame = now;
       drawSky();
+      if (reducedMotion) {
+        drawGlass(now);
+        drawBranding();
+        return;
+      }
       if (phase === 'glass') {
         drawGlass(now);
-        if (!reducedMotion) {
-          phaseTime += dt;
-          if (phaseTime > 4) {
-            phase = 'break';
-            phaseTime = 0;
-            makeShards();
-          }
+        phaseTime += dt;
+        if (phaseTime > 4) {
+          phase = 'break';
+          phaseTime = 0;
+          makeShards();
         }
       } else {
         drawShards(dt);
@@ -314,13 +369,8 @@
           phaseTime = 0;
         }
       }
-      ctx.globalAlpha = 0.58;
-      ctx.fillStyle = '#f6e4d4';
-      ctx.font = '11px Inter, Helvetica, Arial, sans-serif';
-      ctx.letterSpacing = '0.18em';
-      ctx.fillText(BRAND.name.toUpperCase(), 18, height - 16);
-      ctx.globalAlpha = 1;
-      requestAnimationFrame(frame);
+      drawBranding();
+      requestDraw();
     }
 
     canvas.addEventListener('pointermove', (event) => {
@@ -328,18 +378,15 @@
       pointer.x = event.clientX - rect.left;
       pointer.y = event.clientY - rect.top;
       pointer.active = true;
+      requestDraw();
     });
-    canvas.addEventListener('pointerleave', () => { pointer.active = false; });
-    canvas.addEventListener('click', nextCard);
-    canvas.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        nextCard();
-      }
+    canvas.addEventListener('pointerleave', () => {
+      pointer.active = false;
+      requestDraw();
     });
+    control.addEventListener('click', nextCard);
     window.addEventListener('resize', resize);
     resize();
-    requestAnimationFrame(frame);
   </script>
 </body>
 </html>
