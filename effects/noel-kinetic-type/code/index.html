@@ -5,237 +5,511 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>NOEL</title>
   <style>
-    :root { --bg: #e7e7e7; --ink: #111111; --bubble: #111111; --bubble-text: #ffffff; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      height: 100%;
-      background: var(--bg);
+    :root {
+      color-scheme: light;
+      --paper: #e7e7e7;
+      --ink: #101012;
+      --accent: #ef533d;
+      --blue: #345edb;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body {
       overflow: hidden;
+      background: var(--paper);
+      color: var(--ink);
       font-family: Helvetica, Arial, system-ui, sans-serif;
     }
     .stage {
       position: relative;
       width: 100%;
-      height: 100%;
-      background: var(--bg);
+      height: 100vh;
+      height: 100svh;
+      overflow: hidden;
+      isolation: isolate;
+      background: var(--paper);
     }
-    .set {
+    .shot {
       position: absolute;
-      left: 50%;
-      top: 54%;
-      width: min(520px, 86vw);
-      height: min(280px, 42vh);
+      inset: 0;
+      overflow: hidden;
+      opacity: 0;
+      transform: scale(1.035);
+      transition: opacity 180ms linear, transform 650ms cubic-bezier(.2,.72,.2,1);
+      pointer-events: none;
+    }
+    .stage[data-scene="architecture"] .shot--architecture,
+    .stage[data-scene="letter"] .shot--letter,
+    .stage[data-scene="orange"] .shot--orange,
+    .stage[data-scene="panels"] .shot--panels,
+    .stage[data-scene="dark"] .shot--dark,
+    .stage[data-scene="furniture"] .shot--furniture,
+    .stage[data-scene="clock"] .shot--clock,
+    .stage[data-scene="dense"] .shot--dense,
+    .stage[data-scene="collage"] .shot--collage,
+    .stage[data-scene="question"] .shot--furniture,
+    .stage[data-scene="credits"] .shot--credits {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* 建筑与巨型字形：参考预览开场的室内立面和贴近镜头的粗字。 */
+    .shot--architecture {
+      background: linear-gradient(180deg, #fafafa 0 47%, #d3d5d5 47% 100%);
+    }
+    .building {
+      position: absolute;
+      bottom: -8%;
+      background-color: #c8cdce;
+      background-image:
+        linear-gradient(90deg, transparent 0 7%, #303439 7% 9%, transparent 9% 48%, #303439 48% 51%, transparent 51% 91%, #303439 91% 93%, transparent 93%),
+        repeating-linear-gradient(0deg, transparent 0 16%, #303439 16.5% 18%, transparent 18.5% 48%, #303439 48.5% 50%, transparent 50.5% 81%, #303439 81.5% 83%, transparent 83.5%);
+      box-shadow: inset 0 0 0 10px #34383a;
+    }
+    .building--left { left: -4%; width: 42%; height: 66%; transform: perspective(500px) rotateY(16deg); }
+    .building--right { right: -8%; width: 54%; height: 84%; transform: perspective(500px) rotateY(-10deg); }
+    .building--front { left: 26%; bottom: -10%; width: 48%; height: 47%; opacity: .7; }
+    .arch-letter {
+      position: absolute;
+      top: -21%;
+      right: -3%;
+      color: #08090a;
+      font-size: clamp(15rem, 45vw, 42rem);
+      line-height: .78;
+      font-weight: 950;
+      letter-spacing: -.13em;
+      transform: rotate(-7deg);
+      text-shadow: 7px 8px 0 #3f4142, 14px 16px 0 #858687;
+    }
+
+    /* 抽象的近景字形、橙色反光与彩色竖向切片。 */
+    .shot--letter {
+      background: #f7f7f6;
+      display: grid;
+      place-items: center;
+    }
+    .letter-shape {
+      color: #111114;
+      font-size: min(94vw, 76vh);
+      font-weight: 900;
+      line-height: .68;
+      letter-spacing: -.12em;
+      transform: rotate(90deg) scale(1.55);
+      text-shadow: 10px 10px 0 #b6b6b4, 20px 20px 0 #dededc;
+    }
+    .shot--orange {
+      background: radial-gradient(ellipse at 50% 41%, #ffdc9c 0 9%, #ff8b29 10% 24%, #a3321b 25% 39%, #141316 40% 73%, #050506 74%);
+    }
+    .orange-ring {
+      position: absolute;
+      left: 12%; top: -19%; width: 76%; height: 132%;
+      border: clamp(16px, 4vw, 48px) solid rgba(235, 225, 212, .72);
+      border-radius: 48%;
+      box-shadow: 0 0 46px #ff7a24, inset 0 0 42px #ff6b1e;
+      transform: rotate(-8deg);
+    }
+    .shot--panels {
+      background: #111;
+      display: flex;
+      gap: 1.1%;
+      padding: 0 2%;
+    }
+    .panel {
+      flex: 1;
+      height: 116%;
+      margin-top: -8%;
+      transform: skewY(-7deg);
+      background: linear-gradient(150deg, #f0d7b6, #3e7752 43%, #ed594f 44% 67%, #a74d2f);
+      background-size: 160% 160%;
+      box-shadow: 0 0 0 2px #ffffff24 inset;
+    }
+    .panel:nth-child(2) { background-position: 28% 60%; transform: skewY(5deg) scale(1.04); }
+    .panel:nth-child(3) { background-position: 78% 30%; }
+    .panel:nth-child(4) { background-position: 100% 100%; transform: skewY(3deg) scale(1.06); }
+    .shot--dark { background: radial-gradient(ellipse at 60% 55%, #49311e 0, #1a1715 42%, #08090b 76%); }
+    .night-shape {
+      position: absolute;
+      left: 22%; top: 17%; width: 60%; height: 72%;
+      border-radius: 48% 28% 38% 50%;
+      background: linear-gradient(145deg, #151619 8%, #08090b 61%, #d37a26 62% 67%, #111214 68%);
+      box-shadow: 28px 26px 38px #0009, inset -18px -12px 30px #e87d2533;
+      transform: rotate(-13deg);
+    }
+
+    /* 白色陈列空间中的椅子,屏幕和选框。 */
+    .shot--furniture, .shot--collage {
+      background: linear-gradient(180deg, #fbfbfa 0 77%, #d7d8d9 77% 100%);
+    }
+    .room-glow {
+      position: absolute;
+      width: 62vw; height: 62vw;
+      max-width: 620px; max-height: 620px;
+      left: 50%; top: 46%;
       transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 90px #fff;
+    }
+    .furniture-set {
+      position: absolute;
+      left: 50%; top: 56%;
+      width: min(70vw, 620px);
+      height: min(48vh, 360px);
+      transform: translate(-50%, -50%);
+    }
+    .seat-box {
+      position: absolute;
+      left: 13%; bottom: 6%;
+      width: 43%; height: 28%;
+      border-radius: 5% 5% 2% 2%;
+      background: linear-gradient(145deg, #fafafa 0 28%, #c9c9c7 29% 33%, #f1f1ef 34% 72%, #77797a 73%);
+      box-shadow: 16px 17px 0 #b6b7b7, 0 30px 22px #0002;
+      transform: skewY(-5deg);
+    }
+    .seat-back {
+      position: absolute;
+      left: 46%; bottom: 29%;
+      width: 24%; height: 45%;
+      border-radius: 14px 14px 3px 3px;
+      background: linear-gradient(110deg, #fdfdfd 0 63%, #c5c7c7 64% 73%, #fff 74%);
+      box-shadow: 10px 8px 0 #bbb;
+      transform: skewY(-7deg) rotate(-4deg);
+    }
+    .seat-leg {
+      position: absolute;
+      bottom: 0;
+      width: 3.5%; height: 31%;
+      background: linear-gradient(90deg, #777, #eee 48%, #777);
+      transform: skewX(-10deg);
+    }
+    .seat-leg--one { left: 24%; }
+    .seat-leg--two { left: 53%; }
+    .screen {
+      position: absolute;
+      right: 5%; top: 8%;
+      width: 23%; height: 35%;
+      border: 9px solid #202124;
+      background: repeating-linear-gradient(0deg, #85e8d6 0 3px, #31978d 4px 6px);
+      box-shadow: 9px 13px 0 #aaa;
+      transform: perspective(240px) rotateY(-12deg);
     }
     .ottoman {
       position: absolute;
-      left: 8%;
-      bottom: 18%;
-      width: 34%;
-      height: 38%;
-      background: #5a3d32;
-      border-radius: 10px 10px 6px 6px;
-      box-shadow: 10px 14px 0 #3d2a22;
+      left: 3%; bottom: 10%;
+      width: 23%; height: 20%;
+      border-radius: 9px;
+      background: linear-gradient(#71584d, #3a2d29);
+      box-shadow: 9px 11px 0 #342825;
     }
-    .chair {
+    .selection {
       position: absolute;
-      right: 18%;
-      bottom: 16%;
-      width: 22%;
-      height: 52%;
+      left: 50%; top: 50%;
+      width: min(58vw, 550px); height: min(38vh, 280px);
+      transform: translate(-50%, -50%);
+      border: 2px solid var(--blue);
+      box-shadow: 0 0 0 1px #fff inset, 0 0 0 5px #2f6dff22;
+      opacity: 0;
+      transition: opacity 120ms linear;
     }
-    .chair .seat { position: absolute; bottom: 28%; left: 8%; right: 8%; height: 18%; background: #f4f4f4; border-radius: 6px; }
-    .chair .back { position: absolute; top: 0; left: 12%; right: 12%; height: 58%; background: #f7f7f7; border-radius: 8px; }
-    .chair .leg { position: absolute; bottom: 0; width: 8%; height: 32%; background: #ececec; }
-    .chair .leg.l { left: 16%; }
-    .chair .leg.r { right: 16%; }
-    .cloth {
+    .stage[data-scene="furniture"] .selection { opacity: .95; }
+
+    /* 白色表盘和密集叠字：两个可在预览片段中直接观察的排印节点。 */
+    .shot--clock { background: #f5f5f3; }
+    .dial {
       position: absolute;
-      right: 6%;
-      bottom: 12%;
-      width: 18%;
-      height: 22%;
-      background: #2a62d4;
-      transform: skewX(-12deg);
-    }
-    .bust {
-      position: absolute;
-      left: 4%;
-      bottom: 0;
-      width: 70px;
-      height: 90px;
-      background: #d8d2c8;
-      border-radius: 40px 40px 18px 18px;
-    }
-    .bust:after {
-      content: '';
-      position: absolute;
-      left: 16px; top: 10px;
-      width: 38px; height: 42px;
-      background: #eee8de;
+      width: min(92vw, 850px);
+      aspect-ratio: 1;
+      left: 83%; top: 24%;
+      transform: translate(-50%, -50%) rotate(-12deg);
       border-radius: 50%;
+      border: 18px solid #d4d7d9;
+      background:
+        radial-gradient(circle, transparent 0 67%, #111 67.5% 69%, transparent 69.5%),
+        repeating-conic-gradient(from -2deg, #171719 0 1deg, transparent 1deg 30deg),
+        radial-gradient(circle, #fff 0 74%, #d6d6d4 75% 100%);
+      box-shadow: 14px 18px 0 #2223, inset 0 0 0 6px #fff;
     }
-    .crt {
+    .dial::before, .dial::after {
+      content: "";
       position: absolute;
-      right: 2%;
-      bottom: 0;
-      width: 110px;
-      height: 72px;
-      background: #6a6a6a;
-      border: 8px solid #2b2b2b;
+      left: 50%; top: 50%;
+      transform-origin: 0 50%;
+      background: #111;
+      border-radius: 99px;
     }
-    .crt i {
-      display: block;
-      height: 100%;
-      background: repeating-linear-gradient(#8fd, #8fd 2px, #3a3 2px, #3a3 4px);
-      opacity: 0.7;
+    .dial::before { width: 35%; height: 5px; transform: rotate(-35deg); }
+    .dial::after { width: 26%; height: 3px; transform: rotate(70deg); }
+    .dial-mark {
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 20%;
+      font-size: clamp(1.5rem, 7vw, 5rem);
+      font-weight: 900;
+      letter-spacing: -.1em;
+      transform: translate(-50%, -50%) rotate(-18deg);
     }
+    .shot--dense {
+      background: #f4f4f2;
+      display: grid;
+      place-items: center;
+    }
+    .type-card {
+      position: absolute;
+      left: 50%; top: 51%;
+      min-width: 72%;
+      padding: 1.5% 3%;
+      background: #faf9f6;
+      color: var(--accent);
+      font-size: clamp(2.2rem, 10vw, 8rem);
+      font-weight: 900;
+      letter-spacing: -.09em;
+      line-height: .78;
+      text-align: center;
+      transform: translate(-50%, -50%) rotate(-5deg);
+      box-shadow: 12px 12px 0 #343434, 24px 24px 0 #d8d8d5;
+      text-shadow: 2px 2px 0 #fff;
+    }
+    .type-card:nth-child(2) { transform: translate(-46%, -43%) rotate(4deg); opacity: .7; }
+
+    /* 物件拼贴与片尾卡。 */
+    .shot--collage { background-color: #efefed; }
+    .collage-block {
+      position: absolute;
+      background: linear-gradient(140deg, #fff, #c9cccd 48%, #7c8082 49% 52%, #f9f9f8 53%);
+      box-shadow: 10px 12px 0 #9fa1a2;
+    }
+    .collage-block--one { width: 33%; height: 34%; left: 18%; top: 18%; transform: rotate(-9deg) skewY(4deg); }
+    .collage-block--two { width: 37%; height: 31%; right: 12%; top: 28%; transform: rotate(8deg) skewY(-7deg); }
+    .collage-block--three { width: 48%; height: 24%; left: 28%; bottom: 12%; transform: rotate(-2deg); }
+    .shot--credits {
+      display: grid;
+      place-items: center;
+      background: linear-gradient(180deg, #f4f4f2, #e4e4e2);
+    }
+    .end-card {
+      width: min(78vw, 620px);
+      padding: clamp(20px, 5vw, 44px);
+      background: #fafaf9;
+      box-shadow: 0 20px 60px #0002;
+      text-align: left;
+      transform: rotate(-2deg);
+    }
+    .end-card strong { display: block; font-size: clamp(2rem, 7vw, 5rem); letter-spacing: -.08em; }
+    .end-card small { display: block; margin-top: 12px; font-size: clamp(.65rem, 1.6vw, .85rem); line-height: 1.5; }
+
     .word {
       position: absolute;
-      left: 50%;
-      top: 18%;
-      transform: translateX(-50%);
-      font-weight: 900;
-      letter-spacing: -0.04em;
+      z-index: 5;
+      left: 50%; top: 48%;
+      width: min(94vw, 1100px);
       color: var(--ink);
+      font-weight: 950;
+      font-size: clamp(4rem, 21vw, 18rem);
+      line-height: .82;
+      letter-spacing: -.11em;
       text-align: center;
-      white-space: nowrap;
+      white-space: pre-line;
+      overflow-wrap: anywhere;
+      transform: translate(-50%, -50%);
       transform-origin: center;
+      text-shadow: 2px 2px 0 #fff, 6px 7px 0 #5f6061, 11px 13px 0 #999a9a;
       pointer-events: none;
     }
-    .bubble {
-      position: absolute;
-      left: 50%;
-      top: 8%;
-      transform: translateX(-50%);
-      background: var(--bubble);
-      color: var(--bubble-text);
-      font-weight: 800;
-      font-size: clamp(22px, 4vw, 42px);
-      padding: 18px 28px;
-      clip-path: polygon(0 0, 100% 0, 100% 78%, 62% 78%, 54% 100%, 50% 78%, 0 78%);
-      display: none;
+    .word[data-style="depth"] {
+      font-size: clamp(5rem, 25vw, 21rem);
+      transform: translate(-50%, -50%) perspective(700px) rotateY(-24deg) rotateZ(-7deg) scale(1.12);
+      text-shadow: 3px 3px 0 #eee, 8px 9px 0 #555, 17px 19px 0 #9b9b9a;
     }
-    .select {
-      position: absolute;
-      border: 2px solid #2f6dff;
-      box-shadow: 0 0 0 1px #fff inset;
-      display: none;
-      pointer-events: none;
+    .word[data-style="slant"] {
+      font-size: clamp(4rem, 18vw, 16rem);
+      transform: translate(-50%, -50%) perspective(600px) rotateY(26deg) rotateZ(-11deg) scaleX(1.12);
+    }
+    .word[data-style="select"] {
+      font-size: clamp(3rem, 13vw, 11rem);
+      transform: translate(-50%, -50%) rotate(-7deg) scaleY(1.15);
+    }
+    .word[data-style="clock"] {
+      left: 44%; top: 49%;
+      font-size: clamp(3.5rem, 18vw, 15rem);
+      mix-blend-mode: multiply;
+      transform: translate(-50%, -50%) perspective(500px) rotateY(20deg) rotateZ(-9deg);
+      text-shadow: 2px 2px 0 #fff, 5px 5px 0 #8b8d8e;
+    }
+    .word[data-style="packed"] {
+      width: min(90vw, 900px);
+      font-size: clamp(2.8rem, 12vw, 10rem);
+      letter-spacing: -.08em;
+      color: #d94c42;
+      transform: translate(-50%, -50%) rotate(-4deg) scaleY(1.12);
+      text-shadow: 3px 3px 0 #fff, 8px 9px 0 #222, 15px 16px 0 #aaa;
+    }
+    .word[data-style="bubble"] {
+      top: 14%;
+      width: max-content;
+      max-width: 92vw;
+      padding: .3em .55em .45em;
+      background: #111;
+      color: #fff;
+      font-size: clamp(1.25rem, 6vw, 4rem);
+      line-height: 1;
+      letter-spacing: -.045em;
+      clip-path: polygon(0 0,100% 0,100% 78%,62% 78%,54% 100%,50% 78%,0 78%);
+      text-shadow: none;
+      transform: translate(-50%, 0);
+    }
+    .word[data-style="credit"] {
+      top: 28%;
+      font-size: clamp(2.5rem, 10vw, 8rem);
+      letter-spacing: -.08em;
+      text-shadow: none;
+      transform: translate(-50%, -50%) rotate(-4deg);
+    }
+    .word[data-style="quiet"] { opacity: 0; }
+    .word.hit { animation: hit .48s cubic-bezier(.18,.78,.24,1) both; }
+    @keyframes hit {
+      0% { opacity: .15; filter: blur(5px); transform: translate(-50%, -50%) scale(1.22) rotate(4deg); }
+      55% { opacity: 1; filter: blur(0); }
+      100% { opacity: 1; }
     }
     .brand {
       position: absolute;
-      left: 16px;
-      bottom: 12px;
+      z-index: 6;
+      left: 16px; bottom: 12px;
+      max-width: 60vw;
+      color: #737477;
       font-size: 11px;
-      letter-spacing: 0.28em;
-      color: #888;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+    }
+    .stage[data-scene="dark"] .word {
+      color: #fff8eb;
+      text-shadow: 2px 2px 0 #c56b2c, 8px 8px 0 #09090b;
+    }
+    .stage[data-scene="dark"] { background: #111; }
+    @media (max-width: 600px) {
+      .building--left { width: 54%; }
+      .building--right { width: 66%; }
+      .furniture-set { width: 94vw; height: 38vh; }
+      .seat-box { width: 48%; }
+      .screen { border-width: 5px; }
+      .dial { width: min(92vw, 420px); left: 84%; top: 24%; border-width: 12px; }
+      .word[data-style="bubble"] { top: 12%; }
+      .brand { left: 10px; bottom: 8px; font-size: 9px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .word, .bubble { transition: none !important; }
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="stage" id="stage">
-    <div class="set">
-      <div class="ottoman"></div>
-      <div class="chair"><div class="back"></div><div class="seat"></div><div class="leg l"></div><div class="leg r"></div></div>
-      <div class="cloth"></div>
+  <main class="stage" id="stage" data-scene="architecture" aria-label="NOEL 动态排印短片预览，按可访问的 15 秒片段制作的静音动效">
+    <div class="shot shot--architecture" aria-hidden="true">
+      <div class="building building--left"></div>
+      <div class="building building--right"></div>
+      <div class="building building--front"></div>
+      <div class="arch-letter">N</div>
     </div>
-    <div class="bust"></div>
-    <div class="crt"><i></i></div>
-    <div class="word" id="word"></div>
-    <div class="bubble" id="bubble"></div>
-    <div class="select" id="select"></div>
-    <div class="brand" id="brand"></div>
-  </div>
+    <div class="shot shot--letter" aria-hidden="true"><div class="letter-shape">U</div></div>
+    <div class="shot shot--orange" aria-hidden="true"><div class="orange-ring"></div></div>
+    <div class="shot shot--panels" aria-hidden="true">
+      <div class="panel"></div><div class="panel"></div><div class="panel"></div><div class="panel"></div>
+    </div>
+    <div class="shot shot--dark" aria-hidden="true"><div class="night-shape"></div></div>
+    <div class="shot shot--furniture" aria-hidden="true">
+      <div class="room-glow"></div>
+      <div class="furniture-set">
+        <div class="screen"></div><div class="ottoman"></div><div class="seat-box"></div><div class="seat-back"></div>
+        <div class="seat-leg seat-leg--one"></div><div class="seat-leg seat-leg--two"></div>
+      </div>
+    </div>
+    <div class="shot shot--clock" aria-hidden="true"><div class="dial"><span class="dial-mark">TYPE</span></div></div>
+    <div class="shot shot--dense" aria-hidden="true">
+      <div class="type-card">DENSELY<br>PACKED</div>
+      <div class="type-card">DENSELY<br>PACKED</div>
+    </div>
+    <div class="shot shot--collage" aria-hidden="true">
+      <div class="collage-block collage-block--one"></div>
+      <div class="collage-block collage-block--two"></div>
+      <div class="collage-block collage-block--three"></div>
+      <div class="furniture-set">
+        <div class="screen"></div><div class="ottoman"></div><div class="seat-box"></div><div class="seat-back"></div>
+        <div class="seat-leg seat-leg--one"></div><div class="seat-leg seat-leg--two"></div>
+      </div>
+    </div>
+    <div class="shot shot--credits" aria-hidden="true">
+      <div class="end-card"><strong>NOEL</strong><small>KINETIC TYPE STUDY<br>15-SECOND PREVIEW RECREATION</small></div>
+    </div>
+    <div class="selection" aria-hidden="true"></div>
+    <div class="word" id="word" data-style="depth" aria-hidden="true">NOEL</div>
+    <div class="brand" id="brand" aria-hidden="true">NOEL · @MOSYENBOY</div>
+  </main>
   <script>
-    // 改这里即可换品牌
-    const BRAND = {
-      name: 'NOEL',
-      bg: '#e7e7e7',
-      ink: '#111111',
-      bubble: '#111111',
-      bubbleText: '#ffffff',
-      beats: [
-        { t: 0.00, kind: 'word', text: "WHAT'S NEXT?" },
-        { t: 0.55, kind: 'bubble', text: "WHAT'S NEXT?" },
-        { t: 1.10, kind: 'stack', text: 'STUDIO' },
-        { t: 1.65, kind: 'select', text: 'BRAND FILM' },
-        { t: 2.20, kind: 'flip3d', text: 'KINETIC' },
-        { t: 2.75, kind: 'word', text: 'TYPE' }
-      ]
-    };
+    // 站点可访问的镜像预览为 15 秒；不推断原帖剩余时长的内容。
+    const BRAND = { name: 'NOEL', creator: '@mosyenboy' };
+    const LOOP_SECONDS = 15;
+    const BEATS = [
+      { at: 0, scene: 'architecture', text: 'NOEL', style: 'depth' },
+      { at: 1, scene: 'letter', text: 'NOEL', style: 'hero' },
+      { at: 2, scene: 'orange', text: 'NOEL', style: 'slant' },
+      { at: 3, scene: 'panels', text: 'NOEL', style: 'depth' },
+      { at: 4, scene: 'furniture', text: 'NOEL', style: 'select' },
+      { at: 5, scene: 'architecture', text: 'NOEL', style: 'slant' },
+      { at: 6, scene: 'dark', text: 'NOEL', style: 'depth' },
+      { at: 7, scene: 'clock', text: 'TYPE', style: 'clock' },
+      { at: 8, scene: 'dense', text: 'DENSELY\nPACKED', style: 'packed' },
+      { at: 9, scene: 'letter', text: 'NOEL', style: 'hero' },
+      { at: 10, scene: 'collage', text: 'NOEL', style: 'depth' },
+      { at: 11, scene: 'question', text: "WHAT'S NEXT?", style: 'bubble' },
+      { at: 12, scene: 'architecture', text: 'NOEL', style: 'depth' },
+      { at: 13, scene: 'credits', text: 'NOEL', style: 'credit' },
+      { at: 14, scene: 'credits', text: '', style: 'quiet' }
+    ];
 
-    (function () {
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const root = document.documentElement;
-      root.style.setProperty('--bg', BRAND.bg);
-      root.style.setProperty('--ink', BRAND.ink);
-      root.style.setProperty('--bubble', BRAND.bubble);
-      root.style.setProperty('--bubble-text', BRAND.bubbleText);
-      document.title = BRAND.name;
-      document.body.style.background = BRAND.bg;
-      document.getElementById('brand').textContent = BRAND.name;
+    const stage = document.getElementById('stage');
+    const word = document.getElementById('word');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.title = BRAND.name;
+    document.getElementById('brand').textContent = `${BRAND.name} · ${BRAND.creator}`;
 
-      const word = document.getElementById('word');
-      const bubble = document.getElementById('bubble');
-      const select = document.getElementById('select');
-      const LOOP = 3.2;
-
-      function apply(beat, now) {
-        word.style.display = 'none';
-        bubble.style.display = 'none';
-        select.style.display = 'none';
-        word.style.transform = 'translateX(-50%)';
-        word.textContent = beat.text;
-        if (beat.kind === 'bubble') {
-          bubble.style.display = 'block';
-          bubble.textContent = beat.text;
-          return;
-        }
-        word.style.display = 'block';
-        if (beat.kind === 'stack') {
-          word.style.fontSize = 'clamp(40px, 9vw, 96px)';
-          word.style.letterSpacing = '-0.08em';
-          word.style.transform = 'translateX(-50%) scaleY(1.35)';
-        } else if (beat.kind === 'select') {
-          word.style.fontSize = 'clamp(28px, 6vw, 64px)';
-          select.style.display = 'block';
-          const r = word.getBoundingClientRect();
-          select.style.left = (r.left - 8) + 'px';
-          select.style.top = (r.top - 8) + 'px';
-          select.style.width = (r.width + 16) + 'px';
-          select.style.height = (r.height + 16) + 'px';
-        } else if (beat.kind === 'flip3d') {
-          word.style.fontSize = 'clamp(36px, 8vw, 88px)';
-          const k = reduced ? 0 : Math.sin(now * 6);
-          word.style.transform = 'translateX(-50%) rotateY(' + (k * 70) + 'deg) scale(' + (1.05 + Math.abs(k) * 0.2) + ')';
-        } else {
-          word.style.fontSize = 'clamp(32px, 7vw, 78px)';
-          const s = reduced ? 1 : 1 + Math.sin(now * 8) * 0.04;
-          word.style.transform = 'translateX(-50%) scale(' + s + ')';
-        }
+    let activeBeat = -1;
+    function renderBeat(index) {
+      if (index === activeBeat) return;
+      const beat = BEATS[index];
+      activeBeat = index;
+      stage.dataset.scene = beat.scene;
+      word.dataset.style = beat.style;
+      word.textContent = beat.text;
+      word.classList.remove('hit');
+      if (!reducedMotion) {
+        void word.offsetWidth;
+        word.classList.add('hit');
       }
+    }
 
-      function current(t) {
-        let beat = BRAND.beats[0];
-        for (let i = 0; i < BRAND.beats.length; i++) {
-          if (t + 0.001 >= BRAND.beats[i].t) beat = BRAND.beats[i];
-        }
-        return beat;
+    function beatAt(seconds) {
+      let index = 0;
+      for (let i = 1; i < BEATS.length; i++) {
+        if (seconds >= BEATS[i].at) index = i;
+        else break;
       }
+      return index;
+    }
 
-      apply(BRAND.beats[0], 0);
-      const t0 = performance.now();
+    renderBeat(0);
+    if (!reducedMotion) {
+      const start = performance.now();
       function tick(now) {
-        const t = ((now - t0) / 1000) % LOOP;
-        apply(current(t), t);
+        const seconds = ((now - start) / 1000) % LOOP_SECONDS;
+        renderBeat(beatAt(seconds));
         requestAnimationFrame(tick);
       }
       requestAnimationFrame(tick);
-    })();
+    }
   </script>
 </body>
 </html>
