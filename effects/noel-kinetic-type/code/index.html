@@ -229,24 +229,19 @@
         radial-gradient(circle, #fff 0 74%, #d6d6d4 75% 100%);
       box-shadow: 14px 18px 0 #2223, inset 0 0 0 6px #fff;
     }
-    .dial::before, .dial::after {
-      content: "";
+    .dial-numerals {
       position: absolute;
       left: 50%; top: 50%;
-      transform-origin: 0 50%;
-      background: #111;
-      border-radius: 99px;
-    }
-    .dial::before { width: 35%; height: 5px; transform: rotate(-35deg); }
-    .dial::after { width: 26%; height: 3px; transform: rotate(70deg); }
-    .dial-mark {
-      position: absolute;
-      left: 50%; top: 50%;
-      width: 20%;
-      font-size: clamp(1.5rem, 7vw, 5rem);
-      font-weight: 900;
-      letter-spacing: -.1em;
-      transform: translate(-50%, -50%) rotate(-18deg);
+      width: 130%;
+      color: #111;
+      font-size: clamp(2rem, 8vw, 6rem);
+      font-weight: 950;
+      line-height: .9;
+      letter-spacing: .035em;
+      text-align: center;
+      white-space: nowrap;
+      transform: translate(-50%, -50%) perspective(500px) rotateX(18deg) rotateZ(-18deg);
+      text-shadow: 2px 2px 0 #fff, 5px 5px 0 #8b8d8e;
     }
     .shot--dense {
       background: #f4f4f2;
@@ -327,13 +322,6 @@
     .word[data-style="select"] {
       font-size: clamp(3rem, 13vw, 11rem);
       transform: translate(-50%, -50%) rotate(-7deg) scaleY(1.15);
-    }
-    .word[data-style="clock"] {
-      left: 44%; top: 49%;
-      font-size: clamp(3.5rem, 18vw, 15rem);
-      mix-blend-mode: multiply;
-      transform: translate(-50%, -50%) perspective(500px) rotateY(20deg) rotateZ(-9deg);
-      text-shadow: 2px 2px 0 #fff, 5px 5px 0 #8b8d8e;
     }
     .word[data-style="packed"] {
       width: min(90vw, 900px);
@@ -427,7 +415,7 @@
         <div class="seat-leg seat-leg--one"></div><div class="seat-leg seat-leg--two"></div>
       </div>
     </div>
-    <div class="shot shot--clock" aria-hidden="true"><div class="dial"><span class="dial-mark">TYPE</span></div></div>
+    <div class="shot shot--clock" aria-hidden="true"><div class="dial"><span class="dial-numerals">0123456789</span></div></div>
     <div class="shot shot--dense" aria-hidden="true">
       <div class="type-card">DENSELY<br>PACKED</div>
       <div class="type-card">DENSELY<br>PACKED</div>
@@ -460,7 +448,7 @@
       { at: 4, scene: 'furniture', text: 'NOEL', style: 'select' },
       { at: 5, scene: 'architecture', text: 'NOEL', style: 'slant' },
       { at: 6, scene: 'dark', text: 'NOEL', style: 'depth' },
-      { at: 7, scene: 'clock', text: 'TYPE', style: 'clock' },
+      { at: 7, scene: 'clock', text: '', style: 'quiet' },
       { at: 8, scene: 'dense', text: 'DENSELY\nPACKED', style: 'packed' },
       { at: 9, scene: 'letter', text: 'NOEL', style: 'hero' },
       { at: 10, scene: 'collage', text: 'NOEL', style: 'depth' },
