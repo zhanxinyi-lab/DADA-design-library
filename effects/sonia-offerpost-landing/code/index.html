@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offerpost — Send the email. Land the offer.</title>
+  <style>
+    :root {
+      --blue: #3f6ef0;
+      --blue-deep: #2d5adf;
+      --ink: #14171f;
+      --muted: #5d6572;
+      --paper: #f4f5f7;
+      --card: #ffffff;
+      --line: rgba(20, 23, 31, .1);
+      --white: #f7f8ff;
+      --shadow: 0 24px 70px rgba(28, 42, 84, .14);
+      --sans: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: auto; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    a { color: inherit; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .nav {
+      position: fixed;
+      z-index: 5;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      padding: 18px 28px;
+      color: var(--white);
+    }
+    .nav.on-paper {
+      color: var(--ink);
+      background: rgba(244, 245, 247, .92);
+      box-shadow: 0 1px 0 var(--line);
+      backdrop-filter: blur(10px);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 650;
+      letter-spacing: -.03em;
+      text-decoration: none;
+    }
+    .mark {
+      width: 22px; height: 22px;
+      border: 1.5px solid currentColor;
+      border-radius: 5px;
+      position: relative;
+    }
+    .mark:before {
+      content: "";
+      position: absolute;
+      right: -1px; top: -1px;
+      border-top: 7px solid var(--blue);
+      border-left: 7px solid transparent;
+    }
+    .nav.on-paper .mark:before { border-top-color: var(--paper); }
+    .links { display: flex; gap: 18px; margin-left: auto; }
+    .links a { text-decoration: none; font-size: 14px; opacity: .88; }
+    .nav-cta, .btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      text-decoration: none;
+      background: var(--white);
+      color: var(--blue-deep);
+      font-weight: 650;
+    }
+    .nav.on-paper .nav-cta, .btn.solid {
+      background: var(--blue);
+      color: white;
+    }
+    .btn.ghost {
+      background: transparent;
+      color: inherit;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.45);
+    }
+    .nav.on-paper .quiet { color: var(--ink); }
+    .quiet {
+      background: transparent;
+      color: var(--white);
+      border: 0;
+      padding: 8px 4px;
+      opacity: .88;
+    }
+    .hero {
+      min-height: 100vh;
+      background:
+        radial-gradient(900px 420px at 80% -10%, rgba(255,255,255,.18), transparent 60%),
+        var(--blue);
+      color: var(--white);
+      padding: 112px 7vw 36px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .hero-inner { max-width: 920px; }
+    .eyebrow {
+      margin: 0 0 18px;
+      font-size: 13px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      opacity: .78;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(56px, 8.4vw, 108px);
+      font-weight: 560;
+      letter-spacing: -.055em;
+      line-height: .92;
+    }
+    h1 span { display: block; }
+    .lede {
+      max-width: 640px;
+      margin: 28px 0 0;
+      font-size: 18px;
+      line-height: 1.45;
+      color: rgba(247, 248, 255, .84);
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; align-items: center; }
+    .fine { margin: 18px 0 0; font-size: 13px; opacity: .72; }
+    .peek {
+      margin-top: 36px;
+      align-self: flex-start;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      background: var(--card);
+      color: var(--ink);
+      border-radius: 16px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+      min-width: min(420px, 100%);
+    }
+    .peek b { display: block; letter-spacing: -.02em; }
+    .peek span { color: var(--muted); font-size: 13px; }
+    .dot {
+      width: 8px; height: 8px; border-radius: 99px;
+      background: #2f9d6a; margin-left: auto;
+    }
+    section { padding: 88px 28px; }
+    .wrap { max-width: 1120px; margin: 0 auto; }
+    .kicker { margin: 0 0 10px; color: var(--blue-deep); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+    h2 {
+      margin: 0;
+      font-size: clamp(36px, 5vw, 64px);
+      font-weight: 560;
+      letter-spacing: -.045em;
+      line-height: .98;
+      max-width: 14ch;
+    }
+    .sub { max-width: 560px; color: var(--muted); margin: 16px 0 0; }
+    .sheet {
+      margin-top: 36px;
+      background: var(--card);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .sheet-bar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .search {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 12px;
+    }
+    .board-grid {
+      display: grid;
+      grid-template-columns: 1.7fr .9fr;
+    }
+    .cols {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      padding: 14px;
+    }
+    .col h3 { margin: 0; font-size: 13px; font-weight: 620; }
+    .col header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .count {
+      font-size: 12px; color: var(--muted);
+      background: var(--paper); border-radius: 99px; padding: 2px 7px;
+    }
+    .card {
+      background: var(--paper);
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    .card strong { display: block; font-size: 14px; letter-spacing: -.02em; }
+    .card em { display: block; margin-top: 2px; color: var(--muted); font-style: normal; font-size: 12px; }
+    .card.on { box-shadow: inset 3px 0 0 var(--blue); background: #eef2ff; }
+    .tag { display: inline-block; margin-top: 8px; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--blue-deep); }
+    .letter { border-left: 1px solid var(--line); padding: 18px 16px 16px; }
+    .letter p { margin: 0; }
+    .to { font-weight: 680; letter-spacing: -.03em; font-size: 18px; }
+    .from { margin-top: 6px !important; color: var(--muted); font-size: 13px; }
+    .mail { margin-top: 16px !important; color: var(--ink); }
+    .letter .btn { margin-top: 18px; display: inline-block; }
+    .beats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 36px; }
+    .beat { padding-top: 14px; border-top: 1px solid var(--line); }
+    .beat b { display: block; font-size: 18px; letter-spacing: -.03em; margin-bottom: 6px; }
+    .beat span { color: var(--muted); }
+    .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 36px; }
+    .plan {
+      background: var(--card);
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow: 0 1px 0 var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .plan.pro { background: var(--blue); color: white; }
+    .plan .who { color: var(--muted); min-height: 3em; }
+    .plan.pro .who { color: rgba(255,255,255,.8); }
+    .price { font-size: 48px; letter-spacing: -.05em; font-weight: 560; margin: 8px 0; }
+    .price small { font-size: 16px; letter-spacing: 0; font-weight: 500; }
+    .plan ul { margin: 0 0 12px; padding: 0; list-style: none; }
+    .plan li { padding: 7px 0; border-top: 1px solid var(--line); }
+    .plan.pro li { border-top-color: rgba(255,255,255,.2); }
+    .plan .btn { margin-top: auto; text-align: center; }
+    .faq details {
+      margin-top: 28px;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 18px 20px;
+    }
+    .faq summary { cursor: pointer; font-weight: 650; letter-spacing: -.02em; }
+    .faq p { color: var(--muted); margin: 10px 0 0; }
+    .trail h2 { max-width: 12ch; }
+    form { display: flex; gap: 8px; margin-top: 22px; flex-wrap: wrap; }
+    input[type="email"] {
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 999px;
+      padding: 12px 16px;
+      min-width: min(320px, 100%);
+    }
+    .foot {
+      background: var(--blue-deep);
+      color: var(--white);
+      padding: 72px 28px 36px;
+    }
+    .foot-grid { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 1.3fr repeat(4, 1fr); gap: 24px; }
+    .foot h2 { color: white; max-width: 16ch; font-size: clamp(32px, 4vw, 48px); }
+    .foot p { color: rgba(247,248,255,.78); }
+    .foot h3 { margin: 0 0 10px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
+    .foot a { display: block; text-decoration: none; padding: 4px 0; opacity: .88; }
+    .letterbox { margin-top: 28px; }
+    .legal { max-width: 1120px; margin: 28px auto 0; opacity: .7; font-size: 13px; }
+    .film {
+      position: fixed;
+      z-index: 6;
+      left: 16px; bottom: 16px;
+      border: 0;
+      background: var(--ink);
+      color: white;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      letter-spacing: .04em;
+    }
+    .bar {
+      position: fixed; z-index: 6; top: 0; left: 0; height: 2px;
+      background: white; width: 0;
+    }
+    .nav.on-paper ~ .bar, body.on-paper .bar { background: var(--blue); }
+    @media (prefers-reduced-motion: no-preference) {
+      .js .hero-inner > * { animation: rise .9s cubic-bezier(.2,.7,.2,1) both; }
+      .js .hero-inner > :nth-child(2) { animation-delay: .08s; }
+      .js .hero-inner > :nth-child(3) { animation-delay: .16s; }
+      .js .hero-inner > :nth-child(4) { animation-delay: .24s; }
+      .js .peek { animation: rise 1s cubic-bezier(.2,.7,.2,1) .32s both; }
+      .js .reveal { opacity: 0; transform: translateY(18px); }
+      .js .reveal.in { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (max-width: 900px) {
+      .links { display: none; }
+      .board-grid, .cols, .beats, .plans, .foot-grid { grid-template-columns: 1fr; }
+      .letter { border-left: 0; border-top: 1px solid var(--line); }
+      .nav { padding: 14px 16px; }
+      section, .hero, .foot { padding-left: 16px; padding-right: 16px; }
+      h1 { font-size: 52px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bar" id="bar"></div>
+  <header class="nav" id="nav">
+    <a class="brand" href="#top"><span class="mark" aria-hidden="true"></span>Offerpost</a>
+    <nav class="links">
+      <a href="#between">Features</a>
+      <a href="#board">Dashboard</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <button class="quiet" type="button">Log in</button>
+    <a class="nav-cta" href="#start">Start free</a>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow">For designers and engineers on the job hunt</p>
+        <h1><span>Send the email.</span><span>Land the offer.</span></h1>
+        <p class="lede">Offerpost turns a job hunt into a pipeline. Write a cold email once, personalise it per company, send it from your Gmail, and watch every application move from applied to offer.</p>
+        <div class="row">
+          <a class="btn" href="#board">See the board</a>
+          <a class="btn ghost" href="#start">Start free</a>
+        </div>
+        <p class="fine">Free to start</p>
+      </div>
+      <article class="peek">
+        <div>
+          <b>Vercel</b>
+          <span>Replied · 2h ago</span>
+        </div>
+        <span class="dot" aria-hidden="true"></span>
+      </article>
+    </section>
+
+    <section id="board">
+      <div class="wrap">
+        <div class="reveal">
+          <p class="kicker">The board</p>
+          <h2>Your whole search, readable at a glance.</h2>
+          <p class="sub">Every application sits in one of four stages. Replies move cards for you, and the email you sent is always one click away.</p>
+        </div>
+        <div class="sheet reveal">
+          <div class="sheet-bar"><span>October</span><span class="search">Search companies</span></div>
+          <div class="board-grid">
+            <div class="cols">
+              <section class="col">
+                <header><h3>Applications</h3><span class="count">48</span></header>
+                <article class="card"><strong>Figma</strong><em>Design roles</em><span class="tag">Applied</span></article>
+                <article class="card"><strong>Airbnb</strong><em>Product design</em><span class="tag">Applied</span></article>
+                <article class="card"><strong>Notion</strong><em>Frontend roles</em><span class="tag">Applied</span></article>
+              </section>
+              <section class="col">
+                <header><h3>Cold emails</h3><span class="count">6</span></header>
+                <article class="card on"><strong>Linear</strong><em>Design Engineer</em><span class="tag">Draft</span></article>
+                <article class="card"><strong>Vercel</strong><em>Replied</em><span class="tag">2h</span></article>
+              </section>
+              <section class="col">
+                <header><h3>Follow-ups</h3><span class="count">9</span></header>
+                <article class="card"><strong>Figma</strong><em>Day 25</em><span class="tag">Due</span></article>
+              </section>
+              <section class="col">
+                <header><h3>Interviews</h3><span class="count">4</span></header>
+                <article class="card"><strong>Airbnb</strong><em>On the calendar</em><span class="tag">Next</span></article>
+              </section>
+            </div>
+            <aside class="letter">
+              <p class="to">Design Engineer at Linear</p>
+              <p class="from">Maya</p>
+              <p class="mail">I have used Linear every day for two years and saw the opening for a Design Engineer. I build interfaces in React and sweat the small details. Could I show you three projects?</p>
+              <button class="btn solid" type="button">Send from Gmail</button>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="between">
+      <div class="wrap">
+        <div class="reveal">
+          <h2>Everything between the first email and the offer.</h2>
+        </div>
+        <div class="beats">
+          <article class="beat reveal"><b>Write it once</b><span>One cold email, then a version for each company.</span></article>
+          <article class="beat reveal"><b>Send from Gmail</b><span>It leaves from your own inbox, not a new address.</span></article>
+          <article class="beat reveal"><b>Watch it move</b><span>Replies carry the card from applied to offer.</span></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="pricing">
+      <div class="wrap">
+        <div class="reveal">
+          <h2>Free while you search.</h2>
+          <p class="sub">No agency between you and the hiring manager. You write the emails, you own the pipeline, and the first plan costs nothing.</p>
+        </div>
+        <div class="plans">
+          <article class="plan reveal" id="start">
+            <h3>Starter</h3>
+            <p class="who">For tracking first applications and outreach.</p>
+            <p class="price">$0 <small>forever</small></p>
+            <ul>
+              <li>25 tracked applications a month</li>
+              <li>Basic email templates</li>
+              <li>Standard follow-up reminders</li>
+            </ul>
+            <a class="btn solid" href="#trail">Get started free</a>
+          </article>
+          <article class="plan pro reveal">
+            <h3>Pro</h3>
+            <p class="who">For a focused search across many companies.</p>
+            <p class="price">$29 <small>/ month</small></p>
+            <ul>
+              <li>350 tracked applications a month</li>
+              <li>Pitch writer</li>
+              <li>Multi-step follow-ups</li>
+              <li>Read receipts and engagement analytics</li>
+            </ul>
+            <a class="btn" href="#trail">Join the waitlist</a>
+          </article>
+          <article class="plan reveal">
+            <h3>Team</h3>
+            <p class="who">For career coaches and bootcamps. Shared pipeline and unlimited outreach.</p>
+            <p class="price">$59 <small>/ month</small></p>
+            <ul>
+              <li>Unlimited applications and sends</li>
+              <li>Custom domain and branded emails</li>
+              <li>Priority processing</li>
+              <li>Calendar links for interviews</li>
+            </ul>
+            <a class="btn solid" href="#trail">Join the waitlist</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq" id="faq">
+      <div class="wrap reveal">
+        <h2>Questions, answered.</h2>
+        <details open>
+          <summary>Are the numbers on this page real?</summary>
+          <p>The board is a sample search, so the rhythm is visible. Starter stays free and needs no card. Pro and Team are on a waitlist.</p>
+        </details>
+      </div>
+    </section>
+
+    <section class="trail" id="trail">
+      <div class="wrap reveal">
+        <p class="kicker">Waitlist open for Pro and Team</p>
+        <h2>Give every application a paper trail.</h2>
+        <p class="sub">Every cold email, follow-up and interview in one place, so you always know which ones came back.</p>
+        <form id="join">
+          <input type="email" name="email" placeholder="you@example.com" aria-label="Email" required>
+          <button class="btn solid" type="submit">Get early access</button>
+        </form>
+        <p class="fine" style="color:var(--muted)">No card needed · End-to-end encrypted</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="foot-grid">
+      <div>
+        <h2>The job hunt as a pipeline.</h2>
+        <p>For engineers and designers. Cold emails, follow-ups and interviews, from the first email to the offer.</p>
+        <form class="letterbox" id="letter">
+          <p>The job-hunt letter. Product updates and new templates, once a month.</p>
+          <input type="email" aria-label="Letter email" placeholder="you@example.com" required>
+          <button class="btn" type="submit">Subscribe</button>
+        </form>
+      </div>
+      <div>
+        <h3>Product</h3>
+        <a href="#between">Features</a>
+        <a href="#board">Dashboard</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#pricing">Pitch writer</a>
+      </div>
+      <div>
+        <h3>Company</h3>
+        <a href="#top">About</a>
+        <a href="#top">Careers</a>
+        <a href="#trail">Contact</a>
+      </div>
+      <div>
+        <h3>Guides</h3>
+        <a href="#between">Templates</a>
+        <a href="#faq">Changelog</a>
+        <a href="#faq">Status</a>
+      </div>
+      <div>
+        <h3>Legal</h3>
+        <a href="#faq">Privacy</a>
+        <a href="#faq">Cookies</a>
+        <a href="#faq">GDPR</a>
+      </div>
+    </div>
+    <p class="legal">Starter stays free. No card needed. End-to-end encrypted.</p>
+  </footer>
+  <button class="film" id="film" type="button">Pause</button>
+  <script>
+    document.documentElement.classList.add("js");
+    const nav = document.getElementById("nav");
+    const bar = document.getElementById("bar");
+    const film = document.getElementById("film");
+    const hero = document.querySelector(".hero");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const state = { playing: !reduce, raf: 0, timer: 0 };
+
+    function maxScroll() {
+      return Math.max(0, document.documentElement.scrollHeight - innerHeight);
+    }
+    function paint() {
+      const max = maxScroll();
+      const p = max ? scrollY / max : 0;
+      bar.style.width = (p * 100) + "%";
+      const onPaper = scrollY > hero.offsetHeight - 72;
+      nav.classList.toggle("on-paper", onPaper);
+      document.body.classList.toggle("on-paper", onPaper);
+    }
+    function stopAuto() {
+      state.playing = false;
+      if (state.raf) cancelAnimationFrame(state.raf);
+      clearTimeout(state.timer);
+      film.textContent = "Play";
+    }
+    function play(elapsed) {
+      if (reduce) { film.hidden = true; return; }
+      state.playing = true;
+      film.textContent = "Pause";
+      const max = maxScroll();
+      const dur = 28000;
+      const t0 = performance.now() - (elapsed || 0);
+      function tick(now) {
+        if (!state.playing) return;
+        const p = Math.min(1, (now - t0) / dur);
+        const s = p * p * (3 - 2 * p);
+        scrollTo(0, s * max);
+        paint();
+        if (p < 1) state.raf = requestAnimationFrame(tick);
+        else state.timer = setTimeout(() => { scrollTo(0, 0); play(0); }, 1400);
+      }
+      state.raf = requestAnimationFrame(tick);
+    }
+
+    const seen = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add("in"); });
+    }, { threshold: 0.2 });
+    document.querySelectorAll(".reveal").forEach((node) => seen.observe(node));
+
+    addEventListener("scroll", paint, { passive: true });
+    addEventListener("wheel", () => { if (state.playing) stopAuto(); }, { passive: true });
+    addEventListener("pointerdown", (event) => {
+      if (!state.playing || event.target.closest("#film")) return;
+      stopAuto();
+    });
+    addEventListener("touchstart", () => { if (state.playing) stopAuto(); }, { passive: true });
+    addEventListener("keydown", (event) => {
+      if (event.code !== "Space" || event.target !== document.body) return;
+      event.preventDefault();
+      if (state.playing) stopAuto();
+      else play(0);
+    });
+    film.addEventListener("click", () => { if (state.playing) stopAuto(); else play(0); });
+    document.getElementById("join").addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.currentTarget.querySelector("button").textContent = "You're on the list";
+    });
+    document.getElementById("letter").addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.currentTarget.querySelector("button").textContent = "Subscribed";
+    });
+    paint();
+    play(0);
+  </script>
+</body>
+</html>
