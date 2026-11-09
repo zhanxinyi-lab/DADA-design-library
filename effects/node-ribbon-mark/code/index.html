@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>丝带字标</title>
+  <style>
+    :root {
+      --ink: #161212;
+      --paper: #f0efea;
+      --sheet: #dfdfe1;
+      --muted: #3d3d3e;
+      --green: #35aa75;
+      --red: #ff6632;
+      --p: 0;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--ink);
+      color: var(--paper);
+      font-family: system-ui, "Segoe UI", sans-serif;
+    }
+    .stage {
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      background: var(--ink);
+    }
+    .hero {
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 72px 20px 88px;
+    }
+    .hero-mark {
+      width: min(92vw, 880px);
+      height: auto;
+      color: var(--paper);
+      transform: translateY(calc(var(--p) * 10vh)) scale(calc(1 - var(--p) * .18));
+    }
+    .sheet {
+      position: absolute;
+      inset: 0;
+      overflow: auto;
+      background: var(--sheet);
+      color: var(--muted);
+      transform: translateY(calc((var(--p) - 1) * 100%));
+      padding: 28px clamp(16px, 4vw, 48px) 92px;
+    }
+    .sheet-inner { width: min(1080px, 100%); margin: 0 auto; }
+    .eyebrow {
+      margin: 0 0 6px;
+      font-size: 12px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0 0 6px; font-size: clamp(28px, 4vw, 40px); font-weight: 640; letter-spacing: -.03em; }
+    .lede { margin: 0 0 14px; max-width: 68ch; line-height: 1.45; }
+    .swatches, .apps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .card {
+      min-height: 128px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .card.dark { background: var(--ink); color: var(--paper); }
+    .card.green { background: var(--green); color: #000; }
+    .card.hot { background: #000; color: var(--red); }
+    .card .mark { width: 100%; height: auto; }
+    .card span { font-size: 12px; letter-spacing: .04em; }
+    .type {
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr);
+      gap: 8px 16px;
+      align-items: baseline;
+      margin: 14px 0;
+      padding: 8px 0;
+      border-top: 1px solid rgba(61, 61, 62, .25);
+      border-bottom: 1px solid rgba(61, 61, 62, .25);
+    }
+    .type b { font-weight: 550; }
+    .type i { font-style: normal; font-size: 12px; letter-spacing: .08em; }
+    .s64 { font-size: clamp(40px, 7vw, 64px); letter-spacing: -.04em; line-height: 1; }
+    .s32 { font-size: clamp(22px, 3vw, 32px); letter-spacing: -.03em; }
+    .s16 { font-size: 16px; line-height: 1.45; }
+    .s12 { font-size: 12px; line-height: 1.45; }
+    .apps { margin-top: 4px; }
+    .app {
+      height: 112px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+    .app .mark { width: 100%; }
+    .app small { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+    .app.poster { background: var(--ink); color: var(--paper); }
+    .app.ticket { background: var(--green); color: #000; }
+    .app.label { background: #000; color: var(--red); }
+    .controls {
+      position: absolute;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      z-index: 3;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      border-radius: 999px;
+      background: rgba(22, 18, 18, .92);
+      color: var(--paper);
+    }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 8px 14px;
+      background: var(--paper);
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    #clock { min-width: 7.5em; padding: 0 8px; font-variant-numeric: tabular-nums; font-size: 13px; }
+    html.still .sheet { transform: none; }
+    html.still .hero { visibility: hidden; }
+    @media (max-width: 720px) {
+      .swatches, .apps { grid-template-columns: 1fr; }
+      .card { min-height: 0; }
+      .app { height: auto; aspect-ratio: 16 / 9; }
+      .type { grid-template-columns: 56px minmax(0, 1fr); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sheet { transform: none; }
+      .hero { visibility: hidden; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="fold" viewBox="0 0 650 180">
+      <g fill="currentColor">
+        <path d="M18 16h26v148H18z"/>
+        <path d="M36 16h8v148H36z" opacity=".2"/>
+        <path d="M44 16h92v26H44z"/>
+        <path d="M136 16l20 13-20 13z" opacity=".45"/>
+        <path d="M44 70h70v26H44z"/>
+        <path d="M114 70l18 13-18 13z" opacity=".45"/>
+        <path fill-rule="evenodd" d="M194 90a56 66 0 1 0 112 0a56 66 0 1 0-112 0zM220 90a30 40 0 1 1 60 0a30 40 0 1 1-60 0z"/>
+        <path d="M262 108l56 28-14 20-56-28z" opacity=".62"/>
+        <path d="M340 16h26v108h-26z"/>
+        <path d="M358 16h8v108h-8z" opacity=".2"/>
+        <path d="M340 124h118v26H340z"/>
+        <path d="M458 124l20 13-20 13z" opacity=".45"/>
+        <path d="M508 16h26v148h-26z"/>
+        <path d="M526 16h8v148H526z" opacity=".2"/>
+        <path fill-rule="evenodd" d="M534 22c90 0 98 34 98 68s-22 74-98 74V138c50 0 66-22 66-48s-14-42-66-42z"/>
+        <path d="M534 22l24 18-24 14z" opacity=".4"/>
+      </g>
+    </symbol>
+  </svg>
+  <div class="stage">
+    <div class="hero">
+      <svg class="hero-mark" viewBox="0 0 650 180" role="img" aria-label="原创折带字标 FOLD">
+        <g fill="currentColor">
+          <path d="M18 16h26v148H18z"/>
+          <path d="M36 16h8v148H36z" opacity=".2"/>
+          <path d="M44 16h92v26H44z"/>
+          <path d="M136 16l20 13-20 13z" opacity=".45"/>
+          <path d="M44 70h70v26H44z"/>
+          <path d="M114 70l18 13-18 13z" opacity=".45"/>
+          <path fill-rule="evenodd" d="M194 90a56 66 0 1 0 112 0a56 66 0 1 0-112 0zM220 90a30 40 0 1 1 60 0a30 40 0 1 1-60 0z"/>
+          <polygon class="flap" points="262,108 318,136 304,156 248,128" opacity=".72"/>
+          <path d="M340 16h26v108h-26z"/>
+          <path d="M358 16h8v108h-8z" opacity=".2"/>
+          <path d="M340 124h118v26H340z"/>
+          <path d="M458 124l20 13-20 13z" opacity=".45"/>
+          <path d="M508 16h26v148h-26z"/>
+          <path d="M526 16h8v148H526z" opacity=".2"/>
+          <path fill-rule="evenodd" d="M534 22c90 0 98 34 98 68s-22 74-98 74V138c50 0 66-22 66-48s-14-42-66-42z"/>
+          <path d="M534 22l24 18-24 14z" opacity=".4"/>
+        </g>
+      </svg>
+    </div>
+    <div class="sheet">
+      <div class="sheet-inner">
+        <p class="eyebrow">Brand sheet · 8.0s</p>
+        <h1>折带字标</h1>
+        <p class="lede">深色开场大约停 1 秒，接着从上方揭开这页，2.5 秒后停住。下面三种颜色来自静帧，字母是原创折带 FOLD，不照搬原字标。原片字体没有发布，字号只用系统无衬线来排阶梯。</p>
+        <div class="swatches">
+          <div class="card dark"><svg class="mark" viewBox="0 0 650 180" aria-hidden="true"><use href="#fold"/></svg><span>深色开场 · #161212 / #f0efea</span></div>
+          <div class="card green"><svg class="mark" viewBox="0 0 650 180" aria-hidden="true"><use href="#fold"/></svg><span>绿底静帧 · #35aa75 / #000000</span></div>
+          <div class="card hot"><svg class="mark" viewBox="0 0 650 180" aria-hidden="true"><use href="#fold"/></svg><span>红底静帧 · #000000 / #ff6632</span></div>
+        </div>
+        <div class="type">
+          <i>展示</i><b class="s64">FOLD</b>
+          <i>标题</i><b class="s32">折带规范</b>
+          <i>正文</i><b class="s16">一条带子折出字母，再落到海报、卡片和标签上。</b>
+          <i>注释</i><b class="s12">揭开发生在 1.0–2.6 秒。之后画面只轻微变亮。</b>
+        </div>
+        <div class="apps">
+          <div class="app poster"><small>Poster</small><svg class="mark" viewBox="0 0 650 180" aria-hidden="true"><use href="#fold"/></svg></div>
+          <div class="app ticket"><small>Card</small><svg class="mark" viewBox="0 0 650 180" aria-hidden="true"><use href="#fold"/></svg></div>
+          <div class="app label"><small>Label</small><svg class="mark" viewBox="0 0 650 180" aria-hidden="true"><use href="#fold"/></svg></div>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="play" type="button" aria-pressed="true">暂停</button>
+      <button id="replay" type="button">重放</button>
+      <span id="clock">0.0s / 8.0s</span>
+    </div>
+  </div>
+  <script>
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+    const DURATION = 8000;
+    const playBtn = document.getElementById('play');
+    const clock = document.getElementById('clock');
+    const flaps = document.querySelectorAll('.flap');
+    const openPts = [[262, 108], [318, 136], [304, 156], [248, 128]];
+    const shutPts = [[262, 108], [290, 120], [282, 134], [254, 122]];
+    let elapsed = 0;
+    let origin = 0;
+    let playing = false;
+    let raf = 0;
+
+    if (reduce.matches) document.documentElement.classList.add('still');
+
+    function reveal(ms) {
+      const s = ms / 1000;
+      if (s <= 1) return 0;
+      if (s >= 2.6) return 1;
+      const u = (s - 1) / 1.6;
+      return u * u * (3 - 2 * u);
+    }
+
+    function foldAmount(ms) {
+      const s = ms / 1000;
+      const wave = 0.5 - 0.5 * Math.cos(s * Math.PI * 1.25);
+      return s < 2.6 ? wave : 0.42 + 0.12 * Math.sin(s * 1.6);
+    }
+
+    function apply(ms) {
+      const p = reduce.matches ? 1 : reveal(ms);
+      const k = reduce.matches ? 0.45 : foldAmount(ms);
+      document.documentElement.style.setProperty('--p', p.toFixed(4));
+      const points = openPts.map((pt, i) => {
+        const x = pt[0] + (shutPts[i][0] - pt[0]) * k;
+        const y = pt[1] + (shutPts[i][1] - pt[1]) * k;
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+      flaps.forEach((poly) => poly.setAttribute('points', points));
+      clock.textContent = (Math.min(ms, DURATION) / 1000).toFixed(1) + 's / 8.0s';
+      playBtn.textContent = playing ? '暂停' : (reduce.matches ? '动态已关闭' : '播放');
+      playBtn.setAttribute('aria-pressed', String(playing));
+      playBtn.disabled = reduce.matches;
+    }
+
+    function frame(now) {
+      if (!origin) origin = now - elapsed;
+      elapsed = Math.min(DURATION, now - origin);
+      apply(elapsed);
+      if (elapsed >= DURATION) playing = false;
+      if (playing) raf = requestAnimationFrame(frame);
+      else apply(elapsed);
+    }
+
+    function play() {
+      if (reduce.matches) return;
+      if (elapsed >= DURATION) elapsed = 0;
+      playing = true;
+      origin = 0;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(frame);
+    }
+
+    function pause() {
+      playing = false;
+      cancelAnimationFrame(raf);
+      apply(elapsed);
+    }
+
+    playBtn.addEventListener('click', () => { playing ? pause() : play(); });
+    document.getElementById('replay').addEventListener('click', () => {
+      elapsed = 0;
+      if (reduce.matches) { apply(0); return; }
+      play();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' || e.target.closest('button')) return;
+      e.preventDefault();
+      playing ? pause() : play();
+    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+    reduce.addEventListener('change', () => {
+      document.documentElement.classList.toggle('still', reduce.matches);
+      if (reduce.matches) pause();
+      else play();
+    });
+
+    apply(0);
+    if (!reduce.matches) play();
+  </script>
+</body>
+</html>
