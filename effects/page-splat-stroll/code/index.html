@@ -8,7 +8,7 @@
 :root{color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:#140e18;color:#f3e6d4;font:14px/1.4 ui-sans-serif,system-ui,"PingFang SC","Noto Sans SC",sans-serif}
-body{overflow:hidden;touch-action:none}
+body{overflow:hidden}
 canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 .hud{position:fixed;z-index:2;left:0;right:0;display:flex;justify-content:center;pointer-events:none}
 .top{top:0;padding:max(12px,env(safe-area-inset-top)) 16px 0}
@@ -19,6 +19,7 @@ p{margin:4px 0 0;color:#d9c3ae;font-size:12px}
 .controls{width:min(520px,100%);pointer-events:auto;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 button{touch-action:manipulation;appearance:none;border:1px solid rgba(243,230,212,.28);background:rgba(18,10,16,.78);color:#f3e6d4;border-radius:999px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer}
 button:hover,button:focus-visible{border-color:#f0b36a;outline:2px solid #f0b36a;outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed;border-color:rgba(243,230,212,.28)}
 #status{width:100%;text-align:center;min-height:1.2em;color:#f0b36a;font-size:12px}
 @media (max-width:360px){h1{font-size:15px}button{padding:7px 10px}}
 </style>
@@ -100,7 +101,7 @@ let width = 1;
 let height = 1;
 let lookX = 0;
 let lookY = 0;
-let paused = reduceQuery.matches;
+let paused = false;
 let reduceOn = reduceQuery.matches;
 let gyroOn = false;
 let raf = 0;
@@ -228,9 +229,23 @@ document.getElementById('right').addEventListener('click', () => nudge(0.28, 0, 
 document.getElementById('up').addEventListener('click', () => nudge(0, -0.28, '抬头'));
 document.getElementById('down').addEventListener('click', () => nudge(0, 0.28, '低头'));
 document.getElementById('reset').addEventListener('click', () => { lookX = 0; lookY = 0; say('视线回正'); if (paused || reduceOn) paint(clock * 1000); });
-document.getElementById('walk').addEventListener('click', () => {
+const walkBtn = document.getElementById('walk');
+function syncWalkControl() {
+  if (reduceOn) {
+    walkBtn.disabled = true;
+    walkBtn.textContent = '已停步';
+    walkBtn.title = '系统开启了减少动态，不能从这里恢复散步';
+    say('系统开启了减少动态，散步保持静止。关闭该设置后，才会按暂停状态恢复。');
+    return;
+  }
+  walkBtn.disabled = false;
+  walkBtn.title = '';
+  walkBtn.textContent = paused ? '继续走' : '停步';
+}
+walkBtn.addEventListener('click', () => {
+  if (reduceOn || walkBtn.disabled) return;
   paused = !paused;
-  document.getElementById('walk').textContent = paused ? '继续走' : '停步';
+  syncWalkControl();
   say(paused ? '已停步' : '继续散步');
   start();
 });
@@ -262,14 +277,13 @@ window.addEventListener('pointermove', (event) => {
 });
 reduceQuery.addEventListener('change', () => {
   reduceOn = reduceQuery.matches;
-  if (reduceOn) paused = true;
-  document.getElementById('walk').textContent = paused ? '继续走' : '停步';
-  say(reduceOn ? '已按系统设置减少动态' : '动态已恢复');
+  syncWalkControl();
+  if (!reduceOn) say(paused ? '减少动态已关闭，当前仍停步' : '减少动态已关闭，继续散步');
   start();
 });
 window.addEventListener('resize', () => { resize(); paint(clock * 1000); });
 resize();
-if (reduceOn) { document.getElementById('walk').textContent = '继续走'; say('已按系统设置停在静帧'); }
+syncWalkControl();
 start();
 </script>
 </body>
