@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>像素块字索引网格</title>
+  <style>
+    :root {
+      --ink: #141414;
+      --paper: #efefef;
+      --card: #f7f7f4;
+      --muted: #5c5c5c;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body {
+      min-height: 100dvh;
+      overflow: hidden;
+    }
+    .stage {
+      height: 100%;
+      min-height: 100dvh;
+      position: relative;
+      overflow: hidden;
+      touch-action: none;
+    }
+    .frame {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+    .track {
+      display: grid;
+      grid-template-columns: repeat(var(--cols-plus), var(--cell-w));
+      grid-template-rows: repeat(var(--rows-plus), var(--cell-h));
+      gap: var(--gutter-y) var(--gutter-x);
+      padding: var(--gutter-y) var(--gutter-x);
+      will-change: transform;
+    }
+    .cell {
+      appearance: none;
+      border: 0;
+      margin: 0;
+      padding: 8px;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      text-align: left;
+      cursor: pointer;
+      color: var(--ink);
+      background: var(--card);
+      container-type: size;
+      font: inherit;
+    }
+    .cell:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: -6px;
+      box-shadow: inset 0 0 0 3px var(--ink);
+    }
+    .cell.ink {
+      background: var(--ink);
+      color: transparent;
+    }
+    .cell.ink .body { visibility: hidden; }
+    .cell.card {
+      background:
+        linear-gradient(to top, hsl(var(--h) 36% 42%) 0 18%, var(--card) 18% 100%);
+    }
+    .cell.open {
+      box-shadow: inset 0 0 0 3px var(--ink);
+    }
+    .num {
+      font-size: clamp(10px, 18cqi, 14px);
+      letter-spacing: 0.08em;
+      font-variant-numeric: tabular-nums;
+    }
+    .name {
+      font-size: clamp(11px, 22cqi, 18px);
+      line-height: 1.05;
+      max-width: 12ch;
+    }
+    .hud {
+      position: absolute;
+      z-index: 2;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      pointer-events: none;
+      mix-blend-mode: difference;
+      color: #fff;
+    }
+    .hud.bottom { top: auto; bottom: 0; align-items: flex-end; }
+    .hud p { margin: 0; }
+    .kicker {
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .word {
+      margin-top: 4px;
+      font-size: clamp(18px, 3vw, 28px);
+      font-weight: 600;
+      letter-spacing: 0.18em;
+    }
+    .word b { font-weight: 700; }
+    .hint {
+      max-width: 28ch;
+      font-size: 12px;
+      line-height: 1.35;
+      text-align: right;
+    }
+    .controls { display: flex; gap: 8px; pointer-events: auto; }
+    button.step {
+      pointer-events: auto;
+      border: 1px solid currentColor;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    button.step:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+    }
+    @media (max-width: 640px) {
+      .hint { display: none; }
+      .hud { padding: 10px 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .track { will-change: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="frame" id="frame">
+      <div class="track" id="track"></div>
+    </div>
+    <div class="hud">
+      <div>
+        <p class="kicker">像素块字</p>
+        <p class="word" id="wordLine" aria-live="polite">B</p>
+      </div>
+      <div class="controls">
+        <button class="step" type="button" id="prev">上一字</button>
+        <button class="step" type="button" id="next">下一字</button>
+      </div>
+    </div>
+    <div class="hud bottom">
+      <p class="hint" id="countLine"></p>
+      <p class="hint">移动指针，巨字沿网格换位。点一下字块，让它保持露出索引。</p>
+    </div>
+  </main>
+  <script>
+    const WORD = "BLOCK";
+    const GLYPH = {
+      B: ["110", "101", "110", "101", "110"],
+      L: ["100", "100", "100", "100", "111"],
+      O: ["111", "101", "101", "101", "111"],
+      C: ["111", "100", "100", "100", "111"],
+      K: ["101", "110", "100", "110", "101"]
+    };
+    const NAMES = ["窄栏", "基线", "留白", "重复", "交点", "压线", "图注", "外页", "栏距", "缩进", "通栏", "让位", "回填", "节奏", "分隔", "角标"];
+    const LETTER_Y = 2;
+    const MAP_W = WORD.length * 4 + 4;
+    const MAP_H = LETTER_Y + 5 + 3;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+
+    const frame = document.querySelector("#frame");
+    const track = document.querySelector("#track");
+    const wordLine = document.querySelector("#wordLine");
+    const countLine = document.querySelector("#countLine");
+    const buttons = { prev: document.querySelector("#prev"), next: document.querySelector("#next") };
+
+    let cols = 3;
+    let rows = 5;
+    let pitchX = 1;
+    let pitchY = 1;
+    let origin = { x: 0, y: LETTER_Y };
+    let target = { x: 0, y: LETTER_Y };
+    let pointer = null;
+    let follow = false;
+    let lastMove = 0;
+    let letterAt = 0;
+    const pins = new Set();
+    let cells = [];
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function maxOrigin() {
+      return { x: Math.max(0, MAP_W - cols), y: Math.max(0, MAP_H - rows) };
+    }
+    function letterX(index) { return index * 4; }
+    function inkAt(x, y) {
+      if (y < LETTER_Y || y >= LETTER_Y + 5 || x < 0) return "";
+      const row = y - LETTER_Y;
+      for (let i = 0; i < WORD.length; i++) {
+        const x0 = letterX(i);
+        if (x >= x0 && x < x0 + 3 && GLYPH[WORD[i]][row][x - x0] === "1") return WORD[i];
+      }
+      return "";
+    }
+    function entryAt(x, y) {
+      const n = ((y * MAP_W + x) % 997 + 997) % 997;
+      return {
+        num: String((n % 90) + 1).padStart(2, "0"),
+        name: NAMES[n % NAMES.length],
+        hue: (n * 47) % 360
+      };
+    }
+    function nearestLetter(x) {
+      let best = 0;
+      let dist = Infinity;
+      for (let i = 0; i < WORD.length; i++) {
+        const d = Math.abs(letterX(i) - x);
+        if (d < dist) { dist = d; best = i; }
+      }
+      return best;
+    }
+
+    function layout() {
+      const w = frame.clientWidth;
+      const h = frame.clientHeight;
+      const gr = 0.78;
+      const guess = clamp(Math.min(w, h) / 7, 68, 120);
+      const pitch = guess * (1 + gr);
+      cols = clamp(Math.round((w - guess * gr) / pitch), 3, 8);
+      rows = clamp(Math.round((h - guess * gr) / pitch), 5, 8);
+      const cellW = w / (cols + (cols + 1) * gr);
+      const cellH = h / (rows + (rows + 1) * gr);
+      const gutterX = cellW * gr;
+      const gutterY = cellH * gr;
+      pitchX = cellW + gutterX;
+      pitchY = cellH + gutterY;
+      track.style.setProperty("--cols-plus", String(cols + 1));
+      track.style.setProperty("--rows-plus", String(rows + 1));
+      track.style.setProperty("--cell-w", cellW + "px");
+      track.style.setProperty("--cell-h", cellH + "px");
+      track.style.setProperty("--gutter-x", gutterX + "px");
+      track.style.setProperty("--gutter-y", gutterY + "px");
+      const need = (cols + 1) * (rows + 1);
+      while (cells.length < need) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "cell";
+        btn.addEventListener("click", () => {
+          const key = btn.dataset.key;
+          if (!key) return;
+          if (pins.has(key)) pins.delete(key);
+          else pins.add(key);
+          paint(true);
+        });
+        track.appendChild(btn);
+        cells.push(btn);
+      }
+      while (cells.length > need) cells.pop().remove();
+      const limit = maxOrigin();
+      origin.x = clamp(origin.x, 0, limit.x);
+      origin.y = clamp(origin.y, 0, limit.y);
+      target.x = clamp(target.x, 0, limit.x);
+      target.y = clamp(target.y, 0, limit.y);
+    }
+
+    function cellUnderPointer(baseX, baseY, fracX, fracY) {
+      if (!pointer) return "";
+      const rect = frame.getBoundingClientRect();
+      const lx = pointer.x - rect.left + fracX * pitchX;
+      const ly = pointer.y - rect.top + fracY * pitchY;
+      const c = Math.floor(lx / pitchX);
+      const r = Math.floor(ly / pitchY);
+      if (c < 0 || r < 0 || c > cols || r > rows) return "";
+      return (baseX + c) + "," + (baseY + r);
+    }
+
+    function paint(snap) {
+      const limit = maxOrigin();
+      if (snap || reduce.matches) {
+        origin.x = target.x;
+        origin.y = target.y;
+      }
+      origin.x = clamp(origin.x, 0, limit.x);
+      origin.y = clamp(origin.y, 0, limit.y);
+      const baseX = Math.floor(origin.x);
+      const baseY = Math.floor(origin.y);
+      const fracX = origin.x - baseX;
+      const fracY = origin.y - baseY;
+      track.style.transform = "translate(" + (-fracX * pitchX) + "px," + (-fracY * pitchY) + "px)";
+      const hole = cellUnderPointer(baseX, baseY, fracX, fracY);
+      let i = 0;
+      for (let r = 0; r <= rows; r++) {
+        for (let c = 0; c <= cols; c++) {
+          const x = baseX + c;
+          const y = baseY + r;
+          const key = x + "," + y;
+          const ink = inkAt(x, y);
+          const open = pins.has(key) || (hole === key && ink);
+          const showCard = !ink || open;
+          const entry = entryAt(x, y);
+          const btn = cells[i++];
+          btn.dataset.key = key;
+          btn.className = "cell " + (showCard ? "card" : "ink") + (open && ink ? " open" : "");
+          btn.style.setProperty("--h", String(entry.hue));
+          btn.setAttribute("aria-pressed", pins.has(key) ? "true" : "false");
+          btn.setAttribute("aria-label", showCard
+            ? entry.num + " " + entry.name
+            : entry.num + " " + entry.name + "，字块 " + ink);
+          const sig = entry.num + "|" + entry.name + "|" + (showCard ? "1" : "0");
+          if (btn.dataset.sig !== sig) {
+            btn.dataset.sig = sig;
+            btn.innerHTML = '<span class="body"><span class="num">' + entry.num + '</span><span class="name">' + entry.name + '</span></span>';
+          }
+        }
+      }
+      letterAt = nearestLetter(baseX);
+      if (wordLine.dataset.at !== String(letterAt)) {
+        wordLine.dataset.at = String(letterAt);
+        wordLine.innerHTML = WORD.split("").map((ch, idx) => idx === letterAt ? "<b>" + ch + "</b>" : ch).join("");
+      }
+      const visibleInk = cells.reduce((sum, btn) => sum + (btn.classList.contains("ink") ? 1 : 0), 0);
+      const countText = "本屏字块 " + visibleInk;
+      if (countLine.textContent !== countText) countLine.textContent = countText;
+    }
+
+    function jumpLetter(delta) {
+      letterAt = (letterAt + delta + WORD.length) % WORD.length;
+      const limit = maxOrigin();
+      target.x = clamp(letterX(letterAt), 0, limit.x);
+      target.y = clamp(LETTER_Y, 0, limit.y);
+      follow = false;
+      lastMove = performance.now();
+      if (reduce.matches) paint(true);
+    }
+
+    function onPointer(event) {
+      const rect = frame.getBoundingClientRect();
+      const nx = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+      const ny = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+      pointer = { x: event.clientX, y: event.clientY };
+      const limit = maxOrigin();
+      target.x = nx * limit.x;
+      target.y = ny * limit.y;
+      follow = true;
+      lastMove = performance.now();
+    }
+
+    frame.addEventListener("pointermove", onPointer);
+    frame.addEventListener("pointerdown", onPointer);
+    frame.addEventListener("pointerleave", () => {
+      pointer = null;
+      follow = false;
+      lastMove = performance.now();
+    });
+    buttons.prev.addEventListener("click", () => jumpLetter(-1));
+    buttons.next.addEventListener("click", () => jumpLetter(1));
+    window.addEventListener("keydown", (event) => {
+      if (event.target && event.target.classList.contains("step")) return;
+      const limit = maxOrigin();
+      if (event.key === "ArrowRight") target.x = clamp(target.x + 1, 0, limit.x);
+      else if (event.key === "ArrowLeft") target.x = clamp(target.x - 1, 0, limit.x);
+      else if (event.key === "ArrowDown") target.y = clamp(target.y + 1, 0, limit.y);
+      else if (event.key === "ArrowUp") target.y = clamp(target.y - 1, 0, limit.y);
+      else return;
+      follow = false;
+      lastMove = performance.now();
+      event.preventDefault();
+      if (reduce.matches) paint(true);
+    });
+
+    let running = true;
+    function tick(now) {
+      if (!running) return;
+      if (!follow && !reduce.matches && now - lastMove > 1100) {
+        const limit = maxOrigin();
+        const span = Math.max(1, letterX(WORD.length - 1));
+        target.x = clamp((0.5 + 0.5 * Math.sin(now / 2800)) * span, 0, limit.x);
+        target.y = clamp(LETTER_Y + Math.sin(now / 4200) * 0.8, 0, limit.y);
+      }
+      const ease = reduce.matches ? 1 : 0.12;
+      origin.x += (target.x - origin.x) * ease;
+      origin.y += (target.y - origin.y) * ease;
+      if (Math.abs(target.x - origin.x) < 0.004) origin.x = target.x;
+      if (Math.abs(target.y - origin.y) < 0.004) origin.y = target.y;
+      paint(false);
+      requestAnimationFrame(tick);
+    }
+
+    const view = new ResizeObserver(() => layout());
+    view.observe(frame);
+    document.addEventListener("visibilitychange", () => {
+      running = !document.hidden;
+      if (running) requestAnimationFrame(tick);
+    });
+    layout();
+    paint(true);
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
