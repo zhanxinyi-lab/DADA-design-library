@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小规模群体演示（不是原帖百万体）</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #3e4652; color: #f4efe6; }
+  body {
+    font: 16px/1.45 "Segoe UI", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    overflow: hidden;
+  }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .top, .hud { position: fixed; z-index: 2; }
+  .top { left: 16px; top: 14px; right: 16px; max-width: 40rem; pointer-events: none; }
+  h1 { margin: 0 0 6px; font-size: 1.2rem; font-weight: 650; text-shadow: 0 1px 2px rgba(0,0,0,.55); }
+  .top p { margin: 0; color: #e6e0d6; font-size: 0.92rem; text-shadow: 0 1px 2px rgba(0,0,0,.55); }
+  .hud {
+    left: 12px; right: 12px; bottom: 12px;
+    display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+    width: min(980px, calc(100% - 24px));
+    padding: 10px 12px;
+    background: rgba(16, 14, 12, 0.78);
+    border: 1px solid rgba(244, 239, 230, 0.2);
+    border-radius: 12px;
+  }
+  label { display: flex; align-items: center; gap: 8px; }
+  input[type="range"] { width: min(220px, 46vw); accent-color: #e15a32; }
+  output { min-width: 4.2em; font-variant-numeric: tabular-nums; }
+  button, input { font: inherit; color: inherit; }
+  button {
+    background: #2c261f; border: 1px solid rgba(244, 239, 230, 0.28);
+    border-radius: 8px; padding: 8px 12px; cursor: pointer;
+  }
+  button:hover { border-color: #f0e2cf; }
+  #stats { margin: 0; color: #e4dccc; font-variant-numeric: tabular-nums; }
+  :focus-visible { outline: 2px solid #f0c37a; outline-offset: 3px; }
+  @media (max-width: 640px) {
+    h1 { font-size: 1.05rem; }
+    .top p { font-size: 0.86rem; }
+    .hud { gap: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<canvas id="view" aria-hidden="true"></canvas>
+<header class="top">
+  <h1>小规模群体演示（不是原帖百万体）</h1>
+  <p>2000 个原创简笔人形朝镜头奔跑。网格寻路绕开障碍，空间哈希保持间距。少量人会整具翻滚，冲击再抛起车附近的一批。不是 Vork，也不是 GPU 刚体。</p>
+</header>
+<section class="hud" aria-label="模拟控件">
+  <label for="scale">模拟倍率
+    <input id="scale" type="range" min="0.1" max="1" step="0.01" value="1" aria-valuemin="0.1" aria-valuemax="1" aria-valuenow="1">
+  </label>
+  <output id="scale-out" for="scale">1.00x</output>
+  <button type="button" id="pause" aria-pressed="false">暂停</button>
+  <button type="button" id="shock">一次冲击</button>
+  <p id="stats">个体数 2000 · 倍率 1.00x · FPS —</p>
+</section>
+<script>
+(() => {
+  // 原创 Canvas 2D：网格流场寻路、空间哈希分离、整具抛物线翻滚。
+  // 倍率只乘积分 dt。不是 Vork，不是 GPU 刚体，不是百万体。
+  const N = 2000;
+  const CAM_H = 3.05;
+  const NEAR = 1;
+  const canvas = document.getElementById('view');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const scaleInput = document.getElementById('scale');
+  const scaleOut = document.getElementById('scale-out');
+  const pauseBtn = document.getElementById('pause');
+  const shockBtn = document.getElementById('shock');
+  const stats = document.getElementById('stats');
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  const x = new Float32Array(N);
+  const y = new Float32Array(N);
+  const z = new Float32Array(N);
+  const vx = new Float32Array(N);
+  const vz = new Float32Array(N);
+  const vy = new Float32Array(N);
+  const phase = new Float32Array(N);
+  const spin = new Float32Array(N);
+  const spinV = new Float32Array(N);
+  const roll = new Float32Array(N);
+  const rollV = new Float32Array(N);
+  const h = new Float32Array(N);
+  const speed = new Float32Array(N);
+  const seed = new Float32Array(N);
+  const state = new Uint8Array(N);
+  const look = new Uint8Array(N);
+  const order = Array.from({ length: N }, (_, i) => i);
+
+  const OX = -42, OZ = 0, FC = 2, FNX = 44, FNZ = 42;
+  const blocked = new Uint8Array(FNX * FNZ);
+  const dist = new Int32Array(FNX * FNZ);
+  const flowX = new Float32Array(FNX * FNZ);
+  const flowZ = new Float32Array(FNX * FNZ);
+  const HX0 = -44, HZ0 = 0, HC = 1.15, HNX = 80, HNZ = 76;
+  const SEP_R = 0.82, SEP_R2 = SEP_R * SEP_R;
+  const head = new Int32Array(HNX * HNZ);
+  const next = new Int32Array(N);
+  const OBST = [
+    { x: 0, z: 17.6, r: 2.45, rock: false },
+    { x: -16, z: 32, r: 1.55, h: 1.15, rock: true },
+    { x: 18.5, z: 27, r: 1.35, h: 0.9, rock: true },
+    { x: -7, z: 48, r: 1.9, h: 1.45, rock: true },
+    { x: 14, z: 60, r: 1.45, h: 1.05, rock: true },
+    { x: 30, z: 42, r: 1.7, h: 1.2, rock: true },
+    { x: -31, z: 58, r: 1.8, h: 1.25, rock: true }
+  ];
+
+  const PAL = [
+    { torso: [86, 98, 90], limb: [58, 70, 64], head: [118, 124, 116] },
+    { torso: [74, 84, 94], limb: [52, 60, 70], head: [132, 136, 140] },
+    { torso: [190, 92, 46], limb: [78, 70, 60], head: [138, 122, 104] },
+    { torso: [206, 168, 64], limb: [88, 78, 64], head: [146, 132, 102] },
+    { torso: [62, 70, 66], limb: [44, 52, 48], head: [96, 104, 98] }
+  ];
+  const torsoStyle = [];
+  const limbStyle = [];
+  const headStyle = [];
+  const FOG = [176, 170, 160];
+  for (let s = 0; s < PAL.length; s++) {
+    torsoStyle[s] = [];
+    limbStyle[s] = [];
+    headStyle[s] = [];
+    for (let b = 0; b < 8; b++) {
+      const t = b / 7;
+      const a = 1 - t * 0.78;
+      const mix = (rgb) => `rgba(${(rgb[0] + (FOG[0] - rgb[0]) * t) | 0},${(rgb[1] + (FOG[1] - rgb[1]) * t) | 0},${(rgb[2] + (FOG[2] - rgb[2]) * t) | 0},${a.toFixed(3)})`;
+      torsoStyle[s][b] = mix(PAL[s].torso);
+      limbStyle[s][b] = mix(PAL[s].limb);
+      headStyle[s][b] = mix(PAL[s].head);
+    }
+  }
+
+  const PEBBLE_N = 720;
+  const pebble = new Float32Array(PEBBLE_N * 4);
+  const PUFF_N = 20;
+  const puffX = new Float32Array(PUFF_N);
+  const puffZ = new Float32Array(PUFF_N);
+  const puffLife = new Float32Array(PUFF_N);
+  const puffR = new Float32Array(PUFF_N);
+  let puffCursor = 0;
+  const P = Array.from({ length: 8 }, () => ({ ok: 0, x: 0, y: 0, s: 0 }));
+  const flowScratch = [0, -1];
+  const props = OBST.filter((o) => o.rock).concat([{ car: true, z: 17.6 }]);
+  props.sort((a, b) => b.z - a.z);
+
+  let width = 1, height = 1, dpr = 1, horizon = 120, focal = 420, cx = 640;
+  let scale = 1, paused = false, reduced = mq.matches, simTime = 0, tumbleCount = 0, ambientAcc = 0;
+  let rafId = 0, lastTs = 0, lastWall = 0, fps = 0, frameCount = 0, framePos = 0;
+  const frameDt = new Float64Array(60);
+
+  function markDisc(wx, wz, radius) {
+    const r2 = radius * radius;
+    const ix0 = Math.max(0, Math.floor((wx - radius - OX) / FC));
+    const ix1 = Math.min(FNX - 1, Math.floor((wx + radius - OX) / FC));
+    const iz0 = Math.max(2, Math.floor((wz - radius - OZ) / FC));
+    const iz1 = Math.min(FNZ - 1, Math.floor((wz + radius - OZ) / FC));
+    for (let iz = iz0; iz <= iz1; iz++) {
+      for (let ix = ix0; ix <= ix1; ix++) {
+        const dx = OX + (ix + 0.5) * FC - wx;
+        const dz = OZ + (iz + 0.5) * FC - wz;
+        if (dx * dx + dz * dz <= r2) blocked[iz * FNX + ix] = 1;
+      }
+    }
+  }
+
+  function buildFlow() {
+    for (let i = 0; i < OBST.length; i++) markDisc(OBST[i].x, OBST[i].z, OBST[i].r);
+    dist.fill(-1);
+    const qx = new Int32Array(FNX * FNZ);
+    const qz = new Int32Array(FNX * FNZ);
+    let qe = 0;
+    for (let iz = 0; iz <= 1; iz++) {
+      for (let ix = 0; ix < FNX; ix++) {
+        const k = iz * FNX + ix;
+        if (blocked[k]) continue;
+        dist[k] = 0;
+        flowX[k] = 0;
+        flowZ[k] = -1;
+        qx[qe] = ix;
+        qz[qe] = iz;
+        qe++;
+      }
+    }
+    let qs = 0;
+    while (qs < qe) {
+      const ix = qx[qs], iz = qz[qs];
+      const base = dist[iz * FNX + ix];
+      qs++;
+      const nbs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      for (let n = 0; n < 4; n++) {
+        const nx = ix + nbs[n][0], nz = iz + nbs[n][1];
+        if (nx < 0 || nz < 0 || nx >= FNX || nz >= FNZ) continue;
+        const k = nz * FNX + nx;
+        if (blocked[k] || dist[k] >= 0) continue;
+        dist[k] = base + 1;
+        qx[qe] = nx;
+        qz[qe] = nz;
+        qe++;
+      }
+    }
+    for (let iz = 0; iz < FNZ; iz++) {
+      for (let ix = 0; ix < FNX; ix++) {
+        const k = iz * FNX + ix;
+        if (blocked[k] || dist[k] <= 0) continue;
+        let best = dist[k], bx = 0, bz = -1;
+        const nbs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        for (let n = 0; n < 4; n++) {
+          const nx = ix + nbs[n][0], nz = iz + nbs[n][1];
+          if (nx < 0 || nz < 0 || nx >= FNX || nz >= FNZ) continue;
+          const d = dist[nz * FNX + nx];
+          if (d >= 0 && d < best) { best = d; bx = nbs[n][0]; bz = nbs[n][1]; }
+        }
+        const mag = Math.hypot(bx, bz) || 1;
+        flowX[k] = bx / mag;
+        flowZ[k] = bz / mag;
+      }
+    }
+  }
+
+  function insideObst(px, pz, pad) {
+    for (let i = 0; i < OBST.length; i++) {
+      const o = OBST[i];
+      const dx = px - o.x, dz = pz - o.z;
+      const rad = o.r + pad;
+      if (dx * dx + dz * dz < rad * rad) return true;
+    }
+    return false;
+  }
+
+  function randomX() {
+    if (Math.random() < 0.74) return (Math.random() + Math.random() - 1) * 28;
+    return (Math.random() * 2 - 1) * 38;
+  }
+
+  function launchTumble(i, mode) {
+    state[i] = 1;
+    spin[i] = Math.random() * Math.PI * 2;
+    roll[i] = Math.random() * Math.PI * 2;
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const strong = mode === 'shock';
+    spinV[i] = dir * (strong ? 5 + Math.random() * 6 : 2.4 + Math.random() * 4.2);
+    rollV[i] = -dir * (1.6 + Math.random() * 3.2);
+    if (mode === 'shock') {
+      y[i] = 0.4 + Math.random() * 1.2;
+      vy[i] = 7.5 + Math.random() * 7;
+      const ang = Math.random() * Math.PI * 2;
+      const sp = 1.8 + Math.random() * 3.6;
+      vx[i] = Math.cos(ang) * sp;
+      vz[i] = -1.2 + Math.sin(ang) * sp * 0.5;
+    } else if (mode === 'ambient') {
+      y[i] = 0.15 + Math.random() * 0.35;
+      vy[i] = 4.2 + Math.random() * 4.5;
+      vx[i] = (Math.random() * 2 - 1) * 1.5;
+      vz[i] = -1.4 - Math.random() * 1.2;
+    } else {
+      y[i] = 0.8 + Math.random() * 3.4;
+      vy[i] = 2.2 + Math.random() * 6.5;
+      vx[i] = (Math.random() * 2 - 1) * 1.5;
+      vz[i] = -1.1 - Math.random() * 1.5;
+    }
+  }
+
+  function placeAgent(i, farOnly) {
+    let px = 0, pz = 0, guard = 0;
+    do {
+      px = randomX();
+      pz = farOnly ? 64 + Math.random() * 14 : 2.3 + Math.random() * 75;
+      guard++;
+    } while (insideObst(px, pz, 1.1) && guard < 10);
+    x[i] = px;
+    z[i] = pz;
+    y[i] = 0;
+    vy[i] = 0;
+    h[i] = 1.36 + Math.random() * 0.46;
+    speed[i] = 2.7 + Math.random() * 2.5;
+    phase[i] = Math.random() * Math.PI * 2;
+    seed[i] = Math.random() * 20;
+    const r = Math.random();
+    look[i] = r < 0.58 ? 0 : r < 0.74 ? 1 : r < 0.86 ? 2 : r < 0.93 ? 3 : 4;
+    state[i] = 0;
+    if (Math.random() < (farOnly ? 0.12 : 0.08)) launchTumble(i, 'boot');
+  }
+
+  function respawn(i) { placeAgent(i, true); }
+
+  function spawnPuff(px, pz) {
+    const i = puffCursor;
+    puffCursor = (puffCursor + 1) % PUFF_N;
+    puffX[i] = px;
+    puffZ[i] = pz;
+    puffLife[i] = 1;
+    puffR[i] = 0.4;
+  }
+
+  function buildPebbles() {
+    for (let i = 0; i < PEBBLE_N; i++) {
+      pebble[i * 4] = (Math.random() * 2 - 1) * 42;
+      pebble[i * 4 + 1] = 3 + Math.random() * 76;
+      pebble[i * 4 + 2] = 0.08 + Math.random() * 0.28;
+      pebble[i * 4 + 3] = Math.random() < 0.5 ? 0 : 1;
+    }
+  }
+
+  function hashBuild() {
+    head.fill(-1);
+    for (let i = 0; i < N; i++) {
+      if (state[i] !== 0 || y[i] > 0.25) continue;
+      const ix = Math.floor((x[i] - HX0) / HC);
+      const iz = Math.floor((z[i] - HZ0) / HC);
+      if (ix < 0 || iz < 0 || ix >= HNX || iz >= HNZ) continue;
+      const k = iz * HNX + ix;
+      next[i] = head[k];
+      head[k] = i;
+    }
+  }
+
+  function sampleFlow(px, pz) {
+    let ix = Math.floor((px - OX) / FC);
+    let iz = Math.floor((pz - OZ) / FC);
+    if (ix < 0) ix = 0; else if (ix >= FNX) ix = FNX - 1;
+    if (iz < 0) iz = 0; else if (iz >= FNZ) iz = FNZ - 1;
+    const k = iz * FNX + ix;
+    flowScratch[0] = flowX[k];
+    flowScratch[1] = flowZ[k];
+    if (flowScratch[0] === 0 && flowScratch[1] === 0) flowScratch[1] = -1;
+    return flowScratch;
+  }
+
+  function step(dt) {
+    simTime += dt;
+    hashBuild();
+    for (let p = 0; p < PUFF_N; p++) {
+      if (puffLife[p] <= 0) continue;
+      puffLife[p] -= dt * 0.65;
+      puffR[p] += dt * 2.2;
+    }
+    for (let i = 0; i < N; i++) {
+      if (state[i] === 1) {
+        vy[i] -= 7.2 * dt;
+        y[i] += vy[i] * dt;
+        spin[i] += spinV[i] * dt;
+        roll[i] += rollV[i] * dt;
+        x[i] += vx[i] * dt;
+        z[i] += vz[i] * dt;
+        if (y[i] <= 0) {
+          y[i] = 0;
+          state[i] = 0;
+          vy[i] = 0;
+          spawnPuff(x[i], z[i]);
+        }
+        if (x[i] < -41) x[i] = -41; else if (x[i] > 41) x[i] = 41;
+        if (z[i] < 2 || z[i] > 82) respawn(i);
+        continue;
+      }
+      const flow = sampleFlow(x[i], z[i]);
+      let sx = 0, sz = 0, seen = 0;
+      const ix = Math.floor((x[i] - HX0) / HC);
+      const iz = Math.floor((z[i] - HZ0) / HC);
+      sep: for (let dzc = -1; dzc <= 1; dzc++) {
+        for (let dxc = -1; dxc <= 1; dxc++) {
+          const cxh = ix + dxc, czh = iz + dzc;
+          if (cxh < 0 || czh < 0 || cxh >= HNX || czh >= HNZ) continue;
+          let j = head[czh * HNX + cxh];
+          while (j !== -1) {
+            if (j !== i) {
+              const ox = x[i] - x[j];
+              const oz = z[i] - z[j];
+              const d2 = ox * ox + oz * oz;
+              if (d2 > 1e-6 && d2 < SEP_R2) {
+                const d = Math.sqrt(d2);
+                const w = (SEP_R - d) / d;
+                sx += ox * w;
+                sz += oz * w;
+                seen++;
+              }
+            }
+            j = next[j];
+            if (seen >= 24) break sep;
+          }
+        }
+      }
+      let sm = Math.hypot(sx, sz);
+      if (sm > 2.1) { sx = sx / sm * 2.1; sz = sz / sm * 2.1; }
+      let ax = 0, az = 0;
+      for (let o = 0; o < OBST.length; o++) {
+        const ob = OBST[o];
+        const ox = x[i] - ob.x;
+        const oz = z[i] - ob.z;
+        const rad = ob.r + 0.75;
+        const d2 = ox * ox + oz * oz;
+        if (d2 < rad * rad) {
+          const d = Math.sqrt(d2) || 0.001;
+          const w = (rad - d) / rad;
+          ax += ox / d * w * 3.2;
+          az += oz / d * w * 3.2;
+        }
+      }
+      const wander = Math.sin(simTime * 0.65 + seed[i]) * 0.22;
+      let dx = flow[0] + sx * 1.25 + ax - flow[1] * wander;
+      let dz = flow[1] + sz * 1.25 + az + flow[0] * wander;
+      const mag = Math.hypot(dx, dz) || 1;
+      dx /= mag;
+      dz /= mag;
+      const sp = speed[i];
+      vx[i] = dx * sp;
+      vz[i] = dz * sp;
+      x[i] += vx[i] * dt;
+      z[i] += vz[i] * dt;
+      phase[i] += dt * (9 + sp * 2.1);
+      if (x[i] < -41) x[i] = -41; else if (x[i] > 41) x[i] = 41;
+      if (z[i] < 2 || z[i] > 82) respawn(i);
+    }
+    ambientAcc += dt;
+    if (ambientAcc >= 0.45) {
+      ambientAcc = 0;
+      for (let n = 0; n < 4; n++) {
+        const i = (Math.random() * N) | 0;
+        if (state[i] === 0 && z[i] > 8 && z[i] < 40) launchTumble(i, 'ambient');
+      }
+    }
+  }
+
+  function applyShock() {
+    let hits = 0;
+    const bands = [12, 20];
+    for (let pass = 0; pass < bands.length && hits < 24; pass++) {
+      const rad = bands[pass];
+      const r2 = rad * rad;
+      for (let i = 0; i < N && hits < 150; i++) {
+        if (state[i] !== 0) continue;
+        const dx = x[i], dz = z[i] - 17.6;
+        if (dx * dx + dz * dz > r2) continue;
+        launchTumble(i, 'shock');
+        if (hits % 3 === 0) spawnPuff(x[i], z[i]);
+        hits++;
+      }
+    }
+    spawnPuff(0, 16.2);
+    spawnPuff(1.4, 19);
+    spawnPuff(-1.3, 18.4);
+  }
+
+  function layout() {
+    const rect = canvas.getBoundingClientRect();
+    width = Math.max(1, rect.width);
+    height = Math.max(1, rect.height);
+    dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    horizon = height * 0.36;
+    focal = Math.min(width, height) * 0.6;
+    cx = width * 0.5;
+  }
+
+  function proj(wx, wy, wz, out) {
+    if (wz < NEAR) { out.ok = 0; return out; }
+    const sc = focal / wz;
+    out.ok = 1;
+    out.x = cx + wx * sc;
+    out.y = horizon + (CAM_H - wy) * sc;
+    out.s = sc;
+    return out;
+  }
+
+  function place(i, ox, oy, oz, out) {
+    let xx = ox, yy = oy, zz = oz;
+    if (state[i] === 1) {
+      const cp = Math.cos(spin[i]), spn = Math.sin(spin[i]);
+      const y1 = oy * cp - oz * spn;
+      const z1 = oy * spn + oz * cp;
+      const cr = Math.cos(roll[i]), sr = Math.sin(roll[i]);
+      xx = ox * cr - y1 * sr;
+      yy = ox * sr + y1 * cr;
+      zz = z1;
+    }
+    const wz = z[i] + zz;
+    if (wz < NEAR) { out.ok = 0; return out; }
+    const wy = y[i] + h[i] * 0.52 + yy;
+    const sc = focal / wz;
+    out.ok = 1;
+    out.x = cx + (x[i] + xx) * sc;
+    out.y = horizon + (CAM_H - wy) * sc;
+    out.s = sc;
+    return out;
+  }
+
+  function quad(coords, fill) {
+    const xy = [0, 0, 0, 0, 0, 0, 0, 0];
+    for (let i = 0; i < 4; i++) {
+      const p = proj(coords[i * 3], coords[i * 3 + 1], coords[i * 3 + 2], P[7]);
+      if (!p.ok) return;
+      xy[i * 2] = p.x;
+      xy[i * 2 + 1] = p.y;
+    }
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(xy[0], xy[1]);
+    ctx.lineTo(xy[2], xy[3]);
+    ctx.lineTo(xy[4], xy[5]);
+    ctx.lineTo(xy[6], xy[7]);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawBackdrop() {
+    const sky = ctx.createLinearGradient(0, 0, 0, horizon);
+    sky.addColorStop(0, '#4d5866');
+    sky.addColorStop(0.62, '#8d9399');
+    sky.addColorStop(1, '#d5cec3');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, width, horizon + 1);
+    const ground = ctx.createLinearGradient(0, horizon, 0, height);
+    ground.addColorStop(0, '#b7ab9d');
+    ground.addColorStop(0.22, '#7d6f60');
+    ground.addColorStop(0.55, '#4e4338');
+    ground.addColorStop(1, '#2a231c');
+    ctx.fillStyle = ground;
+    ctx.fillRect(0, horizon, width, height - horizon);
+    quad([-46, 0, 20, -34, 0, 78, -34, 6.2, 78, -46, 7.4, 20], '#5c5144');
+    quad([34, 0, 78, 46, 0, 22, 46, 6.6, 22, 34, 5.4, 78], '#655848');
+    quad([-40, 0, 79, 40, 0, 84, 40, 5.2, 84, -40, 6.4, 79], '#6e5f4e');
+    quad([-7, 0, 6, 7, 0, 6, 7, 0, 74, -7, 0, 74], 'rgba(62,48,36,0.28)');
+    ctx.fillStyle = '#3b332b';
+    ctx.beginPath();
+    for (let i = 0; i < PEBBLE_N; i += 2) {
+      const p = proj(pebble[i * 4], 0, pebble[i * 4 + 1], P[7]);
+      if (!p.ok) continue;
+      const r = Math.max(0.7, p.s * pebble[i * 4 + 2]);
+      ctx.rect(p.x, p.y, r, r * 0.5);
+    }
+    ctx.fill();
+    ctx.fillStyle = '#8d8172';
+    ctx.beginPath();
+    for (let i = 1; i < PEBBLE_N; i += 2) {
+      const p = proj(pebble[i * 4], 0, pebble[i * 4 + 1], P[7]);
+      if (!p.ok) continue;
+      const r = Math.max(0.6, p.s * pebble[i * 4 + 2]);
+      ctx.rect(p.x, p.y, r, r * 0.45);
+    }
+    ctx.fill();
+  }
+
+  function drawRock(o) {
+    const base = proj(o.x, 0, o.z, P[0]);
+    const top = proj(o.x, o.h || 1, o.z, P[1]);
+    if (!base.ok || !top.ok) return;
+    const rx = base.s * o.r;
+    const ry = rx * 0.4;
+    ctx.fillStyle = '#6a5f52';
+    ctx.beginPath();
+    ctx.ellipse(base.x, base.y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#8b7f70';
+    ctx.beginPath();
+    ctx.ellipse((base.x + top.x) / 2, (base.y + top.y) / 2, rx * 0.72, Math.max(ry, (base.y - top.y) * 0.55), 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawCar() {
+    const nose = 15.15, tail = 19.9, x0 = -1.05, x1 = 1.05;
+    quad([x0, 0.02, nose, x1, 0.02, nose, x1, 0.02, tail, x0, 0.02, tail], 'rgba(28,22,18,0.38)');
+    const wheels = [[-0.82, 15.7], [0.82, 15.7], [-0.82, 19.2], [0.82, 19.2]];
+    for (let i = 0; i < 4; i++) {
+      const w = proj(wheels[i][0], 0.32, wheels[i][1], P[0]);
+      if (!w.ok) continue;
+      ctx.fillStyle = '#171717';
+      ctx.beginPath();
+      ctx.ellipse(w.x, w.y, w.s * 0.28, w.s * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#c5c8cc';
+      ctx.beginPath();
+      ctx.ellipse(w.x, w.y, w.s * 0.1, w.s * 0.1, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    quad([x0, 0.42, tail, x1, 0.42, tail, x1, 0.92, tail, x0, 0.92, tail], '#8d1a16');
+    quad([-0.72, 0.96, 18.7, 0.72, 0.96, 18.7, 0.62, 1.48, 17.55, -0.62, 1.48, 17.55], '#243039');
+    quad([x0, 0.95, tail, x1, 0.95, tail, x1, 0.95, 17.5, x0, 0.95, 17.5], '#e23a30');
+    quad([x0, 0.4, nose, x1, 0.4, nose, x1, 0.9, nose, x0, 0.9, nose], '#b11e1a');
+    quad([-0.78, 0.48, nose - 0.02, -0.22, 0.48, nose - 0.02, -0.22, 0.66, nose - 0.02, -0.78, 0.66, nose - 0.02], '#f3e6bf');
+    quad([0.22, 0.48, nose - 0.02, 0.78, 0.48, nose - 0.02, 0.78, 0.66, nose - 0.02, 0.22, 0.66, nose - 0.02], '#f3e6bf');
+    quad([x0, 0.4, nose, x0, 0.4, tail, x0, 0.92, tail, x0, 0.92, nose], '#c42620');
+    quad([x1, 0.4, tail, x1, 0.4, nose, x1, 0.92, nose, x1, 0.92, tail], '#9f1c18');
+  }
+
+  function drawPuffs() {
+    for (let i = 0; i < PUFF_N; i++) {
+      if (puffLife[i] <= 0) continue;
+      const p = proj(puffX[i], 0.25, puffZ[i], P[0]);
+      if (!p.ok) continue;
+      ctx.fillStyle = `rgba(214,208,198,${(puffLife[i] * 0.33).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, Math.max(1, p.s * puffR[i]), Math.max(0.6, p.s * puffR[i] * 0.42), 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawAgent(i) {
+    const hh = h[i];
+    const hip = place(i, 0, 0, 0, P[0]);
+    if (!hip.ok || hip.x < -120 || hip.x > width + 120) return;
+    const bucket = fogBucket(z[i]);
+    const style = look[i];
+    const swinging = state[i] === 1;
+    const ph = phase[i];
+    const swing = swinging ? 0.48 : Math.sin(ph) * 0.4;
+    const lift = swinging ? 0.02 : Math.max(0, Math.sin(ph * 2)) * (hh * 0.1);
+    const arm = swinging ? 0.22 : Math.sin(ph + Math.PI) * 0.32;
+    const fl = place(i, -hh * 0.08, -hh * 0.52 + lift, swing, P[1]);
+    const fr = place(i, hh * 0.08, -hh * 0.52, -swing, P[2]);
+    const hl = place(i, -hh * 0.07, 0, 0, P[3]);
+    const hr = place(i, hh * 0.07, 0, 0, P[4]);
+    ctx.strokeStyle = limbStyle[style][bucket];
+    ctx.lineWidth = Math.max(1, Math.min(16, hip.s * hh * 0.055));
+    ctx.beginPath();
+    if (hl.ok && fl.ok) { ctx.moveTo(hl.x, hl.y); ctx.lineTo(fl.x, fl.y); }
+    if (hr.ok && fr.ok) { ctx.moveTo(hr.x, hr.y); ctx.lineTo(fr.x, fr.y); }
+    ctx.stroke();
+    const sL = place(i, -hh * 0.16, hh * 0.22, 0, P[1]);
+    const sR = place(i, hh * 0.16, hh * 0.22, 0, P[2]);
+    const hL = place(i, -hh * 0.09, 0, 0, P[3]);
+    const hR = place(i, hh * 0.09, 0, 0, P[4]);
+    if (sL.ok && sR.ok && hR.ok && hL.ok) {
+      ctx.fillStyle = torsoStyle[style][bucket];
+      ctx.beginPath();
+      ctx.moveTo(sL.x, sL.y);
+      ctx.lineTo(sR.x, sR.y);
+      ctx.lineTo(hR.x, hR.y);
+      ctx.lineTo(hL.x, hL.y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (z[i] < 52) {
+      const aL = place(i, -hh * 0.2, hh * 0.02, arm, P[5]);
+      const aR = place(i, hh * 0.2, hh * 0.02, -arm, P[6]);
+      ctx.strokeStyle = limbStyle[style][bucket];
+      ctx.lineWidth = Math.max(1, Math.min(12, hip.s * hh * 0.04));
+      ctx.beginPath();
+      if (sL.ok && aL.ok) { ctx.moveTo(sL.x, sL.y); ctx.lineTo(aL.x, aL.y); }
+      if (sR.ok && aR.ok) { ctx.moveTo(sR.x, sR.y); ctx.lineTo(aR.x, aR.y); }
+      ctx.stroke();
+    }
+    const head = place(i, 0, hh * 0.4, 0, P[7]);
+    if (head.ok) {
+      ctx.fillStyle = headStyle[style][bucket];
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, Math.max(1.15, Math.min(36, hip.s * hh * 0.075)), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function fogBucket(wz) {
+    let t = (wz - 12) / 70;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    return Math.min(7, (t * 8) | 0);
+  }
+
+  function drawClock() {
+    if (width < 760) return;
+    ctx.fillStyle = 'rgba(18,16,14,0.42)';
+    ctx.fillRect(width - 168, 16, 150, 58);
+    ctx.fillStyle = '#f6f1e8';
+    ctx.textAlign = 'right';
+    ctx.font = '600 26px Segoe UI, Microsoft YaHei, sans-serif';
+    ctx.fillText(scale.toFixed(2) + 'x', width - 28, 44);
+    ctx.font = '13px Segoe UI, Microsoft YaHei, sans-serif';
+    ctx.fillText('模拟时钟 ' + simTime.toFixed(2) + 's', width - 28, 64);
+  }
+
+  function render() {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    drawBackdrop();
+    drawPuffs();
+    order.sort((a, b) => z[b] - z[a]);
+    let pi = 0;
+    tumbleCount = 0;
+    for (let n = 0; n < N; n++) {
+      const i = order[n];
+      if (state[i] === 1) tumbleCount++;
+      while (pi < props.length && props[pi].z >= z[i]) {
+        if (props[pi].car) drawCar(); else drawRock(props[pi]);
+        pi++;
+      }
+      drawAgent(i);
+    }
+    while (pi < props.length) {
+      if (props[pi].car) drawCar(); else drawRock(props[pi]);
+      pi++;
+    }
+    const veil = ctx.createLinearGradient(0, horizon - 24, 0, horizon + height * 0.2);
+    veil.addColorStop(0, 'rgba(186,180,170,0.05)');
+    veil.addColorStop(0.45, 'rgba(170,164,154,0.32)');
+    veil.addColorStop(1, 'rgba(170,164,154,0)');
+    ctx.fillStyle = veil;
+    ctx.fillRect(0, horizon - 24, width, height * 0.24);
+    drawClock();
+  }
+
+  function pushFps(ts) {
+    if (lastWall !== 0) {
+      frameDt[framePos] = ts - lastWall;
+      framePos = (framePos + 1) % 60;
+      if (frameCount < 60) frameCount++;
+      let sum = 0;
+      for (let i = 0; i < frameCount; i++) sum += frameDt[i];
+      fps = 1000 / (sum / frameCount);
+    }
+    lastWall = ts;
+  }
+
+  function publish() {
+    const shown = scale.toFixed(2);
+    const fpsReady = !reduced && frameCount >= 2;
+    const fpsValue = fpsReady ? Math.round(fps * 10) / 10 : 0;
+    const fpsShown = fpsReady ? fpsValue.toFixed(1) : '—';
+    const text = `个体数 ${N} · 倍率 ${shown}x · FPS ${fpsShown}${paused ? ' · 已暂停' : ''} · 翻滚 ${tumbleCount}`;
+    if (stats.textContent !== text) stats.textContent = text;
+    if (scaleOut.textContent !== shown + 'x') scaleOut.textContent = shown + 'x';
+    scaleInput.setAttribute('aria-valuenow', shown);
+    window.__crowdProbe = { count: N, fps: fpsValue, scale, reduced };
+  }
+
+  function renderStill() {
+    render();
+    publish();
+  }
+
+  function stopLoop() {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  }
+
+  function resetClock() {
+    lastTs = 0;
+    lastWall = 0;
+    frameCount = 0;
+    framePos = 0;
+    fps = 0;
+  }
+
+  function loop(ts) {
+    rafId = 0;
+    if (reduced) return;
+    if (lastTs !== 0) {
+      const wall = Math.min(0.05, (ts - lastTs) / 1000);
+      if (!paused && wall > 0) step(wall * scale);
+      pushFps(ts);
+    }
+    lastTs = ts;
+    render();
+    publish();
+    if (!reduced) rafId = requestAnimationFrame(loop);
+  }
+
+  function startLoop() {
+    if (reduced || rafId) return;
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function onMotionChange() {
+    const next = mq.matches;
+    if (next === reduced) return;
+    reduced = next;
+    if (reduced) {
+      stopLoop();
+      renderStill();
+    } else {
+      resetClock();
+      startLoop();
+    }
+  }
+
+  scaleInput.addEventListener('input', () => {
+    const n = Number(scaleInput.value);
+    scale = Math.round(Math.min(1, Math.max(0.1, n)) * 100) / 100;
+    publish();
+    if (reduced) render();
+  });
+  pauseBtn.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? '继续' : '暂停';
+    pauseBtn.setAttribute('aria-pressed', paused ? 'true' : 'false');
+    publish();
+    if (reduced) render();
+  });
+  shockBtn.addEventListener('click', () => {
+    applyShock();
+    renderStill();
+  });
+  window.addEventListener('resize', () => {
+    layout();
+    if (reduced) renderStill();
+  });
+  if (mq.addEventListener) mq.addEventListener('change', onMotionChange);
+  else mq.addListener(onMotionChange);
+
+  buildFlow();
+  for (let i = 0; i < N; i++) placeAgent(i, false);
+  buildPebbles();
+  layout();
+  if (reduced) renderStill();
+  else startLoop();
+})();
+</script>
+</body>
+</html>
