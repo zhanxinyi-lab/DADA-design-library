@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>录音波形</title>
+  <style>
+    :root {
+      --page: #e7e5e1;
+      --card: #f7f6f3;
+      --ink: #1a1a1a;
+      --muted: #6f6a64;
+      --line: rgba(26, 26, 26, .08);
+      --soft: #eceae6;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--page);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+    }
+    .page {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 28px 16px;
+    }
+    .phone {
+      width: min(86vw, 340px);
+      min-height: min(72vh, 620px);
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 36px;
+      box-shadow: 0 18px 50px rgba(40, 32, 24, .08);
+      display: flex;
+      flex-direction: column;
+      padding: 28px 22px 26px;
+    }
+    .field {
+      min-height: 92px;
+      margin: 8px 0 0;
+      font-size: 22px;
+      line-height: 1.35;
+      font-weight: 560;
+      letter-spacing: -.02em;
+    }
+    .field[data-empty="true"] { color: #b7b2ab; font-weight: 500; }
+    .wave {
+      height: 88px;
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .wave i {
+      flex: 1 1 0;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--ink);
+      display: block;
+    }
+    .meta {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 8px 2px 22px;
+      font-size: 14px;
+    }
+    .status { font-weight: 650; }
+    .timer {
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+    }
+    .mic {
+      align-self: center;
+      width: 76px;
+      height: 76px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .mic:focus-visible { outline: 3px solid #8d867c; outline-offset: 4px; }
+    .mic svg { width: 28px; height: 28px; display: block; }
+    .mic .stop {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: #fff;
+      display: none;
+    }
+    .mic[data-mode="listening"] svg { display: none; }
+    .mic[data-mode="listening"] .stop { display: block; }
+    .mic[data-mode="organizing"] { background: #8a847c; cursor: default; }
+    .controls { display: flex; gap: 8px; }
+    .controls button {
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .controls button:focus-visible { outline: 3px solid #8d867c; outline-offset: 2px; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+    @media (max-width: 420px) {
+      .field { font-size: 20px; min-height: 78px; }
+      .phone { border-radius: 28px; min-height: min(68vh, 560px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .mic, .wave i { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="phone" role="group" aria-label="录音输入">
+      <p class="field" id="field" data-empty="true">说一句，就会写在这里</p>
+      <div class="wave" id="wave" aria-hidden="true"></div>
+      <div class="meta">
+        <span class="status" id="status">准备录音</span>
+        <span class="timer" id="timer">0:00</span>
+      </div>
+      <button class="mic" id="mic" type="button" data-mode="idle" aria-label="开始录音">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M12 2.5a3.2 3.2 0 0 0-3.2 3.2v6.1a3.2 3.2 0 0 0 6.4 0V5.7A3.2 3.2 0 0 0 12 2.5z"/>
+          <path fill="currentColor" d="M6.2 11.2a1 1 0 0 1 1 .9 4.8 4.8 0 0 0 9.6 0 1 1 0 1 1 2 .1 6.8 6.8 0 0 1-5.8 6.6V21h2.2a1 1 0 1 1 0 2H8.8a1 1 0 1 1 0-2H11v-2.2a6.8 6.8 0 0 1-5.8-6.6 1 1 0 0 1 1-.9z"/>
+        </svg>
+        <span class="stop"></span>
+      </button>
+    </div>
+    <div class="controls">
+      <button type="button" id="toggle">暂停</button>
+      <button type="button" id="next">下一步</button>
+    </div>
+  </div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <script>
+    const NOTE = "周四下午改到会议室 B，样稿一起带上。";
+    const PLACEHOLDER = "说一句，就会写在这里";
+    const beats = [
+      { at: 0, state: "idle", say: "准备录音。点按开始。" },
+      { at: 900, state: "listening", say: "正在听。波形随声音起伏。" },
+      { at: 5200, state: "organizing", say: "正在整理刚听到的内容。" },
+      { at: 6800, state: "written", say: "已记下：" + NOTE }
+    ];
+    const LOOP = 8600;
+    const LISTEN_START = 900;
+    const LISTEN_END = 5200;
+    const wave = document.getElementById("wave");
+    const field = document.getElementById("field");
+    const status = document.getElementById("status");
+    const timer = document.getElementById("timer");
+    const mic = document.getElementById("mic");
+    const live = document.getElementById("live");
+    const toggle = document.getElementById("toggle");
+    const nextBtn = document.getElementById("next");
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    const bars = [];
+    for (let i = 0; i < 42; i++) {
+      const bar = document.createElement("i");
+      wave.appendChild(bar);
+      bars.push(bar);
+    }
+
+    let playing = !motion.matches;
+    let origin = performance.now();
+    let elapsed = 0;
+    let beatIndex = -1;
+    let raf = 0;
+    let clock = 0;
+
+    function indexAt(ms) {
+      let index = 0;
+      for (let i = 0; i < beats.length; i++) if (ms >= beats[i].at) index = i;
+      return index;
+    }
+
+    function clockText(ms) {
+      const listen = Math.max(0, Math.min(ms, LISTEN_END) - LISTEN_START);
+      const total = Math.floor(listen / 1000);
+      const m = Math.floor(total / 60);
+      const s = String(total % 60).padStart(2, "0");
+      return m + ":" + s;
+    }
+
+    function paint(now) {
+      const state = beats[Math.max(beatIndex, 0)].state;
+      const t = now / 1000;
+      for (let i = 0; i < bars.length; i++) {
+        let amount = 0.05 + (i % 7 === 0 ? 0.03 : 0);
+        if (!motion.matches && state === "listening") {
+          const a = Math.sin(i * 0.45 + t * 6.4);
+          const b = Math.sin(i * 0.17 - t * 3.3);
+          const c = Math.sin(i * 0.93 + t * 10.5);
+          amount = 0.08 + Math.pow(Math.abs(a * 0.55 + b * 0.3 + c * 0.15), 0.8) * 0.92;
+        } else if (!motion.matches && state === "organizing") {
+          amount = 0.08 + Math.abs(Math.sin(t * 2.4 + i * 0.4)) * 0.14;
+        } else if (motion.matches && state === "listening") {
+          amount = 0.18 + ((i * 17) % 10) / 18;
+        }
+        bars[i].style.height = (6 + amount * 64) + "px";
+      }
+    }
+
+    function showIndex(index) {
+      if (index === beatIndex) return;
+      beatIndex = index;
+      const beat = beats[index];
+      status.textContent = beat.state === "idle" ? "准备录音"
+        : beat.state === "listening" ? "正在听"
+        : beat.state === "organizing" ? "正在整理"
+        : "已记下";
+      const written = beat.state === "written";
+      field.dataset.empty = written ? "false" : "true";
+      field.textContent = written ? NOTE : PLACEHOLDER;
+      mic.dataset.mode = beat.state;
+      mic.disabled = beat.state === "organizing";
+      mic.setAttribute("aria-label", beat.state === "listening" ? "停止录音" : "开始录音");
+      live.textContent = beat.say;
+      paint(performance.now());
+    }
+
+    function stopLoops() {
+      clearTimeout(clock);
+      clock = 0;
+      cancelAnimationFrame(raf);
+      raf = 0;
+    }
+
+    function tick() {
+      if (!playing) return;
+      elapsed = (performance.now() - origin) % LOOP;
+      showIndex(indexAt(elapsed));
+      timer.textContent = clockText(elapsed);
+      paint(performance.now());
+      clock = setTimeout(tick, 50);
+    }
+
+    function setPlaying(on) {
+      if (on && motion.matches) on = false;
+      playing = on;
+      toggle.textContent = playing ? "暂停" : "播放";
+      toggle.setAttribute("aria-pressed", playing ? "true" : "false");
+      stopLoops();
+      if (playing) {
+        origin = performance.now() - elapsed;
+        tick();
+      }
+    }
+
+    function goTo(index) {
+      elapsed = beats[index].at;
+      origin = performance.now() - elapsed;
+      showIndex(index);
+      timer.textContent = clockText(elapsed);
+    }
+
+    toggle.addEventListener("click", () => setPlaying(!playing));
+    nextBtn.addEventListener("click", () => {
+      goTo((Math.max(beatIndex, 0) + 1) % beats.length);
+    });
+    mic.addEventListener("click", () => {
+      const state = beats[Math.max(beatIndex, 0)].state;
+      if (state === "listening") goTo(2);
+      else if (state !== "organizing") goTo(1);
+    });
+    motion.addEventListener("change", () => setPlaying(!motion.matches));
+    toggle.setAttribute("aria-pressed", playing ? "true" : "false");
+    if (!playing) toggle.textContent = "播放";
+    showIndex(0);
+    timer.textContent = clockText(0);
+    if (playing) tick();
+  </script>
+</body>
+</html>
