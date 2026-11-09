@@ -9,14 +9,14 @@
       height: 100%;
       margin: 0;
       overflow: hidden;
-      background: #141d41;
+      background: #b7b5cb;
     }
     #bloom {
       display: block;
       width: 100vw;
       height: 100svh;
       touch-action: none;
-      background: linear-gradient(#141d41, #683a4a);
+      background: #b7b5cb;
     }
   </style>
 </head>
@@ -34,13 +34,21 @@
       };
       const CUTS = [0, 2367, 3300, 5533, 8000];
       const STATES = [
-        { name: 'light-a', density: 190, exposure: 1.00, spread: 0.72, opacity: 0.28 },
-        { name: 'dark-a', density: 330, exposure: 0.67, spread: 0.94, opacity: 0.50 },
-        { name: 'light-b', density: 205, exposure: 0.98, spread: 0.76, opacity: 0.30 },
-        { name: 'dark-b', density: 350, exposure: 0.66, spread: 1.00, opacity: 0.54 }
+        { name: 'light-a', density: 260, exposure: 1.00, spread: 0.96, opacity: 0.46, zoom: 1.00, turn: 0.00, focusU: 0.46, focusV: 0.58 },
+        { name: 'dark-a', density: 460, exposure: 0.88, spread: 1.02, opacity: 0.52, zoom: 1.58, turn: 0.06, focusU: 0.42, focusV: 0.62 },
+        { name: 'light-b', density: 280, exposure: 1.00, spread: 0.98, opacity: 0.46, zoom: 1.08, turn: -0.42, focusU: 0.48, focusV: 0.54 },
+        { name: 'dark-b', density: 480, exposure: 0.86, spread: 1.04, opacity: 0.54, zoom: 1.66, turn: 0.16, focusU: 0.44, focusV: 0.60 }
       ];
-      const FIBER_COUNT = 350;
-      const SWAY_FRACTION = 0.028;
+      const PETALS = [
+        { s: 0.90, ang: -0.05, r: 0.345, warm: 0.88 },
+        { s: 0.74, ang: -1.05, r: 0.315, warm: 0.14 },
+        { s: 0.78, ang: 0.92, r: 0.335, warm: 0.94 },
+        { s: 0.40, ang: 2.35, r: 0.185, warm: 0.20 },
+        { s: 0.52, ang: 1.55, r: 0.165, warm: 0.66 }
+      ];
+      const PETAL_ORDER = [0, 1, 2, 0, 1, 2, 0, 2, 3, 4];
+      const FIBER_COUNT = 490;
+      const SAMPLES = 12;
 
       function hexToRgb(hex) {
         const value = Number.parseInt(hex.slice(1), 16);
@@ -57,17 +65,9 @@
       };
 
       const fibers = [];
-      const scratch = {
-        x0: 0, y0: 0, c1x: 0, c1y: 0, c2x: 0, c2y: 0, mx: 0, my: 0,
-        d1x: 0, d1y: 0, d2x: 0, d2y: 0, x1: 0, y1: 0,
-        fork: 0, f1x: 0, f1y: 0, f2x: 0, f2y: 0, fx: 0, fy: 0
-      };
-      const backgrounds = {};
+      const scratch = { pts: new Array(SAMPLES * 2), n: 0 };
       let width = 1;
       let height = 1;
-      let cx = 0;
-      let cy = 0;
-      let radius = 1;
       let raf = 0;
       let resizeQueued = 0;
       let reducedMotion = false;
@@ -109,60 +109,54 @@
         return 'rgba(' + (channels[0] | 0) + ',' + (channels[1] | 0) + ',' + (channels[2] | 0) + ',' + clamp(alpha, 0, 1) + ')';
       }
 
+      function cubic(a, b, c, d, t) {
+        const u = 1 - t;
+        return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
+      }
+
+      function bloomBox() {
+        const aspect = 960 / 720;
+        let boxW = width * 0.98;
+        let boxH = boxW * aspect;
+        if (boxH > height * 0.98) {
+          boxH = height * 0.98;
+          boxW = boxH / aspect;
+        }
+        return {
+          x: (width - boxW) * 0.5,
+          y: (height - boxH) * 0.5,
+          w: Math.max(1, boxW),
+          h: Math.max(1, boxH)
+        };
+      }
+
+      function spinePoint(box, s) {
+        return [
+          box.x + cubic(0.38, 0.20, 0.32, 0.48, s) * box.w,
+          box.y + cubic(0.90, 0.78, 0.64, 0.50, s) * box.h
+        ];
+      }
+
       function createFibers() {
         fibers.length = 0;
         for (let index = 0; index < FIBER_COUNT; index += 1) {
-          const slot = Math.pow(seeded(index, 4), 1.45);
-          const length = 0.35 + seeded(index, 5) * 0.65;
-          const warmth = clamp(0.82 - slot + (seeded(index, 9) - 0.5) * 0.55, 0, 1);
-          const lightMix = seeded(index, 10);
-          const darkMix = seeded(index, 11);
-          const lightRgb = warmth > 0.48
-            ? mixRgb(RGB.ember, RGB.peach, lightMix)
-            : mixRgb(RGB.peach, RGB.mist, lightMix);
-          const skew = seeded(index, 1) - 0.38;
-          const fan = skew * (0.55 + Math.pow(seeded(index, 6), 0.55) * 1.35);
-          const darkWarm = mixRgb(RGB.ember, RGB.navy, 0.78);
-          const darkCool = mixRgb(mixRgb(RGB.plum, RGB.blue, darkMix), RGB.navy, 0.48);
-          const darkRgb = warmth > 0.62 ? mixRgb(darkWarm, RGB.plum, 0.45) : darkCool;
+          const petal = PETALS[PETAL_ORDER[index % PETAL_ORDER.length]];
+          const warm = clamp(petal.warm + (seeded(index, 9) - 0.5) * 0.12, 0, 1);
+          const layerRoll = seeded(index, 5);
+          const layer = layerRoll > 0.8 ? 0.46 + layerRoll * 0.22 : 0.84 + layerRoll * 0.16;
+          const mid = warm > 0.45 ? mixRgb(RGB.blue, RGB.ember, warm) : mixRgb(RGB.blue, RGB.plum, 0.35);
+          const rim = mixRgb(RGB.mist, RGB.peach, warm);
           fibers.push({
-            seed: seeded(index, 2),
+            petal: PETAL_ORDER[index % PETAL_ORDER.length],
+            across: seeded(index, 4) * 2 - 1,
+            layer: layer,
             phase: seeded(index, 3) * Math.PI * 2,
-            fan: fan,
-            slot: slot,
-            length: length,
-            girth: 0.55 + seeded(index, 7) * 1.15,
-            veil: 0.42 + (1 - slot) * 0.58,
-            arch: seeded(index, 8) > 0.9 ? -1 : 1,
-            curl: seeded(index, 13) - 0.5,
-            fork: seeded(index, 12),
-            lightColor: rgbCss(lightRgb),
-            darkColor: rgbCss(darkRgb)
+            girth: 0.75 + seeded(index, 7) * 0.7,
+            veil: 0.55 + seeded(index, 2) * 0.45,
+            rootColor: rgbCss(mixRgb(RGB.navy, RGB.blue, 0.3)),
+            midColor: rgbCss(mid),
+            rimColor: rgbCss(rim)
           });
-        }
-      }
-
-      function cacheBackgrounds() {
-        for (let index = 0; index < STATES.length; index += 1) {
-          const state = STATES[index];
-          const pack = backgrounds[state.name] || (backgrounds[state.name] = {});
-          const lit = state.exposure > 0.8;
-          const base = ctx.createLinearGradient(0, 0, 0, height);
-          base.addColorStop(0, PALETTE.navy);
-          base.addColorStop(lit ? 1 : 0.62, PALETTE.plum);
-          if (!lit) base.addColorStop(1, PALETTE.navy);
-          const wash = ctx.createRadialGradient(cx, cy + radius * 0.16, radius * 0.05, cx, cy + radius * 0.02, radius * 1.35);
-          if (lit) {
-            wash.addColorStop(0, rgba(RGB.mist, 0.62));
-            wash.addColorStop(0.38, rgba(RGB.peach, 0.34));
-            wash.addColorStop(1, rgba(RGB.navy, 0));
-          } else {
-            wash.addColorStop(0, rgba(RGB.blue, 0.34));
-            wash.addColorStop(0.46, rgba(RGB.plum, 0.28));
-            wash.addColorStop(1, rgba(RGB.navy, 0));
-          }
-          pack.base = base;
-          pack.wash = wash;
         }
       }
 
@@ -176,10 +170,6 @@
         canvas.width = Math.max(1, Math.round(width * dpr));
         canvas.height = Math.max(1, Math.round(height * dpr));
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        cx = width * 0.5;
-        cy = height * 0.54;
-        radius = Math.min(width * 0.44, height * 0.5);
-        cacheBackgrounds();
       }
 
       function stateAt(ms) {
@@ -195,95 +185,118 @@
       }
 
       function fiberPath(fiber, localT, state) {
-        const open = 0.97 + 0.03 * easeInOut(localT);
-        const spread = state.spread * open;
-        const body = radius * 2 * spread;
-        const sway = Math.sin(localT * Math.PI * 2 + fiber.phase) * body * SWAY_FRACTION;
-        const fit = Math.min(1, (height * 0.9) / (radius * 2.7));
-        const x0 = cx + fiber.fan * radius * 0.46 * spread + sway * 0.15;
-        const y0 = cy + radius * fit * (0.78 - fiber.slot * 0.34);
-        const y1 = y0 - radius * fit * (0.55 + fiber.length * 1.05);
-        const x1 = x0 + fiber.fan * radius * 0.05 * spread + fiber.curl * radius * 0.14 * spread + sway;
-        const bow = fiber.arch * radius * 0.07 * spread;
-        const midX = mix(x0, x1, 0.5) + bow;
-        const midY = mix(y0, y1, 0.5);
-        const g = scratch;
-        g.x0 = x0;
-        g.y0 = y0;
-        g.c1x = mix(x0, midX, 0.4);
-        g.c1y = mix(y0, midY, 0.32);
-        g.c2x = mix(x0, midX, 0.82) + bow * 0.25;
-        g.c2y = mix(y0, midY, 0.7);
-        g.mx = midX;
-        g.my = midY;
-        g.d1x = mix(midX, x1, 0.34) + bow * 0.15;
-        g.d1y = mix(midY, y1, 0.28);
-        g.d2x = mix(midX, x1, 0.74);
-        g.d2y = mix(midY, y1, 0.66);
-        g.x1 = x1;
-        g.y1 = y1;
-        g.fork = fiber.fork > 0.84 ? 1 : 0;
-        g.f1x = midX + bow * 1.4;
-        g.f1y = mix(midY, y1, 0.16);
-        g.f2x = mix(midX, x1, 0.62) + fiber.curl * radius * 0.05;
-        g.f2y = mix(midY, y1, 0.48);
-        g.fx = mix(midX, x1, 0.5) + bow;
-        g.fy = mix(midY, y1, 0.7);
-        return g;
+        const box = bloomBox();
+        const petal = PETALS[fiber.petal];
+        const open = 0.975 + 0.025 * easeInOut(localT);
+        const reach = petal.r * box.w * state.spread * open * fiber.layer;
+        const sway = Math.sin(localT * Math.PI * 2 + fiber.phase) * box.w * 0.012;
+        const ax = [Math.sin(petal.ang), -Math.cos(petal.ang)];
+        const nm = [Math.cos(petal.ang), Math.sin(petal.ang)];
+        const root = spinePoint(box, petal.s);
+        const centerX = root[0] + ax[0] * reach * 0.92;
+        const centerY = root[1] + ax[1] * reach * 0.92;
+        const pts = scratch.pts;
+        for (let step = 0; step < SAMPLES; step += 1) {
+          const t = step / (SAMPLES - 1);
+          const d = (-0.9 + t * 1.86) * reach;
+          const half = Math.sqrt(Math.max(0, reach * reach - Math.min(reach * reach, d * d)));
+          const taper = t < 0.14 ? Math.min(1, t / 0.14) : 1;
+          pts[step * 2] = centerX + ax[0] * d + nm[0] * fiber.across * half * taper + sway * t;
+          pts[step * 2 + 1] = centerY + ax[1] * d + nm[1] * fiber.across * half * taper;
+        }
+        scratch.n = SAMPLES * 2;
+        return scratch;
       }
 
-      function drawBackground(state, localT) {
-        const pack = backgrounds[state.name];
+      function drawBackground() {
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
         ctx.filter = 'none';
-        ctx.fillStyle = pack.base;
+        ctx.fillStyle = PALETTE.mist;
         ctx.fillRect(0, 0, width, height);
-        ctx.globalAlpha = 0.8 + 0.08 * Math.sin(localT * Math.PI);
-        ctx.fillStyle = pack.wash;
-        ctx.fillRect(0, 0, width, height);
+      }
+
+      function drawPetalFills(state, localT) {
+        const box = bloomBox();
+        const open = 0.975 + 0.025 * easeInOut(localT);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.filter = 'none';
+        for (let index = 0; index < PETALS.length; index += 1) {
+          const petal = PETALS[index];
+          const reach = petal.r * box.w * state.spread * open;
+          const ax = [Math.sin(petal.ang), -Math.cos(petal.ang)];
+          const root = spinePoint(box, petal.s);
+          const cx = root[0] + ax[0] * reach * 0.92;
+          const cy = root[1] + ax[1] * reach * 0.92;
+          const inner = petal.warm > 0.45 ? RGB.ember : RGB.blue;
+          const outer = petal.warm > 0.45 ? RGB.peach : RGB.mist;
+          const wash = ctx.createRadialGradient(cx, cy, reach * 0.08, cx, cy, reach);
+          wash.addColorStop(0, rgba(inner, 0.22 * state.exposure));
+          wash.addColorStop(0.62, rgba(outer, 0.10 * state.exposure));
+          wash.addColorStop(1, rgba(outer, 0));
+          ctx.fillStyle = wash;
+          ctx.beginPath();
+          ctx.arc(cx, cy, reach, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawCore() {
+        const box = bloomBox();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.filter = 'none';
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        const first = spinePoint(box, 0);
+        ctx.moveTo(first[0], first[1]);
+        for (let step = 1; step <= 16; step += 1) {
+          const point = spinePoint(box, step / 16);
+          ctx.lineTo(point[0], point[1]);
+        }
+        ctx.globalAlpha = 0.92;
+        ctx.strokeStyle = PALETTE.navy;
+        ctx.lineWidth = Math.max(8, box.w * 0.034);
+        ctx.stroke();
+        ctx.globalAlpha = 0.8;
+        ctx.strokeStyle = PALETTE.blue;
+        ctx.lineWidth = Math.max(2, box.w * 0.01);
+        ctx.stroke();
         ctx.globalAlpha = 1;
       }
 
-      function strokeFiber(g, soft) {
-        const end = soft ? 0.8 : 1;
+      function strokeFiber(g) {
+        const pts = g.pts;
         ctx.beginPath();
-        ctx.moveTo(g.x0, g.y0);
-        ctx.bezierCurveTo(g.c1x, g.c1y, g.c2x, g.c2y, g.mx, g.my);
-        ctx.bezierCurveTo(
-          g.d1x,
-          g.d1y,
-          mix(g.d2x, g.mx, soft ? 0.2 : 0),
-          mix(g.d2y, g.my, soft ? 0.2 : 0),
-          mix(g.x1, g.mx, 1 - end),
-          mix(g.y1, g.my, 1 - end)
-        );
-        if (g.fork && !soft) {
-          ctx.moveTo(g.mx, g.my);
-          ctx.bezierCurveTo(g.f1x, g.f1y, g.f2x, g.f2y, g.fx, g.fy);
-        }
+        ctx.moveTo(pts[0], pts[1]);
+        for (let index = 2; index < g.n; index += 2) ctx.lineTo(pts[index], pts[index + 1]);
         ctx.stroke();
       }
 
       function drawFiber(fiber, localT, state, soft) {
         const g = fiberPath(fiber, localT, state);
-        ctx.strokeStyle = state.exposure > 0.8 ? fiber.lightColor : fiber.darkColor;
-        ctx.globalAlpha = clamp(state.opacity * state.exposure * fiber.veil * (soft ? 0.72 : 1), 0, 0.9);
+        const last = g.n - 2;
+        const grad = ctx.createLinearGradient(g.pts[0], g.pts[1], g.pts[last], g.pts[last + 1]);
+        grad.addColorStop(0, fiber.rootColor);
+        grad.addColorStop(0.38, fiber.midColor);
+        grad.addColorStop(1, fiber.rimColor);
+        ctx.strokeStyle = grad;
+        ctx.globalAlpha = clamp(state.opacity * state.exposure * fiber.veil * (soft ? 0.55 : 0.9), 0, 0.9);
         ctx.lineWidth = soft
-          ? clamp(fiber.girth * radius * 0.008 * (0.65 + state.spread), 0.4, 4.4)
-          : clamp(fiber.girth * radius * 0.0015, 0.2, 1.05);
-        strokeFiber(g, soft);
+          ? clamp(fiber.girth * 2.1, 1.1, 3.2)
+          : clamp(fiber.girth * 0.85, 0.55, 1.45);
+        strokeFiber(g);
       }
 
       function renderBloom(state, localT) {
         const count = clamp(state.density, 0, fibers.length) | 0;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.filter = 'blur(1.5px)';
+        drawPetalFills(state, localT);
+        drawCore();
+        ctx.filter = 'blur(1.1px)';
         for (let index = 0; index < count; index += 1) drawFiber(fibers[index], localT, state, true);
         ctx.filter = 'none';
-        ctx.globalCompositeOperation = state.exposure > 0.8 ? 'screen' : 'source-over';
         for (let index = 0; index < count; index += 1) drawFiber(fibers[index], localT, state, false);
         ctx.filter = 'none';
         ctx.globalCompositeOperation = 'source-over';
@@ -293,8 +306,18 @@
       function render(now) {
         const elapsed = reducedMotion ? 0 : now - origin;
         const frame = stateAt(elapsed);
-        drawBackground(frame.state, frame.localT);
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawBackground();
+        const box = bloomBox();
+        const focusX = box.x + box.w * frame.state.focusU;
+        const focusY = box.y + box.h * frame.state.focusV;
+        ctx.translate(focusX, focusY);
+        if (frame.state.turn) ctx.rotate(frame.state.turn);
+        if (frame.state.zoom !== 1) ctx.scale(frame.state.zoom, frame.state.zoom);
+        ctx.translate(-focusX, -focusY);
         renderBloom(frame.state, frame.localT);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
 
       function stop() {
