@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KASANE — The Last Dawn</title>
+  <style>
+    :root {
+      --ink: #f3efe6;
+      --muted: #c9c2b4;
+      --line: rgba(243, 239, 230, 0.22);
+      --sheet: rgba(10, 12, 12, 0.82);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    html { scroll-behavior: auto; }
+    body {
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 62% 28%, #6a624c 0%, transparent 26%),
+        linear-gradient(#24302a, #0c1010 70%);
+      color: var(--ink);
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+    :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    button, input { font: inherit; color: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    canvas#view {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .passage {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: 22px 28px 28px;
+      pointer-events: none;
+      transition: opacity 0.4s linear;
+    }
+    .passage.is-done { opacity: 0; visibility: hidden; }
+    .passage a, .passage button { pointer-events: auto; }
+    .top, .bottom, .nav-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      font-size: 13px;
+    }
+    .brand b { font-weight: 600; letter-spacing: 0.28em; }
+    .brand span, .kicker, .stage, .hint, .foot-note { color: var(--muted); }
+    .text-btn, .nav-row a, .choice, .ghost {
+      border: 0;
+      border-bottom: 1px solid transparent;
+      background: transparent;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 12px;
+      padding: 6px 0;
+      cursor: pointer;
+    }
+    .text-btn:hover, .nav-row a:hover, .choice:hover, .ghost:hover { border-bottom-color: var(--ink); }
+    .lines { position: relative; min-height: 46vh; }
+    .block {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      text-align: center;
+      gap: 10px;
+      text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+    }
+    .kicker { margin: 0; letter-spacing: 0.28em; font-size: 12px; text-transform: uppercase; }
+    .dawn {
+      margin: 0;
+      font-family: Palatino, "Palatino Linotype", Georgia, serif;
+      font-weight: 500;
+      font-size: clamp(40px, 7vw, 84px);
+      letter-spacing: 0.08em;
+      line-height: 0.95;
+    }
+    .lead, .whisper-line {
+      margin: 0;
+      max-width: 18em;
+      font-family: Palatino, "Palatino Linotype", Georgia, serif;
+      font-size: clamp(22px, 3vw, 34px);
+      line-height: 1.25;
+    }
+    .sub { margin: 0; color: var(--muted); letter-spacing: 0.08em; }
+    .bottom { align-items: flex-end; }
+    .scroll-cue { display: grid; justify-items: start; gap: 8px; }
+    .stem {
+      width: 1px;
+      height: 42px;
+      background: linear-gradient(var(--ink), transparent);
+    }
+    .cue {
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+    .cue small { display: block; margin-top: 4px; color: var(--muted); letter-spacing: 0.16em; }
+    .meter { min-width: min(280px, 46vw); }
+    .meter-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; letter-spacing: 0.12em; }
+    .track {
+      height: 2px;
+      margin-top: 8px;
+      background: rgba(243, 239, 230, 0.2);
+    }
+    .track i {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: var(--ink);
+    }
+    .site-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 3;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 28px;
+      background: linear-gradient(rgba(8, 10, 10, 0.78), transparent);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .site-nav.is-on { opacity: 1; pointer-events: auto; }
+    .nav-row { justify-content: flex-end; flex-wrap: wrap; }
+    #journey-space { height: 230vh; }
+    main { position: relative; z-index: 1; padding-bottom: 12vh; }
+    .sheet {
+      width: min(960px, calc(100% - 32px));
+      margin: 0 auto 8vh;
+      padding: 32px 28px 36px;
+      background: var(--sheet);
+      border: 1px solid var(--line);
+      scroll-margin-top: 72px;
+    }
+    .sheet h2, .sheet h3 {
+      font-family: Palatino, "Palatino Linotype", Georgia, serif;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+    .sheet h2 { margin: 8px 0 12px; font-size: clamp(32px, 5vw, 56px); line-height: 0.95; }
+    .deck { max-width: 38em; color: var(--muted); line-height: 1.5; }
+    .cards, .arts, .places { display: grid; gap: 14px; }
+    .cards, .places { grid-template-columns: repeat(3, 1fr); }
+    .card, .art, .place {
+      border: 1px solid var(--line);
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .card h3, .place h3, .art h3 { margin: 6px 0; font-size: 28px; }
+    .role, .index { letter-spacing: 0.16em; text-transform: uppercase; font-size: 12px; color: var(--muted); }
+    .art { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: start; }
+    .place { text-align: left; cursor: pointer; width: 100%; }
+    .foot {
+      width: min(960px, calc(100% - 32px));
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 22px;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    dialog {
+      width: min(440px, calc(100% - 28px));
+      padding: 22px;
+      border: 1px solid var(--line);
+      background: #141816;
+      color: var(--ink);
+    }
+    dialog::backdrop { background: rgba(0, 0, 0, 0.62); }
+    dialog h2 { font-family: Palatino, Georgia, serif; font-size: 32px; margin: 8px 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 18px; }
+    label { display: grid; gap: 6px; margin-top: 12px; font-size: 14px; }
+    input {
+      border: 1px solid var(--line);
+      background: transparent;
+      padding: 10px 12px;
+    }
+    #sigil-canvas { width: min(100%, 280px); height: auto; margin-top: 14px; background: #0c0e0d; }
+    .hidden { display: none; }
+    @media (max-width: 760px) {
+      .passage, .site-nav { padding-left: 16px; padding-right: 16px; }
+      .top, .bottom, .site-nav { align-items: flex-start; }
+      .cards, .places, .art { grid-template-columns: 1fr; }
+      .meter { min-width: 42vw; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .passage { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <section class="passage" id="passage" aria-label="Prologue">
+    <div class="top">
+      <div class="brand">
+        <b data-brand>KASANE</b>
+        <span>Prologue / the threshold</span>
+      </div>
+      <div class="nav-row">
+        <button class="text-btn" id="sound" type="button" aria-pressed="false">Sound off</button>
+        <a class="text-btn" id="skip" href="#world">Skip introduction</a>
+      </div>
+    </div>
+    <div class="lines">
+      <div class="block" id="welcome">
+        <p class="kicker">A world between breaths</p>
+        <p class="dawn" data-dawn>THE LAST DAWN</p>
+        <p class="lead">Some doors remember you.</p>
+        <p class="sub">Follow the blossoms. Cross the threshold.</p>
+      </div>
+      <div class="block" id="whisper">
+        <p class="kicker">Beyond the known</p>
+        <p class="whisper-line">Even silence<br>has a heartbeat.</p>
+        <p class="sub" id="look-hint">Move your mouse to look around</p>
+      </div>
+    </div>
+    <div class="bottom">
+      <div class="scroll-cue">
+        <span class="stem" aria-hidden="true"></span>
+        <div class="cue">Scroll to enter<small>Your journey begins here</small></div>
+      </div>
+      <div class="meter">
+        <div class="meter-row">
+          <span id="stage">01 — The approach</span>
+          <span id="percent">00</span>
+        </div>
+        <div class="track" role="progressbar" aria-label="Passage through the gate" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress">
+          <i id="progress-bar"></i>
+        </div>
+      </div>
+    </div>
+  </section>
+  <nav class="site-nav" id="nav" aria-label="Sections">
+    <b data-brand>KASANE</b>
+    <div class="nav-row">
+      <a href="#world">World</a>
+      <a href="#revenants">Revenants</a>
+      <a href="#arts">Arts</a>
+      <a href="#districts">Districts</a>
+      <a href="#sigil">Sigil</a>
+    </div>
+  </nav>
+  <div id="journey-space"></div>
+  <main>
+    <section class="sheet" id="world">
+      <p class="kicker">01 / The world</p>
+      <h1 class="dawn" id="world-title" tabindex="-1" data-dawn>THE LAST DAWN</h1>
+      <p class="deck">Even gods can be rewritten. The path through the trees is still open.</p>
+    </section>
+    <section class="sheet" id="revenants">
+      <p class="kicker">02 / Revenants</p>
+      <h2>Three names on the gate.</h2>
+      <div class="cards">
+        <article class="card">
+          <div class="index">01</div>
+          <h3>Aya</h3>
+          <p class="role">The memory thief</p>
+          <p>Weapon · The Mourning Brush</p>
+        </article>
+        <article class="card">
+          <div class="index">02</div>
+          <h3>Goro</h3>
+          <p class="role">The bell warden</p>
+          <p>Weapon · The Ninth Toll</p>
+        </article>
+        <article class="card">
+          <div class="index">03</div>
+          <h3>Shion</h3>
+          <p class="role">The thread oracle</p>
+          <p>Weapon · The Loom of Hours</p>
+        </article>
+      </div>
+    </section>
+    <section class="sheet" id="arts">
+      <p class="kicker">03 / The arts</p>
+      <h2>A little grace. A lot of damage.</h2>
+      <div class="arts">
+        <article class="art">
+          <div class="index">01</div>
+          <div>
+            <h3>Borrow a heartbeat</h3>
+            <p>Meet the strike late, then step through the gap it leaves.</p>
+          </div>
+        </article>
+        <article class="art">
+          <div class="index">02</div>
+          <div>
+            <h3>Weave the impossible</h3>
+            <p>Tie a dash to the next swing so the path itself becomes the attack.</p>
+          </div>
+        </article>
+        <article class="art">
+          <div class="index">03</div>
+          <div>
+            <h3>Unmake a god</h3>
+            <p>Spend the whole seal on one cut. The air goes quiet afterward.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+    <section class="sheet" id="districts">
+      <p class="kicker">04 / Districts</p>
+      <h2>Get beautifully lost.</h2>
+      <div class="places">
+        <button class="place" type="button" data-district="0">
+          <div class="index">01 — Lower Kasane</div>
+          <h3>The Drowned Ward</h3>
+          <p>Where the city remembers</p>
+        </button>
+        <button class="place" type="button" data-district="1">
+          <div class="index">02 — The old heights</div>
+          <h3>The Hollow Shrine</h3>
+          <p>Pray to something listening</p>
+        </button>
+        <button class="place" type="button" data-district="2">
+          <div class="index">03 — Forbidden zone</div>
+          <h3>The Red Meridian</h3>
+          <p>The gods left a door open</p>
+        </button>
+      </div>
+    </section>
+    <section class="sheet" id="sigil">
+      <p class="kicker">05 / Your next life</p>
+      <h2>Leave your mark.</h2>
+      <p class="deck">The seal is drawn on this device. No name is sent anywhere.</p>
+      <div class="actions">
+        <button class="text-btn" id="open-sigil" type="button">Claim your sigil</button>
+      </div>
+    </section>
+    <footer class="foot">
+      <p class="foot-note">Procedural grove for the KASANE opening. Not the source model or paintings.</p>
+      <button class="text-btn" id="motion" type="button" aria-pressed="false">Motion: full</button>
+      <button class="text-btn" id="replay" type="button">Replay passage</button>
+    </footer>
+  </main>
+  <dialog id="district-dialog" aria-labelledby="district-title">
+    <p class="kicker" id="district-label">01</p>
+    <h2 id="district-title">District</h2>
+    <p id="district-note"></p>
+    <div class="actions">
+      <button class="text-btn" id="district-next" type="button">Next district</button>
+      <button class="ghost" id="district-close" type="button">Close</button>
+    </div>
+  </dialog>
+  <dialog id="sigil-dialog" aria-labelledby="sigil-title">
+    <p class="kicker">Memory vessel</p>
+    <h2 id="sigil-title">Choose your next life.</h2>
+    <form id="sigil-form">
+      <label for="pilgrim-name">Your pilgrim name <span class="hint">(optional)</span>
+        <input id="pilgrim-name" name="pilgrim-name" maxlength="32" autocomplete="name">
+      </label>
+      <div class="actions">
+        <button class="text-btn" id="forge" type="submit">Forge my sigil</button>
+        <button class="ghost" id="sigil-close" type="button">Close</button>
+      </div>
+    </form>
+    <canvas id="sigil-canvas" class="hidden" width="512" height="512"></canvas>
+    <a class="text-btn hidden" id="sigil-download" href="#">Download sigil</a>
+  </dialog>
+  <script>
+    const BRAND = {
+      name: "KASANE",
+      dawn: "THE LAST DAWN",
+      mark: "重",
+      lantern: [1, 0.62, 0.32]
+    };
+
+    const DISTRICTS = [
+      ["01 — Lower Kasane", "The Drowned Ward", "Lanterns stay lit under the waterline. The streets do not."],
+      ["02 — The old heights", "The Hollow Shrine", "A bell tower with no congregation, only the note it still holds."],
+      ["03 — Forbidden zone", "The Red Meridian", "A torn seam of red light where the map stops agreeing with itself."]
+    ];
+
+    const passage = document.getElementById("passage");
+    const welcome = document.getElementById("welcome");
+    const whisper = document.getElementById("whisper");
+    const stageEl = document.getElementById("stage");
+    const percentEl = document.getElementById("percent");
+    const progress = document.getElementById("progress");
+    const progressBar = document.getElementById("progress-bar");
+    const nav = document.getElementById("nav");
+    const journeySpace = document.getElementById("journey-space");
+    const worldTitle = document.getElementById("world-title");
+    const soundBtn = document.getElementById("sound");
+    const motionBtn = document.getElementById("motion");
+    const lookHint = document.getElementById("look-hint");
+    const canvas = document.getElementById("view");
+    const districtDialog = document.getElementById("district-dialog");
+    const sigilDialog = document.getElementById("sigil-dialog");
+    const sigilCanvas = document.getElementById("sigil-canvas");
+    const sigilLink = document.getElementById("sigil-download");
+
+    document.querySelectorAll("[data-brand]").forEach((el) => { el.textContent = BRAND.name; });
+    document.querySelectorAll("[data-dawn]").forEach((el) => { el.textContent = BRAND.dawn; });
+    document.title = BRAND.name + " — " + BRAND.dawn;
+
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduced = motionQuery.matches;
+    let motionLocked = false;
+    const gaze = { x: 0, y: 0 };
+    const gazeTarget = { x: 0, y: 0 };
+    let journeyLen = window.innerHeight;
+    let audio = null;
+    let soundOn = false;
+    let districtIndex = 0;
+    let sigilUrl = "";
+
+    function applyMotion() {
+      document.documentElement.dataset.motion = reduced ? "still" : "full";
+      motionBtn.textContent = reduced ? "Motion: still" : "Motion: full";
+      motionBtn.setAttribute("aria-pressed", reduced ? "true" : "false");
+      lookHint.textContent = reduced ? "Scroll to move ahead" : "Move your mouse to look around";
+    }
+    applyMotion();
+    motionQuery.addEventListener("change", () => {
+      if (motionLocked) return;
+      reduced = motionQuery.matches;
+      applyMotion();
+    });
+    motionBtn.addEventListener("click", () => {
+      motionLocked = true;
+      reduced = !reduced;
+      applyMotion();
+    });
+
+    function measure() {
+      journeyLen = Math.max(window.innerHeight * 0.85, journeySpace.offsetHeight - window.innerHeight);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+
+    function ramp(a, b, t) {
+      if (t <= a) return 0;
+      if (t >= b) return 1;
+      const u = (t - a) / (b - a);
+      return u * u * (3 - 2 * u);
+    }
+
+    function paintPassage(p) {
+      const welcomeOpacity = 1 - ramp(0.08, 0.28, p);
+      const whisperOpacity = ramp(0.3, 0.46, p) * (1 - ramp(0.62, 0.78, p));
+      welcome.style.opacity = String(welcomeOpacity);
+      whisper.style.opacity = String(whisperOpacity);
+      const stage = p < 0.34 ? "01 — The approach" : p < 0.7 ? "02 — The threshold" : "03 — The gate";
+      const pct = String(Math.round(p * 100)).padStart(2, "0");
+      stageEl.textContent = stage;
+      percentEl.textContent = pct;
+      progressBar.style.width = (p * 100) + "%";
+      progress.setAttribute("aria-valuenow", String(Math.round(p * 100)));
+      const done = p >= 0.985;
+      passage.classList.toggle("is-done", done);
+      passage.setAttribute("aria-hidden", done ? "true" : "false");
+      nav.classList.toggle("is-on", done);
+    }
+
+    document.getElementById("skip").addEventListener("click", (event) => {
+      event.preventDefault();
+      document.getElementById("world").scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+      worldTitle.focus({ preventScroll: true });
+    });
+    document.getElementById("replay").addEventListener("click", () => {
+      window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+      document.getElementById("skip").focus({ preventScroll: true });
+    });
+
+    window.addEventListener("pointermove", (event) => {
+      gazeTarget.x = Math.max(-1, Math.min(1, (event.clientX / window.innerWidth) * 2 - 1));
+      gazeTarget.y = Math.max(-1, Math.min(1, (event.clientY / window.innerHeight) * 2 - 1));
+    }, { passive: true });
+
+    soundBtn.addEventListener("click", () => {
+      if (!audio) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) {
+          soundBtn.textContent = "Sound unavailable";
+          soundBtn.disabled = true;
+          return;
+        }
+        const ctx = new Ctx();
+        const gain = ctx.createGain();
+        gain.gain.value = 0.0001;
+        const low = ctx.createOscillator();
+        const high = ctx.createOscillator();
+        low.frequency.value = 82;
+        high.frequency.value = 123.5;
+        low.type = "sine";
+        high.type = "sine";
+        low.connect(gain);
+        high.connect(gain);
+        gain.connect(ctx.destination);
+        low.start();
+        high.start();
+        audio = { ctx, gain };
+      }
+      soundOn = !soundOn;
+      const target = soundOn ? 0.012 : 0.0001;
+      audio.gain.gain.setTargetAtTime(target, audio.ctx.currentTime, 0.08);
+      if (audio.ctx.state === "suspended") audio.ctx.resume();
+      soundBtn.textContent = soundOn ? "Sound on" : "Sound off";
+      soundBtn.setAttribute("aria-pressed", soundOn ? "true" : "false");
+    });
+
+    function showDistrict(index) {
+      districtIndex = (index + DISTRICTS.length) % DISTRICTS.length;
+      const item = DISTRICTS[districtIndex];
+      document.getElementById("district-label").textContent = item[0];
+      document.getElementById("district-title").textContent = item[1];
+      document.getElementById("district-note").textContent = item[2];
+      document.getElementById("district-next").textContent = "Next: " + DISTRICTS[(districtIndex + 1) % 3][1];
+      if (!districtDialog.open) districtDialog.showModal();
+    }
+    document.querySelectorAll("[data-district]").forEach((button) => {
+      button.addEventListener("click", () => showDistrict(Number(button.dataset.district)));
+    });
+    document.getElementById("district-next").addEventListener("click", () => showDistrict(districtIndex + 1));
+    document.getElementById("district-close").addEventListener("click", () => districtDialog.close());
+
+    function paintSigil(name) {
+      const g = sigilCanvas.getContext("2d");
+      const label = (name || "unnamed").slice(0, 32);
+      g.clearRect(0, 0, 512, 512);
+      g.fillStyle = "#101412";
+      g.fillRect(0, 0, 512, 512);
+      g.strokeStyle = "#f3efe6";
+      g.lineWidth = 2;
+      g.beginPath();
+      g.arc(256, 240, 150, 0, Math.PI * 2);
+      g.stroke();
+      g.beginPath();
+      g.arc(256, 240, 108, 0, Math.PI * 2);
+      g.stroke();
+      let hash = 2166136261;
+      for (let i = 0; i < label.length; i++) hash = Math.imul(hash ^ label.charCodeAt(i), 16777619);
+      g.save();
+      g.translate(256, 240);
+      for (let i = 0; i < 7; i++) {
+        const angle = ((hash >>> (i * 3)) % 360) * Math.PI / 180;
+        g.rotate(angle);
+        g.beginPath();
+        g.moveTo(-70, 0);
+        g.lineTo(70, 0);
+        g.moveTo(0, -18);
+        g.lineTo(0, 18);
+        g.stroke();
+      }
+      g.restore();
+      g.fillStyle = "#f3efe6";
+      g.font = "64px Palatino, Georgia, serif";
+      g.textAlign = "center";
+      g.fillText(BRAND.mark, 256, 258);
+      g.font = "22px Segoe UI, sans-serif";
+      g.fillText(label.toUpperCase(), 256, 430);
+      g.font = "14px Segoe UI, sans-serif";
+      g.fillStyle = "#c9c2b4";
+      g.fillText(BRAND.name, 256, 462);
+      if (sigilUrl) URL.revokeObjectURL(sigilUrl);
+      sigilCanvas.toBlob((blob) => {
+        if (!blob) return;
+        sigilUrl = URL.createObjectURL(blob);
+        sigilLink.href = sigilUrl;
+        sigilLink.download = "sigil.png";
+        sigilLink.classList.remove("hidden");
+      });
+      sigilCanvas.classList.remove("hidden");
+    }
+    document.getElementById("open-sigil").addEventListener("click", () => {
+      sigilDialog.showModal();
+      document.getElementById("pilgrim-name").focus();
+    });
+    document.getElementById("sigil-close").addEventListener("click", () => sigilDialog.close());
+    document.getElementById("sigil-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      paintSigil(document.getElementById("pilgrim-name").value.trim());
+    });
+
+    const gl = canvas.getContext("webgl", { antialias: true, alpha: false, preserveDrawingBuffer: true });
+    if (!gl) canvas.remove();
+
+    function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+    function add(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+    function scale(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+    function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+    function cross(a, b) {
+      return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    }
+    function norm(a) {
+      const n = Math.hypot(a[0], a[1], a[2]) || 1;
+      return [a[0] / n, a[1] / n, a[2] / n];
+    }
+    function mul(a, b) {
+      const o = new Float32Array(16);
+      for (let c = 0; c < 4; c++) {
+        for (let r = 0; r < 4; r++) {
+          o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+        }
+      }
+      return o;
+    }
+    function perspective(fov, aspect, near, far) {
+      const f = 1 / Math.tan(fov / 2);
+      const nf = 1 / (near - far);
+      return new Float32Array([
+        f / aspect, 0, 0, 0,
+        0, f, 0, 0,
+        0, 0, (far + near) * nf, -1,
+        0, 0, (2 * far * near) * nf, 0
+      ]);
+    }
+    function lookAt(eye, center, up) {
+      const z = norm(sub(eye, center));
+      const x = norm(cross(up, z));
+      const y = cross(z, x);
+      return new Float32Array([
+        x[0], y[0], z[0], 0,
+        x[1], y[1], z[1], 0,
+        x[2], y[2], z[2], 0,
+        -dot(x, eye), -dot(y, eye), -dot(z, eye), 1
+      ]);
+    }
+
+    const solid = { pos: [], nrm: [], col: [], mat: [] };
+    function pushVert(p, n, color, mat) {
+      solid.pos.push(p[0], p[1], p[2]);
+      solid.nrm.push(n[0], n[1], n[2]);
+      solid.col.push(color[0], color[1], color[2]);
+      solid.mat.push(mat);
+    }
+    function addFace(a, b, c, d, color, mat) {
+      const n = norm(cross(sub(b, a), sub(d, a)));
+      for (const p of [a, b, c, a, c, d]) pushVert(p, n, color, mat);
+    }
+    function addTri(a, b, c, color, mat) {
+      const n = norm(cross(sub(b, a), sub(c, a)));
+      pushVert(a, n, color, mat);
+      pushVert(b, n, color, mat);
+      pushVert(c, n, color, mat);
+    }
+    function addCone(x, y, z, radius, height, color) {
+      const apex = [x, y + height, z];
+      const sides = 6;
+      for (let i = 0; i < sides; i++) {
+        const a0 = (i / sides) * Math.PI * 2;
+        const a1 = ((i + 1) / sides) * Math.PI * 2;
+        addTri(
+          [x + Math.cos(a0) * radius, y, z + Math.sin(a0) * radius],
+          [x + Math.cos(a1) * radius, y, z + Math.sin(a1) * radius],
+          apex,
+          color,
+          0
+        );
+      }
+    }
+    function addBox(x, y, z, w, h, d, color, yaw, mat) {
+      const c = Math.cos(yaw || 0);
+      const s = Math.sin(yaw || 0);
+      const hx = w / 2;
+      const hy = h / 2;
+      const hz = d / 2;
+      const raw = [
+        [-hx, -hy, -hz], [hx, -hy, -hz], [hx, hy, -hz], [-hx, hy, -hz],
+        [-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz]
+      ];
+      const p = raw.map(([px, py, pz]) => [px * c - pz * s + x, py + y, px * s + pz * c + z]);
+      const tint = (k) => color.map((v) => Math.min(1, v * k));
+      addFace(p[4], p[5], p[6], p[7], tint(1), mat);
+      addFace(p[1], p[0], p[3], p[2], tint(0.72), mat);
+      addFace(p[3], p[7], p[6], p[2], tint(1.12), mat);
+      addFace(p[0], p[1], p[5], p[4], tint(0.45), mat);
+      addFace(p[1], p[5], p[6], p[2], tint(0.9), mat);
+      addFace(p[0], p[3], p[7], p[4], tint(0.78), mat);
+    }
+
+    let seed = 2117600197;
+    function rnd() {
+      seed = (seed * 16807 + 13) % 2147483647;
+      return (seed % 10000) / 10000;
+    }
+    addBox(0, -0.15, -6, 80, 0.3, 80, [0.11, 0.13, 0.11], 0, 1);
+    for (let i = 0; i < 30; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const z = 4.6 - i * 0.78;
+      const x = side * (1.25 + (i % 4) * 0.22 + rnd() * 1.15);
+      const h = 2.6 + rnd() * 2.2;
+      const trunk = h * 0.46;
+      const yaw = rnd() * Math.PI;
+      addBox(x, trunk / 2, z, 0.16 + rnd() * 0.08, trunk, 0.16 + rnd() * 0.06, [0.36, 0.27, 0.18], yaw, 0);
+      addCone(x, trunk * 0.72, z, 0.95, 1.35, [0.22, 0.34, 0.18]);
+      addCone(x, trunk * 0.72 + 0.7, z, 0.72, 1.15, [0.28, 0.4, 0.2]);
+      addCone(x, trunk * 0.72 + 1.25, z, 0.42, 0.85, [0.36, 0.48, 0.24]);
+    }
+    const stone = [0.55, 0.5, 0.44];
+    addBox(-1.7, 2.05, 0.4, 0.38, 4.1, 0.38, stone, 0, 2);
+    addBox(1.7, 2.05, 0.4, 0.38, 4.1, 0.38, stone, 0, 2);
+    addBox(0, 3.95, 0.4, 4.2, 0.32, 0.55, [0.62, 0.52, 0.4], 0, 2);
+    addBox(0, 4.28, 0.4, 4.7, 0.18, 0.72, [0.72, 0.58, 0.4], 0, 2);
+    for (let i = 0; i < 7; i++) {
+      const z = 4.2 - i * 1.35;
+      const x = i % 2 === 0 ? -1.35 : 1.35;
+      addBox(x, 0.75, z, 0.08, 1.5, 0.08, [0.28, 0.2, 0.14], 0, 2);
+    }
+    for (let i = 0; i < 9; i++) {
+      const h = 2 + rnd() * 7;
+      addBox(-8 + rnd() * 16, h / 2, -26 - rnd() * 10, 1.2 + rnd() * 2.4, h, 1.2 + rnd(), [0.12, 0.14, 0.15], rnd(), 2);
+    }
+
+    const lamps = [
+      [1.35, 1.75, 3.3],
+      [-1.35, 1.75, 1.5],
+      [1.7, 2.35, 0.4],
+      [-1.35, 1.75, -2.1]
+    ];
+    const petals = Array.from({ length: 70 }, () => ({
+      x: (rnd() - 0.5) * 4.2,
+      y: rnd() * 3.2,
+      z: 4.2 - rnd() * 12,
+      s: 0.035 + rnd() * 0.04
+    }));
+
+    let draw = function () {};
+    if (gl) {
+      function compile(type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null;
+      }
+      function program(vs, fs) {
+        const v = compile(gl.VERTEX_SHADER, vs);
+        const f = compile(gl.FRAGMENT_SHADER, fs);
+        if (!v || !f) return null;
+        const p = gl.createProgram();
+        gl.attachShader(p, v);
+        gl.attachShader(p, f);
+        gl.linkProgram(p);
+        return gl.getProgramParameter(p, gl.LINK_STATUS) ? p : null;
+      }
+      const solidProgram = program(`
+        attribute vec3 aPos;
+        attribute vec3 aNrm;
+        attribute vec3 aCol;
+        attribute float aMat;
+        uniform mat4 uVP;
+        varying vec3 vWorld;
+        varying vec3 vN;
+        varying vec3 vCol;
+        varying float vMat;
+        void main() {
+          vWorld = aPos;
+          vN = aNrm;
+          vCol = aCol;
+          vMat = aMat;
+          gl_Position = uVP * vec4(aPos, 1.0);
+        }
+      `, `
+        precision mediump float;
+        varying vec3 vWorld;
+        varying vec3 vN;
+        varying vec3 vCol;
+        varying float vMat;
+        uniform vec3 uEye;
+        uniform vec3 uFog;
+        uniform vec3 uLamps[4];
+        void main() {
+          vec3 col = vCol;
+          if (vMat > 0.5 && vMat < 1.5) {
+            float path = smoothstep(2.15, 0.25, abs(vWorld.x));
+            float plank = smoothstep(0.08, 0.0, abs(fract(vWorld.z * 0.42) - 0.5) - 0.34);
+            float n = fract(sin(dot(floor(vWorld.xz * 2.0), vec2(17.1, 9.2))) * 43758.5);
+            col = mix(vec3(0.12, 0.15, 0.12), vec3(0.42, 0.36, 0.28), path * (0.55 + 0.45 * plank));
+            col *= 0.84 + 0.2 * n;
+          }
+          vec3 nrm = normalize(vN);
+          float hemi = clamp(nrm.y * 0.5 + 0.5, 0.0, 1.0);
+          float ndl = max(dot(nrm, normalize(vec3(-0.35, 0.9, 0.28))), 0.0);
+          vec3 lit = col * (0.42 + 0.28 * hemi + 0.46 * ndl);
+          for (int i = 0; i < 4; i++) {
+            vec3 delta = uLamps[i] - vWorld;
+            float att = 1.0 / (1.0 + dot(delta, delta) * 0.28);
+            float face = max(dot(nrm, normalize(delta)), 0.0);
+            lit += col * vec3(1.0, 0.62, 0.32) * att * face * 0.9;
+          }
+          float dist = length(vWorld - uEye);
+          float fog = smoothstep(14.0, 38.0, dist);
+          gl_FragColor = vec4(mix(lit, uFog, fog), 1.0);
+        }
+      `);
+      const glowProgram = program(`
+        attribute vec3 aPos;
+        attribute vec4 aCol;
+        uniform mat4 uVP;
+        varying vec4 vCol;
+        void main() {
+          vCol = aCol;
+          gl_Position = uVP * vec4(aPos, 1.0);
+        }
+      `, `
+        precision mediump float;
+        varying vec4 vCol;
+        void main() { gl_FragColor = vCol; }
+      `);
+      const skyProgram = program(`
+        attribute vec2 aPos;
+        varying vec2 vUv;
+        void main() {
+          vUv = aPos * 0.5 + 0.5;
+          gl_Position = vec4(aPos, 0.0, 1.0);
+        }
+      `, `
+        precision mediump float;
+        varying vec2 vUv;
+        uniform float uTime;
+        void main() {
+          vec3 low = vec3(0.2, 0.24, 0.22);
+          vec3 high = vec3(0.05, 0.07, 0.08);
+          vec3 sky = mix(low, high, smoothstep(0.0, 1.0, vUv.y));
+          vec2 sun = vUv - vec2(0.64, 0.74);
+          sky += vec3(0.85, 0.78, 0.6) * exp(-dot(sun, sun) * 90.0);
+          float shaft = exp(-pow((vUv.x - 0.58) * 7.0, 2.0)) * smoothstep(0.15, 0.8, vUv.y);
+          sky += vec3(0.45, 0.38, 0.24) * shaft * (0.18 + 0.04 * sin(uTime + vUv.y * 8.0));
+          gl_FragColor = vec4(sky, 1.0);
+        }
+      `);
+      if (!solidProgram || !glowProgram || !skyProgram) {
+        canvas.remove();
+      } else {
+        const solidBuffer = gl.createBuffer();
+        const stride = 10;
+        const packed = new Float32Array(solid.pos.length / 3 * stride);
+        for (let i = 0, v = 0; i < solid.pos.length; i += 3, v++) {
+          const o = v * stride;
+          packed[o] = solid.pos[i];
+          packed[o + 1] = solid.pos[i + 1];
+          packed[o + 2] = solid.pos[i + 2];
+          packed[o + 3] = solid.nrm[i];
+          packed[o + 4] = solid.nrm[i + 1];
+          packed[o + 5] = solid.nrm[i + 2];
+          packed[o + 6] = solid.col[i];
+          packed[o + 7] = solid.col[i + 1];
+          packed[o + 8] = solid.col[i + 2];
+          packed[o + 9] = solid.mat[v];
+        }
+        const solidCount = solid.pos.length / 3;
+        gl.bindBuffer(gl.ARRAY_BUFFER, solidBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, packed, gl.STATIC_DRAW);
+        const glowBuffer = gl.createBuffer();
+        const glowData = new Float32Array(240 * 7);
+        const skyBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, skyBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+
+        function bindSolid() {
+          gl.useProgram(solidProgram);
+          gl.bindBuffer(gl.ARRAY_BUFFER, solidBuffer);
+          const loc = (name) => gl.getAttribLocation(solidProgram, name);
+          const pos = loc("aPos");
+          const nrm = loc("aNrm");
+          const col = loc("aCol");
+          const mat = loc("aMat");
+          gl.enableVertexAttribArray(pos);
+          gl.enableVertexAttribArray(nrm);
+          gl.enableVertexAttribArray(col);
+          gl.enableVertexAttribArray(mat);
+          gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, stride * 4, 0);
+          gl.vertexAttribPointer(nrm, 3, gl.FLOAT, false, stride * 4, 12);
+          gl.vertexAttribPointer(col, 3, gl.FLOAT, false, stride * 4, 24);
+          gl.vertexAttribPointer(mat, 1, gl.FLOAT, false, stride * 4, 36);
+        }
+        bindSolid();
+        const fog = [0.16, 0.2, 0.18];
+        draw = function (eye, center, time) {
+          const aspect = canvas.width / Math.max(1, canvas.height);
+          const vp = mul(perspective(Math.PI / 5.2, aspect, 0.08, 80), lookAt(eye, center, [0, 1, 0]));
+          gl.viewport(0, 0, canvas.width, canvas.height);
+          gl.disable(gl.DEPTH_TEST);
+          gl.disable(gl.BLEND);
+          gl.useProgram(skyProgram);
+          gl.bindBuffer(gl.ARRAY_BUFFER, skyBuffer);
+          const skyPos = gl.getAttribLocation(skyProgram, "aPos");
+          gl.enableVertexAttribArray(skyPos);
+          gl.vertexAttribPointer(skyPos, 2, gl.FLOAT, false, 0, 0);
+          gl.uniform1f(gl.getUniformLocation(skyProgram, "uTime"), reduced ? 0 : time);
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+          gl.enable(gl.DEPTH_TEST);
+          gl.depthFunc(gl.LEQUAL);
+          gl.depthMask(true);
+          gl.clear(gl.DEPTH_BUFFER_BIT);
+          bindSolid();
+          gl.uniformMatrix4fv(gl.getUniformLocation(solidProgram, "uVP"), false, vp);
+          gl.uniform3fv(gl.getUniformLocation(solidProgram, "uEye"), eye);
+          gl.uniform3fv(gl.getUniformLocation(solidProgram, "uFog"), fog);
+          gl.uniform3fv(gl.getUniformLocation(solidProgram, "uLamps[0]"), lamps.flat());
+          gl.drawArrays(gl.TRIANGLES, 0, solidCount);
+
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+          gl.depthMask(false);
+          const verts = [];
+          function board(centerPos, w, h, rgba) {
+            const toEye = norm(sub(eye, centerPos));
+            let right = cross([0, 1, 0], toEye);
+            if (Math.hypot(right[0], right[1], right[2]) < 0.001) right = [1, 0, 0];
+            right = norm(right);
+            const up = norm(cross(toEye, right));
+            const corner = (sx, sy) => add(add(centerPos, scale(right, sx * w * 0.5)), scale(up, sy * h * 0.5));
+            const quad = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
+            for (const p of [quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]]) verts.push(p[0], p[1], p[2], rgba[0], rgba[1], rgba[2], rgba[3]);
+          }
+          lamps.forEach((lamp) => {
+            board(lamp, 1.5, 1.5, [BRAND.lantern[0], BRAND.lantern[1], BRAND.lantern[2], 0.18]);
+            board(lamp, 0.28, 0.36, [1, 0.86, 0.62, 0.85]);
+          });
+          board([2.4, 7.2, -8], 2.2, 2.2, [0.95, 0.9, 0.75, 0.35]);
+          for (let i = 0; i < 4; i++) {
+            board([-0.45 + i * 0.3, 3.6, 0.15], 0.42, 5.2, [0.95, 0.78, 0.45, 0.06]);
+          }
+          petals.forEach((petal) => {
+            const y = reduced ? petal.y : (petal.y + time * 0.22) % 3.5;
+            const sway = reduced ? 0 : Math.sin(time * 0.7 + petal.z) * 0.25;
+            board([petal.x + sway, y, petal.z], petal.s, petal.s * 1.6, [0.93, 0.75, 0.78, 0.75]);
+          });
+          const glowArray = verts.length > glowData.length ? new Float32Array(verts) : glowData;
+          if (glowArray === glowData) glowArray.set(verts);
+          gl.useProgram(glowProgram);
+          gl.bindBuffer(gl.ARRAY_BUFFER, glowBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, glowArray.subarray(0, verts.length), gl.DYNAMIC_DRAW);
+          const gPos = gl.getAttribLocation(glowProgram, "aPos");
+          const gCol = gl.getAttribLocation(glowProgram, "aCol");
+          gl.enableVertexAttribArray(gPos);
+          gl.enableVertexAttribArray(gCol);
+          gl.vertexAttribPointer(gPos, 3, gl.FLOAT, false, 28, 0);
+          gl.vertexAttribPointer(gCol, 4, gl.FLOAT, false, 28, 12);
+          gl.uniformMatrix4fv(gl.getUniformLocation(glowProgram, "uVP"), false, vp);
+          gl.drawArrays(gl.TRIANGLES, 0, verts.length / 7);
+          gl.depthMask(true);
+          gl.disable(gl.BLEND);
+        };
+      }
+    }
+
+    function resizeCanvas() {
+      if (!gl || !canvas.isConnected) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+      const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    }
+
+    let clock = 0;
+    function frame(now) {
+      const dt = Math.min(0.05, (now - clock) / 1000 || 0);
+      clock = now;
+      const ease = reduced ? 1 : 1 - Math.pow(0.001, dt);
+      gaze.x += (gazeTarget.x - gaze.x) * ease;
+      gaze.y += (gazeTarget.y - gaze.y) * ease;
+      measure();
+      const scrolled = window.scrollY || document.documentElement.scrollTop || 0;
+      const p = Math.max(0, Math.min(1, scrolled / journeyLen));
+      const extra = Math.max(0, scrolled - journeyLen) / (window.innerHeight * 1.5);
+      paintPassage(p);
+      const breathe = reduced ? 0 : Math.sin(now * 0.00045) * 0.05;
+      const travel = p;
+      const z = 6.2 - travel * 8.4 - Math.min(extra, 1) * 2.8;
+      const y = 1.55 + Math.sin(travel * Math.PI) * 0.16 + Math.min(extra, 1) * 1.05 + breathe;
+      const x = Math.sin(travel * 1.4) * 0.28;
+      const eye = [x + gaze.x * 0.35, y - gaze.y * 0.16, z];
+      const center = [x * 0.15 + gaze.x * 1.05, 1.45 - gaze.y * 0.32 + Math.min(extra, 1) * 0.7, z - 6.2];
+      resizeCanvas();
+      draw(eye, center, now * 0.001);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
