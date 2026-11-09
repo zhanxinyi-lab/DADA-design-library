@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>剖视住宅 · 管线点选</title>
+  <style>
+    :root {
+      --paper: #efe6d8;
+      --ink: #241c16;
+      --muted: #6f645b;
+      --card: #fffaf4;
+      --line: #e4d8c8;
+      --ok: #1f7a4d;
+      --focus: #1d4e89;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+    }
+    .stage {
+      min-height: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(260px, .72fr);
+      gap: 18px;
+      padding: 22px;
+      align-items: stretch;
+    }
+    .sheet, .card {
+      border-radius: 22px;
+      min-width: 0;
+    }
+    .sheet {
+      background: #2a231c;
+      box-shadow: 0 16px 40px rgba(36, 28, 22, .12);
+      display: flex;
+      align-items: center;
+    }
+    svg { width: 100%; height: auto; display: block; }
+    .house-fill { fill: url(#wall); stroke: #2b261f; stroke-width: 3; stroke-linejoin: round; }
+    .rule { stroke: #c9b59f; stroke-width: 2; }
+    .crawl { fill: #e7d8c4; }
+    .cabinet { fill: #f6efe4; stroke: #2b261f; stroke-width: 2; }
+    .furn { fill: #e7d5c2; stroke: #2b261f; stroke-width: 1.6; }
+    .furn-soft { fill: #f7f1e7; stroke: #2b261f; stroke-width: 1.4; }
+    .window { fill: #f3c98a; stroke: #2b261f; stroke-width: 1.6; }
+    .label { fill: #8b7c6d; font: 13px system-ui, sans-serif; }
+    .pipe { fill: none; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; opacity: .34; pointer-events: none; }
+    .hit { fill: none; stroke: transparent; stroke-width: 18; stroke-linecap: round; }
+    .supply.is-active .pipe { opacity: 1; stroke-width: 6; }
+    .supply.is-active .pipe.flow { stroke-dasharray: 8 11; animation: march .9s linear infinite; }
+    .supply.is-shut .pipe { opacity: .75; filter: grayscale(1); stroke-dasharray: none; animation: none; }
+    .valve .plate { fill: #2b261f; stroke-width: 2; }
+    .valve .hub, .valve .lever { fill: #fffaf4; }
+    .valve .lever { transform-origin: 0 0; transition: transform .28s ease; }
+    .breaker .lever { transform-origin: center; }
+    .valve.is-shut .lever { transform: rotate(90deg); }
+    .breaker.is-shut .lever { transform: translateY(16px); }
+    .pulse { fill: none; stroke-width: 2; opacity: 0; pointer-events: none; }
+    .supply.is-active .pulse { opacity: .85; animation: ping 1.5s ease-out infinite; }
+    .supply.is-wrong .hit { stroke: #8d2f2f; stroke-opacity: .9; }
+    [role="button"] { cursor: pointer; }
+    [role="button"]:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      padding: 22px 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .kicker, .progress {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .04em;
+    }
+    h1 { margin: 0; font-size: clamp(1.45rem, 2.4vw, 2rem); line-height: 1.15; }
+    h2 { margin: 0; font-size: 1.15rem; }
+    .lead, .note, .status { margin: 0; line-height: 1.45; }
+    .lead { font-size: 1rem; }
+    ol { margin: 4px 0 0; padding-left: 1.2rem; display: grid; gap: 6px; }
+    li.now { font-weight: 700; }
+    li.done { color: var(--ok); }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; }
+    button {
+      font: inherit;
+      color: inherit;
+      background: #fff;
+      border: 1px solid #d9cfc2;
+      border-radius: 999px;
+      min-height: 44px;
+      padding: 0 14px;
+      cursor: pointer;
+    }
+    button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .legend button { display: inline-flex; align-items: center; gap: 8px; }
+    .legend button[aria-pressed="true"] { border-color: var(--ink); background: #f3ece3; }
+    .legend button::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--swatch);
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; min-height: 44px; }
+    #next, #replay { background: var(--ink); color: var(--card); border-color: var(--ink); }
+    .note, .status { color: var(--muted); font-size: .92rem; }
+    .status { min-height: 1.4em; }
+    @media (max-width: 800px) {
+      .stage { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
+      .card { padding: 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .supply.is-active .pipe.flow,
+      .supply.is-active .pulse { animation: none; }
+      .valve .lever { transition: none; }
+    }
+    @keyframes march { to { stroke-dashoffset: -38; } }
+    @keyframes ping {
+      0% { opacity: .9; }
+      70% { opacity: 0; }
+      100% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="sheet" aria-label="剖视住宅">
+      <svg viewBox="0 0 680 460">
+        <title>剖视住宅，可点选水路、电路和燃气管线</title>
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#2a231c"/>
+            <stop offset="1" stop-color="#4a3d32"/>
+          </linearGradient>
+          <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fffaf4"/>
+            <stop offset="1" stop-color="#f1e4d4"/>
+          </linearGradient>
+        </defs>
+        <rect width="680" height="460" fill="url(#sky)"/>
+        <ellipse cx="306" cy="432" rx="250" ry="16" fill="#1a140f" opacity=".35"/>
+        <path class="house-fill" d="M96 100 L306 42 L516 100 V408 H96 Z"/>
+        <rect class="crawl" x="99" y="248" width="206" height="157" rx="10"/>
+        <rect class="furn-soft" x="198" y="164" width="86" height="26" rx="13"/>
+        <rect class="furn" x="352" y="168" width="118" height="34" rx="7"/>
+        <rect class="furn-soft" x="360" y="174" width="24" height="22" rx="4"/>
+        <rect class="furn" x="360" y="286" width="120" height="14" rx="3"/>
+        <circle cx="400" cy="270" r="8" fill="#2b261f"/>
+        <circle cx="440" cy="270" r="8" fill="#2b261f"/>
+        <circle cx="400" cy="270" r="3" fill="#f7f1e7"/>
+        <circle cx="440" cy="270" r="3" fill="#f7f1e7"/>
+        <line class="rule" x1="99" y1="230" x2="513" y2="230"/>
+        <line class="rule" x1="306" y1="108" x2="306" y2="198"/>
+        <line class="rule" x1="306" y1="230" x2="306" y2="300"/>
+        <rect class="window" x="84" y="146" width="16" height="40" rx="2"/>
+        <rect class="window" x="508" y="150" width="16" height="40" rx="2"/>
+        <text class="label" data-room="bath" x="210" y="128">卫浴</text>
+        <text class="label" data-room="bed" x="392" y="128">卧室</text>
+        <text class="label" data-room="cook" x="392" y="252">厨房</text>
+        <text class="label" data-room="plant" x="198" y="262">设备间</text>
+
+        <g class="supply" data-supply="water">
+          <path class="hit" data-role="run" tabindex="0" role="button" d="M30 286 H176 V176 H200"/>
+          <path class="pipe flow" d="M30 286 H176 V176 H200"/>
+          <circle class="pulse" cx="230" cy="164" r="13"/>
+          <g class="valve" data-role="shutoff" tabindex="0" role="button" transform="translate(176 286)">
+            <circle class="plate" r="13"/>
+            <circle class="hub" r="3.2"/>
+            <g class="lever"><rect x="-2.2" y="-18" width="4.4" height="15" rx="1.5"/></g>
+          </g>
+        </g>
+        <g class="supply" data-supply="electric">
+          <path class="hit" data-role="run" tabindex="0" role="button" d="M30 328 H470 V148 H430"/>
+          <path class="pipe flow" d="M30 328 H470 V148 H430"/>
+          <circle class="pulse" cx="430" cy="148" r="12"/>
+          <g class="valve breaker" data-role="shutoff" tabindex="0" role="button" transform="translate(176 328)">
+            <rect class="plate" x="-15" y="-22" width="30" height="44" rx="5"/>
+            <rect class="lever" x="-9" y="-14" width="18" height="14" rx="2"/>
+          </g>
+        </g>
+        <g class="supply" data-supply="gas">
+          <path class="hit" data-role="run" tabindex="0" role="button" d="M30 372 H430 V286"/>
+          <path class="pipe flow" d="M30 372 H430 V286"/>
+          <circle class="pulse" cx="440" cy="270" r="13"/>
+          <g class="valve" data-role="shutoff" tabindex="0" role="button" transform="translate(176 372)">
+            <circle class="plate" r="13"/>
+            <circle class="hub" r="3.2"/>
+            <g class="lever"><rect x="-2.2" y="-18" width="4.4" height="15" rx="1.5"/></g>
+          </g>
+        </g>
+      </svg>
+    </section>
+    <aside class="card">
+      <p class="kicker" id="kicker"></p>
+      <h1 id="name"></h1>
+      <p class="progress" id="progress"></p>
+      <h2 id="title"></h2>
+      <p class="lead" id="lead"></p>
+      <ol id="steps"></ol>
+      <div class="legend" id="legend"></div>
+      <div class="actions">
+        <button type="button" id="next" hidden>下一种情况</button>
+        <button type="button" id="replay" hidden>再看一遍</button>
+      </div>
+      <p class="note" id="note"></p>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </aside>
+  </main>
+  <script>
+    const THEME = {
+      name: "管线剖视手册",
+      kicker: "可换主题的交互说明",
+      disclaimer: "设计演示，不是真实应急指引。",
+      rooms: { bath: "卫浴", bed: "卧室", cook: "厨房", plant: "设备间" },
+      supplies: {
+        water: { label: "水路", shut: "水路总阀", color: "#2f95c8" },
+        electric: { label: "电路", shut: "电路总闸", color: "#e2a63a" },
+        gas: { label: "燃气", shut: "燃气阀", color: "#e36a3a" }
+      },
+      scenarios: [
+        {
+          id: "water",
+          title: "关掉水路",
+          lead: "上层用水点还连着供水。",
+          steps: ["认准蓝色水路", "关上水路总阀"]
+        },
+        {
+          id: "electric",
+          title: "断开电路",
+          lead: "卧室那路线路还连在总闸上。",
+          steps: ["认准琥珀色电路", "拨开电路总闸"]
+        },
+        {
+          id: "gas",
+          title: "切断燃气",
+          lead: "灶具侧的燃气管需要隔离。",
+          steps: ["认准燃气管", "关上燃气阀"]
+        }
+      ]
+    };
+
+    const svg = document.querySelector("svg");
+    const nodes = {
+      kicker: document.querySelector("#kicker"),
+      name: document.querySelector("#name"),
+      progress: document.querySelector("#progress"),
+      title: document.querySelector("#title"),
+      lead: document.querySelector("#lead"),
+      steps: document.querySelector("#steps"),
+      legend: document.querySelector("#legend"),
+      next: document.querySelector("#next"),
+      replay: document.querySelector("#replay"),
+      note: document.querySelector("#note"),
+      status: document.querySelector("#status")
+    };
+    const solved = new Set();
+    let scenario = 0;
+    let phase = 0;
+    let wrongTimer = 0;
+
+    function current() { return THEME.scenarios[scenario]; }
+    function meta(id) { return THEME.supplies[id]; }
+    function allSolved() { return THEME.scenarios.every((item) => solved.has(item.id)); }
+
+    function hint() {
+      const item = current();
+      const supply = meta(item.id);
+      if (solved.has(item.id)) return supply.label + "已关闭。";
+      if (phase === 0) return "先点" + supply.label + "，或直接点" + supply.shut + "。";
+      return "再点" + supply.shut + "。";
+    }
+
+    function paint() {
+      const active = current().id;
+      svg.dataset.active = active;
+      document.querySelectorAll(".supply").forEach((group) => {
+        const id = group.dataset.supply;
+        const shut = solved.has(id);
+        group.classList.toggle("is-active", id === active && !shut);
+        group.classList.toggle("is-shut", shut);
+        group.querySelector(".valve").classList.toggle("is-shut", shut);
+      });
+    }
+
+    function render(message) {
+      const item = current();
+      nodes.kicker.textContent = THEME.kicker;
+      nodes.name.textContent = THEME.name;
+      nodes.note.textContent = THEME.disclaimer;
+      nodes.progress.textContent = "第 " + (scenario + 1) + " 路，共 " + THEME.scenarios.length + " 路";
+      nodes.title.textContent = item.title;
+      nodes.lead.textContent = item.lead;
+      nodes.steps.replaceChildren(...item.steps.map((text, index) => {
+        const li = document.createElement("li");
+        li.textContent = text;
+        if (phase > index || solved.has(item.id)) li.className = "done";
+        else if (phase === index) li.className = "now";
+        return li;
+      }));
+      nodes.legend.querySelectorAll("button").forEach((button, index) => {
+        button.setAttribute("aria-pressed", String(index === scenario));
+      });
+      const done = solved.has(item.id);
+      nodes.next.hidden = !done || allSolved();
+      nodes.replay.hidden = !allSolved();
+      nodes.status.textContent = message || hint();
+    }
+
+    function go(index) {
+      scenario = index;
+      phase = solved.has(current().id) ? 2 : 0;
+      paint();
+      render();
+    }
+
+    function flash(id) {
+      const group = svg.querySelector('.supply[data-supply="' + id + '"]');
+      group.classList.remove("is-wrong");
+      void group.offsetWidth;
+      group.classList.add("is-wrong");
+      clearTimeout(wrongTimer);
+      wrongTimer = setTimeout(() => group.classList.remove("is-wrong"), 420);
+    }
+
+    function handle(supply, role, fromKey) {
+      const item = current();
+      if (supply !== item.id) {
+        flash(supply);
+        render("这是另一路。先处理「" + item.title + "」。");
+        return;
+      }
+      if (solved.has(supply)) {
+        render(meta(supply).label + "已经关掉了。");
+        return;
+      }
+      if (role === "run" && phase === 0) {
+        phase = 1;
+        render("认准了。再点" + meta(supply).shut + "。");
+        return;
+      }
+      if (role === "shutoff") {
+        phase = 2;
+        solved.add(supply);
+        paint();
+        render(meta(supply).label + "已关闭。");
+        const focusTarget = allSolved() ? nodes.replay : nodes.next;
+        if (fromKey) focusTarget.focus();
+      }
+    }
+
+    function supplyOf(el) {
+      return el.dataset.supply || el.closest(".supply").dataset.supply;
+    }
+
+    svg.addEventListener("click", (event) => {
+      const el = event.target.closest("[data-role]");
+      if (!el) return;
+      handle(supplyOf(el), el.dataset.role, false);
+    });
+    svg.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const el = event.target.closest("[data-role]");
+      if (!el) return;
+      event.preventDefault();
+      handle(supplyOf(el), el.dataset.role, true);
+    });
+
+    Object.entries(THEME.supplies).forEach(([id, supply]) => {
+      svg.querySelectorAll('.supply[data-supply="' + id + '"] .pipe, .supply[data-supply="' + id + '"] .plate, .supply[data-supply="' + id + '"] .pulse')
+        .forEach((shape) => { shape.style.stroke = supply.color; });
+      const run = svg.querySelector('.supply[data-supply="' + id + '"] [data-role="run"]');
+      const shut = svg.querySelector('.supply[data-supply="' + id + '"] [data-role="shutoff"]');
+      run.setAttribute("aria-label", supply.label);
+      shut.setAttribute("aria-label", supply.shut);
+    });
+    Object.entries(THEME.rooms).forEach(([id, label]) => {
+      const text = svg.querySelector('[data-room="' + id + '"]');
+      if (text) text.textContent = label;
+    });
+    nodes.legend.replaceChildren(...THEME.scenarios.map((item, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = meta(item.id).label;
+      button.style.setProperty("--swatch", meta(item.id).color);
+      button.addEventListener("click", () => go(index));
+      return button;
+    }));
+    nodes.next.addEventListener("click", () => {
+      const nextIndex = THEME.scenarios.findIndex((item, index) => index > scenario && !solved.has(item.id));
+      go(nextIndex === -1 ? THEME.scenarios.findIndex((item) => !solved.has(item.id)) : nextIndex);
+    });
+    nodes.replay.addEventListener("click", () => {
+      solved.clear();
+      document.querySelectorAll(".supply").forEach((group) => group.classList.remove("is-wrong"));
+      go(0);
+    });
+    go(0);
+  </script>
+</body>
+</html>
