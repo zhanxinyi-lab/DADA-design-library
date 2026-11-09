@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>十月交互探索</title>
+  <style>
+    :root {
+      --paper: #efece7;
+      --ink: #1d1b19;
+      --muted: #6e6962;
+      --line: #e3ddd4;
+      --card: #fffcf8;
+      --orange: #e47830;
+      --orange-deep: #c45e18;
+      --phone: #fbfaf8;
+      --soft: #f3efe8;
+      --ok: #2f7d57;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: system-ui, "Segoe UI", sans-serif;
+    }
+    .page { min-height: 100%; display: flex; flex-direction: column; }
+    header.top {
+      display: flex; flex-wrap: wrap; gap: 12px 20px;
+      align-items: end; justify-content: space-between;
+      padding: 22px 22px 0;
+    }
+    h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.03em; }
+    .by { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tabs button, .controls button, .choice, .chip, .size, .ghost, .next, .share, .dash {
+      font: inherit; color: inherit; cursor: pointer;
+    }
+    .tabs button {
+      border: 1px solid transparent; background: transparent;
+      border-radius: 999px; padding: 8px 12px;
+    }
+    .tabs button[aria-selected="true"] { background: var(--ink); color: #fff; }
+    .stage { flex: 1; display: grid; place-items: center; padding: 22px 16px 8px; }
+    .panel { width: min(1040px, 100%); }
+    .panel[hidden] { display: none; }
+    .controls { display: flex; justify-content: center; gap: 8px; padding: 4px 16px 18px; }
+    .controls button {
+      border: 1px solid var(--ink); background: transparent;
+      border-radius: 999px; padding: 8px 14px;
+    }
+    .note { margin: 0; padding: 0 22px 22px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); border: 0;
+    }
+
+    .phone {
+      width: min(100%, 340px); height: 680px; margin: 0 auto;
+      background: var(--phone); border-radius: 36px;
+      border: 1px solid #ddd6cc; box-shadow: 0 18px 50px rgba(40, 30, 16, .12);
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+    }
+    .status { display: flex; justify-content: space-between; padding: 14px 22px 0; font-size: 13px; font-weight: 650; }
+    .status i { font-style: normal; letter-spacing: 2px; color: var(--muted); font-weight: 500; }
+    .phone h2 { margin: 18px 24px 0; text-align: center; font-size: 18px; font-weight: 650; }
+    .ask { margin: 14px 28px 0; text-align: center; font-size: 26px; line-height: 1.15; letter-spacing: -0.04em; }
+    .dial-window { position: relative; height: 250px; margin-top: 8px; overflow: hidden; touch-action: none; }
+    .disc {
+      position: absolute; left: 50%; top: 46px; width: 168px; height: 168px; margin-left: -84px;
+      border-radius: 50%; background: #f6e2d2; color: var(--orange-deep);
+      display: grid; place-items: center;
+    }
+    .disc.is-on { background: var(--orange); color: #fff; }
+    .disc svg { width: 72px; height: 72px; }
+    .med-copy { text-align: center; min-height: 72px; }
+    .med-copy strong { display: block; font-size: 28px; letter-spacing: -0.04em; }
+    .med-copy span { color: var(--muted); }
+    .hint { text-align: center; color: var(--muted); font-size: 13px; margin-top: 8px; }
+    .next, .share {
+      margin: auto 24px 22px; border: 0; border-radius: 999px; min-height: 52px;
+      background: var(--ink); color: #fff; font-weight: 650;
+    }
+    .next:active, .share:active, .dash:active { transform: translateY(1px); }
+
+    .chat { flex: 1; overflow: hidden; padding: 8px 16px 0; display: flex; flex-direction: column; gap: 8px; }
+    .who { font-weight: 700; }
+    .today { align-self: center; color: var(--muted); font-size: 12px; }
+    .bubble { max-width: 78%; padding: 8px 10px; border-radius: 16px; font-size: 14px; line-height: 1.35; }
+    .bubble.them { align-self: flex-start; background: var(--soft); }
+    .bubble.me { align-self: flex-end; background: #222; color: #fff; }
+    .bubble small { display: block; opacity: .6; font-size: 11px; margin-bottom: 2px; }
+    .composer {
+      margin: 10px 16px 16px; border-radius: 999px; background: var(--soft);
+      color: var(--muted); padding: 12px 14px; font-size: 14px;
+    }
+    .shade {
+      position: absolute; inset: 0; background: rgba(28, 24, 18, .28);
+      display: flex; align-items: flex-end; padding: 18px;
+    }
+    .shade[hidden] { display: none; }
+    .sheet {
+      width: 100%; background: var(--card); border-radius: 24px; padding: 22px 18px 16px;
+      text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.16);
+    }
+    .sheet h3 { margin: 0; font-size: 22px; letter-spacing: -0.03em; }
+    .sheet p { color: var(--muted); line-height: 1.4; }
+    .days { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 700; }
+
+    .firm {
+      width: min(1040px, 100%); display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(220px, .85fr);
+      gap: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px;
+    }
+    .firm-top, .firm-foot { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .brand { font-weight: 750; letter-spacing: -0.04em; }
+    .ghost { border: 0; background: transparent; color: var(--muted); }
+    .firm h2 { margin: 18px 0 4px; font-size: 28px; letter-spacing: -0.04em; }
+    .lede, .fine { color: var(--muted); margin: 0; }
+    label { display: block; margin-top: 16px; font-size: 13px; font-weight: 650; }
+    .logo-row, .sizes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .fake, .linkbox {
+      margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; min-height: 42px;
+      display: flex; align-items: center; padding: 0 12px; background: #fff;
+    }
+    .linkbox span { color: var(--muted); }
+    .ok { color: var(--ok); font-size: 13px; margin: 6px 0 0; }
+    .size, .chip, .choice, .dash {
+      border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 12px;
+    }
+    .size[aria-checked="true"], .choice[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .room {
+      border-radius: 16px; background:
+        radial-gradient(circle at 30% 30%, #fff, transparent 42%),
+        linear-gradient(160deg, #f7f1e8, #e7e0d4);
+      min-height: 280px; padding: 16px; display: flex; flex-direction: column;
+    }
+    .seats { flex: 1; display: flex; flex-wrap: wrap; align-content: center; gap: 8px; }
+    .seat {
+      width: 28px; height: 18px; border-radius: 5px; background: #2c2926;
+    }
+    .room-cap { min-height: 1.4em; font-weight: 650; }
+    .dash { align-self: flex-start; }
+    @media (max-width: 800px) {
+      .firm { grid-template-columns: 1fr; }
+      .phone { height: 640px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .disc, .seat, .shade, .sheet { transition: none !important; }
+    }
+
+    .agent {
+      width: min(100%, 420px); min-height: 640px; margin: 0 auto; background: var(--card);
+      border: 1px solid var(--line); border-radius: 28px; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .agent header { padding: 16px 18px 0; font-weight: 750; }
+    .agent-body { flex: 1; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+    .hello { font-size: 22px; letter-spacing: -0.03em; margin: 24px 0; }
+    .chips, .sources { display: flex; flex-direction: column; gap: 8px; }
+    .chip { text-align: left; }
+    .msg { align-self: flex-end; background: var(--ink); color: #fff; border-radius: 16px; padding: 10px 12px; max-width: 92%; }
+    .pip { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
+    .pip b { color: var(--ink); }
+    .intent, .answer { margin: 0; line-height: 1.45; }
+    .plan { margin: 0; padding-left: 18px; line-height: 1.5; }
+    .plan .done { color: var(--ok); }
+    .source { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; font-size: 14px; }
+    .source em { font-style: normal; color: var(--ok); font-size: 12px; }
+    .source em.skip { color: var(--muted); }
+    .check { background: var(--soft); border-radius: 16px; padding: 12px; }
+    .choices { display: flex; gap: 8px; }
+    .wait { color: var(--muted); font-size: 13px; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="top">
+      <div>
+        <h1>十月交互探索</h1>
+        <p class="by">对照 Wuraola 原帖里的四段视频</p>
+      </div>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-dial" aria-controls="panel-dial" aria-selected="true">旋钮</button>
+        <button type="button" role="tab" id="tab-modal" aria-controls="panel-modal" aria-selected="false">弹层</button>
+        <button type="button" role="tab" id="tab-team" aria-controls="panel-team" aria-selected="false">团队规模</button>
+        <button type="button" role="tab" id="tab-agent" aria-controls="panel-agent" aria-selected="false">思考态</button>
+      </div>
+    </header>
+    <div class="stage">
+      <section class="panel" id="panel-dial" role="tabpanel" aria-labelledby="tab-dial">
+        <div class="phone">
+          <div class="status"><span>9:41</span><i aria-hidden="true">●●●</i></div>
+          <h2>Add medication</h2>
+          <p class="ask">What type of medication is it?</p>
+          <div class="dial-window" id="dial" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="2" aria-valuenow="0" aria-label="药物类型">
+          </div>
+          <div class="med-copy" id="med-copy"></div>
+          <p class="hint">Swipe to choose</p>
+          <button class="next" type="button" id="med-next">Next</button>
+        </div>
+      </section>
+      <section class="panel" id="panel-modal" role="tabpanel" aria-labelledby="tab-modal" hidden>
+        <div class="phone" id="modal-phone">
+          <div class="status"><span>9:41</span><i aria-hidden="true">●●●</i></div>
+          <div class="chat" aria-hidden="true">
+            <div class="who">@munnaa</div>
+            <div class="today">Today</div>
+            <div class="bubble them"><small>12:22</small>you are so dry sometimes i can't</div>
+            <div class="bubble me"><small>12:24</small>me?? dry?? i am literally the funniest person you know</div>
+            <div class="bubble them"><small>12:22</small>the bar is in hell babes<br>i've met funnier toasters honestly<br>Up your game</div>
+            <div class="bubble me"><small>12:24</small>okay i did NOT come here to be attacked<br>i came here for love and support</div>
+          </div>
+          <div class="composer">Type your text here</div>
+          <div class="shade" id="shade" hidden>
+            <div class="sheet" role="dialog" aria-labelledby="sheet-title">
+              <h3 id="sheet-title">It's giving consistency!</h3>
+              <p>You and @munnaa have been vibing for <span class="days" id="days">2</span> days straight</p>
+              <button class="share" type="button" id="share">Share to story</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="panel" id="panel-team" role="tabpanel" aria-labelledby="tab-team" hidden>
+        <div class="firm">
+          <div>
+            <div class="firm-top"><span class="brand">Arc</span><button class="ghost" type="button">Save &amp; finish later</button></div>
+            <h2>Now, your firm</h2>
+            <p class="lede">This is the home your whole team will work from. You can change any of it later.</p>
+            <label>Firm logo (optional)</label>
+            <div class="logo-row">
+              <button class="ghost" type="button">Upload logo</button>
+              <button class="ghost" type="button">Remove</button>
+            </div>
+            <p class="fine">No logo? We'll use your initials.</p>
+            <label for="firm-name">Firm name</label>
+            <div class="fake" id="firm-name">Wuraoladesigns</div>
+            <label>Workspace link</label>
+            <div class="linkbox"><span>arc.so/</span>wuraoladesigns</div>
+            <p class="ok">arc.so/wuraoladesigns is available</p>
+            <label id="size-label">Team size</label>
+            <div class="sizes" role="radiogroup" aria-labelledby="size-label">
+              <button class="size" type="button" role="radio" data-size="solo" aria-checked="false">Just me</button>
+              <button class="size" type="button" role="radio" data-size="few" aria-checked="false">2–4</button>
+              <button class="size" type="button" role="radio" data-size="mid" aria-checked="false">5–10</button>
+              <button class="size" type="button" role="radio" data-size="many" aria-checked="false">11+</button>
+            </div>
+            <p class="fine">Pick a size and watch the room change. You can grow it anytime.</p>
+            <div class="firm-foot">
+              <button class="ghost" type="button">Back</button>
+              <button class="next" type="button" style="margin:0;min-height:44px;padding:0 18px">Continue</button>
+              <span class="fine">Step 2 of 5</span>
+            </div>
+            <button class="ghost" type="button">Stuck? Ask Pip</button>
+          </div>
+          <aside class="room" aria-live="polite">
+            <div class="seats" id="seats"></div>
+            <p class="room-cap" id="room-cap"></p>
+            <button class="dash" type="button" id="dash" hidden>Go to dashboard</button>
+          </aside>
+        </div>
+      </section>
+      <section class="panel" id="panel-agent" role="tabpanel" aria-labelledby="tab-agent" hidden>
+        <div class="agent" id="agent"></div>
+      </section>
+    </div>
+    <div class="controls">
+      <button type="button" id="toggle">暂停</button>
+      <button type="button" id="next">下一步</button>
+    </div>
+    <p class="note">只复刻原片里能读到的交互。旋钮没有第四种药型；弹层天数只从 2 到 3；团队规模没有 25、50 或 100+；思考态点 Just Pete 后原片没有继续。</p>
+  </div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <script>
+    const live = document.getElementById('live');
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const panels = {
+      dial: document.getElementById('panel-dial'),
+      modal: document.getElementById('panel-modal'),
+      team: document.getElementById('panel-team'),
+      agent: document.getElementById('panel-agent')
+    };
+    let active = 'dial';
+    let playing = !motion.matches;
+    let timer = 0;
+
+    const meds = [
+      { name: 'Pill', desc: 'Tablets you swallow', icon: 'pill' },
+      { name: 'Inhaler', desc: 'Puffers and sprays you breathe in.', icon: 'inhaler' },
+      { name: 'Capsule', desc: 'Capsules you swallow', icon: 'capsule' }
+    ];
+    const icons = {
+      pill: '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="14" y="26" width="36" height="16" rx="8" fill="none" stroke="currentColor" stroke-width="3"/><path d="M32 26v16" stroke="currentColor" stroke-width="3"/></svg>',
+      inhaler: '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="24" y="14" width="16" height="22" rx="4" fill="none" stroke="currentColor" stroke-width="3"/><path d="M22 36h20l6 14H18z" fill="none" stroke="currentColor" stroke-width="3"/></svg>',
+      capsule: '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="16" y="24" width="32" height="16" rx="8" fill="none" stroke="currentColor" stroke-width="3"/><path d="M32 24h16a8 8 0 0 1 0 16H32z" fill="currentColor"/></svg>'
+    };
+    const dial = document.getElementById('dial');
+    const medCopy = document.getElementById('med-copy');
+    meds.forEach((med, index) => {
+      const disc = document.createElement('div');
+      disc.className = 'disc';
+      disc.dataset.index = String(index);
+      disc.innerHTML = icons[med.icon];
+      dial.appendChild(disc);
+    });
+    const discs = [...dial.querySelectorAll('.disc')];
+    let medIndex = 0;
+    let drag = 0;
+    let pointer = null;
+
+    function showMed() {
+      const med = meds[medIndex];
+      discs.forEach((disc, index) => {
+        let delta = index - medIndex - drag;
+        if (delta > 1.5) delta -= 3;
+        if (delta < -1.5) delta += 3;
+        const abs = Math.abs(delta);
+        disc.style.transform = 'translateX(' + (delta * 132) + 'px) scale(' + (1 - Math.min(abs, 1) * 0.34) + ')';
+        disc.style.opacity = String(1 - Math.min(abs, 1) * 0.55);
+        disc.style.zIndex = abs < 0.5 ? '2' : '1';
+        disc.classList.toggle('is-on', abs < 0.45);
+      });
+      medCopy.innerHTML = '<strong>' + med.name + '</strong><span>' + med.desc + '</span>';
+      dial.setAttribute('aria-valuenow', String(medIndex));
+      dial.setAttribute('aria-valuetext', med.name + '，' + med.desc);
+    }
+    function setMed(index, say) {
+      medIndex = (index + meds.length) % meds.length;
+      drag = 0;
+      showMed();
+      if (say) live.textContent = '药物类型：' + meds[medIndex].name + '。' + meds[medIndex].desc;
+    }
+    dial.addEventListener('pointerdown', (event) => {
+      pointer = { id: event.pointerId, x: event.clientX, base: drag };
+      dial.setPointerCapture(event.pointerId);
+      stopPlay();
+    });
+    dial.addEventListener('pointermove', (event) => {
+      if (!pointer || pointer.id !== event.pointerId) return;
+      drag = pointer.base + (pointer.x - event.clientX) / 140;
+      showMed();
+    });
+    function endDrag(event) {
+      if (!pointer || pointer.id !== event.pointerId) return;
+      const shift = drag > 0.28 ? 1 : drag < -0.28 ? -1 : 0;
+      pointer = null;
+      setMed(medIndex + shift, true);
+    }
+    dial.addEventListener('pointerup', endDrag);
+    dial.addEventListener('pointercancel', endDrag);
+    dial.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight') { stopPlay(); setMed(medIndex + 1, true); }
+      if (event.key === 'ArrowLeft') { stopPlay(); setMed(medIndex - 1, true); }
+    });
+    document.getElementById('med-next').addEventListener('click', () => {
+      live.textContent = '已停在 ' + meds[medIndex].name + '。原片没有打开 Next 之后的画面。';
+    });
+
+    const shade = document.getElementById('shade');
+    const days = document.getElementById('days');
+    const modalBeats = [
+      { at: 0, open: false, day: 2, say: '对话还在，弹层还没出现。' },
+      { at: 1600, open: true, day: 2, say: '弹层：连续 2 天。' },
+      { at: 2400, open: true, day: 3, say: '弹层：天数跳到 3。' },
+      { at: 5200, open: false, day: 3, say: '弹层收回，回到对话。' }
+    ];
+    let modalAt = 0;
+    let modalShown = -1;
+    function showModal(beat) {
+      const index = modalBeats.indexOf(beat);
+      shade.hidden = !beat.open;
+      days.textContent = String(beat.day);
+      if (index !== modalShown) {
+        modalShown = index;
+        live.textContent = beat.say;
+      }
+    }
+    document.getElementById('share').addEventListener('click', () => {
+      live.textContent = 'Share to story 在原片里没有打开后续画面。';
+    });
+
+    const sizes = [...document.querySelectorAll('.size')];
+    const seats = document.getElementById('seats');
+    const roomCap = document.getElementById('room-cap');
+    const dash = document.getElementById('dash');
+    const rooms = {
+      solo: { n: 1, cap: '' },
+      few: { n: 3, cap: 'Room for 2–4' },
+      mid: { n: 6, cap: 'Room for 5–10' },
+      many: { n: 10, cap: 'Room for 11+' }
+    };
+    const teamOrder = ['mid', 'many', 'mid', 'few'];
+    let teamStep = -1;
+    function setSize(key, say) {
+      const room = rooms[key];
+      sizes.forEach((button) => button.setAttribute('aria-checked', button.dataset.size === key ? 'true' : 'false'));
+      seats.replaceChildren();
+      for (let i = 0; i < (room ? room.n : 0); i++) {
+        const seat = document.createElement('span');
+        seat.className = 'seat';
+        seats.appendChild(seat);
+      }
+      roomCap.textContent = room ? room.cap : '';
+      dash.hidden = !key;
+      if (say && room) live.textContent = (room.cap || 'Just me') + '。右侧房间随规模变化。原片没有打开仪表盘。';
+    }
+    sizes.forEach((button) => button.addEventListener('click', () => {
+      stopPlay();
+      teamStep = teamOrder.indexOf(button.dataset.size);
+      setSize(button.dataset.size, true);
+    }));
+    dash.addEventListener('click', () => {
+      live.textContent = 'Go to dashboard 在原片里没有打开仪表盘。';
+    });
+
+    const agentRoot = document.getElementById('agent');
+    const intent = 'You want to know if Northstar has already pushed back on the payment schedule or support period. I\'ll check their record, the activity log, then emails and call notes with Pete.';
+    const answer = 'There are two conversations that are particularly relevant. On September 18, Pete asked whether the payment schedule could be adjusted around their internal approval process. Then, on September 21, he asked whether post-launch support would be included and how long it would last.';
+    const agentBeats = [
+      { at: 0, id: 'home' },
+      { at: 2500, id: 'user' },
+      { at: 8000, id: 'think' },
+      { at: 11000, id: 'plan' },
+      { at: 16000, id: 'steps' },
+      { at: 21000, id: 'log' },
+      { at: 27000, id: 'sources' },
+      { at: 34000, id: 'pause' },
+      { at: 39000, id: 'both' },
+      { at: 45000, id: 'compare' },
+      { at: 50000, id: 'write' },
+      { at: 56000, id: 'done' }
+    ];
+    let agentAt = 0;
+    let agentIndex = 0;
+    let heldPete = false;
+
+    function pip(label, seconds) {
+      return '<div class="pip"><span>Pip · <b>' + label + '</b></span><span>' + seconds + '</span></div>';
+    }
+    function composer(text) {
+      return '<div class="composer">' + text + '</div>';
+    }
+    function agentHtml(id) {
+      const head = '<header>Pip AI</header><div class="agent-body">';
+      const tail = '</div>';
+      if (id === 'home') {
+        return head + '<p class="hello">Hey! What are we working on?</p><div class="chips"><span class="chip">Show my leads</span><span class="chip">Draft a follow-up</span><span class="chip">Check my pipeline</span></div>' + tail + composer('Ask Pip about your leads, deals, or pipeline.');
+      }
+      if (id === 'user') {
+        return head + '<div class="msg">Can you also check if we have any previous conversations with Northstar about these terms?</div>' + tail + composer('Ask Pip about your leads, deals, or pipeline.');
+      }
+      if (id === 'think') {
+        return head + '<div class="msg">Can you also check if we have any previous conversations with Northstar about these terms?</div>' + pip('Thinking…', '2s') + tail + composer('Pip is working. Type to queue a follow-up.');
+      }
+      if (id === 'plan') {
+        return head + '<div class="msg">Can you also check if we have any previous conversations with Northstar about these terms?</div>' + pip('Planning', '4s') + '<p class="intent">' + intent + '</p>' + tail + composer('Pip is working. Type to queue a follow-up.');
+      }
+      if (id === 'steps') {
+        return head + pip('Planning', '10s') + '<p class="intent">' + intent + '</p><p class="pip"><b>Plan</b><span>0 of 4</span></p><ol class="plan"><li>Find Northstar Labs in your CRM</li><li>Read their activity log</li><li>Search emails and calls for payment and support terms</li><li>Compare with the 3 points I flagged</li></ol>' + tail + composer('Pip is working. Type to queue a follow-up.');
+      }
+      if (id === 'log') {
+        return head + pip('Working', '14s') + '<p class="intent">' + intent + '</p><p class="pip"><b>Checking Northstar history</b><span>Step 2 of 4</span></p><ol class="plan"><li class="done">Find Northstar Labs in your CRM · 1.2s</li><li>Read their activity log · 3.4s</li><li>Search emails and calls for payment and support terms</li><li>Compare with the 3 points I flagged</li></ol><div class="source">Northstar Labs · 3 contacts · Proposal v2<br>8 activities · Sep 2–Oct 14<br>Most of this is meeting scheduling. Two items mention pricing.</div>' + tail + composer('Pip is working. Type to queue a follow-up.');
+      }
+      if (id === 'sources') {
+        return head + pip('Reading sources', '22s') + '<p class="pip"><b>Checking Northstar history</b><span>Step 3 of 4</span></p><div class="sources"><div class="source">Re: Proposal v2 · Pete Lawson <em>Relevant</em><br>Email · Sep 18</div><div class="source">Call notes · Pete Lawson <em>Relevant</em><br>Call · Sep 21 · 24 min</div><div class="source">Kickoff dates · Olivia Carter <em class="skip">Skipped</em><br>Email · Sep 4</div></div><p class="intent">The Sep 18 email asks to move the payment schedule around their approval process. That lines up with point one.</p>' + tail + composer('Pip is working. Type to queue a follow-up.');
+      }
+      if (id === 'pause') {
+        return head + pip('Paused', '26s') + '<p class="pip"><b>Searching emails and calls</b><span>Waiting on you</span></p><div class="check"><strong>Quick check</strong><p>Northstar has 2 contacts. Pete Lawson runs ops and Olivia Carter is the founder. Should I check Olivia\'s emails too?</p><div class="choices"><button class="choice" type="button" data-pick="pete" aria-pressed="' + (heldPete ? 'true' : 'false') + '">Just Pete</button><button class="choice" type="button" data-pick="both" aria-pressed="false">Include both</button></div><p class="wait">Nothing moves until you pick. Or type your answer…</p></div>' + tail + composer('Or type your answer…');
+      }
+      if (id === 'both') {
+        return head + pip('Working', '28s') + '<p class="intent">Got it. Picking up where I left off.</p><p class="pip"><b>Checking Northstar history</b><span>Step 3 of 4</span></p><p class="intent">Including Olivia\'s emails</p>' + tail + composer('Pip is working. Type to queue a follow-up.');
+      }
+      if (id === 'compare') {
+        return head + pip('Working', '32s') + '<p class="pip"><b>Checking Northstar history</b><span>Step 4 of 4</span></p><ol class="plan"><li class="done">Find Northstar Labs in your CRM · 1.2s</li><li class="done">Read their activity log · 3.4s</li><li class="done">Searched emails and calls · 9.8s · 6 of 6 checked. 4 relevant</li><li class="done">Compared with the 3 points I flagged · 2.1s</li></ol>' + tail + composer('Pip is working. Type to queue a follow-up.');
+      }
+      if (id === 'write') {
+        return head + pip('Writing answer', '36s') + '<p class="fine">Worked for 36s · Reviewed 8 Northstar activities · Found 4 relevant conversations</p><p class="answer">' + answer + '</p>' + tail + composer('Pip is working. Type to queue a follow-up.');
+      }
+      return head + pip('Done', '41s') + '<p class="fine">Worked for 41s · Reviewed 8 Northstar activities · Found 4 relevant conversations</p><p class="answer">' + answer + '</p><span class="chip">Summarise the risks</span>' + tail + composer('Ask Pip about your leads, deals, or pipeline.');
+    }
+    const agentSay = {
+      home: 'Pip 问要做什么。',
+      user: '用户要查和 Northstar 的既往沟通。',
+      think: 'Pip 思考中。',
+      plan: 'Pip 在复述任务。',
+      steps: '计划四步，还没开始。',
+      log: '正在读 Northstar 的活动记录。',
+      sources: '正在核对邮件和通话，Sep 18 的邮件对上了第一点。',
+      pause: '暂停：要不要也看 Olivia 的邮件。原片只继续了 Include both。',
+      both: '选择 Include both，接着查。',
+      compare: '四步做完：6 封里 4 封相关。',
+      write: '正在写回答。',
+      done: '完成。建议是 Summarise the risks，原片没有展开这一步。'
+    };
+    function showAgent(index) {
+      agentIndex = index;
+      const beat = agentBeats[index];
+      if (beat.id !== 'pause') heldPete = false;
+      agentRoot.innerHTML = agentHtml(beat.id);
+      live.textContent = agentSay[beat.id];
+      agentRoot.querySelectorAll('[data-pick]').forEach((button) => {
+        button.addEventListener('click', () => pick(button.dataset.pick));
+      });
+    }
+    function pick(which) {
+      if (which === 'pete') {
+        heldPete = true;
+        stopPlay();
+        showAgent(agentBeats.findIndex((beat) => beat.id === 'pause'));
+        live.textContent = 'Just Pete 被点中，但原片没有这一支的后续。';
+        return;
+      }
+      heldPete = false;
+      const next = agentBeats.findIndex((beat) => beat.id === 'both');
+      agentAt = agentBeats[next].at;
+      showAgent(next);
+      if (playing) run();
+    }
+
+    function stopTick() { clearTimeout(timer); timer = 0; }
+    function stopPlay() {
+      playing = false;
+      stopTick();
+      document.getElementById('toggle').textContent = '播放';
+      document.getElementById('toggle').setAttribute('aria-pressed', 'false');
+    }
+    function beatIndex(list, at) {
+      let index = 0;
+      for (let i = 0; i < list.length; i++) if (at >= list[i].at) index = i;
+      return index;
+    }
+    function run() {
+      stopTick();
+      if (!playing) return;
+      if (active === 'dial') {
+        const marks = [0, 2400, 4200];
+        const index = beatIndex(marks.map((at) => ({ at })), dialClock);
+        if (index !== medIndex) setMed(index, true);
+        if (dialClock >= 4200) { stopPlay(); return; }
+        dialClock += 200;
+      } else if (active === 'modal') {
+        showModal(modalBeats[beatIndex(modalBeats, modalAt)]);
+        if (modalAt >= 5200) { stopPlay(); return; }
+        modalAt += 200;
+      } else if (active === 'team') {
+        const at = teamClock;
+        const index = at < 600 ? -1 : Math.min(teamOrder.length - 1, Math.floor((at - 600) / 1600));
+        if (index !== teamStep) {
+          teamStep = index;
+          setSize(index < 0 ? '' : teamOrder[index], index >= 0);
+        }
+        if (at >= 600 + teamOrder.length * 1600) { stopPlay(); return; }
+        teamClock += 200;
+      } else if (active === 'agent') {
+        if (agentBeats[agentIndex].id === 'pause') {
+          timer = setTimeout(() => { if (playing) pick('both'); }, 2200);
+          return;
+        }
+        const index = beatIndex(agentBeats, agentAt);
+        if (index !== agentIndex) showAgent(index);
+        if (agentAt >= 56000) { stopPlay(); return; }
+        agentAt += 200;
+      }
+      timer = setTimeout(run, 200);
+    }
+    let dialClock = 0;
+    let teamClock = 0;
+
+    function startActive() {
+      stopTick();
+      if (active === 'dial') { dialClock = 0; setMed(0, false); }
+      if (active === 'modal') { modalAt = 0; modalShown = -1; showModal(modalBeats[0]); }
+      if (active === 'team') { teamClock = 0; teamStep = -1; setSize('', false); }
+      if (active === 'agent') { agentAt = 0; heldPete = false; showAgent(0); }
+      if (playing) run();
+    }
+
+    function selectTab(name) {
+      active = name;
+      tabs.forEach((tab) => {
+        const on = tab.id === 'tab-' + name;
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        panels[tab.id.slice(4)].hidden = !on;
+      });
+      playing = !motion.matches;
+      document.getElementById('toggle').textContent = playing ? '暂停' : '播放';
+      document.getElementById('toggle').setAttribute('aria-pressed', playing ? 'true' : 'false');
+      startActive();
+    }
+    tabs.forEach((tab) => tab.addEventListener('click', () => selectTab(tab.id.slice(4))));
+
+    document.getElementById('toggle').addEventListener('click', () => {
+      if (motion.matches) return;
+      playing = !playing;
+      document.getElementById('toggle').textContent = playing ? '暂停' : '播放';
+      document.getElementById('toggle').setAttribute('aria-pressed', playing ? 'true' : 'false');
+      if (playing) run();
+      else stopTick();
+    });
+    document.getElementById('next').addEventListener('click', () => {
+      stopPlay();
+      if (active === 'dial') setMed(medIndex + 1, true);
+      if (active === 'modal') {
+        const index = (beatIndex(modalBeats, modalAt) + 1) % modalBeats.length;
+        modalAt = modalBeats[index].at;
+        showModal(modalBeats[index]);
+      }
+      if (active === 'team') {
+        teamStep = (teamStep + 1) % teamOrder.length;
+        setSize(teamOrder[teamStep], true);
+      }
+      if (active === 'agent') {
+        if (agentBeats[agentIndex].id === 'pause') pick('both');
+        else showAgent((agentIndex + 1) % agentBeats.length);
+      }
+    });
+
+    showMed();
+    selectTab('dial');
+  </script>
+</body>
+</html>
