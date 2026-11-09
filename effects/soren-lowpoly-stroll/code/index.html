@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>低多边形第三人称漫步</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #8ecae6; color: #1c2430; font: 14px/1.4 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+    .chip, .hud { position: fixed; z-index: 2; }
+    .chip { left: 12px; top: 12px; max-width: min(420px, calc(100% - 24px)); padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,.82); }
+    .chip strong { display: block; font-size: 14px; }
+    .chip span { display: block; margin-top: 2px; color: #3d4a3a; font-size: 12px; }
+    .hud { left: 12px; right: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px; border-radius: 14px; background: rgba(255,255,255,.86); }
+    button { min-height: 36px; padding: 0 12px; border: 1px solid #c5d0c0; border-radius: 999px; background: #fff; color: #1c2430; font: inherit; }
+    button[aria-pressed="true"] { background: #1f6b4a; color: #fff; border-color: #1f6b4a; }
+    .hint { flex: 1 1 220px; margin: 0; color: #3d4a3a; font-size: 12px; }
+    #fallback { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  </style>
+</head>
+<body>
+  <canvas id="view" tabindex="0" aria-label="低多边形草地。原创圆头行人沿土路行走，不是原片角色。方向键或 WASD 移动，拖拽转向。"></canvas>
+  <p id="fallback">这个浏览器打不开 WebGL，漫步场景无法显示。</p>
+  <div class="chip">
+    <strong>低多边形漫步</strong>
+    <span>原创几何。只复刻预览里的身后跟拍，不临摹原片角色。</span>
+  </div>
+  <div class="hud">
+    <button type="button" id="demo" aria-pressed="true">沿路走</button>
+    <button type="button" id="fwd">向前</button>
+    <button type="button" id="back">后退</button>
+    <button type="button" id="left">向左</button>
+    <button type="button" id="right">向右</button>
+    <p class="hint">方向键或 WASD 走动，拖拽、Q、E 转向。点一下画面后键盘生效。</p>
+  </div>
+  <script>
+    const canvas = document.getElementById("view");
+    const gl = canvas.getContext("webgl", { alpha: false, antialias: true, depth: true, premultipliedAlpha: false });
+    if (!gl) document.getElementById("fallback").style.display = "flex";
+
+    const reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduce = reduceQuery.matches;
+    const held = new Set();
+    let demo = !reduce;
+    let demoS = -6;
+    let demoDir = 1;
+    let face = 0;
+    let camOffset = 0;
+    let cameraYaw = 0;
+    let phase = 0;
+    const pos = { x: -6, y: 0, z: 0 };
+    const MOVE = { ArrowUp: [0, 1], KeyW: [0, 1], ArrowDown: [0, -1], KeyS: [0, -1], ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0], fwd: [0, 1], back: [0, -1], left: [-1, 0], right: [1, 0] };
+
+    function hash(x, y) {
+      let n = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263);
+      n = Math.imul(n ^ (n >>> 13), 1274126177);
+      return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+    }
+    function fade(t) { return t * t * (3 - 2 * t); }
+    function noise(x, z) {
+      const x0 = Math.floor(x), z0 = Math.floor(z);
+      const sx = fade(x - x0), sz = fade(z - z0);
+      const a = hash(x0, z0), b = hash(x0 + 1, z0), c = hash(x0, z0 + 1), d = hash(x0 + 1, z0 + 1);
+      return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
+    }
+    function pathZ(x) { return Math.sin(x * 0.16) * 7.2; }
+    function heightAt(x, z) {
+      const r = Math.hypot(x, z) / 26;
+      const edge = r > 0.55 ? (r - 0.55) * (r - 0.55) * 22 : 0;
+      const n = (noise(x * 0.08, z * 0.08) - 0.5) * 2.4 + (noise(x * 0.21 + 3.2, z * 0.21) - 0.5) * 0.8;
+      const d = Math.abs(z - pathZ(x));
+      const path = Math.max(0, 1 - d / 2.35);
+      return n * (1 - path * 0.82) + 0.42 * path + edge;
+    }
+    function groundColor(x, z, h) {
+      const d = Math.abs(z - pathZ(x));
+      if (d < 1.55) return noise(x * 0.7, z * 0.7) > 0.55 ? [0.76, 0.58, 0.34] : [0.64, 0.46, 0.26];
+      if (d < 2.25) return [0.73, 0.64, 0.36];
+      const g = noise(x * 0.12 + 2, z * 0.12);
+      if (h > 3.4) return [0.62, 0.66, 0.42];
+      if (g > 0.68) return [0.84, 0.78, 0.34];
+      if (g > 0.42) return [0.55, 0.78, 0.32];
+      return [0.36, 0.66, 0.3];
+    }
+
+    function Mesh() { this.p = []; this.n = []; this.c = []; }
+    Mesh.prototype.tri = function (a, b, c, col) {
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+      const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+      let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const len = Math.hypot(nx, ny, nz);
+      if (len < 1e-8) return;
+      nx /= len; ny /= len; nz /= len;
+      for (const q of [a, b, c]) {
+        this.p.push(q[0], q[1], q[2]);
+        this.n.push(nx, ny, nz);
+        this.c.push(col[0], col[1], col[2]);
+      }
+    };
+    function triOut(mesh, a, b, c, col, ref) {
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+      const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const mx = (a[0] + b[0] + c[0]) / 3, my = (a[1] + b[1] + c[1]) / 3, mz = (a[2] + b[2] + c[2]) / 3;
+      const out = nx * (mx - ref[0]) + ny * (my - ref[1]) + nz * (mz - ref[2]);
+      if (out < 0) mesh.tri(a, c, b, col);
+      else mesh.tri(a, b, c, col);
+    }
+    function addBox(mesh, x0, y0, z0, x1, y1, z1, col) {
+      const ref = [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2];
+      const q = [
+        [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]],
+        [[x1, y0, z1], [x0, y0, z1], [x0, y1, z1], [x1, y1, z1]],
+        [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]],
+        [[x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]],
+        [[x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]],
+        [[x0, y0, z1], [x0, y0, z0], [x0, y1, z0], [x0, y1, z1]]
+      ];
+      for (const f of q) {
+        triOut(mesh, f[0], f[1], f[2], col, ref);
+        triOut(mesh, f[0], f[2], f[3], col, ref);
+      }
+    }
+    function addCone(mesh, cx, cy, cz, radius, height, sides, col) {
+      const ref = [cx, cy + height * 0.35, cz];
+      const tip = [cx, cy + height, cz];
+      const ring = [];
+      for (let i = 0; i < sides; i++) {
+        const a = (i / sides) * Math.PI * 2;
+        ring.push([cx + Math.cos(a) * radius, cy, cz + Math.sin(a) * radius]);
+      }
+      for (let i = 0; i < sides; i++) {
+        const p = ring[i], q = ring[(i + 1) % sides];
+        triOut(mesh, p, q, tip, col, ref);
+        triOut(mesh, q, p, [cx, cy, cz], [col[0] * 0.72, col[1] * 0.72, col[2] * 0.72], ref);
+      }
+    }
+    function addPrism(mesh, cx, cy, cz, radius, height, sides, col) {
+      const ref = [cx, cy + height * 0.5, cz];
+      const bot = [], top = [];
+      for (let i = 0; i < sides; i++) {
+        const a = (i / sides) * Math.PI * 2;
+        const x = Math.cos(a) * radius, z = Math.sin(a) * radius;
+        bot.push([cx + x, cy, cz + z]);
+        top.push([cx + x, cy + height, cz + z]);
+      }
+      for (let i = 0; i < sides; i++) {
+        const j = (i + 1) % sides;
+        triOut(mesh, bot[i], bot[j], top[j], col, ref);
+        triOut(mesh, bot[i], top[j], top[i], col, ref);
+      }
+    }
+    function addSphere(mesh, c, rx, ry, rz, latN, lonN, col) {
+      for (let lat = 0; lat < latN; lat++) {
+        const p0 = Math.PI * (lat / latN), p1 = Math.PI * ((lat + 1) / latN);
+        for (let lon = 0; lon < lonN; lon++) {
+          const s0 = Math.PI * 2 * (lon / lonN), s1 = Math.PI * 2 * ((lon + 1) / lonN);
+          const pt = (p, s) => [c[0] + rx * Math.sin(p) * Math.cos(s), c[1] + ry * Math.cos(p), c[2] + rz * Math.sin(p) * Math.sin(s)];
+          const a = pt(p0, s0), b = pt(p0, s1), d = pt(p1, s0), e = pt(p1, s1);
+          triOut(mesh, a, e, d, col, c);
+          triOut(mesh, a, b, e, col, c);
+        }
+      }
+    }
+
+    const world = new Mesh();
+    const N = 64, SPAN = 56, cell = SPAN / N, origin = -SPAN / 2;
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        const x0 = origin + i * cell, z0 = origin + j * cell, x1 = x0 + cell, z1 = z0 + cell;
+        const y00 = heightAt(x0, z0), y10 = heightAt(x1, z0), y11 = heightAt(x1, z1), y01 = heightAt(x0, z1);
+        const col = groundColor((x0 + x1) / 2, (z0 + z1) / 2, (y00 + y10 + y11 + y01) / 4);
+        const a = [x0, y00, z0], b = [x1, y10, z0], c = [x1, y11, z1], d = [x0, y01, z1];
+        world.tri(a, d, b, col);
+        world.tri(b, d, c, col);
+      }
+    }
+    for (let i = 0; i < 90; i++) {
+      const x = (hash(i, 3) - 0.5) * 46;
+      const z = (hash(i, 4) - 0.5) * 46;
+      if (Math.abs(z - pathZ(x)) < 3.1) continue;
+      const h = heightAt(x, z);
+      if (h < 0.15 || h > 4.2) continue;
+      const kind = hash(i, 5);
+      if (kind < 0.62) {
+        const s = 0.75 + hash(i, 6) * 1.15;
+        const leaf = hash(i, 7) > 0.5 ? [0.28, 0.62, 0.28] : [0.46, 0.74, 0.3];
+        addPrism(world, x, h, z, 0.1 * s, 0.62 * s, 6, [0.48, 0.32, 0.18]);
+        addCone(world, x, h + 0.42 * s, z, 0.82 * s, 1.45 * s, 7, leaf);
+        addCone(world, x, h + 1.05 * s, z, 0.55 * s, 1.15 * s, 7, [leaf[0] * 0.85, leaf[1] * 0.92, leaf[2] * 0.8]);
+      } else if (kind < 0.84) {
+        const s = 0.35 + hash(i, 6) * 0.55;
+        addSphere(world, [x, h + 0.18 * s, z], 0.55 * s, 0.38 * s, 0.48 * s, 4, 5, [0.62, 0.6, 0.56]);
+      }
+    }
+
+    const torso = new Mesh();
+    addBox(torso, -0.2, -0.2, -0.11, 0.2, 0.22, 0.11, [0.22, 0.58, 0.54]);
+    const head = new Mesh();
+    addSphere(head, [0, 0, 0], 0.16, 0.17, 0.16, 5, 7, [0.95, 0.86, 0.74]);
+    const leg = new Mesh();
+    addBox(leg, -0.07, -0.56, -0.07, 0.07, 0, 0.07, [0.28, 0.24, 0.22]);
+    const arm = new Mesh();
+    addBox(arm, -0.05, -0.4, -0.05, 0.05, 0, 0.05, [0.95, 0.86, 0.74]);
+    const shadow = new Mesh();
+    {
+      const ref = [0, -1, 0], y = 0, r = 0.42, seg = 14, col = [0.12, 0.16, 0.1];
+      for (let i = 0; i < seg; i++) {
+        const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
+        triOut(shadow, [0, y, 0], [Math.cos(a0) * r, y, Math.sin(a0) * r], [Math.cos(a1) * r, y, Math.sin(a1) * r], col, ref);
+      }
+    }
+
+    function ident() { const m = new Float32Array(16); m[0] = m[5] = m[10] = m[15] = 1; return m; }
+    function mul(a, b) {
+      const o = new Float32Array(16);
+      for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+      return o;
+    }
+    function translate(x, y, z) { const m = ident(); m[12] = x; m[13] = y; m[14] = z; return m; }
+    function rotY(a) {
+      const c = Math.cos(a), s = Math.sin(a), m = ident();
+      m[0] = c; m[2] = -s; m[8] = s; m[10] = c; return m;
+    }
+    function rotX(a) {
+      const c = Math.cos(a), s = Math.sin(a), m = ident();
+      m[5] = c; m[6] = s; m[9] = -s; m[10] = c; return m;
+    }
+    function perspective(fovy, aspect, near, far) {
+      const f = 1 / Math.tan(fovy / 2), m = new Float32Array(16);
+      m[0] = f / aspect; m[5] = f; m[10] = (far + near) / (near - far); m[11] = -1; m[14] = (2 * far * near) / (near - far); return m;
+    }
+    function norm(v) { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
+    function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+    function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+    function lookAt(eye, target, up) {
+      const z = norm([eye[0] - target[0], eye[1] - target[1], eye[2] - target[2]]);
+      const x = norm(cross(up, z));
+      const y = cross(z, x);
+      const m = ident();
+      m[0] = x[0]; m[1] = y[0]; m[2] = z[0];
+      m[4] = x[1]; m[5] = y[1]; m[6] = z[1];
+      m[8] = x[2]; m[9] = y[2]; m[10] = z[2];
+      m[12] = -dot(x, eye); m[13] = -dot(y, eye); m[14] = -dot(z, eye);
+      return m;
+    }
+    function upper3(m) { return new Float32Array([m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]]); }
+    function angDelta(from, to) {
+      let d = (to - from) % (Math.PI * 2);
+      if (d > Math.PI) d -= Math.PI * 2;
+      if (d < -Math.PI) d += Math.PI * 2;
+      return d;
+    }
+
+    const vs = "attribute vec3 aPos;attribute vec3 aNrm;attribute vec3 aCol;uniform mat4 uProj;uniform mat4 uView;uniform mat4 uModel;uniform mat3 uNrm;varying vec3 vCol;varying vec3 vN;varying float vDist;void main(){vec4 world=uModel*vec4(aPos,1.0);vec4 view=uView*world;vDist=length(view.xyz);vN=uNrm*aNrm;vCol=aCol;gl_Position=uProj*view;}";
+    const fs = "precision mediump float;varying vec3 vCol;varying vec3 vN;varying float vDist;uniform vec3 uLight;uniform vec3 uFog;uniform float uFogNear;uniform float uFogFar;uniform float uAlpha;void main(){vec3 n=normalize(vN);float lambert=0.4+0.6*max(dot(n,uLight),0.0);float hemi=0.88+0.12*n.y;vec3 lit=vCol*lambert*hemi;float fog=smoothstep(uFogNear,uFogFar,vDist);gl_FragColor=vec4(mix(lit,uFog,fog),uAlpha);}";
+
+    function compile(type, src) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, src);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader) || "shader");
+      return shader;
+    }
+    let prog, loc, viewM, projM;
+    function upload(mesh) {
+      mesh.count = mesh.p.length / 3;
+      mesh.bp = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, mesh.bp); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh.p), gl.STATIC_DRAW);
+      mesh.bn = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, mesh.bn); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh.n), gl.STATIC_DRAW);
+      mesh.bc = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, mesh.bc); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mesh.c), gl.STATIC_DRAW);
+      mesh.p = mesh.n = mesh.c = null;
+    }
+    function bindMesh(mesh) {
+      const enable = (buf, index) => {
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.enableVertexAttribArray(index);
+        gl.vertexAttribPointer(index, 3, gl.FLOAT, false, 0, 0);
+      };
+      enable(mesh.bp, 0); enable(mesh.bn, 1); enable(mesh.bc, 2);
+    }
+    function drawMesh(mesh, model, alpha) {
+      gl.uniformMatrix4fv(loc.model, false, model);
+      gl.uniformMatrix3fv(loc.nrm, false, upper3(model));
+      gl.uniform1f(loc.alpha, alpha);
+      bindMesh(mesh);
+      gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+    }
+
+    if (gl) {
+      prog = gl.createProgram();
+      gl.attachShader(prog, compile(gl.VERTEX_SHADER, vs));
+      gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fs));
+      gl.bindAttribLocation(prog, 0, "aPos");
+      gl.bindAttribLocation(prog, 1, "aNrm");
+      gl.bindAttribLocation(prog, 2, "aCol");
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog) || "link");
+      loc = {
+        proj: gl.getUniformLocation(prog, "uProj"),
+        view: gl.getUniformLocation(prog, "uView"),
+        model: gl.getUniformLocation(prog, "uModel"),
+        nrm: gl.getUniformLocation(prog, "uNrm"),
+        light: gl.getUniformLocation(prog, "uLight"),
+        fog: gl.getUniformLocation(prog, "uFog"),
+        fogNear: gl.getUniformLocation(prog, "uFogNear"),
+        fogFar: gl.getUniformLocation(prog, "uFogFar"),
+        alpha: gl.getUniformLocation(prog, "uAlpha")
+      };
+      for (const mesh of [world, torso, head, leg, arm, shadow]) upload(mesh);
+      gl.useProgram(prog);
+      gl.enable(gl.DEPTH_TEST);
+      gl.enable(gl.CULL_FACE);
+      gl.clearColor(0.557, 0.792, 0.902, 1);
+      const light = norm([0.35, 0.86, 0.28]);
+      gl.uniform3fv(loc.light, light);
+      gl.uniform3fv(loc.fog, [0.557, 0.792, 0.902]);
+      gl.uniform1f(loc.fogNear, 16);
+      gl.uniform1f(loc.fogFar, 46);
+    }
+
+    function placeOnPath(s) {
+      pos.x = s;
+      pos.z = pathZ(s);
+      pos.y = heightAt(pos.x, pos.z);
+      const ahead = s + demoDir * 0.6;
+      face = Math.atan2(ahead - pos.x, pathZ(ahead) - pos.z);
+    }
+    function inputAxes() {
+      let x = 0, z = 0;
+      for (const code of held) {
+        const axis = MOVE[code];
+        if (!axis) continue;
+        x += axis[0]; z += axis[1];
+      }
+      return [x, z];
+    }
+    function stepOnce(code) {
+      demo = false;
+      syncDemoButton();
+      held.add(code);
+      update(0.28);
+      held.delete(code);
+      draw();
+    }
+
+    function update(dt) {
+      const axes = inputAxes();
+      const movingInput = axes[0] !== 0 || axes[1] !== 0;
+      if (demo && !movingInput) {
+        const speed = 3.15;
+        demoS += demoDir * speed * dt;
+        if (demoS > 14) { demoS = 14; demoDir = -1; }
+        if (demoS < -14) { demoS = -14; demoDir = 1; }
+        placeOnPath(demoS);
+        camOffset += (0 - camOffset) * Math.min(1, dt * 2);
+        phase += dt * 7.5;
+      } else if (movingInput) {
+        demo = false;
+        const yaw = cameraYaw;
+        const sin = Math.sin(yaw), cos = Math.cos(yaw);
+        const mag = Math.hypot(axes[0], axes[1]) || 1;
+        const mx = axes[0] / mag, mz = axes[1] / mag;
+        const speed = (held.has("ShiftLeft") || held.has("ShiftRight") ? 6 : 3.3) * (reduce ? 2.2 : 1);
+        const dx = (sin * mz + cos * mx) * speed * dt;
+        const dz = (cos * mz - sin * mx) * speed * dt;
+        pos.x = Math.max(-22, Math.min(22, pos.x + dx));
+        pos.z = Math.max(-22, Math.min(22, pos.z + dz));
+        pos.y = heightAt(pos.x, pos.z);
+        face += angDelta(face, Math.atan2(dx, dz)) * Math.min(1, dt * 10);
+        if (!reduce) phase += dt * (held.has("ShiftLeft") || held.has("ShiftRight") ? 12 : 8);
+      } else if (!reduce) {
+        phase += angDelta(phase, 0) * Math.min(1, dt * 6);
+      }
+      if (held.has("KeyQ")) camOffset -= dt * 1.4;
+      if (held.has("KeyE")) camOffset += dt * 1.4;
+      cameraYaw += angDelta(cameraYaw, face + camOffset) * Math.min(1, dt * 4);
+    }
+
+    function draw() {
+      if (!gl) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight);
+      const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr);
+      if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      projM = perspective(48 * Math.PI / 180, canvas.width / canvas.height, 0.08, 80);
+      const back = 6.6, eyeLift = 2.45;
+      const eye = [pos.x - Math.sin(cameraYaw) * back, pos.y + eyeLift, pos.z - Math.cos(cameraYaw) * back];
+      const target = [pos.x, pos.y + 1.05, pos.z];
+      viewM = lookAt(eye, target, [0, 1, 0]);
+      gl.uniformMatrix4fv(loc.proj, false, projM);
+      gl.uniformMatrix4fv(loc.view, false, viewM);
+      gl.disable(gl.BLEND);
+      drawMesh(world, ident(), 1);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      drawMesh(shadow, translate(pos.x, pos.y + 0.05, pos.z), 0.38);
+      gl.disable(gl.BLEND);
+      const swing = reduce ? 0 : Math.sin(phase) * 0.65;
+      const bob = reduce ? 0 : Math.abs(Math.sin(phase)) * 0.035;
+      const root = mul(translate(pos.x, pos.y, pos.z), rotY(face));
+      const hip = mul(root, translate(0, 0.58 + bob, 0));
+      drawMesh(torso, mul(hip, translate(0, 0.28, 0)), 1);
+      drawMesh(head, mul(hip, translate(0, 0.64, 0)), 1);
+      drawMesh(leg, mul(hip, mul(translate(-0.1, 0, 0), rotX(swing))), 1);
+      drawMesh(leg, mul(hip, mul(translate(0.1, 0, 0), rotX(-swing))), 1);
+      drawMesh(arm, mul(hip, mul(translate(-0.26, 0.34, 0), rotX(-swing * 0.8))), 1);
+      drawMesh(arm, mul(hip, mul(translate(0.26, 0.34, 0), rotX(swing * 0.8))), 1);
+    }
+
+    function syncDemoButton() {
+      const button = document.getElementById("demo");
+      button.setAttribute("aria-pressed", demo ? "true" : "false");
+      button.textContent = demo ? "停下" : "沿路走";
+    }
+    document.getElementById("demo").addEventListener("click", () => {
+      demoDir = Math.sin(face) >= 0 ? 1 : -1;
+      demoS = Math.max(-14, Math.min(14, pos.x));
+      if (reduce) {
+        demoS = Math.max(-14, Math.min(14, demoS + demoDir * 1.6));
+        placeOnPath(demoS);
+        demo = false;
+        syncDemoButton();
+        draw();
+        return;
+      }
+      demo = !demo;
+      syncDemoButton();
+    });
+    for (const [id, code] of [["fwd", "fwd"], ["back", "back"], ["left", "left"], ["right", "right"]]) {
+      const el = document.getElementById(id);
+      if (reduce) {
+        el.addEventListener("click", () => stepOnce(code));
+      } else {
+        const on = (event) => { event.preventDefault(); held.add(code); demo = false; syncDemoButton(); };
+        const off = () => held.delete(code);
+        el.addEventListener("pointerdown", on);
+        el.addEventListener("pointerup", off);
+        el.addEventListener("pointerleave", off);
+        el.addEventListener("pointercancel", off);
+      }
+    }
+    addEventListener("keydown", (event) => {
+      if (event.repeat) { held.add(event.code); return; }
+      if (MOVE[event.code] || event.code === "KeyQ" || event.code === "KeyE" || event.code.startsWith("Arrow")) event.preventDefault();
+      if (reduce && MOVE[event.code]) { stepOnce(event.code); return; }
+      held.add(event.code);
+      if (MOVE[event.code]) { demo = false; syncDemoButton(); }
+    });
+    addEventListener("keyup", (event) => held.delete(event.code));
+    canvas.addEventListener("pointerdown", (event) => {
+      if (event.target !== canvas) return;
+      canvas.setPointerCapture(event.pointerId);
+      canvas.focus();
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (!canvas.hasPointerCapture(event.pointerId)) return;
+      camOffset -= event.movementX * 0.007;
+      camOffset = Math.max(-1.2, Math.min(1.2, camOffset));
+    });
+    reduceQuery.addEventListener("change", () => { reduce = reduceQuery.matches; if (reduce) demo = false; syncDemoButton(); draw(); });
+    placeOnPath(demoS);
+    cameraYaw = face;
+    syncDemoButton();
+    draw();
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (!reduce) { update(dt); draw(); }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
