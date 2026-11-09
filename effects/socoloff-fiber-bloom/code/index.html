@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fiber Bloom</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #141d41;
+    }
+    #bloom {
+      display: block;
+      width: 100vw;
+      height: 100svh;
+      touch-action: none;
+      background: linear-gradient(#141d41, #683a4a);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bloom" aria-label="抽象纤维绽放动画"></canvas>
+  <script>
+    (() => {
+      const PALETTE = {
+        mist: '#b7b5cb',
+        peach: '#d09c92',
+        ember: '#c16760',
+        navy: '#141d41',
+        plum: '#683a4a',
+        blue: '#435796'
+      };
+      const CUTS = [0, 2367, 3300, 5533, 8000];
+      const STATES = [
+        { name: 'light-a', density: 190, exposure: 1.00, spread: 0.72, opacity: 0.28 },
+        { name: 'dark-a', density: 330, exposure: 0.67, spread: 0.94, opacity: 0.50 },
+        { name: 'light-b', density: 205, exposure: 0.98, spread: 0.76, opacity: 0.30 },
+        { name: 'dark-b', density: 350, exposure: 0.66, spread: 1.00, opacity: 0.54 }
+      ];
+      const FIBER_COUNT = 350;
+      const SWAY_FRACTION = 0.028;
+
+      function hexToRgb(hex) {
+        const value = Number.parseInt(hex.slice(1), 16);
+        return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+      }
+
+      const RGB = {
+        mist: hexToRgb(PALETTE.mist),
+        peach: hexToRgb(PALETTE.peach),
+        ember: hexToRgb(PALETTE.ember),
+        navy: hexToRgb(PALETTE.navy),
+        plum: hexToRgb(PALETTE.plum),
+        blue: hexToRgb(PALETTE.blue)
+      };
+
+      const fibers = [];
+      const scratch = {
+        x0: 0, y0: 0, c1x: 0, c1y: 0, c2x: 0, c2y: 0, mx: 0, my: 0,
+        d1x: 0, d1y: 0, d2x: 0, d2y: 0, x1: 0, y1: 0,
+        fork: 0, f1x: 0, f1y: 0, f2x: 0, f2y: 0, fx: 0, fy: 0
+      };
+      const backgrounds = {};
+      let width = 1;
+      let height = 1;
+      let cx = 0;
+      let cy = 0;
+      let radius = 1;
+      let raf = 0;
+      let resizeQueued = 0;
+      let reducedMotion = false;
+      let origin = 0;
+      let ctx = null;
+      let motionQuery = null;
+
+      function seeded(index, salt) {
+        let n = (index + 1) * 374761393 + (salt + 1) * 668265263;
+        n = Math.imul(n ^ (n >>> 13), 1274126177);
+        n ^= n >>> 16;
+        return (n >>> 0) / 4294967296;
+      }
+
+      function clamp(value, min, max) {
+        if (value < min) return min;
+        if (value > max) return max;
+        return value;
+      }
+
+      function mix(a, b, t) {
+        return a + (b - a) * clamp(t, 0, 1);
+      }
+
+      function easeInOut(t) {
+        const u = clamp(t, 0, 1);
+        return u * u * (3 - 2 * u);
+      }
+
+      function mixRgb(a, b, t) {
+        return [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
+      }
+
+      function rgbCss(channels) {
+        return 'rgb(' + (channels[0] | 0) + ',' + (channels[1] | 0) + ',' + (channels[2] | 0) + ')';
+      }
+
+      function rgba(channels, alpha) {
+        return 'rgba(' + (channels[0] | 0) + ',' + (channels[1] | 0) + ',' + (channels[2] | 0) + ',' + clamp(alpha, 0, 1) + ')';
+      }
+
+      function createFibers() {
+        fibers.length = 0;
+        for (let index = 0; index < FIBER_COUNT; index += 1) {
+          const slot = Math.pow(seeded(index, 4), 1.45);
+          const length = 0.35 + seeded(index, 5) * 0.65;
+          const warmth = clamp(0.82 - slot + (seeded(index, 9) - 0.5) * 0.55, 0, 1);
+          const lightMix = seeded(index, 10);
+          const darkMix = seeded(index, 11);
+          const lightRgb = warmth > 0.48
+            ? mixRgb(RGB.ember, RGB.peach, lightMix)
+            : mixRgb(RGB.peach, RGB.mist, lightMix);
+          const skew = seeded(index, 1) - 0.38;
+          const fan = skew * (0.55 + Math.pow(seeded(index, 6), 0.55) * 1.35);
+          const darkWarm = mixRgb(RGB.ember, RGB.navy, 0.78);
+          const darkCool = mixRgb(mixRgb(RGB.plum, RGB.blue, darkMix), RGB.navy, 0.48);
+          const darkRgb = warmth > 0.62 ? mixRgb(darkWarm, RGB.plum, 0.45) : darkCool;
+          fibers.push({
+            seed: seeded(index, 2),
+            phase: seeded(index, 3) * Math.PI * 2,
+            fan: fan,
+            slot: slot,
+            length: length,
+            girth: 0.55 + seeded(index, 7) * 1.15,
+            veil: 0.42 + (1 - slot) * 0.58,
+            arch: seeded(index, 8) > 0.9 ? -1 : 1,
+            curl: seeded(index, 13) - 0.5,
+            fork: seeded(index, 12),
+            lightColor: rgbCss(lightRgb),
+            darkColor: rgbCss(darkRgb)
+          });
+        }
+      }
+
+      function cacheBackgrounds() {
+        for (let index = 0; index < STATES.length; index += 1) {
+          const state = STATES[index];
+          const pack = backgrounds[state.name] || (backgrounds[state.name] = {});
+          const lit = state.exposure > 0.8;
+          const base = ctx.createLinearGradient(0, 0, 0, height);
+          base.addColorStop(0, PALETTE.navy);
+          base.addColorStop(lit ? 1 : 0.62, PALETTE.plum);
+          if (!lit) base.addColorStop(1, PALETTE.navy);
+          const wash = ctx.createRadialGradient(cx, cy + radius * 0.16, radius * 0.05, cx, cy + radius * 0.02, radius * 1.35);
+          if (lit) {
+            wash.addColorStop(0, rgba(RGB.mist, 0.62));
+            wash.addColorStop(0.38, rgba(RGB.peach, 0.34));
+            wash.addColorStop(1, rgba(RGB.navy, 0));
+          } else {
+            wash.addColorStop(0, rgba(RGB.blue, 0.34));
+            wash.addColorStop(0.46, rgba(RGB.plum, 0.28));
+            wash.addColorStop(1, rgba(RGB.navy, 0));
+          }
+          pack.base = base;
+          pack.wash = wash;
+        }
+      }
+
+      function resizeCanvas() {
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        width = Math.max(1, window.innerWidth || 1);
+        height = Math.max(1, window.innerHeight || 1);
+        const canvas = ctx.canvas;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        canvas.width = Math.max(1, Math.round(width * dpr));
+        canvas.height = Math.max(1, Math.round(height * dpr));
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        cx = width * 0.5;
+        cy = height * 0.54;
+        radius = Math.min(width * 0.44, height * 0.5);
+        cacheBackgrounds();
+      }
+
+      function stateAt(ms) {
+        const span = CUTS[CUTS.length - 1];
+        const t = ((ms % span) + span) % span;
+        let index = 0;
+        for (let cut = 1; cut < CUTS.length - 1; cut += 1) {
+          if (t >= CUTS[cut]) index = cut;
+        }
+        const start = CUTS[index];
+        const end = CUTS[index + 1];
+        return { state: STATES[index], localT: (t - start) / (end - start) };
+      }
+
+      function fiberPath(fiber, localT, state) {
+        const open = 0.97 + 0.03 * easeInOut(localT);
+        const spread = state.spread * open;
+        const body = radius * 2 * spread;
+        const sway = Math.sin(localT * Math.PI * 2 + fiber.phase) * body * SWAY_FRACTION;
+        const fit = Math.min(1, (height * 0.9) / (radius * 2.7));
+        const x0 = cx + fiber.fan * radius * 0.46 * spread + sway * 0.15;
+        const y0 = cy + radius * fit * (0.78 - fiber.slot * 0.34);
+        const y1 = y0 - radius * fit * (0.55 + fiber.length * 1.05);
+        const x1 = x0 + fiber.fan * radius * 0.05 * spread + fiber.curl * radius * 0.14 * spread + sway;
+        const bow = fiber.arch * radius * 0.07 * spread;
+        const midX = mix(x0, x1, 0.5) + bow;
+        const midY = mix(y0, y1, 0.5);
+        const g = scratch;
+        g.x0 = x0;
+        g.y0 = y0;
+        g.c1x = mix(x0, midX, 0.4);
+        g.c1y = mix(y0, midY, 0.32);
+        g.c2x = mix(x0, midX, 0.82) + bow * 0.25;
+        g.c2y = mix(y0, midY, 0.7);
+        g.mx = midX;
+        g.my = midY;
+        g.d1x = mix(midX, x1, 0.34) + bow * 0.15;
+        g.d1y = mix(midY, y1, 0.28);
+        g.d2x = mix(midX, x1, 0.74);
+        g.d2y = mix(midY, y1, 0.66);
+        g.x1 = x1;
+        g.y1 = y1;
+        g.fork = fiber.fork > 0.84 ? 1 : 0;
+        g.f1x = midX + bow * 1.4;
+        g.f1y = mix(midY, y1, 0.16);
+        g.f2x = mix(midX, x1, 0.62) + fiber.curl * radius * 0.05;
+        g.f2y = mix(midY, y1, 0.48);
+        g.fx = mix(midX, x1, 0.5) + bow;
+        g.fy = mix(midY, y1, 0.7);
+        return g;
+      }
+
+      function drawBackground(state, localT) {
+        const pack = backgrounds[state.name];
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+        ctx.filter = 'none';
+        ctx.fillStyle = pack.base;
+        ctx.fillRect(0, 0, width, height);
+        ctx.globalAlpha = 0.8 + 0.08 * Math.sin(localT * Math.PI);
+        ctx.fillStyle = pack.wash;
+        ctx.fillRect(0, 0, width, height);
+        ctx.globalAlpha = 1;
+      }
+
+      function strokeFiber(g, soft) {
+        const end = soft ? 0.8 : 1;
+        ctx.beginPath();
+        ctx.moveTo(g.x0, g.y0);
+        ctx.bezierCurveTo(g.c1x, g.c1y, g.c2x, g.c2y, g.mx, g.my);
+        ctx.bezierCurveTo(
+          g.d1x,
+          g.d1y,
+          mix(g.d2x, g.mx, soft ? 0.2 : 0),
+          mix(g.d2y, g.my, soft ? 0.2 : 0),
+          mix(g.x1, g.mx, 1 - end),
+          mix(g.y1, g.my, 1 - end)
+        );
+        if (g.fork && !soft) {
+          ctx.moveTo(g.mx, g.my);
+          ctx.bezierCurveTo(g.f1x, g.f1y, g.f2x, g.f2y, g.fx, g.fy);
+        }
+        ctx.stroke();
+      }
+
+      function drawFiber(fiber, localT, state, soft) {
+        const g = fiberPath(fiber, localT, state);
+        ctx.strokeStyle = state.exposure > 0.8 ? fiber.lightColor : fiber.darkColor;
+        ctx.globalAlpha = clamp(state.opacity * state.exposure * fiber.veil * (soft ? 0.72 : 1), 0, 0.9);
+        ctx.lineWidth = soft
+          ? clamp(fiber.girth * radius * 0.008 * (0.65 + state.spread), 0.4, 4.4)
+          : clamp(fiber.girth * radius * 0.0015, 0.2, 1.05);
+        strokeFiber(g, soft);
+      }
+
+      function renderBloom(state, localT) {
+        const count = clamp(state.density, 0, fibers.length) | 0;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.filter = 'blur(1.5px)';
+        for (let index = 0; index < count; index += 1) drawFiber(fibers[index], localT, state, true);
+        ctx.filter = 'none';
+        ctx.globalCompositeOperation = state.exposure > 0.8 ? 'screen' : 'source-over';
+        for (let index = 0; index < count; index += 1) drawFiber(fibers[index], localT, state, false);
+        ctx.filter = 'none';
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+      }
+
+      function render(now) {
+        const elapsed = reducedMotion ? 0 : now - origin;
+        const frame = stateAt(elapsed);
+        drawBackground(frame.state, frame.localT);
+        renderBloom(frame.state, frame.localT);
+      }
+
+      function stop() {
+        if (!raf) return;
+        window.cancelAnimationFrame(raf);
+        raf = 0;
+      }
+
+      function start() {
+        if (raf || reducedMotion) return;
+        raf = window.requestAnimationFrame(tick);
+      }
+
+      function tick(now) {
+        render(now);
+        raf = reducedMotion ? 0 : window.requestAnimationFrame(tick);
+      }
+
+      function drawStill() {
+        render(0);
+      }
+
+      function onResize() {
+        if (reducedMotion) {
+          resizeCanvas();
+          drawStill();
+          return;
+        }
+        if (resizeQueued) return;
+        resizeQueued = window.requestAnimationFrame(() => {
+          resizeQueued = 0;
+          resizeCanvas();
+        });
+      }
+
+      function applyMotion() {
+        reducedMotion = !!(motionQuery && motionQuery.matches);
+        stop();
+        if (resizeQueued) {
+          window.cancelAnimationFrame(resizeQueued);
+          resizeQueued = 0;
+        }
+        if (reducedMotion) {
+          drawStill();
+          return;
+        }
+        origin = performance.now();
+        render(origin);
+        start();
+      }
+
+      const canvas = document.getElementById('bloom');
+      ctx = canvas ? canvas.getContext('2d', { alpha: false }) : null;
+      if (!ctx) return;
+      createFibers();
+      resizeCanvas();
+      motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      window.addEventListener('resize', onResize);
+      if (motionQuery.addEventListener) motionQuery.addEventListener('change', applyMotion);
+      applyMotion();
+    })();
+  </script>
+</body>
+</html>
