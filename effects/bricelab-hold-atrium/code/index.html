@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>按住构筑的线框中庭</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #121418; color: #e7e2da; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .hud {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    width: min(280px, calc(100% - 32px));
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    font: 14px/1.4 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  button {
+    position: relative; width: 100%; overflow: hidden;
+    border: 0; border-radius: 999px; padding: 14px 18px;
+    background: #efe8dc; color: #1b1916; cursor: pointer;
+    font: inherit; letter-spacing: .12em;
+  }
+  button:focus-visible { outline: 2px solid #efe8dc; outline-offset: 3px; }
+  button .bar {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+    background: #b9a48a; pointer-events: none;
+  }
+  button span { position: relative; }
+  .hint { margin: 0; color: #b7b1a8; font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-hidden="true"></canvas>
+<div class="hud">
+  <button id="hold" type="button" aria-label="按住构筑">
+    <i class="bar" id="bar"></i>
+    <span id="label">按住构筑</span>
+  </button>
+  <p class="hint" id="hint">松开即取消。空格或回车同样可用，Esc 回到线框。</p>
+</div>
+<script>
+(() => {
+  const HOLD_MS = 900;
+  const STALL_MS = 120;
+  const LETGO_MS = 1200;
+  const LETGO_MIN_MS = 450;
+  const SETTLE_MS = 700;
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const hold = document.getElementById('hold');
+  const bar = document.getElementById('bar');
+  const label = document.getElementById('label');
+  const hint = document.getElementById('hint');
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  let w = 1, h = 1, dpr = 1;
+  let value = 0;
+  let mode = 'idle';
+  let modeT = 0;
+  let from = 0;
+  let dur = 1;
+  let raf = 0;
+  let last = 0;
+  let reduced = motion.matches;
+
+  function easeInOut2(t) {
+    return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
+  }
+
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = Math.max(1, Math.floor(w * dpr));
+    canvas.height = Math.max(1, Math.floor(h * dpr));
+    draw();
+  }
+
+  function project(x, y, z) {
+    const camZ = -0.55 - value * 1.1;
+    const dz = Math.max(0.35, z - camZ);
+    const s = (h * 0.92) / dz;
+    return [w / 2 + x * s, h * 0.56 - y * s, s, z];
+  }
+
+  function poly(pts, fill, stroke, width) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.stroke(); }
+  }
+
+  function face(verts, fill, stroke) {
+    const pts = verts.map((p) => project(p[0], p[1], p[2]));
+    const depth = pts.reduce((sum, p) => sum + p[3], 0) / pts.length;
+    return { pts, fill, stroke, depth };
+  }
+
+  function box(cx, cy, cz, sx, sy, sz, fill) {
+    const x0 = cx - sx / 2, x1 = cx + sx / 2;
+    const y0 = cy - sy / 2, y1 = cy + sy / 2;
+    const z0 = cz - sz / 2, z1 = cz + sz / 2;
+    const faces = [
+      [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]],
+      [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]],
+      [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]],
+      [[x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]],
+      [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]],
+      [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]]
+    ];
+    return faces.map((verts) => face(verts, fill, '#d5ddd8'));
+  }
+
+  function plant(x, z, scale) {
+    const base = project(x, -1.45, z);
+    return { x: base[0], y: base[1], r: 18 * scale * base[2] / 80, a: Math.min(1, Math.max(0, (value - 0.45) / 0.4)) };
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#1a2230');
+    sky.addColorStop(1, '#2a241e');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+
+    const solid = Math.min(1, Math.max(0, (value - 0.18) / 0.62));
+    const wire = 0.85 - solid * 0.62;
+    const concrete = `rgba(122, 112, 102, ${0.18 + solid * 0.82})`;
+    const floorFill = `rgba(78, 72, 66, ${0.45 + solid * 0.5})`;
+    const parts = [];
+
+    parts.push(face([[-4.2, -1.55, 0.4], [4.2, -1.55, 0.4], [4.2, -1.55, 9.2], [-4.2, -1.55, 9.2]], floorFill, '#d5ddd8'));
+    parts.push(face([[-4.2, 2.35, 0.4], [4.2, 2.35, 0.4], [4.2, 2.35, 9.2], [-4.2, 2.35, 9.2]], `rgba(92, 96, 102, ${solid * 0.55})`, '#d5ddd8'));
+    parts.push(face([[-4.2, -1.55, 0.6], [-4.2, 2.35, 0.6], [-4.2, 2.35, 9.2], [-4.2, -1.55, 9.2]], concrete, '#d5ddd8'));
+    parts.push(face([[4.2, -1.55, 0.6], [4.2, 2.35, 0.6], [4.2, 2.35, 9.2], [4.2, -1.55, 9.2]], concrete, '#d5ddd8'));
+    parts.push(face([[-1.5, -1.55, 9.2], [1.5, -1.55, 9.2], [1.5, 2.35, 9.2], [-1.5, 2.35, 9.2]], `rgba(64, 60, 56, ${solid})`, null));
+    parts.push(face([[-4.2, -1.55, 9.2], [-1.5, -1.55, 9.2], [-1.5, 2.35, 9.2], [-4.2, 2.35, 9.2]], concrete, '#d5ddd8'));
+    parts.push(face([[1.5, -1.55, 9.2], [4.2, -1.55, 9.2], [4.2, 2.35, 9.2], [1.5, 2.35, 9.2]], concrete, '#d5ddd8'));
+    parts.push(face([[-1.5, 1.35, 9.2], [1.5, 1.35, 9.2], [1.5, 2.35, 9.2], [-1.5, 2.35, 9.2]], concrete, '#d5ddd8'));
+
+    for (const spot of [[-2.15, 2.4], [2.15, 2.4], [-2.15, 6.3], [2.15, 6.3]]) {
+      parts.push(...box(spot[0], 0.35, spot[1], 0.42, 3.5, 0.42, concrete));
+    }
+    parts.push(...box(0, 2.15, 4.8, 6.4, 0.18, 0.28, `rgba(168, 160, 150, ${0.2 + solid * 0.6})`));
+
+    const waterA = Math.min(1, Math.max(0, (value - 0.5) / 0.35));
+    if (waterA > 0) {
+      parts.push(face(
+        [[1.55, -1.5, 3.1], [1.85, -1.5, 6.6], [1.85, 1.7, 6.6], [1.55, 1.7, 3.1]],
+        `rgba(150, 196, 204, ${0.18 * waterA})`,
+        `rgba(214, 236, 238, ${0.7 * waterA})`
+      ));
+    }
+
+    parts.sort((a, b) => b.depth - a.depth);
+    for (const part of parts) {
+      poly(part.pts, part.fill, part.stroke ? `rgba(213, 221, 216, ${wire})` : null, 1.25);
+    }
+
+    if (waterA > 0) {
+      ctx.strokeStyle = `rgba(214, 236, 238, ${0.45 * waterA})`;
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 8; i++) {
+        const y = -1.2 + i * 0.34;
+        const a = project(1.62, y, 3.3);
+        const b = project(1.78, y, 6.4);
+        ctx.beginPath();
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+        ctx.stroke();
+      }
+    }
+
+    for (const blob of [plant(-3.1, 3.2, 1), plant(3.05, 4.4, 0.8), plant(-2.7, 7.1, 1.15)]) {
+      if (blob.a <= 0) continue;
+      ctx.fillStyle = `rgba(62, 92, 72, ${0.85 * blob.a})`;
+      ctx.beginPath();
+      ctx.ellipse(blob.x, blob.y - blob.r, blob.r * 0.7, blob.r, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const shaft = Math.min(1, Math.max(0, (value - 0.62) / 0.3));
+    if (shaft > 0 && !reduced) {
+      ctx.fillStyle = `rgba(255, 236, 214, ${0.16 * shaft})`;
+      for (const x of [-1.4, 0.2, 1.6]) {
+        const top = project(x, 2.3, 5);
+        const foot = project(x + 0.35, -1.5, 6.2);
+        ctx.beginPath();
+        ctx.moveTo(top[0] - 10, top[1]);
+        ctx.lineTo(top[0] + 18, top[1]);
+        ctx.lineTo(foot[0] + 26, foot[1]);
+        ctx.lineTo(foot[0] - 8, foot[1]);
+        ctx.fill();
+      }
+    }
+
+    const shown = Math.round(value * 100);
+    bar.style.width = shown + '%';
+    const built = mode === 'built' || mode === 'settle';
+    label.textContent = built ? '返回线框' : (reduced ? '进入构筑' : '按住构筑');
+    hold.setAttribute('aria-label', label.textContent);
+    hold.setAttribute('aria-valuemin', '0');
+    hold.setAttribute('aria-valuemax', '100');
+    hold.setAttribute('aria-valuenow', String(shown));
+    hint.textContent = reduced
+      ? '已减少动态效果：点一次直接看到静止成稿，再点一次回到线框。'
+      : '松开即取消。空格或回车同样可用，Esc 回到线框。';
+  }
+
+  function arm() {
+    if (raf) return;
+    last = performance.now();
+    raf = requestAnimationFrame(frame);
+  }
+
+  function frame(now) {
+    raf = 0;
+    const dt = Math.min(32, now - last);
+    last = now;
+    step(dt);
+    draw();
+    if (mode === 'hold' || mode === 'stall' || mode === 'letgo' || mode === 'settle') arm();
+  }
+
+  function step(dt) {
+    if (mode === 'hold') {
+      modeT += dt;
+      const t = dur <= 0 ? 1 : Math.min(1, modeT / dur);
+      value = from + (1 - from) * t;
+      if (value >= 0.999) finish();
+    } else if (mode === 'stall') {
+      modeT += dt;
+      if (modeT >= STALL_MS) {
+        mode = 'letgo';
+        modeT = 0;
+        from = value;
+        dur = Math.max(LETGO_MIN_MS, LETGO_MS * value);
+      }
+    } else if (mode === 'letgo') {
+      modeT += dt;
+      const t = Math.min(1, modeT / dur);
+      value = from * (1 - easeInOut2(t));
+      if (t >= 1) { value = 0; mode = 'idle'; }
+    } else if (mode === 'settle') {
+      modeT += dt;
+      if (modeT >= SETTLE_MS) mode = 'built';
+    }
+  }
+
+  function finish() {
+    value = 1;
+    mode = reduced ? 'built' : 'settle';
+    modeT = 0;
+  }
+
+  function press() {
+    if (mode === 'built' || mode === 'settle') { reset(); return; }
+    if (reduced) { finish(); draw(); return; }
+    from = value;
+    dur = HOLD_MS * (1 - value);
+    mode = 'hold';
+    modeT = 0;
+    if (dur <= 0) finish();
+    arm();
+  }
+
+  function release() {
+    if (reduced || mode === 'built' || mode === 'settle') return;
+    if (value <= 0) { mode = 'idle'; draw(); return; }
+    if (value >= 1) return;
+    mode = 'stall';
+    modeT = 0;
+    arm();
+  }
+
+  function reset() {
+    value = 0;
+    mode = 'idle';
+    modeT = 0;
+    draw();
+  }
+
+  hold.addEventListener('pointerdown', (event) => {
+    if (!event.isPrimary || event.button !== 0) return;
+    hold.setPointerCapture(event.pointerId);
+    press();
+  });
+  hold.addEventListener('pointerup', (event) => { if (event.isPrimary) release(); });
+  hold.addEventListener('pointercancel', (event) => { if (event.isPrimary) release(); });
+  hold.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { event.preventDefault(); reset(); return; }
+    if (event.key !== ' ' && event.key !== 'Enter') return;
+    event.preventDefault();
+    if (event.repeat) return;
+    if (mode === 'built' || mode === 'settle') { reset(); return; }
+    press();
+  });
+  hold.addEventListener('keyup', (event) => {
+    if (event.key === ' ' || event.key === 'Enter') release();
+  });
+  hold.addEventListener('blur', () => { if (mode === 'hold' || mode === 'stall') release(); });
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') reset();
+  });
+  motion.addEventListener('change', () => { reduced = motion.matches; reset(); });
+  window.addEventListener('resize', resize);
+  resize();
+  hold.focus();
+})();
+</script>
+</body>
+</html>
