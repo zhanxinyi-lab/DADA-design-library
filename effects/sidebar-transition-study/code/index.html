@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>侧栏过渡实验</title>
+  <style>
+    :root {
+      --paper: #f3efe6;
+      --ink: #1c2430;
+      --rail: #243244;
+      --rail-ink: #f7f4ee;
+      --muted: #5d6b7c;
+      --line: #e4ddd0;
+      --card: #fffdf8;
+      --accent: #d86a3a;
+      --closed: 76px;
+      --open: 228px;
+      --focus: 2px solid var(--accent);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font: 16px/1.5 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .page {
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    fieldset {
+      margin: 0;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      display: flex;
+      gap: 4px;
+      background: var(--card);
+    }
+    legend {
+      padding: 0 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    fieldset label {
+      min-height: 44px;
+      min-width: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    fieldset input { position: absolute; opacity: 0; pointer-events: none; }
+    fieldset label:has(input:checked) { background: var(--ink); color: var(--paper); }
+    fieldset label:has(input:focus-visible) { outline: var(--focus); outline-offset: 2px; }
+    button, input[type="range"] { font: inherit; }
+    .toggle, .scrub-label {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 12px;
+      padding: 0 14px;
+    }
+    .toggle { cursor: pointer; }
+    .toggle:focus-visible, input[type="range"]:focus-visible { outline: var(--focus); outline-offset: 2px; }
+    .scrub-label { display: inline-flex; align-items: center; gap: 10px; }
+    .scrub-label[hidden] { display: none; }
+    input[type="range"] { width: min(220px, 46vw); accent-color: var(--accent); }
+    .hint { margin: 0; color: var(--muted); font-size: 14px; flex: 1 1 220px; }
+    .stage {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      min-height: 0;
+    }
+    .rail {
+      width: calc(var(--closed) + (var(--open) - var(--closed)) * var(--p, 1));
+      background: var(--rail);
+      color: var(--rail-ink);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 64px;
+      padding: 0 16px;
+      white-space: nowrap;
+    }
+    .mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--accent);
+      flex: none;
+    }
+    .brand b {
+      opacity: var(--p, 1);
+      overflow: hidden;
+    }
+    .items { list-style: none; margin: 8px 0; padding: 0; }
+    .items li { display: block; }
+    .row {
+      display: grid;
+      grid-template-columns: 28px calc(var(--ip, 1) * 8.2rem);
+      align-items: center;
+      gap: 10px;
+      min-height: 48px;
+      margin: 0 12px;
+      padding: 0 8px;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .row svg { width: 22px; height: 22px; flex: none; }
+    .row span {
+      opacity: var(--ip, 1);
+      transform: translateX(calc((1 - var(--ip, 1)) * -8px));
+      white-space: nowrap;
+    }
+    .edge {
+      position: absolute;
+      top: 0;
+      right: -18px;
+      width: 36px;
+      height: 100%;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: ew-resize;
+      touch-action: none;
+    }
+    .edge::after {
+      content: "";
+      position: absolute;
+      top: 18px;
+      bottom: 18px;
+      left: 16px;
+      width: 4px;
+      border-radius: 4px;
+      background: var(--accent);
+    }
+    .edge:focus-visible { outline: var(--focus); outline-offset: -4px; }
+    .edge[hidden] { display: none; }
+    .main { padding: 28px 22px; min-width: 0; }
+    .main h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: -0.03em; }
+    .main p { margin: 0 0 16px; max-width: 62ch; }
+    .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      min-height: 112px;
+    }
+    .card b { display: block; margin-bottom: 6px; }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    @media (max-width: 720px) {
+      .stage { grid-template-columns: 1fr; }
+      .rail { min-height: auto; width: 100%; }
+      .edge { display: none; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="toolbar">
+      <fieldset>
+        <legend>过渡</legend>
+        <label><input type="radio" name="mode" value="ease" checked>缓出</label>
+        <label><input type="radio" name="mode" value="cascade">依次</label>
+        <label><input type="radio" name="mode" value="scrub">跟手</label>
+      </fieldset>
+      <button type="button" class="toggle" id="toggle" aria-expanded="true">收起侧栏</button>
+      <label class="scrub-label" id="scrubLabel" hidden>
+        开合
+        <input id="scrub" type="range" min="0" max="100" value="100" disabled>
+      </label>
+      <p class="hint" id="hint">缓出：整栏一起变化，大约半秒。</p>
+    </div>
+    <div class="stage">
+      <aside class="rail" id="rail" style="--p:1">
+        <div class="brand"><i class="mark"></i><b>田间记录</b></div>
+        <ul class="items" id="items"></ul>
+        <button type="button" class="edge" id="edge" hidden aria-label="拖动侧栏边缘"></button>
+      </aside>
+      <main class="main">
+        <h1>三种收放</h1>
+        <p id="copy">整栏共用一条缓出曲线。点「收起侧栏」，图标和文字一起进去。</p>
+        <div class="cards">
+          <article class="card"><b>上午</b>把三块田的湿度记在同一列里。</article>
+          <article class="card"><b>中午</b>队列里还有两张没核对的单。</article>
+          <article class="card"><b>傍晚</b>成员按自己的节奏补备注。</article>
+        </div>
+      </main>
+    </div>
+  </div>
+  <p class="sr" id="live" aria-live="polite"></p>
+  <script>
+    (function () {
+      const ITEMS = [
+        ["概览", "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"],
+        ["记录", "M6 3h9l3 3v15H6zM9 12h6M9 16h6"],
+        ["队列", "M4 7h16M4 12h16M4 17h10"],
+        ["成员", "M8 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 19c1-3 3-4 5-4s4 1 5 4M14 15c1.2 0 2.6.6 3.4 2"],
+        ["归档", "M3 7h18v12H3zM3 7l2-3h14l2 3M10 12h4"],
+        ["设置", "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 3v2M12 19v2M3 12h2M19 12h2"]
+      ];
+      const COPY = {
+        ease: "整栏共用一条缓出曲线。点「收起侧栏」，图标和文字一起进去。",
+        cascade: "每一行比上一行晚大约 60 毫秒。收起和展开都是上面先动。",
+        scrub: "按住橙色边缘左右拖，或移动滑杆。松手后停在当前位置，不会自己播完。"
+      };
+      const HINT = {
+        ease: "缓出：整栏一起变化，大约半秒。",
+        cascade: "依次：六行从上到下错开。",
+        scrub: "跟手：拖边缘或滑杆，进度跟着指针。"
+      };
+      const rail = document.getElementById("rail");
+      const list = document.getElementById("items");
+      const toggle = document.getElementById("toggle");
+      const edge = document.getElementById("edge");
+      const scrub = document.getElementById("scrub");
+      const scrubLabel = document.getElementById("scrubLabel");
+      const hint = document.getElementById("hint");
+      const copy = document.getElementById("copy");
+      const live = document.getElementById("live");
+      const radios = [...document.querySelectorAll('input[name="mode"]')];
+      const rows = ITEMS.map(([name, d], index) => {
+        const li = document.createElement("li");
+        const row = document.createElement("div");
+        row.className = "row";
+        row.style.setProperty("--ip", "1");
+        row.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="' + d + '"/></svg><span></span>';
+        row.querySelector("span").textContent = name;
+        li.appendChild(row);
+        list.appendChild(li);
+        return row;
+      });
+
+      const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      let mode = "ease";
+      let itemP = rows.map(() => 1);
+      let frame = 0;
+      let dragging = false;
+
+      function reduced() { return motion.matches; }
+      function clamp(n) { return Math.max(0, Math.min(1, n)); }
+      function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+
+      function paint() {
+        const widthP = Math.max(...itemP);
+        rail.style.setProperty("--p", String(widthP));
+        rows.forEach((row, i) => row.style.setProperty("--ip", String(itemP[i])));
+        const open = widthP > 0.5;
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.textContent = open ? "收起侧栏" : "展开侧栏";
+        scrub.value = String(Math.round(itemP[0] * 100));
+      }
+
+      function say(text) { live.textContent = text; }
+
+      function jump(values) {
+        cancelAnimationFrame(frame);
+        itemP = values.slice();
+        paint();
+      }
+
+      function animate(to) {
+        cancelAnimationFrame(frame);
+        const from = itemP.slice();
+        const dur = reduced() ? 0 : (mode === "cascade" ? 340 : 520);
+        const gap = reduced() || mode !== "cascade" ? 0 : 60;
+        const t0 = performance.now();
+        const tick = (now) => {
+          const elapsed = now - t0;
+          itemP = from.map((start, i) => {
+            const local = dur === 0 ? 1 : clamp((elapsed - i * gap) / dur);
+            return start + (to - start) * easeOut(local);
+          });
+          paint();
+          if (elapsed < dur + gap * (rows.length - 1)) frame = requestAnimationFrame(tick);
+          else say(to > 0.5 ? "侧栏已展开" : "侧栏已收起");
+        };
+        frame = requestAnimationFrame(tick);
+      }
+
+      function setMode(next) {
+        mode = next;
+        hint.textContent = HINT[next];
+        copy.textContent = COPY[next];
+        const scrubOn = next === "scrub";
+        scrubLabel.hidden = !scrubOn;
+        scrub.disabled = !scrubOn;
+        edge.hidden = !scrubOn || window.matchMedia("(max-width: 720px)").matches;
+        toggle.hidden = scrubOn;
+        cancelAnimationFrame(frame);
+        paint();
+      }
+
+      radios.forEach((input) => {
+        input.addEventListener("change", () => { if (input.checked) setMode(input.value); });
+      });
+
+      toggle.addEventListener("click", () => {
+        if (mode === "scrub") return;
+        const opening = Math.max(...itemP) <= 0.5;
+        animate(opening ? 1 : 0);
+      });
+
+      scrub.addEventListener("input", () => {
+        if (mode !== "scrub") return;
+        const value = Number(scrub.value) / 100;
+        jump(rows.map(() => value));
+      });
+
+      function pointerProgress(event) {
+        const rect = rail.getBoundingClientRect();
+        const closed = 76;
+        const open = 228;
+        return clamp((event.clientX - rect.left - closed) / (open - closed));
+      }
+
+      edge.addEventListener("pointerdown", (event) => {
+        if (mode !== "scrub") return;
+        edge.setPointerCapture(event.pointerId);
+        dragging = true;
+        jump(rows.map(() => pointerProgress(event)));
+      });
+      edge.addEventListener("pointermove", (event) => {
+        if (!dragging) return;
+        jump(rows.map(() => pointerProgress(event)));
+      });
+      edge.addEventListener("pointerup", () => {
+        dragging = false;
+        say(Math.max(...itemP) > 0.5 ? "侧栏停在偏开" : "侧栏停在偏收");
+      });
+      edge.addEventListener("keydown", (event) => {
+        if (mode !== "scrub") return;
+        const step = event.shiftKey ? 0.2 : 0.08;
+        if (event.key === "ArrowRight" || event.key === "ArrowUp") jump(rows.map(() => clamp(itemP[0] + step)));
+        else if (event.key === "ArrowLeft" || event.key === "ArrowDown") jump(rows.map(() => clamp(itemP[0] - step)));
+        else if (event.key === "Home") jump(rows.map(() => 0));
+        else if (event.key === "End") jump(rows.map(() => 1));
+        else return;
+        event.preventDefault();
+      });
+
+      motion.addEventListener("change", () => {
+        cancelAnimationFrame(frame);
+        paint();
+      });
+      window.addEventListener("resize", () => setMode(mode));
+      setMode("ease");
+      paint();
+    })();
+  </script>
+</body>
+</html>
