@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saggar isometric stack</title>
+<style>
+  :root {
+    --bg: #f3f4f9;
+    --card: #fcfcfc;
+    --wash: #e4e8fc;
+    --ink: #1b1e2b;
+    --muted: #5c6278;
+    --line: #e4e6f0;
+    --blue: #4f5cf6;
+    --blue-ink: #10121c;
+    --focus: #2430c9;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.45 "Segoe UI", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    overflow-x: hidden;
+  }
+  .page {
+    width: min(1180px, 100%);
+    margin: 0 auto;
+    padding: 28px 20px 48px;
+  }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    margin-bottom: 22px;
+  }
+  .toolbar p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  button:focus-visible,
+  .plate:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+  }
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 420px) minmax(0, 1fr);
+    gap: 18px 28px;
+    align-items: center;
+  }
+  .stack {
+    grid-column: 2;
+    grid-row: 1 / span 5;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    padding: 8px 48px 20px;
+    min-width: 0;
+  }
+  .plate {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 108px;
+    margin: -16px 0;
+    padding: 12px;
+    border-radius: 50%;
+    border: 1px solid #e7e9f3;
+    background: #f7f8fc;
+    color: #3e445c;
+    box-shadow: 0 8px 18px rgba(40, 48, 90, 0.04);
+    transition: background 0.4s ease, color 0.4s ease, transform 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
+  }
+  .plate[data-layer="0"],
+  .plate[data-layer="2"],
+  .plate[data-layer="4"] { transform: translateX(34px); }
+  .plate[data-layer="1"],
+  .plate[data-layer="3"] { transform: translateX(-34px); }
+  .plate.is-active {
+    background: var(--blue);
+    color: var(--blue-ink);
+    border-color: transparent;
+    font-weight: 650;
+    box-shadow: 0 14px 34px rgba(79, 92, 246, 0.32);
+    z-index: 1;
+  }
+  .plate.is-active[data-layer="0"],
+  .plate.is-active[data-layer="2"],
+  .plate.is-active[data-layer="4"] { transform: translateX(34px) scale(1.04); }
+  .plate.is-active[data-layer="1"],
+  .plate.is-active[data-layer="3"] { transform: translateX(-34px) scale(1.04); }
+  .card {
+    min-width: 0;
+    margin: 0;
+    padding: 22px 22px 20px;
+    border: 0;
+    border-radius: 26px;
+    background: var(--card);
+    box-shadow: 0 10px 28px rgba(36, 42, 74, 0.05);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+  .card h2 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: 0;
+  }
+  .card p {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+  .card p + p { margin-top: 8px; }
+  .card.is-active {
+    background: var(--wash);
+    box-shadow: 0 12px 30px rgba(79, 92, 246, 0.12);
+  }
+  .card[data-layer="0"] { grid-column: 3; grid-row: 1; }
+  .card[data-layer="1"] { grid-column: 1; grid-row: 2; }
+  .card[data-layer="2"] { grid-column: 3; grid-row: 3; }
+  .card[data-layer="3"] { grid-column: 1; grid-row: 4; }
+  .card[data-layer="4"] { grid-column: 3; grid-row: 5; }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  @media (max-width: 860px) {
+    .page { padding: 16px 14px 32px; }
+    .stage {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 14px;
+    }
+    .stack,
+    .card[data-layer] {
+      grid-column: 1;
+      grid-row: auto;
+    }
+    .stack { padding-inline: 28px; }
+    .plate {
+      height: 84px;
+      margin: -12px 0;
+    }
+    .plate[data-layer="0"],
+    .plate[data-layer="2"],
+    .plate[data-layer="4"],
+    .plate.is-active[data-layer="0"],
+    .plate.is-active[data-layer="2"],
+    .plate.is-active[data-layer="4"] { transform: translateX(14px); }
+    .plate[data-layer="1"],
+    .plate[data-layer="3"],
+    .plate.is-active[data-layer="1"],
+    .plate.is-active[data-layer="3"] { transform: translateX(-14px); }
+    .plate.is-active[data-layer="0"],
+    .plate.is-active[data-layer="2"],
+    .plate.is-active[data-layer="4"] { transform: translateX(14px) scale(1.03); }
+    .plate.is-active[data-layer="1"],
+    .plate.is-active[data-layer="3"] { transform: translateX(-14px) scale(1.03); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .plate, .card { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1 class="sr">Saggar isometric stack</h1>
+  <div class="toolbar">
+    <button type="button" id="prev">Previous layer</button>
+    <button type="button" id="next">Next layer</button>
+    <p>Arrow keys move the highlight. Buttons work too.</p>
+  </div>
+  <div class="stage">
+    <div class="stack" role="group" aria-label="Stack layers">
+      <button type="button" class="plate is-active" data-layer="0" aria-pressed="true">Scenarios</button>
+      <button type="button" class="plate" data-layer="1" aria-pressed="false">Personas</button>
+      <button type="button" class="plate" data-layer="2" aria-pressed="false">The firing</button>
+      <button type="button" class="plate" data-layer="3" aria-pressed="false">Traces</button>
+      <button type="button" class="plate" data-layer="4" aria-pressed="false">The cone</button>
+    </div>
+    <article class="card is-active" data-layer="0" aria-current="true">
+      <h2>Scenarios</h2>
+      <p>Plain files in your repo. A goal, a persona and what must never happen. Saggar writes the variations.</p>
+    </article>
+    <article class="card" data-layer="1">
+      <h2>Personas</h2>
+      <p>Impatient, confused, adversarial, multilingual. Simulated users that behave like your worst Tuesday.</p>
+    </article>
+    <article class="card" data-layer="2">
+      <h2>The firing</h2>
+      <p>Thousands of conversations run in parallel against sandboxed tools. Nothing touches real data.</p>
+    </article>
+    <article class="card" data-layer="3">
+      <h2>Traces</h2>
+      <p>Every regression comes with the exact turn, the tool call and a diff against the last release that passed.</p>
+    </article>
+    <article class="card" data-layer="4">
+      <h2>The cone</h2>
+      <p>Below the bar you set, the merge is held.</p>
+      <p>Above it, ship with proof instead of hope.</p>
+    </article>
+  </div>
+  <p class="sr" id="live" aria-live="polite">Scenarios</p>
+</main>
+<script>
+(function () {
+  var layers = ["Scenarios", "Personas", "The firing", "Traces", "The cone"];
+  var index = 0;
+  var timer = 0;
+  var dwell = 2000;
+  var mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var live = document.getElementById("live");
+  var plates = Array.prototype.slice.call(document.querySelectorAll(".plate"));
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".card"));
+
+  function render(next) {
+    index = (next + layers.length) % layers.length;
+    plates.forEach(function (el) {
+      var on = Number(el.getAttribute("data-layer")) === index;
+      el.classList.toggle("is-active", on);
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    cards.forEach(function (el) {
+      var on = Number(el.getAttribute("data-layer")) === index;
+      el.classList.toggle("is-active", on);
+      if (on) el.setAttribute("aria-current", "true");
+      else el.removeAttribute("aria-current");
+    });
+    live.textContent = layers[index];
+  }
+
+  function stop() {
+    if (timer) window.clearInterval(timer);
+    timer = 0;
+  }
+
+  function play() {
+    stop();
+    if (mq.matches) return;
+    timer = window.setInterval(function () { render(index + 1); }, dwell);
+  }
+
+  function step(delta) {
+    render(index + delta);
+    play();
+  }
+
+  document.getElementById("prev").addEventListener("click", function () { step(-1); });
+  document.getElementById("next").addEventListener("click", function () { step(1); });
+  plates.forEach(function (el) {
+    el.addEventListener("click", function () {
+      render(Number(el.getAttribute("data-layer")));
+      play();
+    });
+  });
+  cards.forEach(function (el) {
+    el.addEventListener("click", function () {
+      render(Number(el.getAttribute("data-layer")));
+      play();
+    });
+    el.setAttribute("tabindex", "0");
+    el.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        render(Number(el.getAttribute("data-layer")));
+        play();
+      }
+    });
+  });
+  window.addEventListener("keydown", function (event) {
+    var key = event.key;
+    if (key !== "ArrowUp" && key !== "ArrowDown" && key !== "ArrowLeft" && key !== "ArrowRight") return;
+    if (event.altKey || event.metaKey || event.ctrlKey) return;
+    event.preventDefault();
+    step(key === "ArrowUp" || key === "ArrowLeft" ? -1 : 1);
+  });
+  if (mq.addEventListener) mq.addEventListener("change", play);
+  else if (mq.addListener) mq.addListener(play);
+  play();
+})();
+</script>
+</body>
+</html>
