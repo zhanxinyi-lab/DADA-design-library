@@ -68,6 +68,9 @@
       const scratch = { pts: new Array(SAMPLES * 2), n: 0 };
       let width = 1;
       let height = 1;
+      let lightFit = { scale: 1, tx: 0, ty: 0 };
+      let lightFitKey = '';
+      let fittingLight = false;
       let raf = 0;
       let resizeQueued = 0;
       let reducedMotion = false;
@@ -130,6 +133,49 @@
         };
       }
 
+      function ensureLightFit() {
+        const key = width + 'x' + height;
+        if (key === lightFitKey) return;
+        const state = STATES[0];
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        fittingLight = true;
+        for (let openEnd = 0; openEnd < 2; openEnd += 1) {
+          for (let swayEnd = -1; swayEnd <= 1; swayEnd += 2) {
+            for (let index = 0; index < state.density; index += 1) {
+              const path = fiberPath(fibers[index], openEnd, state, swayEnd);
+              const pts = path.pts;
+              for (let point = 0; point < path.n; point += 2) {
+                const x = pts[point];
+                const y = pts[point + 1];
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+              }
+            }
+          }
+        }
+        fittingLight = false;
+        const envelopeW = Math.max(1, maxX - minX);
+        const envelopeH = Math.max(1, maxY - minY);
+        if (minX >= 0 && minY >= 0 && maxX <= width && maxY <= height) {
+          lightFit = { scale: 1, tx: 0, ty: 0 };
+          lightFitKey = key;
+          return;
+        }
+        const pad = 1;
+        const scale = Math.min(1, Math.max(1, width - pad * 2) / envelopeW, Math.max(1, height - pad * 2) / envelopeH);
+        lightFit = {
+          scale: scale,
+          tx: (width - envelopeW * scale) * 0.5 - minX * scale,
+          ty: (height - envelopeH * scale) * 0.5 - minY * scale
+        };
+        lightFitKey = key;
+      }
+
       function spinePoint(box, s) {
         return [
           box.x + cubic(0.38, 0.20, 0.32, 0.48, s) * box.w,
@@ -184,12 +230,14 @@
         return { state: STATES[index], localT: (t - start) / (end - start) };
       }
 
-      function fiberPath(fiber, localT, state) {
+      function fiberPath(fiber, localT, state, swayLimit) {
+        if (!fittingLight && state.name === 'light-a') ensureLightFit();
         const box = bloomBox();
         const petal = PETALS[fiber.petal];
         const open = 0.975 + 0.025 * easeInOut(localT);
         const reach = petal.r * box.w * state.spread * open * fiber.layer;
-        const sway = Math.sin(localT * Math.PI * 2 + fiber.phase) * box.w * 0.012;
+        const swayUnit = swayLimit === undefined ? Math.sin(localT * Math.PI * 2 + fiber.phase) : swayLimit;
+        const sway = swayUnit * box.w * 0.012;
         const ax = [Math.sin(petal.ang), -Math.cos(petal.ang)];
         const nm = [Math.cos(petal.ang), Math.sin(petal.ang)];
         const root = spinePoint(box, petal.s);
@@ -203,6 +251,17 @@
           const taper = t < 0.14 ? Math.min(1, t / 0.14) : 1;
           pts[step * 2] = centerX + ax[0] * d + nm[0] * fiber.across * half * taper + sway * t;
           pts[step * 2 + 1] = centerY + ax[1] * d + nm[1] * fiber.across * half * taper;
+        }
+        if (!fittingLight && state.name === 'light-a' && (lightFit.scale !== 1 || lightFit.tx !== 0 || lightFit.ty !== 0)) {
+          const scale = lightFit.scale;
+          const tx = lightFit.tx;
+          const ty = lightFit.ty;
+          for (let step = 0; step < SAMPLES; step += 1) {
+            const x = pts[step * 2];
+            const y = pts[step * 2 + 1];
+            pts[step * 2] = x * scale + tx;
+            pts[step * 2 + 1] = y * scale + ty;
+          }
         }
         scratch.n = SAMPLES * 2;
         return scratch;
@@ -219,15 +278,22 @@
       function drawPetalFills(state, localT) {
         const box = bloomBox();
         const open = 0.975 + 0.025 * easeInOut(localT);
+        if (state.name === 'light-a') ensureLightFit();
+        const fitted = state.name === 'light-a' && (lightFit.scale !== 1 || lightFit.tx !== 0 || lightFit.ty !== 0);
         ctx.globalCompositeOperation = 'source-over';
         ctx.filter = 'none';
         for (let index = 0; index < PETALS.length; index += 1) {
           const petal = PETALS[index];
-          const reach = petal.r * box.w * state.spread * open;
+          let reach = petal.r * box.w * state.spread * open;
           const ax = [Math.sin(petal.ang), -Math.cos(petal.ang)];
           const root = spinePoint(box, petal.s);
-          const cx = root[0] + ax[0] * reach * 0.92;
-          const cy = root[1] + ax[1] * reach * 0.92;
+          let cx = root[0] + ax[0] * reach * 0.92;
+          let cy = root[1] + ax[1] * reach * 0.92;
+          if (fitted) {
+            cx = cx * lightFit.scale + lightFit.tx;
+            cy = cy * lightFit.scale + lightFit.ty;
+            reach *= lightFit.scale;
+          }
           const inner = petal.warm > 0.45 ? RGB.ember : RGB.blue;
           const outer = petal.warm > 0.45 ? RGB.peach : RGB.mist;
           const wash = ctx.createRadialGradient(cx, cy, reach * 0.08, cx, cy, reach);
@@ -241,26 +307,31 @@
         }
       }
 
-      function drawCore() {
+      function drawCore(state) {
         const box = bloomBox();
+        const fitted = state.name === 'light-a';
+        if (fitted) ensureLightFit();
+        const scale = fitted ? lightFit.scale : 1;
+        const tx = fitted ? lightFit.tx : 0;
+        const ty = fitted ? lightFit.ty : 0;
         ctx.globalCompositeOperation = 'source-over';
         ctx.filter = 'none';
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.beginPath();
         const first = spinePoint(box, 0);
-        ctx.moveTo(first[0], first[1]);
+        ctx.moveTo(first[0] * scale + tx, first[1] * scale + ty);
         for (let step = 1; step <= 16; step += 1) {
           const point = spinePoint(box, step / 16);
-          ctx.lineTo(point[0], point[1]);
+          ctx.lineTo(point[0] * scale + tx, point[1] * scale + ty);
         }
         ctx.globalAlpha = 0.92;
         ctx.strokeStyle = PALETTE.navy;
-        ctx.lineWidth = Math.max(8, box.w * 0.034);
+        ctx.lineWidth = Math.max(8, box.w * 0.034) * scale;
         ctx.stroke();
         ctx.globalAlpha = 0.8;
         ctx.strokeStyle = PALETTE.blue;
-        ctx.lineWidth = Math.max(2, box.w * 0.01);
+        ctx.lineWidth = Math.max(2, box.w * 0.01) * scale;
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
@@ -293,7 +364,7 @@
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         drawPetalFills(state, localT);
-        drawCore();
+        drawCore(state);
         ctx.filter = 'blur(1.1px)';
         for (let index = 0; index < count; index += 1) drawFiber(fibers[index], localT, state, true);
         ctx.filter = 'none';
