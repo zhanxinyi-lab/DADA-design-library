@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>等轴测分层讲解</title>
+  <style>
+    :root {
+      --page: #f3f4f8;
+      --ink: #1c1e27;
+      --muted: #5c6170;
+      --plate: #e4e6f0;
+      --plate-edge: #c5c8d6;
+      --hot: #3f4ce8;
+      --hot-edge: #2a36c0;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background: var(--page);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+    }
+    .page {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .scene {
+      position: relative;
+      flex: 1;
+      width: min(980px, 100%);
+      margin: 0 auto;
+      padding: 32px 22px 8px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 230px minmax(0, 1fr);
+      column-gap: 28px;
+      align-items: center;
+      min-height: 104px;
+    }
+    .slot { grid-column: 2; height: 92px; position: relative; }
+    .card { margin: 0; max-width: 340px; }
+    .card h2 { margin: 0 0 6px; font-size: 15px; line-height: 1.2; font-weight: 680; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .row[data-side="left"] .card { grid-column: 1; justify-self: end; text-align: right; }
+    .row[data-side="right"] .card { grid-column: 3; justify-self: start; }
+    .slab { position: absolute; inset: 8px 6px; }
+    .top, .depth { position: absolute; left: 26px; right: 26px; }
+    .top {
+      top: 6px;
+      height: 36px;
+      background: linear-gradient(180deg, #f7f8fb, var(--plate));
+      border: 1px solid var(--plate-edge);
+      transform: skewX(-32deg);
+    }
+    .depth {
+      top: 36px;
+      height: 22px;
+      background: linear-gradient(#d7d9e4, #c8cbd8);
+      transform: skewX(-32deg);
+    }
+    .hot {
+      position: absolute;
+      z-index: 2;
+      pointer-events: none;
+      top: 0;
+      left: 0;
+      width: 230px;
+      height: 92px;
+      transition: top .8s cubic-bezier(.45, .05, .25, 1), left .8s cubic-bezier(.45, .05, .25, 1);
+    }
+    .hot .top {
+      background: linear-gradient(180deg, #6d78f0, var(--hot));
+      border-color: var(--hot-edge);
+    }
+    .hot .depth { background: linear-gradient(#3240d4, var(--hot-edge)); }
+    .controls {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 16px 24px;
+    }
+    button {
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid var(--ink);
+      background: transparent;
+      color: var(--ink);
+      font: 600 14px/1 system-ui, sans-serif;
+      cursor: pointer;
+    }
+    button:focus-visible { outline: 2px solid var(--hot); outline-offset: 3px; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 760px) {
+      .row { grid-template-columns: 1fr; justify-items: center; min-height: 0; row-gap: 6px; margin-bottom: 8px; }
+      .slot { grid-column: 1; grid-row: 1; width: min(100%, 250px); }
+      .card { grid-column: 1; grid-row: 2; justify-self: stretch; text-align: left; max-width: 460px; width: min(100%, 460px); padding-left: 12px; }
+      .card[aria-current="true"] { box-shadow: inset 3px 0 0 var(--hot); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hot { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="scene" id="scene">
+      <div class="row" data-side="right">
+        <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
+        <article class="card">
+          <h2>Scenarios</h2>
+          <p>Plain files in your repo. A goal, a persona and what must never happen. Saggar writes the variations.</p>
+        </article>
+      </div>
+      <div class="row" data-side="left">
+        <article class="card">
+          <h2>Personas</h2>
+          <p>Impatient, confused, adversarial, multilingual. Simulated users that behave like your worst Tuesday.</p>
+        </article>
+        <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
+      </div>
+      <div class="row" data-side="right">
+        <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
+        <article class="card">
+          <h2>The firing</h2>
+          <p>Thousands of conversations run in parallel against sandboxed tools. Nothing touches real data.</p>
+        </article>
+      </div>
+      <div class="row" data-side="left">
+        <article class="card">
+          <h2>Traces</h2>
+          <p>Every regression comes with the exact turn, the tool call and a diff against the last release that passed.</p>
+        </article>
+        <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
+      </div>
+      <div class="row" data-side="right">
+        <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
+        <article class="card">
+          <h2>The gate</h2>
+          <p>Below the bar you set, the merge is held. Above it, ship with proof instead of hope.</p>
+        </article>
+      </div>
+      <div class="hot" id="hot" aria-hidden="true"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
+    </div>
+    <div class="controls" role="group" aria-label="分层播放">
+      <button type="button" id="prev">上一步</button>
+      <button type="button" id="toggle" aria-pressed="true">暂停</button>
+      <button type="button" id="next">下一步</button>
+    </div>
+  </div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <script>
+    const HOLD = 1600;
+    const MOVE = 800;
+    const LAST = 4;
+    const titles = ['Scenarios', 'Personas', 'The firing', 'Traces', 'The gate'];
+    const scene = document.getElementById('scene');
+    const hot = document.getElementById('hot');
+    const slots = [...document.querySelectorAll('.slot')];
+    const cards = [...document.querySelectorAll('.card')];
+    const live = document.getElementById('live');
+    const toggle = document.getElementById('toggle');
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    let index = 0;
+    let playing = !motion.matches;
+    let timer = 0;
+    let placed = false;
+
+    function show(next) {
+      index = next;
+      const sceneBox = scene.getBoundingClientRect();
+      const slotBox = slots[index].getBoundingClientRect();
+      if (!placed) hot.style.transition = 'none';
+      hot.style.left = (slotBox.left - sceneBox.left) + 'px';
+      hot.style.top = (slotBox.top - sceneBox.top) + 'px';
+      hot.style.width = slotBox.width + 'px';
+      hot.style.height = slotBox.height + 'px';
+      if (!placed) {
+        hot.offsetWidth;
+        hot.style.removeProperty('transition');
+        placed = true;
+      }
+      cards.forEach((card, i) => card.setAttribute('aria-current', i === index ? 'true' : 'false'));
+      live.textContent = '第 ' + (index + 1) + ' 层，' + titles[index] + '。';
+    }
+
+    function clearTimer() {
+      clearTimeout(timer);
+      timer = 0;
+    }
+
+    function sync() {
+      toggle.textContent = playing ? '暂停' : '播放';
+      toggle.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    }
+
+    function queue() {
+      clearTimer();
+      if (!playing || index >= LAST) {
+        if (index >= LAST) playing = false;
+        sync();
+        return;
+      }
+      timer = setTimeout(() => {
+        show(index + 1);
+        timer = setTimeout(queue, motion.matches ? 0 : MOVE);
+      }, HOLD);
+    }
+
+    function pause() {
+      playing = false;
+      clearTimer();
+      sync();
+    }
+
+    function play() {
+      if (motion.matches) return pause();
+      if (index >= LAST) show(0);
+      playing = true;
+      sync();
+      queue();
+    }
+
+    function step(delta) {
+      pause();
+      show(Math.max(0, Math.min(LAST, index + delta)));
+    }
+
+    toggle.addEventListener('click', () => (playing ? pause() : play()));
+    document.getElementById('prev').addEventListener('click', () => step(-1));
+    document.getElementById('next').addEventListener('click', () => step(1));
+    document.addEventListener('keydown', (event) => {
+      if (event.altKey || event.metaKey || event.ctrlKey) return;
+      const tag = event.target && event.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') { step(1); event.preventDefault(); }
+      else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { step(-1); event.preventDefault(); }
+      else if (event.key === 'Home') { pause(); show(0); event.preventDefault(); }
+      else if (event.key === 'End') { pause(); show(LAST); event.preventDefault(); }
+    });
+    window.addEventListener('resize', () => {
+      const was = placed;
+      hot.style.transition = 'none';
+      placed = false;
+      show(index);
+      if (was) {
+        hot.offsetWidth;
+        hot.style.removeProperty('transition');
+        placed = true;
+      }
+    });
+    motion.addEventListener('change', () => (motion.matches ? pause() : play()));
+    show(0);
+    sync();
+    if (playing) queue();
+  </script>
+</body>
+</html>
