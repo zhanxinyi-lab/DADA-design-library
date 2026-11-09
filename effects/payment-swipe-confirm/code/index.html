@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Payment swipe confirm</title>
+  <style>
+    :root {
+      --page: #d7e6ef;
+      --ink: #161616;
+      --label: #8e8e8e;
+      --blue: #325aaa;
+      --track: #e7f1fb;
+      --green-bg: #d7f3e4;
+      --green-ink: #3c6552;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--page);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+    }
+    .page { min-height: 100%; display: flex; flex-direction: column; }
+    .stage {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      padding: 28px 16px 8px;
+    }
+    .card {
+      position: relative;
+      width: min(92vw, 390px);
+      min-height: min(84vh, 640px);
+      background: #fff;
+      border-radius: 28px;
+      padding: 22px 22px 18px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 18px 48px rgba(36, 72, 96, .14);
+    }
+    .timer {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .01em;
+    }
+    .hero {
+      flex: 1;
+      min-height: 148px;
+      display: grid;
+      place-items: center;
+    }
+    .spin, .ok { display: none; }
+    .spin {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid #d7dee8;
+      border-top-color: var(--blue);
+      animation: turn .9s linear infinite;
+    }
+    .ok { width: 54px; height: 54px; }
+    h1 {
+      margin: 0 0 18px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 680;
+      letter-spacing: -.02em;
+    }
+    .rows { margin: 0; display: grid; gap: 14px; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      min-height: 24px;
+      font-size: 15px;
+    }
+    .row dt { color: var(--label); font-weight: 560; }
+    .row dd { margin: 0; font-weight: 680; display: inline-flex; align-items: center; gap: 8px; }
+    .fee { font-size: 12px; }
+    .fee dt, .fee dd { color: #a3a3a3; font-weight: 560; }
+    .mark {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #eef2f6;
+      color: #243044;
+      font-size: 10px;
+      font-style: normal;
+      font-weight: 750;
+    }
+    .status {
+      font-weight: 680;
+      text-align: right;
+    }
+    .status.settled {
+      background: var(--green-bg);
+      color: var(--green-ink);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-weight: 680;
+    }
+    .action { margin-top: 22px; min-height: 54px; display: grid; place-items: center; }
+    .swipe {
+      position: relative;
+      width: 100%;
+      height: 52px;
+      border-radius: 999px;
+      background: var(--track);
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      cursor: grab;
+    }
+    .fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0;
+      background: var(--blue);
+    }
+    .thumb {
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      left: 4px;
+      width: 72px;
+      border-radius: 999px;
+      background: var(--blue);
+    }
+    .swipe-label {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      font-weight: 720;
+      color: var(--blue);
+    }
+    .swipe[data-hot="1"] .swipe-label { color: #f4f7fb; }
+    .hint, .done { display: none; }
+    .hint { margin: 0; color: #8a8a8a; font-size: 13px; font-weight: 650; }
+    .done {
+      width: 100%;
+      height: 54px;
+      border: 0;
+      border-radius: 999px;
+      background: #111;
+      color: #f5f7f8;
+      font: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .done:focus-visible, .swipe:focus-visible, .controls button:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 3px;
+    }
+    .card[data-state="confirming"] .spin,
+    .card[data-state="confirming"] .hint,
+    .card[data-state="confirmed"] .ok,
+    .card[data-state="confirmed"] .done { display: block; }
+    .card[data-state="confirming"] .swipe,
+    .card[data-state="confirmed"] .swipe,
+    .card[data-state="confirmed"] .hint,
+    .card[data-state="review"] .hint,
+    .card[data-state="review"] .done { display: none; }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px 22px;
+    }
+    .controls button {
+      border: 0;
+      background: #fff;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+    @keyframes turn { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .spin { animation: none; border-color: var(--blue); }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="stage">
+      <article class="card" id="card" data-state="review">
+        <p class="timer" id="timer">0.00s</p>
+        <div class="hero" aria-hidden="true">
+          <div class="spin" id="spin"></div>
+          <svg class="ok" viewBox="0 0 48 48">
+            <circle cx="24" cy="24" r="22" fill="#e5f6ee"/>
+            <path d="M14 25.5 21 32.5 34.5 16" fill="none" stroke="#3c6552" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h1 id="title">Review payment</h1>
+        <dl class="rows">
+          <div class="row">
+            <dt>You pay</dt>
+            <dd><i class="mark" aria-hidden="true">Ξ</i>0.8214 ETH</dd>
+          </div>
+          <div class="row">
+            <dt>You receive</dt>
+            <dd><i class="mark" aria-hidden="true">$</i>2,480.00 USDC</dd>
+          </div>
+          <div class="row">
+            <dt>Network</dt>
+            <dd><i class="mark" aria-hidden="true">S</i>Solana</dd>
+          </div>
+          <div class="row fee">
+            <dt>Fee</dt>
+            <dd>$0.12</dd>
+          </div>
+          <div class="row">
+            <dt>Status</dt>
+            <dd class="status" id="status">Awaiting approval</dd>
+          </div>
+        </dl>
+        <div class="action">
+          <div class="swipe" id="swipe" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Swipe to pay" aria-label="Swipe to pay">
+            <div class="fill" id="fill"></div>
+            <div class="thumb" id="thumb"></div>
+            <div class="swipe-label">Swipe to pay</div>
+          </div>
+          <p class="hint" id="hint">Confirming...</p>
+          <button type="button" class="done" id="done">View position</button>
+        </div>
+      </article>
+    </div>
+    <div class="controls">
+      <button type="button" id="toggle">暂停</button>
+      <button type="button" id="next">下一步</button>
+      <button type="button" id="replay">重看</button>
+    </div>
+  </div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <script>
+    const HOLD = 1600;
+    const SWIPE_MS = 700;
+    const CONFIRM_MS = 3200;
+    const card = document.getElementById('card');
+    const title = document.getElementById('title');
+    const timerEl = document.getElementById('timer');
+    const statusEl = document.getElementById('status');
+    const swipe = document.getElementById('swipe');
+    const fill = document.getElementById('fill');
+    const thumb = document.getElementById('thumb');
+    const live = document.getElementById('live');
+    const toggle = document.getElementById('toggle');
+    const nextBtn = document.getElementById('next');
+    const replayBtn = document.getElementById('replay');
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    const steps = ['review', 'confirming', 'confirmed'];
+
+    let playing = !motion.matches;
+    let phase = 'review';
+    let progress = 0;
+    let confirmElapsed = 0;
+    let confirmOrigin = 0;
+    let waitTimer = 0;
+    let raf = 0;
+    let dragging = false;
+
+    function formatTime(ms) {
+      return (Math.max(0, ms) / 1000).toFixed(2) + 's';
+    }
+
+    function paint(p) {
+      progress = Math.max(0, Math.min(1, p));
+      const travel = Math.max(0, swipe.clientWidth - thumb.offsetWidth - 8);
+      fill.style.width = (progress * 100) + '%';
+      thumb.style.transform = 'translateX(' + (progress * travel) + 'px)';
+      swipe.dataset.hot = progress > 0.42 ? '1' : '0';
+      swipe.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
+    }
+
+    function stopMotion() {
+      clearTimeout(waitTimer);
+      cancelAnimationFrame(raf);
+      waitTimer = 0;
+      raf = 0;
+    }
+
+    function say(text) {
+      live.textContent = text;
+    }
+
+    function showReview() {
+      phase = 'review';
+      card.dataset.state = 'review';
+      title.textContent = 'Review payment';
+      timerEl.textContent = '0.00s';
+      statusEl.textContent = 'Awaiting approval';
+      statusEl.classList.remove('settled');
+      swipe.setAttribute('aria-disabled', 'false');
+      paint(0);
+      say('核对支付：支付 0.8214 ETH，收到 2,480.00 USDC，网络 Solana，费用 0.12 美元，等待批准。向右滑动支付。');
+    }
+
+    function showConfirming() {
+      phase = 'confirming';
+      card.dataset.state = 'confirming';
+      title.textContent = 'Confirming payment';
+      statusEl.textContent = 'Pending';
+      statusEl.classList.remove('settled');
+      swipe.setAttribute('aria-disabled', 'true');
+      say('正在确认支付。秒表开始计时，状态为待处理。');
+    }
+
+    function showConfirmed(ms) {
+      phase = 'confirmed';
+      card.dataset.state = 'confirmed';
+      const label = formatTime(ms);
+      timerEl.textContent = label;
+      title.textContent = 'Payment confirmed';
+      statusEl.textContent = 'Settled · ' + label;
+      statusEl.classList.add('settled');
+      swipe.setAttribute('aria-disabled', 'true');
+      say('支付已确认。用时 ' + label + '。可以查看仓位，原片没有再打开新的一屏。');
+    }
+
+    function finishSwipe() {
+      stopMotion();
+      paint(1);
+      confirmElapsed = 0;
+      showConfirming();
+      if (playing) runConfirm();
+    }
+
+    function runSwipe(from) {
+      stopMotion();
+      phase = 'swiping';
+      const start = performance.now() - from * SWIPE_MS;
+      const step = (now) => {
+        if (phase !== 'swiping') return;
+        const p = Math.min(1, (now - start) / SWIPE_MS);
+        paint(p);
+        if (p >= 1) finishSwipe();
+        else raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+    }
+
+    function runConfirm() {
+      stopMotion();
+      confirmOrigin = performance.now() - confirmElapsed;
+      const step = (now) => {
+        if (phase !== 'confirming') return;
+        confirmElapsed = now - confirmOrigin;
+        timerEl.textContent = formatTime(confirmElapsed);
+        if (confirmElapsed >= CONFIRM_MS) showConfirmed(CONFIRM_MS);
+        else raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+    }
+
+    function armHold() {
+      stopMotion();
+      if (!playing || phase !== 'review') return;
+      waitTimer = setTimeout(() => runSwipe(progress), HOLD);
+    }
+
+    function resume() {
+      if (phase === 'review') armHold();
+      else if (phase === 'swiping') runSwipe(progress);
+      else if (phase === 'confirming') runConfirm();
+      else showReview(), armHold();
+    }
+
+    function setPlaying(on) {
+      if (on && motion.matches) on = false;
+      playing = on;
+      toggle.textContent = playing ? '暂停' : '播放';
+      toggle.setAttribute('aria-pressed', playing ? 'true' : 'false');
+      if (playing) resume();
+      else stopMotion();
+    }
+
+    function pointerProgress(event) {
+      const rect = swipe.getBoundingClientRect();
+      const travel = Math.max(1, rect.width - thumb.offsetWidth - 8);
+      const x = event.clientX - rect.left - thumb.offsetWidth / 2;
+      return x / travel;
+    }
+
+    swipe.addEventListener('pointerdown', (event) => {
+      if (phase !== 'review' && phase !== 'swiping') return;
+      dragging = true;
+      swipe.setPointerCapture(event.pointerId);
+      stopMotion();
+      phase = 'review';
+      card.dataset.state = 'review';
+      paint(pointerProgress(event));
+    });
+    swipe.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      paint(pointerProgress(event));
+    });
+    function springBack(done) {
+      stopMotion();
+      phase = 'review';
+      card.dataset.state = 'review';
+      const from = progress;
+      const start = performance.now();
+      const step = (now) => {
+        if (dragging || phase !== 'review') return;
+        const p = from * (1 - Math.min(1, (now - start) / 260));
+        paint(Math.max(0, p));
+        if (p > 0.01) raf = requestAnimationFrame(step);
+        else done();
+      };
+      raf = requestAnimationFrame(step);
+    }
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      if (progress > 0.82) finishSwipe();
+      else springBack(() => { if (playing) armHold(); });
+    }
+    swipe.addEventListener('pointerup', endDrag);
+    swipe.addEventListener('pointercancel', endDrag);
+    swipe.addEventListener('keydown', (event) => {
+      if (phase === 'confirmed') return;
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        stopMotion();
+        phase = 'review';
+        paint(progress + 0.12);
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        stopMotion();
+        phase = 'review';
+        paint(progress - 0.12);
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        finishSwipe();
+      }
+    });
+
+    toggle.addEventListener('click', () => setPlaying(!playing));
+    nextBtn.addEventListener('click', () => {
+      stopMotion();
+      playing = false;
+      toggle.textContent = '播放';
+      toggle.setAttribute('aria-pressed', 'false');
+      const index = steps.indexOf(phase === 'swiping' ? 'review' : phase);
+      const next = steps[(index + 1) % steps.length];
+      if (next === 'review') showReview();
+      else if (next === 'confirming') {
+        paint(1);
+        confirmElapsed = 0;
+        showConfirming();
+        timerEl.textContent = '0.00s';
+      } else showConfirmed(CONFIRM_MS);
+    });
+    replayBtn.addEventListener('click', () => {
+      stopMotion();
+      showReview();
+      if (!motion.matches) setPlaying(true);
+    });
+    document.getElementById('done').addEventListener('click', () => {
+      say('View position。原片停在这个按钮上，没有下一屏。');
+    });
+    motion.addEventListener('change', () => setPlaying(!motion.matches));
+
+    toggle.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    if (!playing) toggle.textContent = '播放';
+    showReview();
+    if (playing) armHold();
+  </script>
+</body>
+</html>
