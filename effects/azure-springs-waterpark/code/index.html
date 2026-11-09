@@ -1,0 +1,910 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Azure Springs 浮空岛水上乐园</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: #8fd0f2;
+      color: #163044;
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+    }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .title {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      margin: 0;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(12, 40, 64, 0.45);
+      pointer-events: none;
+    }
+    .title strong {
+      display: block;
+      font-size: 18px;
+      letter-spacing: 0.14em;
+      font-weight: 750;
+    }
+    .title span { display: block; margin-top: 2px; font-size: 12px; letter-spacing: 0.08em; }
+    .hud {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #163044;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button:hover { background: #fff; }
+    button:focus-visible { outline: 2px solid #163044; outline-offset: 2px; }
+    .live {
+      margin: 0;
+      min-height: 1.2em;
+      font-size: 12px;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(12, 40, 64, 0.45);
+    }
+    @media (max-width: 600px) {
+      .title strong { font-size: 15px; }
+      button { font-size: 12px; padding: 8px 10px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="view" aria-label="Azure Springs 浮空岛水上乐园。可造浪、跟随滑道、切换昼夜和主题色。拖动画面可以转动视角。"></canvas>
+  <h1 class="title"><strong>AZURE SPRINGS</strong><span>浮空岛水上乐园</span></h1>
+  <div class="hud">
+    <button type="button" id="wave">造一波浪</button>
+    <button type="button" id="follow">跟随滑道</button>
+    <button type="button" id="day">昼夜：自动</button>
+    <button type="button" id="theme">主题：海蓝</button>
+    <p class="live" id="live" aria-live="polite">环视整座岛。可以造浪、跟随滑道、切换昼夜或主题色。</p>
+  </div>
+  <script>
+    const BRAND = {
+      name: 'AZURE SPRINGS',
+      themes: [
+        { label: '海蓝', water: [0.20, 0.74, 0.88], river: [0.12, 0.58, 0.82], slides: [[0.95, 0.36, 0.42], [0.98, 0.76, 0.28], [0.28, 0.80, 0.66]], shade: [0.98, 0.46, 0.58] },
+        { label: '暖阳', water: [0.96, 0.58, 0.30], river: [0.92, 0.42, 0.38], slides: [[0.98, 0.82, 0.35], [0.95, 0.45, 0.32], [0.98, 0.62, 0.55]], shade: [0.86, 0.28, 0.34] },
+        { label: '薄荷', water: [0.28, 0.82, 0.70], river: [0.18, 0.62, 0.66], slides: [[0.45, 0.88, 0.78], [0.98, 0.95, 0.88], [0.36, 0.70, 0.84]], shade: [0.98, 0.78, 0.42] }
+      ]
+    };
+
+    const canvas = document.getElementById('view');
+    const live = document.getElementById('live');
+    const waveBtn = document.getElementById('wave');
+    const followBtn = document.getElementById('follow');
+    const dayBtn = document.getElementById('day');
+    const themeBtn = document.getElementById('theme');
+    const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+
+    const reduced = { on: motionQuery.matches };
+    const state = {
+      t: 0,
+      yaw: 0.22,
+      pitch: 0.52,
+      dragging: false,
+      follow: 0,
+      dayMode: 0,
+      day: 0,
+      theme: 0,
+      wave: -1,
+      camPos: null,
+      camLook: null
+    };
+    const DAY_LABELS = ['自动', '白昼', '黄昏', '夜晚'];
+    const SLIDE_LABELS = ['环视', '左滑道', '中滑道', '右滑道'];
+
+    let seed = 2118300737;
+    function rnd() {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    }
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function mix(a, b, t) { return a + (b - a) * t; }
+    function mix3(a, b, t) { return [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)]; }
+    function hypot3(x, y, z) { return Math.hypot(x, y, z) || 1; }
+
+    function fnorm(a, b, c) {
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+      const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+      let x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx;
+      const l = hypot3(x, y, z);
+      return [x / l, y / l, z / l];
+    }
+
+    function Mesh() { this.v = []; }
+    Mesh.prototype.face = function (pts, col, unlit) {
+      const n = fnorm(pts[0], pts[1], pts[2]);
+      const push = (a, b, c) => {
+        for (const p of [a, b, c]) {
+          this.v.push(p[0], p[1], p[2], n[0], n[1], n[2], col[0], col[1], col[2], unlit || 0);
+        }
+      };
+      push(pts[0], pts[1], pts[2]);
+      if (pts.length > 3) push(pts[0], pts[2], pts[3]);
+    };
+    Mesh.prototype.array = function () { return new Float32Array(this.v); };
+
+    function addBox(mesh, c, h, yaw, col, unlit) {
+      const co = Math.cos(yaw), si = Math.sin(yaw);
+      const p = (sx, sy, sz) => {
+        const x = sx * h[0], y = sy * h[1], z = sz * h[2];
+        return [c[0] + x * co - z * si, c[1] + y, c[2] + x * si + z * co];
+      };
+      const faces = [
+        [[-1, 1, -1], [-1, 1, 1], [1, 1, 1], [1, 1, -1]],
+        [[-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1]],
+        [[1, -1, -1], [1, 1, -1], [1, 1, 1], [1, -1, 1]],
+        [[-1, -1, -1], [-1, -1, 1], [-1, 1, 1], [-1, 1, -1]],
+        [[-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]],
+        [[-1, -1, -1], [-1, 1, -1], [1, 1, -1], [1, -1, -1]]
+      ];
+      for (const f of faces) mesh.face(f.map((s) => p(s[0], s[1], s[2])), col, unlit);
+    }
+
+    function addCylinder(mesh, x, y0, y1, z, r, seg, col) {
+      for (let i = 0; i < seg; i++) {
+        const a0 = (i / seg) * Math.PI * 2;
+        const a1 = ((i + 1) / seg) * Math.PI * 2;
+        const x0 = Math.cos(a0) * r, z0 = Math.sin(a0) * r;
+        const x1 = Math.cos(a1) * r, z1 = Math.sin(a1) * r;
+        mesh.face([
+          [x + x0, y0, z + z0], [x + x0, y1, z + z0], [x + x1, y1, z + z1], [x + x1, y0, z + z1]
+        ], col, 0);
+        mesh.face([[x, y1, z], [x + x0, y1, z + z0], [x + x1, y1, z + z1]], col, 0);
+      }
+    }
+
+    function islandRadius(a) {
+      return 11.15 + Math.sin(a * 3) * 0.55 + Math.cos(a * 5) * 0.28;
+    }
+    function groundY(x, z) {
+      const a = Math.atan2(z, x);
+      const edge = Math.min(1, Math.hypot(x, z) / islandRadius(a));
+      return 0.5 * (1 - edge) * (1 - edge);
+    }
+    const POOL = { x: 0.2, z: 3.7, rx: 3.7, rz: 2.75 };
+    function inPool(x, z) {
+      const dx = (x - POOL.x) / POOL.rx, dz = (z - POOL.z) / POOL.rz;
+      return dx * dx + dz * dz < 1;
+    }
+    function angDiff(a, b) {
+      let d = a - b;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      return d;
+    }
+    function inRiver(x, z) {
+      const a = Math.atan2(z, x);
+      if (Math.abs(angDiff(a, Math.PI / 2)) < 0.9) return false;
+      return Math.abs(Math.hypot(x, z) - 8.15) < 1.2;
+    }
+    function inTower(x, z) { return x * x + (z + 6.15) * (z + 6.15) < 2.3; }
+
+    function bez(p0, p1, p2, p3) {
+      return function (t) {
+        const u = 1 - t;
+        const b0 = u * u * u, b1 = 3 * u * u * t, b2 = 3 * u * t * t, b3 = t * t * t;
+        return [
+          b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0],
+          b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1],
+          b0 * p0[2] + b1 * p1[2] + b2 * p2[2] + b3 * p3[2]
+        ];
+      };
+    }
+
+    const slides = [
+      { name: '左滑道', phase: 0.05, color: 0, curve: bez([-0.7, 5.25, -5.7], [-4.8, 4.1, -2.2], [-6.6, 1.8, 1.2], [-4.6, 0.42, 3.6]) },
+      { name: '中滑道', phase: 0.38, color: 1, curve: bez([0.15, 5.35, -5.5], [0.2, 4.4, -1.2], [0.15, 2.0, 2.0], [0.35, 0.5, 5.55]) },
+      { name: '右滑道', phase: 0.7, color: 2, curve: bez([0.85, 5.15, -5.9], [4.4, 3.7, -3.2], [6.8, 1.5, -0.4], [5.6, 0.42, 2.5]) }
+    ];
+
+    function addRibbon(mesh, curve, width, col) {
+      const N = 26;
+      const pts = [];
+      for (let i = 0; i <= N; i++) pts.push(curve(i / N));
+      const rail = [col[0] * 0.72, col[1] * 0.72, col[2] * 0.72];
+      for (let i = 0; i < N; i++) {
+        const p = pts[i], q = pts[i + 1];
+        const dx = q[0] - p[0], dz = q[2] - p[2];
+        const len = Math.hypot(dx, dz) || 1;
+        const sx = -dz / len * width * 0.5;
+        const sz = dx / len * width * 0.5;
+        mesh.face([
+          [p[0] - sx, p[1], p[2] - sz],
+          [p[0] + sx, p[1], p[2] + sz],
+          [q[0] + sx, q[1], q[2] + sz],
+          [q[0] - sx, q[1], q[2] - sz]
+        ], col, 0);
+        const rh = 0.2;
+        mesh.face([
+          [p[0] - sx, p[1], p[2] - sz],
+          [p[0] - sx, p[1] + rh, p[2] - sz],
+          [q[0] - sx, q[1] + rh, q[2] - sz],
+          [q[0] - sx, q[1], q[2] - sz]
+        ], rail, 0);
+        mesh.face([
+          [p[0] + sx, p[1], p[2] + sz],
+          [q[0] + sx, q[1], q[2] + sz],
+          [q[0] + sx, q[1] + rh, q[2] + sz],
+          [p[0] + sx, p[1] + rh, p[2] + sz]
+        ], rail, 0);
+      }
+    }
+
+    function addDiscY(mesh, x, y, z, rx, rz, seg, col, unlit) {
+      for (let i = 0; i < seg; i++) {
+        const a0 = (i / seg) * Math.PI * 2;
+        const a1 = ((i + 1) / seg) * Math.PI * 2;
+        mesh.face([
+          [x, y, z],
+          [x + Math.cos(a0) * rx, y, z + Math.sin(a0) * rz],
+          [x + Math.cos(a1) * rx, y, z + Math.sin(a1) * rz]
+        ], col, unlit);
+      }
+    }
+
+    const people = [];
+    const SWIM = [[0.95, 0.33, 0.38], [0.25, 0.55, 0.95], [0.98, 0.78, 0.25], [0.96, 0.5, 0.72], [0.3, 0.75, 0.48], [0.98, 0.55, 0.25]];
+    for (let tries = 0; people.length < 80 && tries < 2000; tries++) {
+      const a = rnd() * Math.PI * 2;
+      const r = 1.6 + rnd() * 8.2;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (inPool(x, z) || inRiver(x, z) || inTower(x, z)) continue;
+      if (Math.hypot(x, z) > islandRadius(a) - 1.3) continue;
+      people.push({ x, z, yaw: rnd() * Math.PI * 2, speed: 0.55 + rnd() * 0.7, phase: rnd() * 6, col: SWIM[people.length % SWIM.length] });
+    }
+
+    const palms = [];
+    for (let i = 0; i < 8; i++) {
+      const a = rnd() * Math.PI * 2;
+      const r = 6.5 + rnd() * 3.2;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (inPool(x, z) || inRiver(x, z) || inTower(x, z)) continue;
+      palms.push([x, z, rnd() * 6]);
+    }
+
+    function buildStatic(theme) {
+      const mesh = new Mesh();
+      const sand = [0.93, 0.82, 0.62];
+      const grass = [0.49, 0.74, 0.42];
+      const rock = [0.62, 0.52, 0.44];
+      const rockDark = [0.45, 0.38, 0.34];
+      const cream = [0.94, 0.91, 0.84];
+      const wood = [0.62, 0.42, 0.28];
+      const leaf = [0.28, 0.68, 0.38];
+      const segs = 36;
+      const rings = 7;
+      const grid = [];
+      for (let ring = 0; ring < rings; ring++) {
+        const row = [];
+        const f = ring / (rings - 1);
+        for (let s = 0; s < segs; s++) {
+          const a = (s / segs) * Math.PI * 2;
+          const rad = islandRadius(a) * f;
+          row.push([Math.cos(a) * rad, groundY(Math.cos(a) * rad, Math.sin(a) * rad), Math.sin(a) * rad]);
+        }
+        grid.push(row);
+      }
+      for (let ring = 0; ring < rings - 1; ring++) {
+        const col = ring < 4 ? sand : grass;
+        for (let s = 0; s < segs; s++) {
+          const n = (s + 1) % segs;
+          mesh.face([grid[ring][s], grid[ring][n], grid[ring + 1][n], grid[ring + 1][s]], col, 0);
+        }
+      }
+      for (let s = 0; s < segs; s++) {
+        const n = (s + 1) % segs;
+        const a = grid[rings - 1][s], b = grid[rings - 1][n];
+        mesh.face([a, b, [b[0], -3.5, b[2]], [a[0], -3.5, a[2]]], rock, 0);
+        mesh.face([[a[0], -3.5, a[2]], [b[0], -3.5, b[2]], [b[0] * 0.72, -4.3, b[2] * 0.72], [a[0] * 0.72, -4.3, a[2] * 0.72]], rockDark, 0);
+      }
+
+      addCylinder(mesh, 0, groundY(0, -6.15), 1.15, -6.15, 1.2, 8, cream);
+      addCylinder(mesh, 0, 1.15, 4.7, -6.15, 0.48, 6, [0.86, 0.84, 0.78]);
+      addCylinder(mesh, 0, 4.7, 5.15, -6.15, 1.5, 10, cream);
+      addBox(mesh, [0, 6.05, -6.15], [0.06, 0.7, 0.06], 0, wood, 0);
+      addBox(mesh, [0.28, 6.35, -6.15], [0.28, 0.16, 0.04], 0, theme.shade, 0);
+
+      slides.forEach((slide, i) => addRibbon(mesh, slide.curve, 0.92, theme.slides[i]));
+
+      const rim = 48;
+      for (let i = 0; i < rim; i++) {
+        const a0 = (i / rim) * Math.PI * 2, a1 = ((i + 1) / rim) * Math.PI * 2;
+        const ring = (a, rad, y) => [POOL.x + Math.cos(a) * rad, y, POOL.z + Math.sin(a) * (rad * POOL.rz / POOL.rx)];
+        mesh.face([ring(a0, POOL.rx + 0.28, 0.46), ring(a1, POOL.rx + 0.28, 0.46), ring(a1, POOL.rx - 0.05, 0.34), ring(a0, POOL.rx - 0.05, 0.34)], cream, 0);
+      }
+
+      for (const palm of palms) {
+        const x = palm[0], z = palm[1], y = groundY(x, z);
+        addCylinder(mesh, x, y, y + 1.7, z, 0.1, 5, wood);
+        for (let k = 0; k < 5; k++) {
+          const a = palm[2] + k * (Math.PI * 2 / 5);
+          const dx = Math.cos(a), dz = Math.sin(a);
+          mesh.face([
+            [x, y + 1.65, z],
+            [x + dx * 0.15, y + 1.5, z + dz * 0.15],
+            [x + dx * 1.15, y + 1.15, z + dz * 1.15],
+            [x + dx * 0.9, y + 1.45, z + dz * 0.9]
+          ], leaf, 0);
+        }
+      }
+
+      const umbrellas = [[-3.3, 2.2], [3.5, 2.4], [-2.2, 6.3], [4.2, 5.6]];
+      umbrellas.forEach((u, i) => {
+        const y = groundY(u[0], u[1]);
+        addCylinder(mesh, u[0], y, y + 1.25, u[1], 0.05, 4, wood);
+        addDiscY(mesh, u[0], y + 1.28, u[1], 0.85, 0.85, 8, i % 2 ? theme.shade : theme.slides[0], 0);
+      });
+
+      [[-5.4, -1.2], [6.1, -2.4]].forEach((c) => {
+        const y = groundY(c[0], c[1]);
+        addBox(mesh, [c[0], y + 0.55, c[1]], [0.85, 0.5, 0.7], 0.4, cream, 0);
+        addBox(mesh, [c[0], y + 1.15, c[1]], [0.98, 0.12, 0.82], 0.4, theme.shade, 0);
+        addBox(mesh, [c[0] + 0.35, y + 0.62, c[1] + 0.55], [0.16, 0.16, 0.04], 0.4, [1, 0.86, 0.45], 1);
+      });
+
+      for (let i = 0; i < 14; i++) {
+        const a0 = (i / 14) * Math.PI * 2;
+        const a1 = ((i + 1) / 14) * Math.PI * 2;
+        mesh.face([
+          [-12, 15.5, -16],
+          [-12 + Math.cos(a0) * 1.15, 15.5 + Math.sin(a0) * 1.15, -16],
+          [-12 + Math.cos(a1) * 1.15, 15.5 + Math.sin(a1) * 1.15, -16]
+        ], [0.96, 0.95, 0.86], 2);
+      }
+      return mesh.array();
+    }
+
+    function addPerson(mesh, x, y, z, yaw, swing, col) {
+      const skin = [0.96, 0.76, 0.62];
+      const fx = Math.cos(yaw), fz = Math.sin(yaw);
+      const sx = -fz, sz = fx;
+      addBox(mesh, [x, y + 0.62, z], [0.18, 0.22, 0.11], yaw, col, 0);
+      addBox(mesh, [x, y + 0.96, z], [0.12, 0.12, 0.12], yaw, skin, 0);
+      addBox(mesh, [x + sx * 0.08 + fx * swing, y + 0.2, z + sz * 0.08 + fz * swing], [0.055, 0.18, 0.055], yaw, skin, 0);
+      addBox(mesh, [x - sx * 0.08 - fx * swing, y + 0.2, z - sz * 0.08 - fz * swing], [0.055, 0.18, 0.055], yaw, skin, 0);
+    }
+
+    function addRing(mesh, x, y, z, yaw, col) {
+      const N = 10;
+      const R = 0.36;
+      const co = Math.cos(yaw), si = Math.sin(yaw);
+      const xf = (px, pz) => [x + px * co - pz * si, y, z + px * si + pz * co];
+      for (let i = 0; i < N; i++) {
+        const a0 = (i / N) * Math.PI * 2, a1 = ((i + 1) / N) * Math.PI * 2;
+        mesh.face([
+          xf(Math.cos(a0) * (R - 0.1), Math.sin(a0) * (R - 0.1)),
+          xf(Math.cos(a0) * (R + 0.1), Math.sin(a0) * (R + 0.1)),
+          xf(Math.cos(a1) * (R + 0.1), Math.sin(a1) * (R + 0.1)),
+          xf(Math.cos(a1) * (R - 0.1), Math.sin(a1) * (R - 0.1))
+        ], col, 0);
+      }
+    }
+
+    function riverPoint(t) {
+      const a = Math.PI / 2 + 0.95 + (Math.PI * 2 - 1.9) * t;
+      const r = 8.15 + Math.sin(a * 3) * 0.18;
+      return [Math.cos(a) * r, Math.sin(a) * r, a];
+    }
+
+    function buildDynamic(time) {
+      const theme = BRAND.themes[state.theme];
+      const mesh = new Mesh();
+      const water = new Mesh();
+      const cols = 28, rows = 20;
+      const waveAmp = state.wave >= 0 ? Math.sin(state.wave * 5.2) * Math.exp(-state.wave * 0.85) * 0.55 : 0;
+      const h = (px, pz) => {
+        const dist = Math.hypot(px - POOL.x, pz - POOL.z);
+        let y = 0.3 + Math.sin(px * 1.8 + time * 2.4) * 0.035 + Math.cos(pz * 2.1 - time * 1.8) * 0.028;
+        if (waveAmp) y += Math.sin(dist * 1.7 - state.wave * 7) * waveAmp * Math.exp(-dist * 0.18);
+        return y;
+      };
+      for (let j = 0; j < rows - 1; j++) {
+        for (let i = 0; i < cols - 1; i++) {
+          const corner = (ii, jj) => {
+            const u = ii / (cols - 1), v = jj / (rows - 1);
+            const x = POOL.x + (u * 2 - 1) * POOL.rx;
+            const z = POOL.z + (v * 2 - 1) * POOL.rz;
+            return [x, h(x, z), z];
+          };
+          const p00 = corner(i, j), p10 = corner(i + 1, j), p11 = corner(i + 1, j + 1), p01 = corner(i, j + 1);
+          const mid = [(p00[0] + p11[0]) / 2, 0, (p00[2] + p11[2]) / 2];
+          if (!inPool(mid[0], mid[2])) continue;
+          const lift = Math.max(p00[1], p10[1], p11[1], p01[1]) - 0.3;
+          const foam = clamp((lift - 0.08) * 2.4, 0, 1);
+          const col = foam > 0 ? mix3(theme.water, [0.92, 0.98, 1], foam) : theme.water;
+          water.face([p00, p01, p11, p10], col, 0);
+        }
+      }
+
+      const steps = 48;
+      const half = 1.15;
+      for (let i = 0; i < steps; i++) {
+        const a = riverPoint(i / steps), b = riverPoint((i + 1) / steps);
+        const al = Math.hypot(a[0], a[1]) || 1;
+        const bl = Math.hypot(b[0], b[1]) || 1;
+        const ax = a[0] / al, az = a[1] / al;
+        const bx = b[0] / bl, bz = b[1] / bl;
+        const flow = time * 0.8;
+        const hy = (along) => 0.2 + Math.sin(along * 10 - flow) * 0.04;
+        water.face([
+          [a[0] + ax * half, hy(i), a[1] + az * half],
+          [a[0] - ax * half, hy(i + 0.5), a[1] - az * half],
+          [b[0] - bx * half, hy(i + 1.5), b[1] - bz * half],
+          [b[0] + bx * half, hy(i + 1), b[1] + bz * half]
+        ], theme.river, 0);
+        const bank = [0.9, 0.78, 0.58];
+        mesh.face([
+          [a[0] + ax * (half + 0.28), 0.34, a[1] + az * (half + 0.28)],
+          [b[0] + bx * (half + 0.28), 0.34, b[1] + bz * (half + 0.28)],
+          [b[0] + bx * half, 0.2, b[1] + bz * half],
+          [a[0] + ax * half, 0.2, a[1] + az * half]
+        ], bank, 0);
+      }
+
+      for (let i = 0; i < 7; i++) {
+        const p = riverPoint(((time * 0.045) + i / 7) % 1);
+        const bob = 0.22 + Math.sin(time * 2 + i) * 0.03;
+        addRing(mesh, p[0], bob, p[1], p[2], i % 2 ? theme.shade : [0.98, 0.95, 0.9]);
+      }
+
+      for (const person of people) {
+        const swing = reduced.on ? 0 : Math.sin(person.phase) * 0.18;
+        addPerson(mesh, person.x, groundY(person.x, person.z), person.z, person.yaw, swing, person.col);
+      }
+
+      const riderCols = [[0.98, 0.95, 0.9], [0.2, 0.25, 0.35], [0.98, 0.45, 0.55]];
+      slides.forEach((slide, i) => {
+        const t = reduced.on ? 0.42 + i * 0.08 : (time * 0.16 + slide.phase) % 1;
+        const p = slide.curve(t);
+        const q = slide.curve(Math.min(0.995, t + 0.03));
+        const yaw = Math.atan2(q[2] - p[2], q[0] - p[0]);
+        addPerson(mesh, p[0], p[1], p[2], yaw, reduced.on ? 0 : 0.12, riderCols[i]);
+        if (!reduced.on && t > 0.9) {
+          const s = (t - 0.9) / 0.1;
+          addDiscY(mesh, p[0], 0.36, p[2], 0.25 + s * 0.55, 0.18 + s * 0.3, 8, [0.9, 0.97, 1], 1);
+        }
+      });
+
+      for (let i = 0; i < 4; i++) {
+        const a = -1.1 + i * 0.55;
+        const R = islandRadius(a) - 0.15;
+        const x = Math.cos(a) * R, z = Math.sin(a) * R;
+        const top = groundY(x, z) + 0.05;
+        for (let s = 0; s < 7; s++) {
+          const wob = reduced.on ? 0 : Math.sin(time * 4 + i + s) * 0.1;
+          const y0 = top - s * 0.62, y1 = y0 - 0.62;
+          water.face([
+            [x - 0.16, y0, z + wob],
+            [x + 0.16, y0, z + wob],
+            [x + 0.16 + wob, y1, z - 0.05],
+            [x - 0.16 + wob, y1, z - 0.05]
+          ], [0.78, 0.93, 1], 1);
+        }
+      }
+
+      for (let i = 0; i < 5; i++) {
+        const a = time * 0.05 + i * 1.3;
+        const x = Math.cos(a) * (7 + i) + Math.sin(time * 0.2 + i) * 0.8;
+        const z = Math.sin(a * 0.8) * 6 - 2;
+        const y = -2.2 - i * 0.45;
+        addDiscY(mesh, x, y, z, 3.2 + (i % 3), 2.1, 10, [0.95, 0.97, 1], 0);
+      }
+
+      return { solid: mesh.array(), water: water.array() };
+    }
+
+    function skyColors(day) {
+      const dayTop = [0.42, 0.76, 0.98], dayBot = [0.80, 0.93, 1];
+      const duskTop = [0.29, 0.28, 0.55], duskBot = [0.98, 0.58, 0.36];
+      const nightTop = [0.03, 0.05, 0.12], nightBot = [0.09, 0.13, 0.28];
+      if (day < 0.5) {
+        const t = day / 0.5;
+        return { top: mix3(dayTop, duskTop, t), bot: mix3(dayBot, duskBot, t), night: t * 0.45 };
+      }
+      const t = (day - 0.5) / 0.5;
+      return { top: mix3(duskTop, nightTop, t), bot: mix3(duskBot, nightBot, t), night: 0.45 + t * 0.55 };
+    }
+    function sunFor(day) {
+      const sky = skyColors(day);
+      const dir = day < 0.5
+        ? mix3([0.35, 0.86, 0.28], [-0.55, 0.28, 0.2], day / 0.5)
+        : mix3([-0.55, 0.28, 0.2], [-0.2, 0.75, -0.35], (day - 0.5) / 0.5);
+      const l = hypot3(dir[0], dir[1], dir[2]);
+      const n = sky.night;
+      const ambient = mix3([0.72, 0.78, 0.84], [0.28, 0.32, 0.48], n);
+      const sun = mix3([1, 0.98, 0.94], [0.62, 0.7, 0.9], n);
+      return { light: [dir[0] / l, dir[1] / l, dir[2] / l], sun, ambient, night: n, top: sky.top, bot: sky.bot };
+    }
+    function autoDay(time) {
+      const u = time % 14;
+      if (u < 4) return 0;
+      if (u < 6.5) return (u - 4) / 2.5;
+      if (u < 10.5) return 1;
+      if (u < 13) return 1 - (u - 10.5) / 2.5;
+      return 0;
+    }
+
+    function say(text) { live.textContent = text; }
+    function refreshLabels() {
+      dayBtn.textContent = '昼夜：' + DAY_LABELS[state.dayMode];
+      themeBtn.textContent = '主题：' + BRAND.themes[state.theme].label;
+      followBtn.textContent = state.follow ? '跟随：' + slides[state.follow - 1].name : '跟随滑道';
+    }
+
+    const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+    if (!gl) {
+      const g = canvas.getContext('2d');
+      const paint = () => {
+        const w = canvas.width = canvas.clientWidth || 800;
+        const h = canvas.height = canvas.clientHeight || 600;
+        g.fillStyle = '#8fd0f2';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#7dbe6a';
+        g.beginPath();
+        g.ellipse(w / 2, h * 0.58, w * 0.28, h * 0.16, 0, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = '#3ec2e0';
+        g.beginPath();
+        g.ellipse(w / 2, h * 0.62, w * 0.1, h * 0.05, 0, 0, Math.PI * 2);
+        g.fill();
+      };
+      paint();
+      addEventListener('resize', paint);
+    } else {
+      const vsSource = [
+        'attribute vec3 aPos;',
+        'attribute vec3 aNrm;',
+        'attribute vec3 aCol;',
+        'attribute float aUnlit;',
+        'uniform mat4 uMvp;',
+        'uniform vec3 uLight;',
+        'uniform vec3 uAmbient;',
+        'uniform vec3 uSun;',
+        'uniform float uNight;',
+        'varying vec3 vCol;',
+        'void main() {',
+        '  vec3 n = normalize(aNrm);',
+        '  float ndl = max(dot(n, normalize(uLight)), 0.0);',
+        '  float shade = 0.58 + 0.42 * ndl;',
+        '  vec3 lit = aCol * mix(uAmbient, uSun, shade);',
+        '  vec3 color = lit;',
+        '  if (aUnlit > 1.5) color = aCol * uNight;',
+        '  else if (aUnlit > 0.5) color = aCol;',
+        '  vCol = clamp(color, 0.0, 1.0);',
+        '  gl_Position = uMvp * vec4(aPos, 1.0);',
+        '}'
+      ].join('\n');
+      const skyVs = [
+        'attribute vec2 aPos;',
+        'uniform vec3 uTop;',
+        'uniform vec3 uBot;',
+        'varying vec3 vCol;',
+        'void main() {',
+        '  vCol = mix(uBot, uTop, aPos.y * 0.5 + 0.5);',
+        '  gl_Position = vec4(aPos, 0.999, 1.0);',
+        '}'
+      ].join('\n');
+      const fsSource = [
+        'precision mediump float;',
+        'varying vec3 vCol;',
+        'uniform float uAlpha;',
+        'void main() { gl_FragColor = vec4(vCol, uAlpha); }'
+      ].join('\n');
+
+      function compile(type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null;
+      }
+      function program(vs, fs) {
+        const p = gl.createProgram();
+        const a = compile(gl.VERTEX_SHADER, vs);
+        const b = compile(gl.FRAGMENT_SHADER, fs);
+        if (!a || !b) return null;
+        gl.attachShader(p, a);
+        gl.attachShader(p, b);
+        gl.linkProgram(p);
+        return gl.getProgramParameter(p, gl.LINK_STATUS) ? p : null;
+      }
+      const prog = program(vsSource, fsSource);
+      const skyProg = program(skyVs, fsSource);
+      if (!prog || !skyProg) {
+        say('画面没能启动。');
+      } else {
+        const loc = {
+          mvp: gl.getUniformLocation(prog, 'uMvp'),
+          light: gl.getUniformLocation(prog, 'uLight'),
+          ambient: gl.getUniformLocation(prog, 'uAmbient'),
+          sun: gl.getUniformLocation(prog, 'uSun'),
+          night: gl.getUniformLocation(prog, 'uNight'),
+          alpha: gl.getUniformLocation(prog, 'uAlpha'),
+          pos: gl.getAttribLocation(prog, 'aPos'),
+          nrm: gl.getAttribLocation(prog, 'aNrm'),
+          col: gl.getAttribLocation(prog, 'aCol'),
+          unlit: gl.getAttribLocation(prog, 'aUnlit')
+        };
+        const skyLoc = {
+          pos: gl.getAttribLocation(skyProg, 'aPos'),
+          top: gl.getUniformLocation(skyProg, 'uTop'),
+          bot: gl.getUniformLocation(skyProg, 'uBot'),
+          alpha: gl.getUniformLocation(skyProg, 'uAlpha')
+        };
+        const staticBuf = gl.createBuffer();
+        const solidBuf = gl.createBuffer();
+        const waterBuf = gl.createBuffer();
+        const skyBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+
+        let staticData = buildStatic(BRAND.themes[0]);
+        let staticCount = staticData.length / 10;
+        gl.bindBuffer(gl.ARRAY_BUFFER, staticBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, staticData, gl.STATIC_DRAW);
+
+        function bindMesh(buf, data, drawProg, attrib) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+          if (data) gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+          const stride = 40;
+          gl.enableVertexAttribArray(attrib.pos);
+          gl.vertexAttribPointer(attrib.pos, 3, gl.FLOAT, false, stride, 0);
+          gl.enableVertexAttribArray(attrib.nrm);
+          gl.vertexAttribPointer(attrib.nrm, 3, gl.FLOAT, false, stride, 12);
+          gl.enableVertexAttribArray(attrib.col);
+          gl.vertexAttribPointer(attrib.col, 3, gl.FLOAT, false, stride, 24);
+          gl.enableVertexAttribArray(attrib.unlit);
+          gl.vertexAttribPointer(attrib.unlit, 1, gl.FLOAT, false, stride, 36);
+          return data ? data.length / 10 : 0;
+        }
+
+        function perspective(fovy, aspect, near, far) {
+          const f = 1 / Math.tan(fovy / 2);
+          const m = new Float32Array(16);
+          m[0] = f / aspect;
+          m[5] = f;
+          m[10] = (far + near) / (near - far);
+          m[11] = -1;
+          m[14] = (2 * far * near) / (near - far);
+          return m;
+        }
+        function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+        function norm(v) { const l = hypot3(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; }
+        function cross(a, b) {
+          return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+        }
+        function lookAt(eye, target, up) {
+          const z = norm([eye[0] - target[0], eye[1] - target[1], eye[2] - target[2]]);
+          const x = norm(cross(up, z));
+          const y = cross(z, x);
+          const m = new Float32Array(16);
+          m[0] = x[0]; m[4] = x[1]; m[8] = x[2]; m[12] = -dot(x, eye);
+          m[1] = y[0]; m[5] = y[1]; m[9] = y[2]; m[13] = -dot(y, eye);
+          m[2] = z[0]; m[6] = z[1]; m[10] = z[2]; m[14] = -dot(z, eye);
+          m[15] = 1;
+          return m;
+        }
+        function mul(a, b) {
+          const o = new Float32Array(16);
+          for (let c = 0; c < 4; c++) {
+            for (let r = 0; r < 4; r++) {
+              o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+            }
+          }
+          return o;
+        }
+        function approach(cur, next, k) {
+          if (!cur) return next.slice();
+          return [mix(cur[0], next[0], k), mix(cur[1], next[1], k), mix(cur[2], next[2], k)];
+        }
+        function orbitEye() {
+          const cp = Math.cos(state.pitch), sp = Math.sin(state.pitch);
+          const dist = 29;
+          return [dist * cp * Math.sin(state.yaw), 1.15 + dist * sp, dist * cp * Math.cos(state.yaw)];
+        }
+        function desiredCamera() {
+          if (!state.follow) return { eye: orbitEye(), look: [0, 1.15, 0] };
+          const slide = slides[state.follow - 1];
+          const t = reduced.on ? 0.48 : (state.t * 0.16 + slide.phase) % 1;
+          const p = slide.curve(t);
+          const q = slide.curve(Math.min(0.995, t + 0.04));
+          const dx = q[0] - p[0], dz = q[2] - p[2];
+          const len = Math.hypot(dx, dz) || 1;
+          const tx = dx / len, tz = dz / len;
+          return {
+            eye: [p[0] - tx * 6.2 + tz * 1.4, p[1] + 3.4, p[2] - tz * 6.2 - tx * 1.4],
+            look: [p[0] + tx * 4.2, p[1] + 0.15, p[2] + tz * 4.2]
+          };
+        }
+
+        function resize() {
+          const dpr = Math.min(1.75, devicePixelRatio || 1);
+          const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+          const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+          if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
+          }
+          gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+
+        let solidCount = 0, waterCount = 0;
+        function draw() {
+          resize();
+          const lit = sunFor(state.day);
+          const cam = desiredCamera();
+          const k = reduced.on ? 1 : 0.12;
+          state.camPos = approach(state.camPos, cam.eye, k);
+          state.camLook = approach(state.camLook, cam.look, k);
+          const proj = perspective(0.72, canvas.width / canvas.height, 0.12, 90);
+          const view = lookAt(state.camPos, state.camLook, [0, 1, 0]);
+          const mvp = mul(proj, view);
+          const dyn = buildDynamic(state.t);
+
+          gl.clearColor(lit.bot[0], lit.bot[1], lit.bot[2], 1);
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+          gl.disable(gl.DEPTH_TEST);
+          gl.disableVertexAttribArray(loc.pos);
+          gl.disableVertexAttribArray(loc.nrm);
+          gl.disableVertexAttribArray(loc.col);
+          gl.disableVertexAttribArray(loc.unlit);
+          gl.useProgram(skyProg);
+          gl.uniform3fv(skyLoc.top, lit.top);
+          gl.uniform3fv(skyLoc.bot, lit.bot);
+          gl.uniform1f(skyLoc.alpha, 1);
+          gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf);
+          gl.enableVertexAttribArray(skyLoc.pos);
+          gl.vertexAttribPointer(skyLoc.pos, 2, gl.FLOAT, false, 0, 0);
+          gl.drawArrays(gl.TRIANGLES, 0, 6);
+          gl.disableVertexAttribArray(skyLoc.pos);
+
+          gl.enable(gl.DEPTH_TEST);
+          gl.depthFunc(gl.LEQUAL);
+          gl.useProgram(prog);
+          gl.uniformMatrix4fv(loc.mvp, false, mvp);
+          gl.uniform3fv(loc.light, lit.light);
+          gl.uniform3fv(loc.ambient, lit.ambient);
+          gl.uniform3fv(loc.sun, lit.sun);
+          gl.uniform1f(loc.night, lit.night);
+          gl.uniform1f(loc.alpha, 1);
+          bindMesh(staticBuf, null, prog, loc);
+          gl.drawArrays(gl.TRIANGLES, 0, staticCount);
+          solidCount = bindMesh(solidBuf, dyn.solid, prog, loc);
+          gl.drawArrays(gl.TRIANGLES, 0, solidCount);
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.depthMask(false);
+          gl.uniform1f(loc.alpha, 0.94);
+          waterCount = bindMesh(waterBuf, dyn.water, prog, loc);
+          gl.drawArrays(gl.TRIANGLES, 0, waterCount);
+          gl.depthMask(true);
+          gl.disable(gl.BLEND);
+        }
+
+        function step(dt) {
+          state.t += dt;
+          if (state.wave >= 0) {
+            state.wave += dt;
+            if (state.wave > 2.8) state.wave = -1;
+          }
+          if (!state.dragging && !state.follow) state.yaw += dt * 0.1;
+          if (state.dayMode === 0) state.day = autoDay(state.t);
+          for (const person of people) {
+            person.phase += dt * (3.2 + person.speed);
+            const sp = person.speed * dt;
+            person.x += Math.cos(person.yaw) * sp;
+            person.z += Math.sin(person.yaw) * sp;
+            const a = Math.atan2(person.z, person.x);
+            if (Math.hypot(person.x, person.z) > islandRadius(a) - 1.15 || inPool(person.x, person.z) || inRiver(person.x, person.z) || inTower(person.x, person.z)) {
+              person.x -= Math.cos(person.yaw) * sp * 1.4;
+              person.z -= Math.sin(person.yaw) * sp * 1.4;
+              person.yaw += 2.2;
+            }
+          }
+        }
+
+        let last = 0;
+        let raf = 0;
+        function loop(now) {
+          const sec = now * 0.001;
+          const dt = last ? Math.min(0.033, sec - last) : 0.016;
+          last = sec;
+          if (!reduced.on) step(dt);
+          draw();
+          if (!reduced.on) raf = requestAnimationFrame(loop);
+        }
+
+        waveBtn.addEventListener('click', () => {
+          state.wave = reduced.on ? 0.45 : 0;
+          say('造浪池推开一圈水波。');
+          if (reduced.on) draw();
+        });
+        followBtn.addEventListener('click', () => {
+          state.follow = (state.follow + 1) % 4;
+          state.camPos = null;
+          state.camLook = null;
+          refreshLabels();
+          say(state.follow ? '镜头跟着' + slides[state.follow - 1].name + '上的人。' : '回到环视整座岛。');
+          if (reduced.on) draw();
+        });
+        dayBtn.addEventListener('click', () => {
+          state.dayMode = (state.dayMode + 1) % 4;
+          if (state.dayMode === 1) state.day = 0;
+          if (state.dayMode === 2) state.day = 0.5;
+          if (state.dayMode === 3) state.day = 1;
+          if (state.dayMode === 0 && !reduced.on) state.day = autoDay(state.t);
+          refreshLabels();
+          say('时间是' + DAY_LABELS[state.dayMode] + '。');
+          if (reduced.on) draw();
+        });
+        themeBtn.addEventListener('click', () => {
+          state.theme = (state.theme + 1) % BRAND.themes.length;
+          staticData = buildStatic(BRAND.themes[state.theme]);
+          staticCount = staticData.length / 10;
+          gl.bindBuffer(gl.ARRAY_BUFFER, staticBuf);
+          gl.bufferData(gl.ARRAY_BUFFER, staticData, gl.STATIC_DRAW);
+          refreshLabels();
+          say('主题色换成' + BRAND.themes[state.theme].label + '。');
+          if (reduced.on) draw();
+        });
+
+        let px = 0, py = 0;
+        canvas.addEventListener('pointerdown', (e) => {
+          state.dragging = true;
+          state.follow = 0;
+          refreshLabels();
+          px = e.clientX;
+          py = e.clientY;
+          canvas.setPointerCapture(e.pointerId);
+        });
+        canvas.addEventListener('pointermove', (e) => {
+          if (!state.dragging) return;
+          state.yaw += (e.clientX - px) * 0.008;
+          state.pitch = clamp(state.pitch + (e.clientY - py) * 0.005, 0.22, 1.05);
+          px = e.clientX;
+          py = e.clientY;
+          if (reduced.on) draw();
+        });
+        canvas.addEventListener('pointerup', () => { state.dragging = false; });
+        canvas.addEventListener('pointercancel', () => { state.dragging = false; });
+        addEventListener('resize', () => { if (reduced.on) draw(); });
+        motionQuery.addEventListener('change', () => {
+          reduced.on = motionQuery.matches;
+          if (reduced.on) {
+            if (raf) cancelAnimationFrame(raf);
+            raf = 0;
+            draw();
+          } else if (!raf) {
+            last = 0;
+            raf = requestAnimationFrame(loop);
+          }
+        });
+        refreshLabels();
+        raf = requestAnimationFrame(loop);
+      }
+    }
+  </script>
+</body>
+</html>
