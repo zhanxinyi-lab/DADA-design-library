@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Construct</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      color: #c8ffd8;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      cursor: crosshair;
+    }
+    .mark, .hint { position: absolute; pointer-events: none; }
+    .mark { top: 7vh; left: 14vw; max-width: 70vw; }
+    .title {
+      margin: 0;
+      color: #d7ffe6;
+      font-size: clamp(12px, 1.5vw, 16px);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+    .brand {
+      margin: 0.55em 0 0;
+      color: #7dffb0;
+      font-size: clamp(13px, 1.7vw, 18px);
+      letter-spacing: 0.28em;
+    }
+    .hint {
+      left: 16px;
+      bottom: 14px;
+      max-width: min(420px, calc(100vw - 32px));
+      margin: 0;
+      color: rgba(180, 255, 205, 0.72);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .config {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: min(250px, calc(100vw - 32px));
+      padding: 8px 12px 12px;
+      background: rgba(0, 0, 0, 0.78);
+      border: 1px solid rgba(92, 255, 138, 0.38);
+      box-shadow: 0 0 24px rgba(40, 255, 120, 0.08);
+    }
+    .config summary {
+      cursor: pointer;
+      letter-spacing: 0.22em;
+      font-size: 12px;
+      color: #8dffb4;
+    }
+    .config summary:focus-visible, .config input:focus-visible {
+      outline: 2px solid #b8ffcf;
+      outline-offset: 2px;
+    }
+    .config label {
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+    }
+    .config input[type="range"] { width: 100%; accent-color: #5cff8a; }
+    .config input[type="color"] {
+      width: 100%;
+      height: 22px;
+      padding: 0;
+      border: 1px solid rgba(92, 255, 138, 0.45);
+      background: transparent;
+    }
+    .check { grid-template-columns: 76px auto; }
+    @media (max-width: 600px) {
+      .mark { top: 12px; left: 12px; }
+      .config { top: auto; right: 8px; bottom: 8px; left: 8px; width: auto; }
+      .hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="view" aria-label="可走动的绿色字符雨"></canvas>
+  <header class="mark">
+    <p class="title">The Construct: Not Found</p>
+    <p class="brand">matr.ix</p>
+  </header>
+  <p class="hint" id="hint">拖动环顾，点一下锁定鼠标。WASD 行走，Shift 加速，Space 跳跃。</p>
+  <details class="config" id="config" open>
+    <summary>CONFIG</summary>
+    <label>雨色 <input id="rain-color" type="color" value="#5cff8a" aria-label="雨色"></label>
+    <label>密度 <input id="density" type="range" min="0.35" max="1" step="0.01" value="0.72" aria-label="密度"></label>
+    <label>下落 <input id="fall" type="range" min="0" max="2.4" step="0.01" value="1" aria-label="下落速度"></label>
+    <label>字号 <input id="size" type="range" min="0.6" max="1.8" step="0.01" value="1" aria-label="字号"></label>
+    <label>行走 <input id="walk" type="range" min="0.4" max="2" step="0.01" value="1" aria-label="行走速度"></label>
+    <label class="check">反射 <input id="reflect" type="checkbox" checked aria-label="地面反射"></label>
+  </details>
+  <script>
+    const canvas = document.getElementById('view');
+    const ctx = canvas.getContext('2d');
+    const hint = document.getElementById('hint');
+    const reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const state = {
+      color: '#5cff8a',
+      density: 0.72,
+      fall: 1,
+      size: 1,
+      walk: 1,
+      reflect: true,
+      reduce: reduceQuery.matches
+    };
+    const cam = { x: 0.4, y: 1.62, z: 0, yaw: 0.15, pitch: -0.22, vy: 0 };
+    const held = new Set();
+    let dragging = false;
+    let cssW = 1;
+    let cssH = 1;
+    let fallClock = 0;
+    const DIGITS = {
+      '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+      '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+      '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+      '3': ['11110', '00001', '00001', '01110', '00001', '00001', '11110'],
+      '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+      '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
+      '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
+      '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+      '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+      '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100']
+    };
+
+    function hash(a, b, c) {
+      let n = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 1274126177);
+      n = Math.imul(n ^ (n >>> 13), 1274126177);
+      return (n ^ (n >>> 16)) >>> 0;
+    }
+    function rnd(seed) {
+      let s = seed || 1;
+      return function () {
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+    }
+    function makeGlyph(seed) {
+      const rows = Array.from({ length: 9 }, function () { return [0, 0, 0, 0, 0]; });
+      const rand = rnd(seed);
+      const stem = rand() < 0.55 ? 0 : 1;
+      const y0 = 1 + (rand() * 2 | 0);
+      const y1 = 6 + (rand() * 3 | 0);
+      for (let y = y0; y <= y1; y++) rows[y][stem] = 1;
+      const bars = 1 + (rand() * 3 | 0);
+      for (let i = 0; i < bars; i++) {
+        const y = y0 + (rand() * (y1 - y0) | 0);
+        const x2 = Math.min(4, stem + 2 + (rand() * 3 | 0));
+        for (let x = stem; x <= x2; x++) rows[y][x] = 1;
+      }
+      if (rand() < 0.7) {
+        for (let y = 2; y <= 7; y++) if (rand() < 0.72) rows[y][4] = 1;
+      }
+      if (rand() < 0.5) rows[0][stem] = 1;
+      rows[8][stem] = 1;
+      return rows.map(function (bits) { return bits.join(''); });
+    }
+    const glyphs = Object.keys(DIGITS).map(function (key) { return DIGITS[key]; });
+    for (let i = 0; i < 54; i++) glyphs.push(makeGlyph(1000 + i * 97));
+
+    let bodyAtlas = null;
+    let headAtlas = null;
+    function mix(hex, toward, t) {
+      const n = parseInt(hex.slice(1), 16);
+      const ch = [n >> 16 & 255, n >> 8 & 255, n & 255].map(function (c, i) {
+        return Math.round(c + (toward[i] - c) * t);
+      });
+      return 'rgb(' + ch.join(',') + ')';
+    }
+    function buildAtlas(color) {
+      const cell = 24;
+      const cols = 8;
+      const atlas = document.createElement('canvas');
+      atlas.width = cols * cell;
+      atlas.height = Math.ceil(glyphs.length / cols) * cell;
+      const g = atlas.getContext('2d');
+      g.fillStyle = color;
+      glyphs.forEach(function (rows, index) {
+        const ox = (index % cols) * cell + 2;
+        const oy = ((index / cols) | 0) * cell + 1;
+        rows.forEach(function (bits, y) {
+          for (let x = 0; x < bits.length; x++) {
+            if (bits[x] === '1') g.fillRect(ox + x * 4, oy + y * 2, 4, 2);
+          }
+        });
+      });
+      return atlas;
+    }
+    function rebuildAtlases() {
+      bodyAtlas = buildAtlas(state.color);
+      headAtlas = buildAtlas(mix(state.color, [255, 255, 255], 0.72));
+    }
+    rebuildAtlases();
+
+    function resize() {
+      const narrow = window.innerWidth < 600;
+      const config = document.getElementById('config');
+      if (narrow && config.dataset.ready !== '1') config.open = false;
+      config.dataset.ready = '1';
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      cssW = window.innerWidth;
+      cssH = window.innerHeight;
+      canvas.width = Math.max(1, Math.floor(cssW * dpr));
+      canvas.height = Math.max(1, Math.floor(cssH * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    function look(dx, dy) {
+      const sens = 0.0024;
+      cam.yaw += dx * sens;
+      cam.pitch = Math.max(-0.65, Math.min(0.55, cam.pitch + dy * sens));
+    }
+    canvas.addEventListener('pointerdown', function (event) {
+      if (event.button !== 0) return;
+      dragging = true;
+      canvas.setPointerCapture(event.pointerId);
+    });
+    canvas.addEventListener('pointerup', function () { dragging = false; });
+    canvas.addEventListener('pointercancel', function () { dragging = false; });
+    canvas.addEventListener('pointermove', function (event) {
+      if (document.pointerLockElement === canvas || dragging) look(event.movementX, event.movementY);
+    });
+    canvas.addEventListener('click', function () {
+      if (document.pointerLockElement === canvas) return;
+      const lock = canvas.requestPointerLock;
+      if (lock) lock.call(canvas);
+    });
+    window.addEventListener('keydown', function (event) {
+      if (event.target.closest('input, summary, label')) return;
+      held.add(event.code);
+      if (event.code === 'Space' || event.code.indexOf('Arrow') === 0) event.preventDefault();
+    });
+    window.addEventListener('keyup', function (event) { held.delete(event.code); });
+
+    function bind() {
+      document.getElementById('rain-color').addEventListener('input', function (event) {
+        state.color = event.target.value;
+        rebuildAtlases();
+      });
+      document.getElementById('density').addEventListener('input', function (event) { state.density = Number(event.target.value); });
+      document.getElementById('fall').addEventListener('input', function (event) { state.fall = Number(event.target.value); });
+      document.getElementById('size').addEventListener('input', function (event) { state.size = Number(event.target.value); });
+      document.getElementById('walk').addEventListener('input', function (event) { state.walk = Number(event.target.value); });
+      document.getElementById('reflect').addEventListener('change', function (event) { state.reflect = event.target.checked; });
+    }
+    bind();
+    reduceQuery.addEventListener('change', function () {
+      state.reduce = reduceQuery.matches;
+      hint.textContent = state.reduce
+        ? '已按系统设置暂停下落。仍可拖动环顾，并用 WASD 行走。'
+        : '拖动环顾，点一下锁定鼠标。WASD 行走，Shift 加速，Space 跳跃。';
+    });
+
+    function project(wx, wy, wz) {
+      const dx = wx - cam.x;
+      const dy = wy - cam.y;
+      const dz = wz - cam.z;
+      const cosY = Math.cos(cam.yaw);
+      const sinY = Math.sin(cam.yaw);
+      const x1 = dx * cosY - dz * sinY;
+      const z1 = dx * sinY + dz * cosY;
+      const cosP = Math.cos(cam.pitch);
+      const sinP = Math.sin(cam.pitch);
+      const y2 = dy * cosP + z1 * sinP;
+      const z2 = -dy * sinP + z1 * cosP;
+      if (z2 < 0.18) return null;
+      const focal = cssH * 0.92;
+      return {
+        x: cssW * 0.5 + x1 * focal / z2,
+        y: cssH * 0.5 - y2 * focal / z2,
+        z: z2,
+        focal: focal
+      };
+    }
+
+    const poolA = [];
+    const poolB = [];
+    function take(pool, index) {
+      return pool[index] || (pool[index] = {});
+    }
+    function push(pool, count, sprite) {
+      const item = take(pool, count.value);
+      item.x = sprite.x;
+      item.y = sprite.y;
+      item.w = sprite.w;
+      item.h = sprite.h;
+      item.z = sprite.z;
+      item.a = sprite.a;
+      item.atlas = sprite.atlas;
+      item.sx = sprite.sx;
+      item.sy = sprite.sy;
+      count.value += 1;
+    }
+    function drawPool(pool, count) {
+      const list = pool.slice(0, count);
+      list.sort(function (p, q) { return q.z - p.z; });
+      for (let i = 0; i < list.length; i++) {
+        const s = list[i];
+        ctx.globalAlpha = s.a;
+        ctx.drawImage(s.atlas, s.sx, s.sy, 24, 24, s.x, s.y, s.w, s.h);
+      }
+    }
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (!state.reduce) fallClock += dt * state.fall;
+
+      let forward = 0;
+      let strafe = 0;
+      if (held.has('KeyW') || held.has('ArrowUp')) forward += 1;
+      if (held.has('KeyS') || held.has('ArrowDown')) forward -= 1;
+      if (held.has('KeyD') || held.has('ArrowRight')) strafe += 1;
+      if (held.has('KeyA') || held.has('ArrowLeft')) strafe -= 1;
+      const sprint = held.has('ShiftLeft') || held.has('ShiftRight') ? 1.85 : 1;
+      const speed = 3.4 * state.walk * sprint * dt;
+      const sinY = Math.sin(cam.yaw);
+      const cosY = Math.cos(cam.yaw);
+      cam.x += (forward * sinY + strafe * cosY) * speed;
+      cam.z += (forward * cosY - strafe * sinY) * speed;
+      const grounded = cam.y <= 1.62;
+      if ((held.has('Space')) && grounded) cam.vy = 4.6;
+      cam.vy -= 12 * dt;
+      cam.y += cam.vy * dt;
+      if (cam.y < 1.62) { cam.y = 1.62; cam.vy = 0; }
+
+      const spacing = 2.35 - state.density * 1.05;
+      const halfX = 6 + Math.round(state.density * 5);
+      const halfZ = 8 + Math.round(state.density * 7);
+      const trail = 7 + Math.round(state.density * 8);
+      const step = 0.42;
+      const ix0 = Math.floor(cam.x / spacing);
+      const iz0 = Math.floor(cam.z / spacing);
+      const countA = { value: 0 };
+      const countB = { value: 0 };
+
+      for (let iz = iz0 - halfZ; iz <= iz0 + halfZ; iz++) {
+        for (let ix = ix0 - halfX; ix <= ix0 + halfX; ix++) {
+          const id = hash(ix, iz, 3);
+          const jitterX = ((id & 255) / 255 - 0.5) * spacing * 0.45;
+          const jitterZ = (((id >>> 8) & 255) / 255 - 0.5) * spacing * 0.45;
+          const wx = ix * spacing + jitterX;
+          const wz = iz * spacing + jitterZ;
+          const columnSpeed = 0.85 + ((id >>> 16) & 255) / 255 * 1.35;
+          const cycle = trail * step + 3.2;
+          const travel = (fallClock * columnSpeed) % cycle;
+          const head = (((id % 997) / 997) * cycle - travel + cycle) % cycle;
+          const glyphBase = id % glyphs.length;
+          for (let i = 0; i < trail; i++) {
+            const wy = head + i * step;
+            if (wy < 0.05 || wy > 12.4) continue;
+            const p = project(wx, wy, wz);
+            if (!p) continue;
+            const px = Math.min(64, (28 * state.size * p.focal) / (p.z * 48));
+            if (px < 3) continue;
+            const fade = 1 - i / trail;
+            const near = Math.max(0.22, Math.min(1, 11 / p.z));
+            const alpha = Math.max(0.1, fade * near);
+            const atlas = i === 0 ? headAtlas : bodyAtlas;
+            const index = (glyphBase + i) % glyphs.length;
+            const sx = (index % 8) * 24;
+            const sy = ((index / 8) | 0) * 24;
+            push(poolA, countA, {
+              x: p.x - px * 0.5,
+              y: p.y - px,
+              w: px,
+              h: px * 1.55,
+              z: p.z,
+              a: i === 0 ? Math.min(1, alpha + 0.25) : alpha,
+              atlas: atlas,
+              sx: sx,
+              sy: sy
+            });
+            if (!state.reflect || p.z > 18 || i % 2 === 1) continue;
+            const mirror = project(wx, -wy * 0.92, wz);
+            if (!mirror) continue;
+            const rx = Math.min(56, (22 * state.size * mirror.focal) / (mirror.z * 48));
+            if (rx < 2.5) continue;
+            push(poolB, countB, {
+              x: mirror.x - rx * 0.5,
+              y: mirror.y - rx * 0.2,
+              w: rx,
+              h: rx * 0.7,
+              z: mirror.z + 0.02,
+              a: alpha * 0.55 * Math.exp(-wy * 0.12),
+              atlas: bodyAtlas,
+              sx: sx,
+              sy: sy
+            });
+          }
+        }
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, cssW, cssH);
+      const horizon = project(cam.x, 0, cam.z + 40);
+      if (horizon && horizon.y < cssH) {
+        const grad = ctx.createLinearGradient(0, Math.max(0, horizon.y), 0, cssH);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(8, 28, 16, 0.55)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, Math.max(0, horizon.y), cssW, cssH);
+      }
+      ctx.imageSmoothingEnabled = false;
+      drawPool(poolB, countB.value);
+      drawPool(poolA, countA.value);
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
