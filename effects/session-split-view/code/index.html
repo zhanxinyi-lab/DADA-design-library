@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>会话拆分</title>
+  <style>
+    :root {
+      --paper: #fff;
+      --ink: #171717;
+      --line: #c8c8c8;
+      --mute: #b9b9b9;
+      --chip: #f4f4f4;
+      --ease: cubic-bezier(.2, .8, .2, 1);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+    }
+    .page {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .stage-wrap {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      padding: 20px 16px 8px;
+    }
+    .stage {
+      position: relative;
+      width: min(960px, 100%);
+      aspect-ratio: 2912 / 2160;
+      background: var(--paper);
+      overflow: hidden;
+    }
+    .capsule, .side, .panel {
+      position: absolute;
+      border: 1.5px solid var(--line);
+      background: var(--paper);
+      color: inherit;
+      font: inherit;
+      padding: 0;
+      transition:
+        top .7s var(--ease),
+        left .7s var(--ease),
+        right .7s var(--ease),
+        width .7s var(--ease),
+        height .7s var(--ease),
+        opacity .45s var(--ease),
+        transform .7s var(--ease);
+    }
+    .capsule {
+      left: 21%;
+      right: 21%;
+      top: 46%;
+      height: 64px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 12px 0 16px;
+      cursor: pointer;
+    }
+    .mark, .mini, .knob, .bar, .pill, .pair i {
+      display: block;
+      background: var(--ink);
+      flex: 0 0 auto;
+    }
+    .mark { width: 18px; height: 18px; border-radius: 6px; }
+    .track { flex: 1; height: 8px; border-radius: 99px; background: #e3e3e3; }
+    .mini { width: 54px; height: 22px; border-radius: 7px; background: var(--chip); border: 1px solid var(--line); }
+    .knob { width: 36px; height: 36px; border-radius: 50%; }
+    .side {
+      top: 44%;
+      right: 18%;
+      left: auto;
+      width: 26%;
+      height: 78px;
+      border-radius: 16px;
+      opacity: 0;
+      transform: translateY(28px) scale(.55);
+      transform-origin: 70% 120%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 14px;
+      cursor: pointer;
+      pointer-events: none;
+    }
+    .bar { height: 8px; border-radius: 99px; background: #d5d5d5; width: 72%; }
+    .bar.short { width: 42%; background: #bdbdbd; }
+    .panel {
+      left: 14%;
+      right: 14%;
+      top: 48%;
+      height: 10%;
+      border-radius: 22px;
+      opacity: 0;
+      overflow: hidden;
+      padding: 22px 22px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      text-align: left;
+      cursor: pointer;
+      pointer-events: none;
+    }
+    .lines { display: grid; gap: 10px; }
+    .lines i, .rule {
+      display: block;
+      height: 8px;
+      border-radius: 99px;
+      background: #ececec;
+    }
+    .lines i { background: #d8d8d8; }
+    .lines i:nth-child(1) { width: 78%; }
+    .lines i:nth-child(2) { width: 52%; }
+    .lines i:nth-child(3) { width: 64%; }
+    .rule { width: 100%; height: 1px; background: var(--line); margin: 2px 0; }
+    .inner {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .4s var(--ease), transform .4s var(--ease);
+    }
+    .pill { width: 46%; height: 28px; border-radius: 999px; background: var(--ink); }
+    .pair { margin-left: auto; display: flex; gap: 8px; }
+    .pair i { width: 72px; height: 28px; border-radius: 9px; }
+    .pair i:last-child { background: #2a2a2a; }
+    .stage[data-state="peel"] .capsule,
+    .stage[data-state="open"] .capsule,
+    .stage[data-state="fill"] .capsule { top: 74%; }
+    .stage[data-state="peel"] .side,
+    .stage[data-state="open"] .side,
+    .stage[data-state="fill"] .side {
+      top: 14%;
+      right: 12%;
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+    .stage[data-state="fill"] .side .bar { background: #d0d0d0; }
+    .stage[data-state="open"] .panel,
+    .stage[data-state="fill"] .panel {
+      top: 28%;
+      height: 42%;
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .stage[data-state="fill"] .inner { opacity: 1; transform: none; }
+    .stage[data-state="column"] .side {
+      top: 10%;
+      left: 32%;
+      right: auto;
+      width: 36%;
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+    .stage[data-state="column"] .panel {
+      top: 26%;
+      left: 27%;
+      right: auto;
+      width: 46%;
+      height: 54%;
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .stage[data-state="column"] .inner { opacity: 1; transform: none; }
+    .stage[data-state="column"] .capsule {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .capsule:focus-visible, .side:focus-visible, .panel:focus-visible,
+    .controls button:focus-visible {
+      outline: 2px solid #2457e6;
+      outline-offset: 3px;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px 28px;
+    }
+    .controls button {
+      font: inherit;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      border-radius: 999px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+    @media (max-width: 640px) {
+      .capsule { height: 52px; left: 8%; right: 8%; gap: 8px; }
+      .mini { width: 36px; }
+      .pair i { width: 36px; }
+      .panel { padding: 14px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .capsule, .side, .panel, .inner { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="stage-wrap">
+      <div class="stage" id="stage" data-state="bar">
+        <button class="side" id="side" type="button" aria-label="分出的会话。点击后收成单列。">
+          <span class="bar" aria-hidden="true"></span>
+          <span class="bar short" aria-hidden="true"></span>
+        </button>
+        <button class="panel" id="panel" type="button" aria-label="主面板。点击后看并排填满的状态。">
+          <span class="lines" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="inner" aria-hidden="true">
+            <span class="pill"></span>
+            <span class="pair"><i></i><i></i></span>
+          </span>
+        </button>
+        <button class="capsule" id="split" type="button" aria-label="拆分这条线程">
+          <span class="mark" aria-hidden="true"></span>
+          <span class="track" aria-hidden="true"></span>
+          <span class="mini" aria-hidden="true"></span>
+          <span class="knob" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" id="toggle">暂停</button>
+      <button type="button" id="next">下一步</button>
+    </div>
+  </div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <script>
+    const beats = [
+      { at: 0, state: 'bar', say: '一条居中的圆角条。' },
+      { at: 3200, state: 'peel', say: '右上角分出一张会话卡，圆角条下移。' },
+      { at: 6400, state: 'open', say: '中央面板展开。' },
+      { at: 11000, state: 'fill', say: '面板里出现内嵌胶囊和两枚芯片。' },
+      { at: 15000, state: 'column', say: '布局收成居中的一列。' }
+    ];
+    const LOOP = 19000;
+    const stage = document.getElementById('stage');
+    const live = document.getElementById('live');
+    const toggle = document.getElementById('toggle');
+    const nextBtn = document.getElementById('next');
+    const split = document.getElementById('split');
+    const side = document.getElementById('side');
+    const panel = document.getElementById('panel');
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    let playing = !motion.matches;
+    let origin = performance.now();
+    let elapsed = 0;
+    let timer = 0;
+    let beatIndex = -1;
+
+    function indexAt(ms) {
+      let index = 0;
+      for (let i = 0; i < beats.length; i++) if (ms >= beats[i].at) index = i;
+      return index;
+    }
+
+    function showIndex(index) {
+      if (index === beatIndex) return;
+      beatIndex = index;
+      const beat = beats[index];
+      stage.dataset.state = beat.state;
+      side.inert = beat.state === 'bar';
+      panel.inert = beat.state === 'bar';
+      split.inert = beat.state === 'column';
+      live.textContent = beat.say;
+    }
+
+    function stop() {
+      clearTimeout(timer);
+      timer = 0;
+    }
+
+    function frame() {
+      if (!playing) return;
+      elapsed = (performance.now() - origin) % LOOP;
+      showIndex(indexAt(elapsed));
+      timer = setTimeout(frame, 80);
+    }
+
+    function setPlaying(on) {
+      if (on && motion.matches) on = false;
+      playing = on;
+      toggle.textContent = playing ? '暂停' : '播放';
+      toggle.setAttribute('aria-pressed', playing ? 'true' : 'false');
+      stop();
+      if (playing) {
+        origin = performance.now() - elapsed;
+        frame();
+      }
+    }
+
+    function jump(index) {
+      setPlaying(false);
+      elapsed = beats[index].at;
+      origin = performance.now() - elapsed;
+      showIndex(index);
+    }
+
+    toggle.addEventListener('click', () => setPlaying(!playing));
+    nextBtn.addEventListener('click', () => {
+      const index = (Math.max(beatIndex, 0) + 1) % beats.length;
+      elapsed = beats[index].at;
+      origin = performance.now() - elapsed;
+      showIndex(index);
+    });
+    split.addEventListener('click', () => jump(beatIndex < 1 ? 1 : 4));
+    side.addEventListener('click', () => jump(4));
+    panel.addEventListener('click', () => jump(3));
+    motion.addEventListener('change', () => setPlaying(!motion.matches));
+    toggle.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    if (!playing) toggle.textContent = '播放';
+    showIndex(0);
+    if (playing) frame();
+  </script>
+</body>
+</html>
