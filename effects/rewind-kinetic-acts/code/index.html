@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>动能文字三幕</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body {
+      background: #05070d;
+      color: #f4f2ec;
+      font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    .stage {
+      display: block;
+      width: 100%;
+      height: 100vh;
+      height: 100svh;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: #05070d;
+      cursor: pointer;
+    }
+    .stage:focus-visible {
+      outline: 2px solid #7464ff;
+      outline-offset: -6px;
+    }
+    canvas { display: block; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <button class="stage" id="stage" type="button" aria-label="重播三幕动能文字：start clean，shift form，hold shape">
+    <canvas id="view"></canvas>
+  </button>
+  <script>
+    // 原创三句，只对齐原预览的两词节奏，不使用原片文案。
+    const LINES = ['start clean', 'shift form', 'hold shape'];
+    const LOOP = 8;
+    const FAMILY = '"Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif';
+    const INK = '#7464ff';
+    const PAPER = '#f4f2ec';
+    const STAGE = '#05070d';
+
+    const canvas = document.getElementById('view');
+    const button = document.getElementById('stage');
+    const ctx = canvas.getContext('2d');
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const freezeArg = new URLSearchParams(location.search).get('freeze');
+    const frozen = freezeArg == null || freezeArg === '' ? null : Number(freezeArg);
+
+    let start = performance.now();
+    let running = true;
+
+    function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+    function seg(t, a, b) {
+      return clamp01((t - a) / (b - a));
+    }
+    function ease(t) {
+      t = clamp01(t);
+      return t * t * (3 - 2 * t);
+    }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function lerpRect(a, b, t) {
+      return {
+        x: lerp(a.x, b.x, t),
+        y: lerp(a.y, b.y, t),
+        w: lerp(a.w, b.w, t),
+        h: lerp(a.h, b.h, t),
+        r: lerp(a.r, b.r, t),
+      };
+    }
+    function hash(i, salt) {
+      const n = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function setFont(size) {
+      ctx.font = `500 ${size}px ${FAMILY}`;
+      ctx.letterSpacing = '-0.045em';
+    }
+
+    function metricsOf(line, size) {
+      setFont(size);
+      const m = ctx.measureText(line);
+      return {
+        w: m.width,
+        a: m.actualBoundingBoxAscent || size * 0.74,
+        d: m.actualBoundingBoxDescent || size * 0.16,
+      };
+    }
+
+    function underlineRect(cx, cy, met, size) {
+      const h = Math.max(3, size * 0.05);
+      const w = Math.max(size * 1.4, met.w * 0.98);
+      return { x: cx - w / 2, y: cy + met.d + size * 0.16, w, h, r: h / 2 };
+    }
+
+    function barRect(cx, cy, met, size) {
+      const h = size * 0.22;
+      const w = Math.max(size * 1.6, met.w * 0.46);
+      return {
+        x: cx - w / 2,
+        y: cy + met.d - h * 0.15,
+        w,
+        h,
+        r: Math.min(h / 2, size * 0.08),
+      };
+    }
+
+    function frameRect(cx, cy, met, size) {
+      const padX = size * 0.58;
+      const padY = size * 0.42;
+      const w = met.w + padX * 2;
+      const h = met.a + met.d + padY * 2;
+      return { x: cx - w / 2, y: cy - met.a - padY, w, h, r: size * 0.22 };
+    }
+
+    function squareRect(cx, cy, met, size) {
+      const frame = frameRect(cx, cy, met, size);
+      const side = Math.max(frame.w, frame.h);
+      const midY = frame.y + frame.h / 2;
+      return { x: cx - side / 2, y: midY - side / 2, w: side, h: side, r: side * 0.16 };
+    }
+
+    function fitSize(w, h) {
+      let size = Math.min(w * 0.078, h * 0.15, 92);
+      size = Math.max(28, size);
+      for (let i = 0; i < 10; i++) {
+        let widest = 0;
+        for (const line of LINES) widest = Math.max(widest, metricsOf(line, size).w);
+        if (widest + size * 1.7 < w * 0.88 && size * 3.1 < h * 0.78) break;
+        size *= 0.92;
+      }
+      return size;
+    }
+
+    function traceRound(rect, target) {
+      const g = target || ctx;
+      const r = Math.max(0, Math.min(rect.r, rect.w / 2, rect.h / 2));
+      g.beginPath();
+      g.moveTo(rect.x + r, rect.y);
+      g.arcTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + rect.h, r);
+      g.arcTo(rect.x + rect.w, rect.y + rect.h, rect.x, rect.y + rect.h, r);
+      g.arcTo(rect.x, rect.y + rect.h, rect.x, rect.y, r);
+      g.arcTo(rect.x, rect.y, rect.x + rect.w, rect.y, r);
+      g.closePath();
+    }
+
+    let shardCanvas = null;
+    function shardSource(rect) {
+      const sw = Math.max(1, Math.ceil(rect.w) + 2);
+      const sh = Math.max(1, Math.ceil(rect.h) + 2);
+      if (!shardCanvas) shardCanvas = document.createElement('canvas');
+      if (shardCanvas.width !== sw || shardCanvas.height !== sh) {
+        shardCanvas.width = sw;
+        shardCanvas.height = sh;
+      }
+      const g = shardCanvas.getContext('2d');
+      g.clearRect(0, 0, sw, sh);
+      g.fillStyle = INK;
+      traceRound({ x: 1, y: 1, w: rect.w, h: rect.h, r: rect.r }, g);
+      g.fill();
+      return shardCanvas;
+    }
+
+    function scene(t, pack) {
+      const first = pack[0];
+      const second = pack[1];
+      const third = pack[2];
+      if (t < 2.75) {
+        let rect = first.under;
+        if (t >= 2.35) rect = first.frame;
+        else if (t >= 1.15) rect = lerpRect(first.bar, first.frame, ease(seg(t, 1.15, 2.35)));
+        else if (t >= 0.55) rect = lerpRect(first.under, first.bar, ease(seg(t, 0.55, 1.15)));
+        return { rect, burst: 0, pattern: 0 };
+      }
+      if (t < 6.45) {
+        const burst = t < 3.25 ? ease(seg(t, 2.75, 3.25)) : t < 5.4 ? 1 : 1 - ease(seg(t, 5.4, 6.45));
+        const home = t < 5.4 ? first.frame : lerpRect(first.frame, second.under, ease(seg(t, 5.4, 6.45)));
+        return { rect: home, burst, pattern: t < 4 ? 0 : 1 };
+      }
+      if (t < 6.72) {
+        return {
+          rect: lerpRect(second.under, third.under, ease(seg(t, 6.45, 6.72))),
+          burst: 0,
+          pattern: 1,
+        };
+      }
+      const rect = t < 7.55
+        ? lerpRect(third.under, third.square, ease(seg(t, 6.72, 7.55)))
+        : third.square;
+      return { rect, burst: 0, pattern: 1 };
+    }
+
+    function textAlpha(t) {
+      if (t < 4) return [1, 0, 0];
+      if (t < 6.5) return [0, 1, 0];
+      return [0, 0, 1];
+    }
+
+    function drawShards(rect, burst, time, pattern) {
+      const src = shardSource(rect);
+      const cols = 7;
+      const rows = 4;
+      const cellW = rect.w / cols;
+      const cellH = rect.h / rows;
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const i = row * cols + col;
+          const hx = rect.x + (col + 0.5) * cellW;
+          const hy = rect.y + (row + 0.5) * cellH;
+          const spin = hash(i, pattern);
+          const dir = hash(i + 19, pattern) * Math.PI * 2;
+          const reach = (34 + hash(i + 41, pattern) * 150) * burst;
+          const wobble = burst * 9;
+          const ox = Math.cos(dir) * reach + Math.sin(time * 1.35 + i) * wobble;
+          const oy = Math.sin(dir) * reach * 0.72 + Math.cos(time * 1.05 + i * 0.7) * wobble;
+          const ang = (spin * 2 - 1) * burst * 0.85;
+          ctx.save();
+          ctx.translate(hx + ox, hy + oy);
+          ctx.rotate(ang);
+          ctx.drawImage(
+            src,
+            1 + col * cellW - 0.5,
+            1 + row * cellH - 0.5,
+            cellW + 1,
+            cellH + 1,
+            -cellW / 2 - 0.5,
+            -cellH / 2 - 0.5,
+            cellW + 1,
+            cellH + 1,
+          );
+          ctx.restore();
+        }
+      }
+    }
+
+    function draw(now) {
+      const dpr = Math.min(2, devicePixelRatio || 1);
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = STAGE;
+      ctx.fillRect(0, 0, w, h);
+
+      const size = fitSize(w, h);
+      const cx = w / 2;
+      const lead = metricsOf(LINES[0], size);
+      const base = h / 2 + (lead.a - lead.d) / 2;
+      const pack = LINES.map((line) => {
+        const met = metricsOf(line, size);
+        return {
+          line,
+          met,
+          under: underlineRect(cx, base, met, size),
+          bar: barRect(cx, base, met, size),
+          frame: frameRect(cx, base, met, size),
+          square: squareRect(cx, base, met, size),
+        };
+      });
+
+      let time = 0.35;
+      if (!reduced) {
+        if (frozen != null && Number.isFinite(frozen)) time = ((frozen % LOOP) + LOOP) % LOOP;
+        else time = (((now - start) / 1000) % LOOP + LOOP) % LOOP;
+      }
+
+      const shot = scene(time, pack);
+      if (shot.burst < 0.08) {
+        ctx.globalAlpha = 1 - shot.burst / 0.08;
+        ctx.fillStyle = INK;
+        traceRound(shot.rect);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      if (shot.burst > 0) drawShards(shot.rect, shot.burst, time, shot.pattern);
+
+      const alpha = textAlpha(reduced ? 0.2 : time);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = PAPER;
+      setFont(size);
+      pack.forEach((item, index) => {
+        if (alpha[index] <= 0) return;
+        ctx.globalAlpha = alpha[index];
+        ctx.fillText(item.line, cx, base);
+      });
+      ctx.globalAlpha = 1;
+
+      if (running) requestAnimationFrame(draw);
+    }
+
+    function replay() {
+      start = performance.now();
+      if (!running) {
+        running = true;
+        requestAnimationFrame(draw);
+      }
+    }
+
+    button.addEventListener('click', replay);
+    addEventListener('resize', () => { if (!running) requestAnimationFrame(draw); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) running = false;
+      else replay();
+    });
+    draw(performance.now());
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>
