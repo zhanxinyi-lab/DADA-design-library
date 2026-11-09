@@ -55,6 +55,9 @@ h1{margin-bottom:10px;font-family:"Geist Serif Local",Georgia,serif;font-size:cl
 .liga-sample{margin:18px 0 10px;color:#d2c5f4;font-size:clamp(52px,9vw,96px);letter-spacing:-.04em;line-height:1}
 .liga-words{margin:0;font-size:clamp(16px,2.2vw,22px);line-height:1.5;overflow-wrap:anywhere}
 .footnote{margin:16px 0 0;color:#aaaab3;font-size:11px;line-height:1.7}
+.license-details{margin-top:28px;color:#aaaab3;font-size:11px}
+.license-details summary{cursor:pointer}
+.license-details pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:10px;line-height:1.65}
 code{font-size:.92em}
 @media(max-width:620px){.sample-grid{grid-template-columns:1fr}.axis-stops{grid-template-columns:repeat(2,minmax(0,1fr))}.axis-stops span:last-child{text-align:left}}
 @media(max-width:480px){.axis-top{flex-wrap:wrap}.axis-value{white-space:normal}}
@@ -75,10 +78,10 @@ code{font-size:.92em}
         <p class="eyebrow">Geist Serif · 可变轴</p>
         <h2 id="elsh-heading">元素形状 · ELSH</h2>
       </div>
-      <output class="axis-value" id="elsh-value" for="elsh" aria-live="polite">0 · 尖齿</output>
+      <output class="axis-value" id="elsh-value" for="elsh">0 · 尖齿</output>
     </div>
     <label class="range-label" for="elsh">拖动滑块，查看本地字体里的点号与标点字形变化
-      <input id="elsh" type="range" min="0" max="100" step="1" value="0" aria-describedby="elsh-note">
+      <input id="elsh" type="range" min="0" max="100" step="1" value="0" aria-valuetext="0 · 尖齿" aria-describedby="elsh-note">
     </label>
     <div class="axis-stops" aria-hidden="true">
       <span>0 · 尖齿</span><span>25 · 方头</span><span>50 · 三角</span><span>100 · 心形</span>
@@ -86,7 +89,7 @@ code{font-size:.92em}
     <div class="axis-card">
       <p class="sample-label">同一组字形 · 实时变化</p>
       <div class="axis-specimen" id="axis-specimen" lang="en"><span>i</span><span>.</span><span>,</span><span>:</span><span>;</span><span>!</span><span>?</span></div>
-      <p class="axis-note" id="elsh-note">此字体的 ELSH 变化作用于点号、标点与附加符号；样例特意选用这些受影响的字形。</p>
+      <p class="axis-note" id="elsh-note">此字体的 ELSH 变化作用于点号与标点；样例特意选用这些受影响的字形。</p>
     </div>
   </section>
 
@@ -126,8 +129,103 @@ code{font-size:.92em}
         <p class="liga-words" lang="en">fine · profile · fluent · waffle</p>
       </article>
     </div>
-    <p class="footnote">随附的 Geist Serif 文件没有标准 <code>liga</code> 表；fi/fl/ff 样例因此使用同系列 Geist Sans，并明确标注。两个本地字体文件与原始 SIL Open Font License 1.1 一并收录。本页展示静态字形与字体特性，不声称复刻未证实的动画。</p>
+    <p class="footnote">随附的 Geist Serif 的 GSUB 中没有标准 <code>liga</code> 特性；fi/fl/ff 样例因此使用同系列 Geist Sans，并明确标注。两个本地字体文件与原始 SIL Open Font License 1.1 一并收录。本页展示静态字形与字体特性，不声称复刻未证实的动画。</p>
   </section>
+  <details class="license-details">
+    <summary>字体许可 · SIL Open Font License 1.1</summary>
+    <pre>Copyright (c) 2023 Vercel, in collaboration with basement.studio
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+http://scripts.sil.org/OFL
+
+-----------------------------------------------------------
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+-----------------------------------------------------------
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded,
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting -- in part or in whole -- any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION AND CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.</pre>
+  </details>
 </main>
 <script>
 const slider=document.getElementById('elsh');
@@ -140,6 +238,7 @@ function updateAxis(){
   for(const stop of stops) if(Math.abs(value-stop[0])<Math.abs(value-nearest[0])) nearest=stop;
   specimen.style.fontVariationSettings=`"ELSH" ${value}`;
   output.textContent=`${value} · ${Math.abs(value-nearest[0])<=8?nearest[1]:'过渡'}`;
+  slider.setAttribute('aria-valuetext',output.textContent);
 }
 slider.addEventListener('input',updateAxis);
 updateAxis();

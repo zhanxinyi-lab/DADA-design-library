@@ -1,6 +1,8 @@
 # Geist Serif 与字体家族连字样例
 
-- 作者：Vercel（Geist Serif 与 Geist Sans；与 basement.studio 合作）
+- 作者：@vikingmute
+- 字体版权：Vercel，与 basement.studio 合作
+- 许可证：SIL Open Font License 1.1（全文随附）
 - 分类：字体排印
 - 状态：has_code
 - 原文：https://x.com/vikingmute/status/2116499499548045336
@@ -12,9 +14,18 @@
 此单页同时展示两种明确标注的 Geist 字体能力：
 
 - `GeistSerif.woff2` 的真实 `ELSH` 轴用于点号、标点等受影响字形的实时样例；页面同时以真实 `ss01` OpenType 特性并排展示 `aR` 默认 / 替代字形。
-- 连字对照使用同一字体家族的 `GeistSans.woff2`。它的 OpenType `liga` 表含有 `f+i`、`f+l` 和 `f+f` 替代规则；页面将开关打开与关闭的相同文本并排展示。
+- 连字对照使用同一字体家族的 `GeistSans.woff2`。它的 GSUB `liga` 特性含有 `f+i`、`f+l` 和 `f+f` 替代规则；页面将开关打开与关闭的相同文本并排展示。
 
-随附 Geist Serif 文件的 GSUB 表没有标准 `liga` 特性；因此页面不声称 fi/fl 连字属于 Serif 字体，而是把实际连字清楚标为 Geist Sans。两份 Vercel 官方 WOFF2 字体以原始字节内嵌在 `code/index.html`，使素材保持单页、自包含；本 README 附有完整 SIL Open Font License 1.1。来源：https://github.com/vercel/geist-font。该页展示静态字形与字体特性，不推断或声称复刻原帖动画。
+随附 Geist Serif 文件的 GSUB 不含标准 `liga` 特性；因此页面不声称 fi/fl 连字属于 Serif 字体，而是把实际连字清楚标为 Geist Sans。两份 Vercel 官方 WOFF2 字体以原始字节内嵌在 `code/index.html`，使素材保持单页、自包含；本 README 与单页内可展开的“字体许可”区域均附有完整 SIL Open Font License 1.1。来源：https://github.com/vercel/geist-font。该页展示静态字形与字体特性，不推断或声称复刻原帖动画。
+
+## 字体来源与核验
+
+来源仓库：<https://github.com/vercel/geist-font>（Vercel × basement.studio）。内嵌 WOFF2 的 SHA-256：
+
+- Geist Serif VF · 49,036 bytes · `022e59b139ab2ce6962d91fe08539ea9e5f4a734d1bdffbf6fbbb9bc46921e96`
+- Geist Sans VF · 69,760 bytes · `2ffebe993e969069a9789d15164b7715d42491b5835516c5e3b935d5f81b05f1`
+
+FontTools 对上述字节核验：Geist Serif 的 `fvar` 轴为 `ELSH` 0/0/100，GSUB 特性列表不含 `liga`；Geist Sans 的 GSUB `liga` 查找含 `fi`、`fl`、`ff` 替代。
 
 ## 字体许可
 
