@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>交互文件夹卡片</title>
+  <style>
+    :root {
+      --page: #ececec;
+      --ink: #1a1a1a;
+      --muted: #8d8d8d;
+      --paper: #fbfbfb;
+      --cover: #f3f2f0;
+      --line: #1c1c1c;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--page);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+    }
+    .page {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .stage {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 72px 16px 8px;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(148px, 232px));
+      gap: 34px 42px;
+      align-items: start;
+    }
+    .card {
+      appearance: none;
+      display: block;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .card:focus-visible .body {
+      outline: 2px solid var(--ink);
+      outline-offset: 4px;
+    }
+    .tab {
+      display: block;
+      width: 74px;
+      height: 16px;
+      margin: 0 0 -1px 16px;
+      border-radius: 9px 9px 0 0;
+      background: var(--paper);
+      box-shadow: 0 -1px 0 rgba(0, 0, 0, .04);
+    }
+    .body {
+      display: block;
+      padding: 12px 12px 14px;
+      border-radius: 8px 18px 18px 18px;
+      background: var(--paper);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, .06);
+    }
+    .cover {
+      position: relative;
+      display: block;
+      height: 112px;
+      border-radius: 10px;
+      background: var(--cover);
+      overflow: hidden;
+      perspective: 480px;
+      transition: height .45s cubic-bezier(.2, .8, .2, 1);
+    }
+    .card.is-open .cover { height: 188px; }
+    .art {
+      position: absolute;
+      inset: 18px 16px 16px;
+      transition: transform .45s cubic-bezier(.2, .8, .2, 1);
+    }
+    .card.is-open .art { transform: translateY(18px) scale(1.04); }
+    .flap {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      top: 0;
+      height: 36px;
+      border-radius: 0 0 8px 8px;
+      background: linear-gradient(#fff, #f7f7f5);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, .05);
+      transform-origin: top center;
+      transform: rotateX(78deg);
+      transition: transform .45s cubic-bezier(.2, .8, .2, 1);
+    }
+    .card.is-open .flap { transform: rotateX(18deg) translateY(-6px); }
+    .sheets {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 12px;
+      display: grid;
+      gap: 5px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .35s ease, transform .45s cubic-bezier(.2, .8, .2, 1);
+    }
+    .card.is-open .sheets { opacity: 1; transform: none; }
+    .sheets i {
+      display: block;
+      height: 7px;
+      border-radius: 2px;
+      background: #fff;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, .04);
+    }
+    .name, .meta { display: block; }
+    .name {
+      margin-top: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -.01em;
+    }
+    .meta {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px 22px;
+    }
+    .controls button {
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid var(--ink);
+      background: transparent;
+      color: var(--ink);
+      font: 600 14px/1 system-ui, sans-serif;
+      cursor: pointer;
+    }
+    .controls button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 560px) {
+      .board { gap: 22px 16px; }
+      .cover { height: 96px; }
+      .card.is-open .cover { height: 156px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cover, .art, .flap, .sheets { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="stage">
+      <div class="board" id="board">
+        <button type="button" class="card" data-id="files" aria-expanded="false">
+          <span class="tab" aria-hidden="true"></span>
+          <span class="body">
+            <span class="cover">
+              <span class="flap" aria-hidden="true"></span>
+              <svg class="art" viewBox="0 0 120 80" aria-hidden="true">
+                <rect x="18" y="16" width="62" height="44" rx="4" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
+                <rect x="28" y="24" width="62" height="44" rx="4" fill="#fbfbfb" stroke="#1c1c1c" stroke-width="2.4"/>
+                <path d="M36 40h36M36 50h24" stroke="#1c1c1c" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span class="sheets" aria-hidden="true"><i></i><i></i><i></i></span>
+            </span>
+            <span class="name">My Files</span>
+            <span class="meta">3 items</span>
+          </span>
+        </button>
+        <button type="button" class="card" data-id="archives" aria-expanded="false">
+          <span class="tab" aria-hidden="true"></span>
+          <span class="body">
+            <span class="cover">
+              <span class="flap" aria-hidden="true"></span>
+              <svg class="art" viewBox="0 0 120 80" aria-hidden="true">
+                <rect x="22" y="18" width="76" height="14" rx="3" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
+                <rect x="22" y="36" width="76" height="14" rx="3" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
+                <rect x="22" y="54" width="76" height="14" rx="3" fill="#1c1c1c"/>
+              </svg>
+              <span class="sheets" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            </span>
+            <span class="name">Archives</span>
+            <span class="meta">4 items</span>
+          </span>
+        </button>
+        <button type="button" class="card" data-id="studio" aria-expanded="false">
+          <span class="tab" aria-hidden="true"></span>
+          <span class="body">
+            <span class="cover">
+              <span class="flap" aria-hidden="true"></span>
+              <svg class="art" viewBox="0 0 120 80" aria-hidden="true">
+                <rect x="16" y="14" width="88" height="56" rx="6" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
+                <circle cx="60" cy="42" r="14" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
+                <circle cx="60" cy="42" r="4" fill="#1c1c1c"/>
+              </svg>
+              <span class="sheets" aria-hidden="true"><i></i><i></i><i></i></span>
+            </span>
+            <span class="name">Studio</span>
+            <span class="meta">3 items</span>
+          </span>
+        </button>
+        <button type="button" class="card" data-id="collection" aria-expanded="false">
+          <span class="tab" aria-hidden="true"></span>
+          <span class="body">
+            <span class="cover">
+              <span class="flap" aria-hidden="true"></span>
+              <svg class="art" viewBox="0 0 120 80" aria-hidden="true">
+                <rect x="18" y="16" width="36" height="24" rx="4" fill="#1c1c1c"/>
+                <rect x="62" y="16" width="36" height="24" rx="4" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
+                <rect x="18" y="46" width="36" height="24" rx="4" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
+                <rect x="62" y="46" width="36" height="24" rx="4" fill="#1c1c1c"/>
+              </svg>
+              <span class="sheets" aria-hidden="true"><i></i><i></i><i></i></span>
+            </span>
+            <span class="name">Collection</span>
+            <span class="meta">3 items</span>
+          </span>
+        </button>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" id="toggle">暂停</button>
+      <button type="button" id="next">下一步</button>
+    </div>
+  </div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <script>
+    const beats = [
+      { at: 0, id: "", say: "四张文件夹都合上。My Files 3 项，Archives 4 项，Studio 3 项，Collection 3 项。" },
+      { at: 450, id: "files", say: "My Files 展开，里面 3 项。下一排随之下移。" },
+      { at: 1900, id: "", say: "文件夹收回。" },
+      { at: 3300, id: "archives", say: "Archives 展开，里面 4 项。" },
+      { at: 3850, id: "", say: "文件夹收回。" },
+      { at: 4050, id: "studio", say: "Studio 展开，里面 3 项。" },
+      { at: 4550, id: "", say: "文件夹收回。" },
+      { at: 5100, id: "collection", say: "Collection 展开，里面 3 项。" },
+      { at: 5600, id: "", say: "回到四张都合上的网格。" }
+    ];
+    const LOOP = 6900;
+    const cards = [...document.querySelectorAll(".card")];
+    const live = document.getElementById("live");
+    const toggle = document.getElementById("toggle");
+    const nextBtn = document.getElementById("next");
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    let playing = !motion.matches;
+    let origin = performance.now();
+    let elapsed = 0;
+    let timer = 0;
+    let beatIndex = -1;
+    let held = false;
+
+    function indexAt(ms) {
+      let index = 0;
+      for (let i = 0; i < beats.length; i++) if (ms >= beats[i].at) index = i;
+      return index;
+    }
+
+    function show(id, say) {
+      for (const card of cards) {
+        const open = card.dataset.id === id;
+        card.classList.toggle("is-open", open);
+        card.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      if (say) live.textContent = say;
+    }
+
+    function showIndex(index) {
+      if (index === beatIndex && !held) return;
+      beatIndex = index;
+      held = false;
+      const beat = beats[index];
+      show(beat.id, beat.say);
+    }
+
+    function stop() {
+      clearTimeout(timer);
+      timer = 0;
+    }
+
+    function frame() {
+      if (!playing) return;
+      elapsed = (performance.now() - origin) % LOOP;
+      showIndex(indexAt(elapsed));
+      timer = setTimeout(frame, 80);
+    }
+
+    function setPlaying(on) {
+      if (on && motion.matches) on = false;
+      playing = on;
+      toggle.textContent = playing ? "暂停" : "播放";
+      toggle.setAttribute("aria-pressed", playing ? "true" : "false");
+      stop();
+      if (playing) {
+        origin = performance.now() - elapsed;
+        frame();
+      }
+    }
+
+    for (const card of cards) {
+      card.addEventListener("click", () => {
+        const id = card.classList.contains("is-open") ? "" : card.dataset.id;
+        const beat = beats.find((item) => item.id === id) || beats[0];
+        held = true;
+        beatIndex = -1;
+        show(id, id ? beat.say : "文件夹合上。");
+        setPlaying(false);
+      });
+    }
+
+    toggle.addEventListener("click", () => {
+      held = false;
+      setPlaying(!playing);
+    });
+    nextBtn.addEventListener("click", () => {
+      const index = (Math.max(beatIndex, 0) + 1) % beats.length;
+      elapsed = beats[index].at;
+      origin = performance.now() - elapsed;
+      held = false;
+      beatIndex = -1;
+      showIndex(index);
+    });
+    motion.addEventListener("change", () => setPlaying(!motion.matches));
+    toggle.setAttribute("aria-pressed", playing ? "true" : "false");
+    if (!playing) toggle.textContent = "播放";
+    showIndex(0);
+    if (playing) frame();
+  </script>
+</body>
+</html>
