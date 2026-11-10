@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>铁磁流体深色开关</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #e3ddd6;
+      color: #1a140f;
+      font-family: system-ui, sans-serif;
+    }
+    #view {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: none;
+    }
+    #switch {
+      position: fixed;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      border-radius: 999px;
+      touch-action: manipulation;
+    }
+    #switch:focus { outline: none; }
+    #switch:focus-visible {
+      outline: 2px solid #8d4b2e;
+      outline-offset: 8px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="view" aria-hidden="true"></canvas>
+  <button id="switch" type="button" role="switch" aria-checked="false" aria-label="深色模式"></button>
+  <script>
+    const canvas = document.getElementById("view");
+    const button = document.getElementById("switch");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const LIGHT_TOP = [227, 221, 214];
+    const LIGHT_BOT = [214, 208, 200];
+    const DARK_TOP = [90, 88, 86];
+    const DARK_BOT = [12, 4, 2];
+    const BLACK = [18, 14, 12];
+    const COPPER = [226, 118, 78];
+    const COPPER_HOT = [245, 156, 118];
+
+    let target = 0;
+    let shown = 0;
+    let reduceMotion = motionQuery.matches;
+    let running = false;
+    let last = 0;
+
+    function mix(a, b, t) {
+      return [
+        a[0] + (b[0] - a[0]) * t,
+        a[1] + (b[1] - a[1]) * t,
+        a[2] + (b[2] - a[2]) * t
+      ];
+    }
+    function rgb(c, a) {
+      const r = Math.round(c[0]);
+      const g = Math.round(c[1]);
+      const b = Math.round(c[2]);
+      return a == null ? "rgb(" + r + "," + g + "," + b + ")" : "rgba(" + r + "," + g + "," + b + "," + a + ")";
+    }
+    function smooth(t) {
+      const x = Math.min(1, Math.max(0, t));
+      return x * x * (3 - 2 * x);
+    }
+
+    function layout() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.max(1, Math.round(w * dpr));
+      canvas.height = Math.max(1, Math.round(h * dpr));
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { w: w, h: h };
+    }
+
+    function blobPath(cx, cy, rx, ry, amp, time, flatten) {
+      const steps = 96;
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const a = (i / steps) * Math.PI * 2;
+        const lobe =
+          Math.sin(a * 2 + time * 0.45) * 0.16 +
+          Math.sin(a * 3 - time * 0.7) * 0.08 +
+          Math.sin(a * 5 + time * 0.35) * 0.05;
+        const spike = Math.pow(Math.max(0, Math.sin(a * 7 + time * 0.9)), 2) * 0.14;
+        let r = 1 + amp * (lobe + spike);
+        if (Math.sin(a) > 0) r *= 1 - flatten * Math.sin(a) * 0.28;
+        const x = cx + Math.cos(a) * rx * r;
+        const y = cy + Math.sin(a) * ry * r;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+    }
+
+    function drawBlob(cx, cy, rx, ry, amp, time, fill, flatten) {
+      blobPath(cx, cy, rx, ry, amp, time, flatten);
+      ctx.fillStyle = rgb(fill);
+      ctx.fill();
+      ctx.save();
+      ctx.clip();
+      const g = ctx.createRadialGradient(cx - rx * 0.2, cy - ry * 0.28, rx * 0.05, cx, cy, Math.max(rx, ry) * 0.95);
+      g.addColorStop(0, rgb(mix(fill, [255, 214, 190], 0.22)));
+      g.addColorStop(0.55, rgb(fill));
+      g.addColorStop(1, rgb(mix(fill, [4, 2, 1], 0.55)));
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - rx * 2, cy - ry * 2, rx * 4, ry * 4);
+      ctx.restore();
+    }
+
+    function draw(now) {
+      const view = layout();
+      const w = view.w;
+      const h = view.h;
+      const t = smooth(shown);
+      const morph = Math.sin(Math.PI * shown);
+      const time = reduceMotion ? 0 : now * 0.001;
+      const burst = reduceMotion ? 0.15 : Math.pow(Math.max(0, Math.sin(time * 0.65)), 6);
+      const copperAmt = Math.min(1, t * 0.92 + (1 - t) * burst * 0.85 + morph * 0.35);
+
+      const top = mix(LIGHT_TOP, DARK_TOP, t);
+      const bot = mix(LIGHT_BOT, DARK_BOT, t);
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, rgb(top));
+      sky.addColorStop(1, rgb(bot));
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+      const vignette = ctx.createRadialGradient(w * 0.5, h * 0.36, Math.min(w, h) * 0.12, w * 0.5, h * 0.62, Math.max(w, h) * 0.78);
+      vignette.addColorStop(0, "rgba(0,0,0,0)");
+      vignette.addColorStop(1, "rgba(6,4,3," + (0.14 + t * 0.5) + ")");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, w, h);
+
+      const unit = Math.min(w * 0.62, h * 0.72, 760);
+      const rx = unit * (0.15 + t * 0.2 + burst * (1 - t) * 0.045);
+      const ry = rx * (0.66 - t * 0.2);
+      const anchor = w < 700 ? 0.5 : 0.4;
+      let cx = w * (anchor + (0.5 - anchor) * t) + (1 - t) * burst * unit * 0.05;
+      const cy = h * 0.58;
+      const margin = rx * 1.35 + 28;
+      cx = Math.min(w - margin, Math.max(margin, cx));
+      const amp = (reduceMotion ? 0.12 : 0.55) + morph * 1.05 + (1 - t) * burst * 0.35;
+      const fill = mix(BLACK, COPPER, copperAmt);
+      const lobeFill = mix(BLACK, [42, 16, 10], t * 0.35);
+
+      ctx.save();
+      ctx.fillStyle = "rgba(20,12,8," + (0.16 * (1 - t) + 0.28 * t) + ")";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + ry * 0.72, rx * 0.92, Math.max(8, ry * 0.18), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      drawBlob(cx, cy, rx, ry, amp, time, fill, 0.65);
+      ctx.save();
+      blobPath(cx, cy, rx, ry, amp, time, 0.65);
+      ctx.clip();
+      const hx = cx - rx * 0.18 + burst * rx * 0.28;
+      const hy = cy - ry * 0.22;
+      const hot = ctx.createRadialGradient(hx, hy, 2, hx, hy, rx * 0.55);
+      hot.addColorStop(0, rgb(COPPER_HOT, 0.28 + copperAmt * 0.55));
+      hot.addColorStop(0.45, rgb(COPPER, 0.08 + copperAmt * 0.18));
+      hot.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = hot;
+      ctx.fillRect(cx - rx * 2, cy - ry * 2, rx * 4, ry * 4);
+      ctx.fillStyle = "rgba(255,236,220," + (0.08 + copperAmt * 0.2) + ")";
+      ctx.beginPath();
+      ctx.ellipse(hx, hy, rx * 0.16, ry * 0.1, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      if (copperAmt > 0.2) {
+        const lobeX = cx + rx * (0.46 + morph * 0.06);
+        const lobeScale = 0.22 + (1 - t) * copperAmt * 0.16;
+        drawBlob(lobeX, cy + ry * 0.04, rx * lobeScale, ry * 0.78, amp * 0.65, time + 1.7, lobeFill, 0.35);
+      }
+
+      const hitW = Math.max(168, Math.min(w - 24, rx * 2.8));
+      const hitH = Math.max(96, ry * 3.1);
+      button.style.left = Math.round(cx - hitW / 2) + "px";
+      button.style.top = Math.round(cy - hitH / 2) + "px";
+      button.style.width = Math.round(hitW) + "px";
+      button.style.height = Math.round(hitH) + "px";
+      document.body.style.background = t > 0.5 ? "#120402" : "#e3ddd6";
+    }
+
+    function tick(now) {
+      if (!last) last = now;
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (reduceMotion) shown = target;
+      else if (shown < target) shown = Math.min(target, shown + dt / 0.46);
+      else if (shown > target) shown = Math.max(target, shown - dt / 0.46);
+      draw(now);
+      if (reduceMotion) {
+        running = false;
+        return;
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function start() {
+      if (running) return;
+      running = true;
+      last = 0;
+      requestAnimationFrame(tick);
+    }
+
+    button.addEventListener("click", function () {
+      target = target ? 0 : 1;
+      button.setAttribute("aria-checked", target ? "true" : "false");
+      if (reduceMotion) {
+        shown = target;
+        draw(performance.now());
+      } else start();
+    });
+
+    motionQuery.addEventListener("change", function () {
+      reduceMotion = motionQuery.matches;
+      if (reduceMotion) {
+        shown = target;
+        draw(performance.now());
+      } else start();
+    });
+    window.addEventListener("resize", function () { draw(performance.now()); });
+    draw(performance.now());
+    if (!reduceMotion) start();
+  </script>
+</body>
+</html>
