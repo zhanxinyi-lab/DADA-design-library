@@ -10,7 +10,6 @@
       --card: #ffffff;
       --ink: #17191d;
       --muted: #6d727c;
-      --line: #eceef2;
       --keep: #1f9d57;
       --send: #e15a4a;
       --btn: #1b1d21;
@@ -29,7 +28,7 @@
       min-height: 100%;
       display: grid;
       place-items: center;
-      padding: 96px 20px 40px;
+      padding: 108px 20px 40px;
     }
     .stage {
       position: relative;
@@ -51,6 +50,7 @@
       color: var(--toast-ink);
       font-weight: 650;
       font-size: 15px;
+      line-height: 1.35;
       box-shadow: 0 10px 28px rgba(20, 40, 28, 0.08);
       transform: translateY(36px);
       opacity: 0;
@@ -88,8 +88,12 @@
       grid-template-columns: 1fr 1fr;
       gap: 14px;
     }
-    .opt {
-      min-width: 0;
+    .opt { min-width: 0; }
+    .opt.send {
+      padding: 8px 10px;
+      margin: -8px -10px;
+      border-radius: 14px;
+      outline: 2px solid var(--send);
     }
     .opt-top {
       display: flex;
@@ -111,8 +115,8 @@
       height: 100%;
       border-radius: inherit;
     }
-    .keep .track span { width: 35%; background: var(--keep); }
-    .send .track span { width: 65%; background: var(--send); }
+    .keep .track span { width: 32%; background: var(--keep); }
+    .send .track span { width: 68%; background: var(--send); }
     .qty {
       margin-top: 22px;
       display: flex;
@@ -133,7 +137,7 @@
       cursor: pointer;
     }
     .qty output {
-      min-width: 2ch;
+      min-width: 4ch;
       text-align: center;
       font-weight: 700;
       font-size: 18px;
@@ -164,8 +168,7 @@
       display: none;
       animation: turn 0.7s linear infinite;
     }
-    .stage[data-phase="placing"] .spin,
-    .stage[data-phase="done"] .spin { display: block; }
+    .stage[data-phase="placing"] .spin { display: block; }
     .replay {
       display: block;
       margin: 16px auto 0;
@@ -210,31 +213,31 @@
             <path d="M2 6.2 4.7 9 10 3" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </span>
-        <span>请求已发出</span>
+        <span id="toast-text">Bought 71.2 NO shares at 70¢</span>
       </p>
       <article class="card">
-        <h1>要发出这份示例请求吗？</h1>
+        <h1>Buy NO</h1>
         <div class="options">
           <div class="opt keep">
-            <div class="opt-top"><span>留下</span><b>35%</b></div>
+            <div class="opt-top"><span>Yes</span><b>32%</b></div>
             <div class="track" aria-hidden="true"><span></span></div>
           </div>
-          <div class="opt send">
-            <div class="opt-top"><span>发出</span><b>65%</b></div>
+          <div class="opt send" aria-current="true">
+            <div class="opt-top"><span>No</span><b>68%</b></div>
             <div class="track" aria-hidden="true"><span></span></div>
           </div>
         </div>
         <div class="qty">
-          <p id="qty-label">数量</p>
+          <p id="qty-label">金额</p>
           <div class="stepper">
-            <button type="button" id="minus" aria-label="减少数量">−</button>
-            <output id="qty" for="minus plus" aria-labelledby="qty-label">12</output>
-            <button type="button" id="plus" aria-label="增加数量">+</button>
+            <button type="button" id="minus" aria-label="减少金额">−</button>
+            <output id="qty" for="minus plus" aria-labelledby="qty-label">$50</output>
+            <button type="button" id="plus" aria-label="增加金额">+</button>
           </div>
         </div>
-        <button type="button" class="place" id="place">
+        <button type="button" class="place" id="place" aria-busy="false" aria-label="Buy NO for $50">
           <span class="spin" aria-hidden="true"></span>
-          <span id="place-label">发出</span>
+          <span id="place-label">Buy NO · $50</span>
         </button>
       </article>
       <button type="button" class="replay" id="replay">再看一次</button>
@@ -252,32 +255,48 @@
     const replay = document.getElementById('replay');
     const live = document.getElementById('live');
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    const FILLED = 'Bought 71.2 NO shares at 70¢';
     const MIN = 1;
-    const MAX = 24;
-    let qty = 12;
+    const MAX = 99;
+    let amount = 50;
     let phase = 'idle';
     let timer = 0;
 
     function say(text) { live.textContent = text; }
+    function money() { return '$' + amount; }
 
-    function paintQty() {
-      qtyOut.textContent = String(qty);
-      minus.disabled = phase !== 'idle' || qty <= MIN;
-      plus.disabled = phase !== 'idle' || qty >= MAX;
+    function paintAmount() {
+      qtyOut.textContent = money();
+      const locked = phase !== 'idle';
+      minus.disabled = locked || amount <= MIN;
+      plus.disabled = locked || amount >= MAX;
+      if (phase === 'idle') {
+        placeLabel.textContent = 'Buy NO · ' + money();
+        place.setAttribute('aria-label', 'Buy NO for ' + money());
+      }
     }
 
     function setPhase(next) {
       phase = next;
       stage.dataset.phase = next;
-      const busy = next !== 'idle';
-      place.disabled = busy;
-      place.setAttribute('aria-busy', next === 'placing' ? 'true' : 'false');
-      placeLabel.textContent = busy ? '发送中' : '发出';
+      const placing = next === 'placing';
+      place.disabled = next !== 'idle';
+      place.setAttribute('aria-busy', placing ? 'true' : 'false');
       toast.setAttribute('aria-hidden', next === 'done' ? 'false' : 'true');
-      paintQty();
-      if (next === 'idle') say('可以发出示例请求。');
-      if (next === 'placing') say('正在发送。');
-      if (next === 'done') say('请求已发出。');
+      if (next === 'idle') {
+        placeLabel.textContent = 'Buy NO · ' + money();
+        place.setAttribute('aria-label', 'Buy NO for ' + money());
+        say('已选择 No，金额 ' + money() + '。');
+      } else if (placing) {
+        placeLabel.textContent = 'Placing';
+        place.setAttribute('aria-label', 'Placing');
+        say('Placing.');
+      } else {
+        placeLabel.textContent = 'Bought';
+        place.setAttribute('aria-label', FILLED);
+        say(FILLED + '.');
+      }
+      paintAmount();
     }
 
     function placeOrder() {
@@ -288,22 +307,23 @@
     }
 
     minus.addEventListener('click', () => {
-      if (phase !== 'idle' || qty <= MIN) return;
-      qty -= 1;
-      paintQty();
+      if (phase !== 'idle' || amount <= MIN) return;
+      amount -= 1;
+      paintAmount();
     });
     plus.addEventListener('click', () => {
-      if (phase !== 'idle' || qty >= MAX) return;
-      qty += 1;
-      paintQty();
+      if (phase !== 'idle' || amount >= MAX) return;
+      amount += 1;
+      paintAmount();
     });
     place.addEventListener('click', placeOrder);
     replay.addEventListener('click', () => {
       clearTimeout(timer);
+      amount = 50;
       setPhase('idle');
       place.focus();
     });
-    paintQty();
+    paintAmount();
   </script>
 </body>
 </html>
