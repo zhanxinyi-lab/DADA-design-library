@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>旅行规划分步动效</title>
+  <style>
+    :root {
+      --paper: #f3efe6;
+      --ink: #241c16;
+      --muted: #74685c;
+      --line: #e4d9cc;
+      --card: #fffaf3;
+      --accent: #c4553a;
+      --accent-ink: #fff8f3;
+      --good: #2f6f56;
+      --shadow: 0 24px 60px #241c1624;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background:
+        radial-gradient(900px 420px at 50% -10%, #fff 0%, transparent 60%),
+        var(--paper);
+      color: var(--ink);
+      font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    }
+    .page {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 28px 16px 32px;
+    }
+    .phone {
+      width: min(92vw, 390px);
+      height: min(78vh, 760px);
+      min-height: 560px;
+      background: var(--card);
+      border-radius: 36px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid #fff;
+    }
+    .status {
+      display: flex;
+      justify-content: space-between;
+      padding: 14px 22px 0;
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: .04em;
+    }
+    .screen {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 8px 18px 18px;
+    }
+    .screen h1 {
+      font-size: 28px;
+      line-height: 1.15;
+      margin: 8px 0;
+      letter-spacing: -0.03em;
+    }
+    .lede { margin: 0 0 14px; color: var(--muted); line-height: 1.45; }
+    .photos {
+      height: 168px;
+      position: relative;
+      margin: 6px 0 12px;
+    }
+    .shot {
+      position: absolute;
+      width: 108px;
+      height: 132px;
+      border-radius: 8px;
+      background: var(--wash, #ddd) center/cover;
+      box-shadow: 0 10px 24px #241c1626;
+      border: 6px solid #fff;
+    }
+    .shot::after {
+      content: "";
+      position: absolute;
+      left: 8px; right: 8px; bottom: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: #ffffff88;
+    }
+    .shot:nth-child(1) { left: 8px; top: 18px; --wash: linear-gradient(145deg, #f2c1a6, #d06a4c 70%); transform: rotate(-8deg); }
+    .shot:nth-child(2) { left: 118px; top: 4px; --wash: linear-gradient(160deg, #f7e2b8, #e09a4a); transform: rotate(4deg); }
+    .shot:nth-child(3) { right: 6px; top: 26px; --wash: linear-gradient(160deg, #d9ece4, #6ea894); transform: rotate(7deg); }
+    .float .shot:nth-child(1) { animation: drift 5.5s ease-in-out infinite; }
+    .float .shot:nth-child(2) { animation: drift 6.4s ease-in-out infinite reverse; }
+    .float .shot:nth-child(3) { animation: drift 5s ease-in-out .4s infinite; }
+    @keyframes drift {
+      50% { translate: 0 -8px; }
+    }
+    .btn, .choice, .day, .row, .stepper button, .pace button {
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 680;
+    }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+    .links { display: flex; gap: 8px; margin-top: 14px; }
+    .links span {
+      font-size: 13px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 2px;
+    }
+    .field {
+      width: 100%;
+      min-height: 48px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 0 14px;
+      font: inherit;
+      color: inherit;
+    }
+    .list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .row {
+      text-align: left;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .row strong { display: block; }
+    .row em { font-style: normal; color: var(--good); font-size: 12px; font-weight: 700; }
+    .swatch {
+      width: 42px; height: 42px; border-radius: 12px; flex: 0 0 auto;
+      background: var(--wash);
+    }
+    .hero {
+      height: 210px;
+      border-radius: 22px;
+      background:
+        radial-gradient(40px 24px at 30% 62%, #f3d2a4 0 70%, transparent 72%),
+        linear-gradient(#f7e7d4, #f7e7d4) 18% 78% / 18px 46px no-repeat,
+        linear-gradient(#e7b089, #e7b089) 50% 70% / 70px 78px no-repeat,
+        linear-gradient(#d97858, #d97858) 62% 58% / 16px 90px no-repeat,
+        linear-gradient(180deg, #f6d7bf 0%, #e7a27a 42%, #7f9a78 43%, #6e8b6c 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero i {
+      position: absolute;
+      bottom: 16px; left: 16px;
+      background: #fffaf3e6;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-style: normal;
+      font-size: 12px;
+    }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+    .chips b {
+      font-weight: 620;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+    .month { display: flex; justify-content: space-between; align-items: baseline; }
+    .week, .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .week { color: var(--muted); font-size: 12px; text-align: center; margin-bottom: 4px; }
+    .day {
+      aspect-ratio: 1;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+    }
+    .day[data-in="1"] { background: #f3d2c6; }
+    .day[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+    .day:disabled { visibility: hidden; }
+    .party { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .stepper { display: flex; align-items: center; gap: 8px; }
+    .stepper button, .pace button, .dock button {
+      min-width: 42px;
+      min-height: 42px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    .pace { display: flex; gap: 8px; margin: 12px 0; }
+    .pace button { flex: 1; }
+    .pace button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .ticket {
+      margin-top: 12px;
+      background: var(--ink);
+      color: #f6efe6;
+      border-radius: 22px;
+      padding: 18px;
+      transform-origin: 50% 80%;
+    }
+    .ticket .big { font-size: 42px; letter-spacing: .12em; margin: 0; }
+    .ticket p { margin: 6px 0; }
+    .pop .ticket { animation: pop .45s cubic-bezier(.2,.8,.2,1); }
+    @keyframes pop { from { scale: .92; opacity: .4; } }
+    .map {
+      height: 280px;
+      border-radius: 22px;
+      background: #efe4d4;
+      position: relative;
+      overflow: hidden;
+    }
+    .map svg { width: 100%; height: 100%; display: block; }
+    .pin {
+      position: absolute;
+      translate: -50% -100%;
+      display: grid;
+      justify-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.2;
+      text-align: center;
+      width: 116px;
+    }
+    .pin b {
+      background: #fffaf3ee;
+      border-radius: 8px;
+      padding: 2px 6px;
+      font-weight: 700;
+    }
+    .pin i {
+      width: 14px; height: 14px; border-radius: 50% 50% 50% 0;
+      background: var(--accent);
+      rotate: -45deg;
+      box-shadow: 0 6px 10px #241c1640;
+    }
+    .drop .pin { animation: fall .45s cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes fall { from { translate: -50% -140%; opacity: 0; } }
+    .days { display: flex; gap: 8px; }
+    .days span {
+      width: 44px; height: 56px;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      font-weight: 720;
+    }
+    .meter { height: 10px; border-radius: 99px; background: var(--line); overflow: hidden; }
+    .meter span { display: block; width: 80%; height: 100%; background: var(--good); }
+    .dock {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      align-items: center;
+      width: min(92vw, 520px);
+    }
+    .dock button[aria-current="step"] { outline: 2px solid var(--accent); }
+    .note { max-width: 520px; color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0; }
+    .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    @media (max-width: 420px) {
+      .phone { min-height: 0; height: min(82vh, 760px); border-radius: 28px; }
+      .screen h1 { font-size: 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .float .shot, .pop .ticket, .drop .pin { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span aria-hidden="true">●●●</span></div>
+      <div class="screen" id="screen"></div>
+    </div>
+    <div class="dock" id="dock">
+      <button type="button" id="prev">上一步</button>
+      <button type="button" id="next">下一步</button>
+      <button type="button" id="replay">重播</button>
+    </div>
+    <p class="note" id="live" aria-live="polite"></p>
+    <p class="note">独立复刻。照片和地图是示意，不使用原片素材。方向键切换步骤，日历、人数和节奏可以用键盘操作。</p>
+  </div>
+  <script>
+    const PLACES = [
+      { id: "santorini", name: "Santorini", area: "Greece", wash: "linear-gradient(145deg,#f6d2bf,#e08b78)" },
+      { id: "bali", name: "Bali", area: "Indonesia", wash: "linear-gradient(145deg,#d9efe4,#63a88c)" },
+      { id: "marrakech", name: "Marrakech", area: "Morocco", wash: "linear-gradient(145deg,#f3d7a4,#d4723e)" },
+      { id: "kyoto", name: "Kyoto", area: "Japan", wash: "linear-gradient(145deg,#f0c7b4,#c4553a)", close: true }
+    ];
+    const STOPS = [
+      { name: "Kyoto Imperial Palace", x: "34%", y: "40%" },
+      { name: "Kiyomizu-dera", x: "68%", y: "58%" },
+      { name: "Arashiyama Bamboo Grove", x: "30%", y: "74%" }
+    ];
+    const PACES = [
+      ["easy", "Easy"],
+      ["balanced", "Balanced"],
+      ["packed", "Packed"]
+    ];
+    const STEPS = ["home", "search", "place", "dates", "party", "ticket", "map", "plan", "details"];
+    const CAPTION = [
+      "空状态：照片轻晃，还没有行程。",
+      "搜索四个目的地，Kyoto 更接近。",
+      "Kyoto 详情。原片里的统计数字看不清，这里不写。",
+      "2027 年 3 月，范围是 24 到 28 日。",
+      "两个人，节奏停在 Balanced。",
+      "行程卡收束日期、人数和节奏。",
+      "三个景点依次落到示意图上。",
+      "五天都排上了，还留一处空档。",
+      "详情里的预订进度是 4/5。"
+    ];
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    const screen = document.querySelector("#screen");
+    const live = document.querySelector("#live");
+    let step = 0;
+    let query = "";
+    let range = { start: 24, end: 28 };
+    let picking = null;
+    let people = 2;
+    let pace = "balanced";
+    let touchedParty = false;
+    let timers = [];
+    let locked = false;
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+    function inRange(day) {
+      if (!range.start || !range.end) return false;
+      const a = Math.min(range.start, range.end);
+      const b = Math.max(range.start, range.end);
+      return day >= a && day <= b;
+    }
+    function labelRange() {
+      if (!range.start || !range.end) return "Dates open";
+      const a = Math.min(range.start, range.end);
+      const b = Math.max(range.start, range.end);
+      return a + "–" + b + " Mar";
+    }
+
+    function home() {
+      return `<h1>Nothing on the board</h1>
+        <p class="lede">Start from a city, or glance at a few ideas first.</p>
+        <div class="photos ${motion.matches ? "" : "float"}" aria-hidden="true">
+          <div class="shot"></div><div class="shot"></div><div class="shot"></div>
+        </div>
+        <button class="btn" type="button" data-go="1">Open a search</button>
+        <div class="links"><span>Saved ideas</span><span>Close by</span></div>`;
+    }
+    function search() {
+      const q = query.trim().toLowerCase();
+      const rows = PLACES.filter((p) => !q || (p.name + p.area).toLowerCase().includes(q));
+      return `<h1>Where next</h1>
+        <label class="sr" for="q">City or region</label>
+        <input class="field" id="q" value="${esc(query)}" placeholder="City or region" autocomplete="off">
+        <div class="list">${rows.map((p) => `<button class="row" type="button" data-place="${p.id}">
+          <i class="swatch" style="--wash:${p.wash}"></i>
+          <span><strong>${esc(p.name)}</strong>${esc(p.area)}${p.close ? " · <em>Closest</em>" : ""}</span>
+        </button>`).join("") || `<p class="lede">No match in this short list.</p>`}</div>`;
+    }
+    function place() {
+      return `<div class="hero" aria-hidden="true"><i>Schematic, not a photo</i></div>
+        <h1>Kyoto</h1><p class="lede">Japan. Lanes, gardens and a river to plan around.</p>
+        <button class="btn" type="button" data-go="3">Set the days</button>`;
+    }
+    function dates() {
+      const cells = ['<button class="day" type="button" disabled></button>'];
+      for (let d = 1; d <= 31; d++) {
+        const on = range.start === d || range.end === d;
+        cells.push(`<button class="day" type="button" data-day="${d}" data-in="${inRange(d) ? 1 : 0}" aria-pressed="${on}">${d}</button>`);
+      }
+      return `<div class="month"><h1>Which days</h1><span>March 2027</span></div>
+        <p class="lede">Tap a start day, then an end day. The clip uses the 24th through the 28th.</p>
+        <div class="week"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+        <div class="grid">${cells.join("")}</div>
+        <p class="lede">${esc(labelRange())}</p>
+        <button class="btn" type="button" data-go="4" ${range.start && range.end ? "" : "disabled"}>Continue</button>`;
+    }
+    function party() {
+      return `<h1>Who and how fast</h1>
+        <div class="party"><span>People</span><span class="stepper">
+          <button type="button" data-people="-1" aria-label="少一人">−</button>
+          <strong id="people">${people}</strong>
+          <button type="button" data-people="1" aria-label="多一人">+</button>
+        </span></div>
+        <p class="lede">What pace</p>
+        <div class="pace">${PACES.map(([id, name]) => `<button type="button" data-pace="${id}" aria-pressed="${pace === id}">${name}</button>`).join("")}</div>
+        <div class="chips"><b>Kyoto</b><b>${esc(labelRange())}</b><b>${people}</b></div>
+        <button class="btn" type="button" data-go="5">Make the card</button>`;
+    }
+    function ticket() {
+      const paceName = PACES.find((p) => p[0] === pace)[1];
+      const party = people === 1 ? "1 person" : people + " people";
+      return `<h1>Held</h1><p class="lede">These days stay on the plan.</p>
+        <div class="ticket"><p class="big">KYOTO</p><p>${esc(labelRange())}</p><p>${esc(party)} · ${esc(paceName)}</p></div>
+        <div style="height:16px"></div>
+        <button class="btn" type="button" data-go="6">Add stops</button>`;
+    }
+    function map() {
+      return `<h1>Five days</h1><p class="lede">Kyoto, Japan. Stops drop onto a drawing, not a live map.</p>
+        <div class="map ${motion.matches ? "" : "drop"}">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <path d="M8 38c16-20 48-24 74-6 6 22-4 40-22 48-24 8-48-6-52-42z" fill="#e7d3bc"/>
+            <path d="M22 58c18 4 30-8 48-2" fill="none" stroke="#d8b89a" stroke-width="2"/>
+            <path d="M46 34c10 2 16 16 8 28-10 4-18-8-8-28z" fill="#d8c2a8"/>
+          </svg>
+          ${STOPS.map((s, i) => `<span class="pin" style="left:${s.x};top:${s.y};animation-delay:${i * 0.35}s"><i></i><b>${esc(s.name)}</b></span>`).join("")}
+        </div>
+        <div style="height:14px"></div>
+        <button class="btn" type="button" data-go="7">See the week</button>`;
+    }
+    function plan() {
+      const a = Math.min(range.start, range.end);
+      const b = Math.max(range.start, range.end);
+      const days = [];
+      for (let d = a; d <= b && days.length < 7; d++) days.push(`<span>${d}</span>`);
+      return `<h1>Five days are set</h1>
+        <p class="lede">Kyoto · ${esc(labelRange())}. One opening is still empty.</p>
+        <div class="days">${days.join("")}</div>
+        <div style="height:16px"></div>
+        <button class="btn" type="button" data-go="8">Open details</button>`;
+    }
+    function details() {
+      return `<h1>Details</h1>
+        <p class="lede">Kyoto, Japan<br>${esc(labelRange())} · ${people === 1 ? "1 person" : people + " people"}</p>
+        <div class="chips"><b>Bookings 4/5</b></div>
+        <div class="meter" aria-hidden="true"><span></span></div>
+        <p class="lede">Four of the five days have a booking. Names of those bookings are not readable in the clip, so they are left off.</p>`;
+    }
+    const VIEWS = { home, search, place, dates, party, ticket, map, plan, details };
+
+    function render(focusIt) {
+      const name = STEPS[step];
+      screen.classList.toggle("pop", name === "ticket" && !motion.matches);
+      screen.innerHTML = VIEWS[name]();
+      live.textContent = `${step + 1} / ${STEPS.length} ${CAPTION[step]}`;
+      document.querySelector("#prev").disabled = step === 0;
+      document.querySelector("#next").disabled = step === STEPS.length - 1;
+      const head = screen.querySelector("h1");
+      if (focusIt && head) head.tabIndex = -1, head.focus();
+      bind();
+    }
+    function bind() {
+      screen.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => go(Number(b.dataset.go), true)));
+      const q = screen.querySelector("#q");
+      if (q) {
+        q.addEventListener("input", () => { query = q.value; const pos = q.selectionStart; render(false); const again = screen.querySelector("#q"); again.focus(); again.selectionStart = again.selectionEnd = pos; });
+      }
+      screen.querySelectorAll("[data-place]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.place === "kyoto") go(2, true); }));
+      screen.querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => {
+        const day = Number(b.dataset.day);
+        if (!picking) { picking = day; range = { start: day, end: day }; }
+        else { range = { start: picking, end: day }; picking = null; }
+        render(false);
+        screen.querySelector(`[data-day="${day}"]`)?.focus();
+      }));
+      screen.querySelectorAll("[data-people]").forEach((b) => b.addEventListener("click", () => {
+        touchedParty = true;
+        people = Math.min(6, Math.max(1, people + Number(b.dataset.people)));
+        render(false);
+        screen.querySelector(`[data-people="${b.dataset.people}"]`)?.focus();
+      }));
+      screen.querySelectorAll("[data-pace]").forEach((b) => b.addEventListener("click", () => {
+        touchedParty = true;
+        pace = b.dataset.pace;
+        render(false);
+        screen.querySelector(`[data-pace="${pace}"]`)?.focus();
+      }));
+    }
+    function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+    function go(next, byUser) {
+      if (byUser) {
+        locked = true;
+        clearTimers();
+        if (next >= 3 && (!range.start || !range.end)) range = { start: 24, end: 28 };
+        if (next >= 4 && !touchedParty) { people = 2; pace = "balanced"; }
+      }
+      step = Math.max(0, Math.min(STEPS.length - 1, next));
+      render(byUser);
+    }
+    function play() {
+      clearTimers();
+      locked = false;
+      touchedParty = false;
+      step = 0; query = ""; picking = null;
+      range = { start: null, end: null }; people = 2; pace = "balanced";
+      render(false);
+      if (motion.matches) {
+        range = { start: 24, end: 28 }; people = 2; pace = "balanced"; query = "Kyo";
+        render(false);
+        return;
+      }
+      const at = (ms, fn) => timers.push(setTimeout(() => { if (!locked) fn(); }, ms));
+      at(4200, () => go(1));
+      at(5000, () => { query = "K"; render(false); });
+      at(5600, () => { query = "Ky"; render(false); });
+      at(6200, () => { query = "Kyo"; render(false); });
+      at(7600, () => go(2));
+      at(9800, () => { range = { start: null, end: null }; go(3); });
+      at(11000, () => { range = { start: 24, end: 24 }; render(false); });
+      at(12200, () => { range = { start: 24, end: 28 }; render(false); });
+      at(13600, () => { people = 1; pace = "easy"; go(4); });
+      at(14800, () => { people = 2; pace = "balanced"; render(false); });
+      at(16200, () => go(5));
+      at(18200, () => go(6));
+      at(21400, () => go(7));
+      at(24200, () => go(8));
+    }
+    document.querySelector("#prev").addEventListener("click", () => go(step - 1, true));
+    document.querySelector("#next").addEventListener("click", () => go(step + 1, true));
+    document.querySelector("#replay").addEventListener("click", play);
+    addEventListener("keydown", (e) => {
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "ArrowRight") go(step + 1, true);
+      if (e.key === "ArrowLeft") go(step - 1, true);
+    });
+    motion.addEventListener?.("change", () => { locked = true; clearTimers(); render(false); });
+    play();
+  </script>
+</body>
+</html>
