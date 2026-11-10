@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>下单状态反馈</title>
+  <style>
+    :root {
+      --bg: #e6e8ec;
+      --card: #ffffff;
+      --ink: #17191d;
+      --muted: #6d727c;
+      --keep: #1f9d57;
+      --send: #e15a4a;
+      --btn: #1b1d21;
+      --toast: #e8f6ee;
+      --toast-ink: #14663a;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, "Segoe UI", sans-serif;
+    }
+    .page {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 108px 20px 40px;
+    }
+    .stage {
+      position: relative;
+      width: min(420px, 100%);
+    }
+    .toast {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: calc(100% + 12px);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 52px;
+      margin: 0;
+      padding: 12px 16px;
+      border-radius: 16px;
+      background: var(--toast);
+      color: var(--toast-ink);
+      font-weight: 650;
+      font-size: 15px;
+      line-height: 1.35;
+      box-shadow: 0 10px 28px rgba(20, 40, 28, 0.08);
+      transform: translateY(36px);
+      opacity: 0;
+      transition: transform 0.46s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.32s ease;
+    }
+    .stage[data-phase="done"] .toast {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .tick {
+      width: 22px;
+      height: 22px;
+      flex: none;
+      border-radius: 50%;
+      background: #1f9d57;
+      display: grid;
+      place-items: center;
+    }
+    .tick svg { display: block; }
+    .card {
+      background: var(--card);
+      border-radius: 28px;
+      padding: 28px 24px 22px;
+      box-shadow: 0 18px 50px rgba(23, 25, 29, 0.08);
+    }
+    h1 {
+      margin: 0 0 22px;
+      font-size: 22px;
+      line-height: 1.35;
+      font-weight: 680;
+      letter-spacing: -0.02em;
+    }
+    .options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .opt { min-width: 0; }
+    .opt.send {
+      padding: 8px 10px;
+      margin: -8px -10px;
+      border-radius: 14px;
+      outline: 2px solid var(--send);
+    }
+    .opt-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 650;
+    }
+    .opt b { font-weight: 700; }
+    .track {
+      margin-top: 8px;
+      height: 7px;
+      border-radius: 999px;
+      background: #eef0f3;
+      overflow: hidden;
+    }
+    .track span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+    }
+    .keep .track span { width: 32%; background: var(--keep); }
+    .send .track span { width: 68%; background: var(--send); }
+    .qty {
+      margin-top: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .qty p { margin: 0; color: var(--muted); font-size: 14px; }
+    .stepper { display: flex; align-items: center; gap: 8px; }
+    .stepper button, .replay {
+      border: 0;
+      background: #f2f3f6;
+      color: var(--ink);
+      min-width: 44px;
+      min-height: 44px;
+      border-radius: 12px;
+      font: 650 18px/1 system-ui, sans-serif;
+      cursor: pointer;
+    }
+    .qty output {
+      min-width: 4ch;
+      text-align: center;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .place {
+      margin-top: 18px;
+      width: 100%;
+      min-height: 52px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--btn);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font: 680 16px/1 system-ui, sans-serif;
+      cursor: pointer;
+    }
+    .place:disabled { cursor: default; }
+    .place:active:not(:disabled) { transform: scale(0.985); }
+    .spin {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.28);
+      border-top-color: #fff;
+      display: none;
+      animation: turn 0.7s linear infinite;
+    }
+    .stage[data-phase="placing"] .spin { display: block; }
+    .replay {
+      display: block;
+      margin: 16px auto 0;
+      padding: 0 16px;
+      font-size: 14px;
+      background: transparent;
+    }
+    button:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 3px;
+    }
+    button:disabled { opacity: 0.55; }
+    .place:disabled { opacity: 1; }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @keyframes turn { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .toast, .place, .spin { transition: none; animation: none; }
+      .place:active:not(:disabled) { transform: none; }
+    }
+    @media (max-width: 420px) {
+      h1 { font-size: 20px; }
+      .card { padding: 24px 18px 18px; border-radius: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="stage" id="stage" data-phase="idle">
+      <p class="toast" id="toast" aria-hidden="true">
+        <span class="tick" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 6.2 4.7 9 10 3" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span id="toast-text">Bought 71.2 NO shares at 70¢</span>
+      </p>
+      <article class="card">
+        <h1>Buy NO</h1>
+        <div class="options">
+          <div class="opt keep">
+            <div class="opt-top"><span>Yes</span><b>32%</b></div>
+            <div class="track" aria-hidden="true"><span></span></div>
+          </div>
+          <div class="opt send" aria-current="true">
+            <div class="opt-top"><span>No</span><b>68%</b></div>
+            <div class="track" aria-hidden="true"><span></span></div>
+          </div>
+        </div>
+        <div class="qty">
+          <p id="qty-label">金额</p>
+          <div class="stepper">
+            <button type="button" id="minus" aria-label="减少金额">−</button>
+            <output id="qty" for="minus plus" aria-labelledby="qty-label">$50</output>
+            <button type="button" id="plus" aria-label="增加金额">+</button>
+          </div>
+        </div>
+        <button type="button" class="place" id="place" aria-busy="false" aria-label="Buy NO for $50">
+          <span class="spin" aria-hidden="true"></span>
+          <span id="place-label">Buy NO · $50</span>
+        </button>
+      </article>
+      <button type="button" class="replay" id="replay">再看一次</button>
+    </div>
+  </main>
+  <p id="live" class="sr" aria-live="polite"></p>
+  <script>
+    const stage = document.getElementById('stage');
+    const toast = document.getElementById('toast');
+    const place = document.getElementById('place');
+    const placeLabel = document.getElementById('place-label');
+    const qtyOut = document.getElementById('qty');
+    const minus = document.getElementById('minus');
+    const plus = document.getElementById('plus');
+    const replay = document.getElementById('replay');
+    const live = document.getElementById('live');
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    const FILLED = 'Bought 71.2 NO shares at 70¢';
+    const MIN = 1;
+    const MAX = 99;
+    let amount = 50;
+    let phase = 'idle';
+    let timer = 0;
+
+    function say(text) { live.textContent = text; }
+    function money() { return '$' + amount; }
+
+    function paintAmount() {
+      qtyOut.textContent = money();
+      const locked = phase !== 'idle';
+      minus.disabled = locked || amount <= MIN;
+      plus.disabled = locked || amount >= MAX;
+      if (phase === 'idle') {
+        placeLabel.textContent = 'Buy NO · ' + money();
+        place.setAttribute('aria-label', 'Buy NO for ' + money());
+      }
+    }
+
+    function setPhase(next) {
+      phase = next;
+      stage.dataset.phase = next;
+      const placing = next === 'placing';
+      place.disabled = next !== 'idle';
+      place.setAttribute('aria-busy', placing ? 'true' : 'false');
+      toast.setAttribute('aria-hidden', next === 'done' ? 'false' : 'true');
+      if (next === 'idle') {
+        placeLabel.textContent = 'Buy NO · ' + money();
+        place.setAttribute('aria-label', 'Buy NO for ' + money());
+        say('已选择 No，金额 ' + money() + '。');
+      } else if (placing) {
+        placeLabel.textContent = 'Placing';
+        place.setAttribute('aria-label', 'Placing');
+        say('Placing.');
+      } else {
+        placeLabel.textContent = 'Bought';
+        place.setAttribute('aria-label', FILLED);
+        say(FILLED + '.');
+      }
+      paintAmount();
+    }
+
+    function placeOrder() {
+      if (phase !== 'idle') return;
+      clearTimeout(timer);
+      setPhase('placing');
+      timer = setTimeout(() => setPhase('done'), reduced.matches ? 700 : 720);
+    }
+
+    minus.addEventListener('click', () => {
+      if (phase !== 'idle' || amount <= MIN) return;
+      amount -= 1;
+      paintAmount();
+    });
+    plus.addEventListener('click', () => {
+      if (phase !== 'idle' || amount >= MAX) return;
+      amount += 1;
+      paintAmount();
+    });
+    place.addEventListener('click', placeOrder);
+    replay.addEventListener('click', () => {
+      clearTimeout(timer);
+      amount = 50;
+      setPhase('idle');
+      place.focus();
+    });
+    paintAmount();
+  </script>
+</body>
+</html>
