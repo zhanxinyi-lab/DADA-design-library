@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HTML in Canvas</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: #14161c;
+      color: #f4f1ea;
+      font: 15px/1.4 system-ui, sans-serif;
+    }
+    button, p, h1, h2, ul { margin: 0; }
+    .app {
+      width: 100%;
+      max-width: 100%;
+      height: 100dvh;
+      display: grid;
+      grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+      overflow: hidden;
+    }
+    aside {
+      min-width: 0;
+      padding: 22px 16px;
+      border-right: 1px solid #ffffff14;
+      background: #191c23;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-height: 0;
+    }
+    h1 {
+      font-size: 13px;
+      letter-spacing: 0.22em;
+      font-weight: 750;
+    }
+    #count { color: #d9d3c8; font-variant-numeric: tabular-nums; }
+    #help { color: #b7b1a6; font-size: 13px; }
+    .list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
+    .block {
+      width: 100%;
+      text-align: left;
+      border: 1px solid #ffffff22;
+      background: #232733;
+      color: inherit;
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      cursor: grab;
+      font: inherit;
+      touch-action: none;
+      user-select: none;
+    }
+    .block[disabled] { cursor: default; opacity: 0.72; }
+    .block small { color: #d2cdc3; font-size: 12px; }
+    .block:focus-visible, #ship:focus-visible { outline: 2px solid #f3efe6; outline-offset: 3px; }
+    .stage {
+      position: relative;
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 12px;
+      padding: 16px 18px 18px;
+    }
+    .topbar { min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 42px; }
+    #cue { flex: 1; font-weight: 650; }
+    #ship {
+      border: 0;
+      border-radius: 999px;
+      padding: 8px 14px;
+      background: #f4f1ea;
+      color: #1a1c22;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #ship:disabled { opacity: 0.4; cursor: default; }
+    .board { min-width: 0; min-height: 0; display: grid; place-items: center; }
+    .sheet {
+      position: relative;
+      width: min(100%, 840px);
+      max-width: 100%;
+      height: min(100%, 580px);
+      min-height: 240px;
+      background: #f3efe6;
+      border-radius: 18px;
+      box-shadow: 0 24px 70px #0009;
+    }
+    .mod {
+      position: absolute;
+      overflow: hidden;
+      padding: 12px 14px;
+      background: #fffdf8;
+      color: #1c1b19;
+      border: 1px solid #e4ddd0;
+      border-radius: 12px;
+    }
+    .navmod { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 750; }
+    .navmod span { font-weight: 550; font-size: 13px; }
+    .kicker { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8175; }
+    .mod h2 { font-size: clamp(20px, 3vw, 32px); letter-spacing: -0.03em; }
+    .fields { display: grid; gap: 6px; }
+    .fields span, .pill {
+      display: block;
+      border: 1px solid #e4ddd0;
+      border-radius: 8px;
+      padding: 6px 8px;
+      color: #6f675e;
+      background: #fff;
+    }
+    .pill { width: fit-content; background: #1c1b19; color: #f4f1ea; border: 0; border-radius: 999px; padding: 8px 14px; }
+    .swatches { display: flex; gap: 8px; height: calc(100% - 22px); }
+    .swatches i { flex: 1; border-radius: 10px; display: block; }
+    #hand { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    #ghost {
+      position: fixed;
+      z-index: 5;
+      transform: translate(-50%, -60%);
+      min-width: 120px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #fffdf8;
+      color: #1c1b19;
+      box-shadow: 0 12px 30px #0007;
+      pointer-events: none;
+      font-weight: 700;
+    }
+    #ghost small { display: block; font-weight: 550; color: #6f675e; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 760px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: auto minmax(420px, 1fr); height: auto; min-height: 100dvh; }
+      aside { border-right: 0; border-bottom: 1px solid #ffffff14; }
+      .list { flex-direction: row; overflow-x: auto; touch-action: pan-x; }
+      .block { min-width: 148px; width: auto; touch-action: pan-x; }
+      .board { min-height: 420px; }
+      .sheet { height: min(68vh, 560px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <h1>BLOCKS</h1>
+      <p id="count"></p>
+      <ul class="list" id="list"></ul>
+      <p id="help">Drag a block to the hand, or focus it and press Enter.</p>
+    </aside>
+    <main class="stage" id="stage">
+      <div class="topbar">
+        <p id="cue"></p>
+        <button id="ship" type="button" disabled>Ship it</button>
+      </div>
+      <div class="board">
+        <div class="sheet" id="sheet" aria-label="Page canvas">
+          <article class="mod" data-id="nav" hidden><div class="navmod"><b>Index</b><span>Work · Notes · Visit</span></div></article>
+          <article class="mod" data-id="hero" hidden><p class="kicker">Hero</p><h2>Carried onto the page</h2></article>
+          <article class="mod" data-id="form" hidden><div class="fields"><span>Name</span><span>Note</span></div></article>
+          <article class="mod" data-id="gallery" hidden><p class="kicker">Gallery</p><div class="swatches"><i style="background:#d86a45"></i><i style="background:#243044"></i><i style="background:#d8c7a1"></i></div></article>
+          <article class="mod" data-id="button" hidden><span class="pill">Open</span></article>
+        </div>
+      </div>
+      <canvas id="hand" aria-hidden="true"></canvas>
+    </main>
+  </div>
+  <div id="ghost" hidden><span id="ghost-name"></span><small>Drag me</small></div>
+  <p id="live" class="sr-only" role="status" aria-live="polite"></p>
+  <script>
+    const MODULES = [
+      { id: 'nav', name: 'Nav' },
+      { id: 'hero', name: 'Hero' },
+      { id: 'form', name: 'Form' },
+      { id: 'gallery', name: 'Gallery' },
+      { id: 'button', name: 'Button' }
+    ];
+    const SLOTS = {
+      nav: { x: 6, y: 6, w: 88, h: 14 },
+      hero: { x: 6, y: 24, w: 52, h: 40 },
+      gallery: { x: 62, y: 24, w: 32, h: 40 },
+      form: { x: 6, y: 68, w: 52, h: 26 },
+      button: { x: 62, y: 68, w: 32, h: 26 }
+    };
+
+    const list = document.getElementById('list');
+    const sheet = document.getElementById('sheet');
+    const stage = document.getElementById('stage');
+    const cue = document.getElementById('cue');
+    const count = document.getElementById('count');
+    const ship = document.getElementById('ship');
+    const live = document.getElementById('live');
+    const ghost = document.getElementById('ghost');
+    const ghostName = document.getElementById('ghost-name');
+    const canvas = document.getElementById('hand');
+    const ctx = canvas.getContext('2d');
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+
+    const byId = {};
+    const buttons = {};
+    let reduced = motion.matches;
+    let phase = 'build';
+    let drag = null;
+    let arming = null;
+    let carry = null;
+    let shippedCue = 'Shipped.';
+    let raf = 0;
+    let last = performance.now();
+    const palm = { x: 0, y: 0, ready: false };
+    let dpr = 1;
+    let open = 1;
+
+    for (const mod of MODULES) {
+      byId[mod.id] = { ...mod, state: 'todo' };
+      const slot = SLOTS[mod.id];
+      const article = sheet.querySelector('[data-id="' + mod.id + '"]');
+      article.style.left = slot.x + '%';
+      article.style.top = slot.y + '%';
+      article.style.width = slot.w + '%';
+      article.style.height = slot.h + '%';
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'block';
+      button.dataset.id = mod.id;
+      button.innerHTML = '<span></span><small></small>';
+      button.setAttribute('aria-describedby', 'help');
+      item.appendChild(button);
+      list.appendChild(item);
+      buttons[mod.id] = button;
+      button.addEventListener('pointerdown', (event) => startDrag(mod.id, event));
+      button.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        offer(mod.id);
+      });
+    }
+
+    ship.addEventListener('click', () => {
+      if (phase !== 'ready') return;
+      phase = 'shipped';
+      ship.textContent = 'Shipped';
+      ship.disabled = true;
+      shippedCue = 'Shipped.';
+      say(shippedCue);
+      draw();
+      setTimeout(() => {
+        if (phase !== 'shipped') return;
+        shippedCue = 'Deployed in 0.4s Probably.';
+        say(shippedCue);
+      }, 700);
+    });
+
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && (drag || arming)) cancelDrag((drag || arming).id);
+    });
+
+    motion.addEventListener('change', () => {
+      reduced = motion.matches;
+      if (reduced) {
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+        if (carry) finishCarry();
+        draw();
+      } else {
+        kick();
+      }
+    });
+
+    new ResizeObserver(() => resize()).observe(stage);
+
+    function remaining() {
+      return MODULES.filter((mod) => byId[mod.id].state !== 'page').length;
+    }
+
+    function onlyFormLeft() {
+      const left = MODULES.filter((mod) => byId[mod.id].state !== 'page');
+      return left.length === 1 && left[0].id === 'form';
+    }
+
+    function narrowBar() {
+      return matchMedia('(max-width: 760px)').matches;
+    }
+
+    function say(text) {
+      if (cue.dataset.current === text) return;
+      cue.dataset.current = text;
+      cue.textContent = text;
+      live.textContent = text;
+    }
+
+    function statusLabel(state) {
+      if (state === 'page') return 'On the page';
+      if (state === 'hand') return 'In your hand';
+      return 'To place';
+    }
+
+    function renderStatus() {
+      const left = remaining();
+      count.textContent = left === 0 ? 'Page complete' : left + ' to place';
+      for (const mod of MODULES) {
+        const button = buttons[mod.id];
+        const record = byId[mod.id];
+        button.querySelector('span').textContent = record.name;
+        button.querySelector('small').textContent = statusLabel(record.state);
+        const placed = record.state === 'page';
+        const busy = Boolean(carry) || Boolean(drag);
+        button.disabled = placed || (busy && (!drag || drag.id !== mod.id));
+        button.setAttribute('aria-label', record.name + ', ' + statusLabel(record.state));
+      }
+    }
+
+    function stagePoint(clientX, clientY) {
+      const rect = stage.getBoundingClientRect();
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function grabPoint() {
+      const sheetRect = sheet.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      const gap = stageRect.right - sheetRect.right;
+      return {
+        x: Math.min(stageRect.width - 78, sheetRect.right - stageRect.left + Math.max(12, Math.min(40, gap * 0.45))),
+        y: sheetRect.top - stageRect.top + sheetRect.height * 0.62
+      };
+    }
+
+    function isNear(point) {
+      const grab = grabPoint();
+      if (Math.hypot(point.x - grab.x, point.y - grab.y) < 130) return true;
+      const sheetRect = sheet.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      const right = sheetRect.right - stageRect.left;
+      const top = sheetRect.top - stageRect.top;
+      return point.x > right - sheetRect.width * 0.22 && point.x < right + 90 && point.y > top && point.y < top + sheetRect.height;
+    }
+
+    function slotPoint(id) {
+      const slot = SLOTS[id];
+      const sheetRect = sheet.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      return {
+        x: sheetRect.left - stageRect.left + ((slot.x + slot.w / 2) / 100) * sheetRect.width,
+        y: sheetRect.top - stageRect.top + ((slot.y + slot.h / 2) / 100) * sheetRect.height
+      };
+    }
+
+    function beginDrag(id, event) {
+      const target = arming && arming.target;
+      try { if (target) target.setPointerCapture(event.pointerId); } catch { /* pointer already released */ }
+      const point = stagePoint(event.clientX, event.clientY);
+      drag = { id, x: point.x, y: point.y, moved: 0, near: false, stillSince: 0, lastMove: performance.now(), speed: 0, pointerId: event.pointerId };
+      byId[id].state = 'hand';
+      ghost.hidden = false;
+      ghostName.textContent = byId[id].name;
+      ghost.style.left = event.clientX + 'px';
+      ghost.style.top = event.clientY + 'px';
+      renderStatus();
+      kick();
+    }
+
+    function startDrag(id, event) {
+      if (event.button !== 0 || phase === 'shipped' || carry || byId[id].state === 'page' || drag || arming) return;
+      arming = { id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, scrolling: false, target: event.currentTarget };
+      const matches = (ev) => ev.pointerId === event.pointerId;
+      const onMove = (ev) => { if (matches(ev)) moveDrag(id, ev); };
+      const onUp = (ev) => {
+        if (!matches(ev)) return;
+        drop();
+        endDrag(id);
+      };
+      const onCancel = (ev) => {
+        if (!matches(ev)) return;
+        drop();
+        cancelDrag(id);
+      };
+      function drop() {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onCancel);
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onCancel);
+    }
+
+    function moveDrag(id, event) {
+      if (arming && arming.id === id && !drag) {
+        const dx = event.clientX - arming.x;
+        const dy = event.clientY - arming.y;
+        if (arming.scrolling) return;
+        if (narrowBar() && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+          arming.scrolling = true;
+          return;
+        }
+        if (Math.hypot(dx, dy) < 8) return;
+        beginDrag(id, event);
+      }
+      if (!drag || drag.id !== id) return;
+      const now = performance.now();
+      const point = stagePoint(event.clientX, event.clientY);
+      const step = Math.hypot(point.x - drag.x, point.y - drag.y);
+      const dt = Math.max(1, now - drag.lastMove);
+      drag.speed = step / dt;
+      drag.moved += step;
+      drag.x = point.x;
+      drag.y = point.y;
+      drag.lastMove = now;
+      const wasNear = drag.near;
+      drag.near = isNear(point);
+      if (!drag.near) drag.stillSince = 0;
+      else if (!wasNear || drag.speed > 0.04) drag.stillSince = now;
+      ghost.style.left = event.clientX + 'px';
+      ghost.style.top = event.clientY + 'px';
+      if (drag.near && drag.stillSince && now - drag.stillSince > 460) {
+        const caught = drag.id;
+        stopDrag();
+        catchBlock(caught);
+      }
+    }
+
+    function endDrag(id) {
+      if (arming && arming.id === id && !drag) {
+        const scrolling = arming.scrolling;
+        arming = null;
+        if (!scrolling) offer(id);
+        return;
+      }
+      if (!drag || drag.id !== id) return;
+      const info = drag;
+      stopDrag();
+      if (info.moved < 8 || info.near) offer(id);
+      else {
+        byId[id].state = 'todo';
+        renderStatus();
+        updateCue();
+      }
+    }
+
+    function cancelDrag(id) {
+      if (arming && arming.id === id && !drag) { arming = null; return; }
+      if (!drag || drag.id !== id) return;
+      stopDrag();
+      if (byId[id].state !== 'page') byId[id].state = 'todo';
+      renderStatus();
+      updateCue();
+      draw();
+    }
+
+    function stopDrag() {
+      drag = null;
+      arming = null;
+      ghost.hidden = true;
+    }
+
+    function offer(id) {
+      if (phase === 'shipped' || carry || byId[id].state === 'page') return;
+      byId[id].state = 'hand';
+      renderStatus();
+      catchBlock(id);
+    }
+
+    function catchBlock(id) {
+      if (carry || byId[id].state === 'page') return;
+      stopDrag();
+      byId[id].state = 'hand';
+      if (reduced) {
+        reveal(id);
+        return;
+      }
+      carry = { id, t: 0 };
+      renderStatus();
+      say('Caught it!');
+      kick();
+    }
+
+    function reveal(id) {
+      byId[id].state = 'page';
+      sheet.querySelector('[data-id="' + id + '"]').hidden = false;
+      renderStatus();
+      if (remaining() === 0) {
+        phase = 'ready';
+        ship.disabled = false;
+        say('Page complete. Press Ship it');
+      } else if (onlyFormLeft()) {
+        say('Placing the form');
+      } else {
+        say(remaining() + ' to place');
+      }
+    }
+
+    function finishCarry() {
+      const id = carry.id;
+      carry = null;
+      reveal(id);
+    }
+
+    function updateCue() {
+      if (phase === 'shipped') return say(shippedCue);
+      if (phase === 'ready') return say('Page complete. Press Ship it');
+      if (drag) return say(drag.near ? "Hold it still and I'll take it" : 'Bring it closer');
+      if (onlyFormLeft()) return say('Placing the form');
+      if (carry) return say('Caught it!');
+      if (remaining()) return say('Drag a block to the hand');
+      say('Page complete. Press Ship it');
+    }
+
+    function desiredPalm() {
+      if (carry) {
+        const from = grabPoint();
+        const to = slotPoint(carry.id);
+        const t = carry.t * carry.t * (3 - 2 * carry.t);
+        return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+      }
+      const grab = grabPoint();
+      if (drag && drag.near) return { x: (grab.x * 2 + drag.x) / 3, y: (grab.y * 2 + drag.y) / 3 };
+      if (!reduced) return { x: grab.x, y: grab.y + Math.sin(performance.now() / 700) * 5 };
+      return grab;
+    }
+
+    function followPalm() {
+      const target = desiredPalm();
+      if (!palm.ready || reduced) {
+        palm.x = target.x;
+        palm.y = target.y;
+        palm.ready = true;
+      } else {
+        palm.x += (target.x - palm.x) * 0.2;
+        palm.y += (target.y - palm.y) * 0.2;
+      }
+      const want = carry ? (carry.t > 0.84 ? 1 : 0.08) : 1;
+      open += (want - open) * (reduced ? 1 : 0.2);
+    }
+
+    function solve(target) {
+      const stageRect = stage.getBoundingClientRect();
+      const shoulder = { x: stageRect.width + 20, y: target.y + 8 };
+      const elbow = { x: target.x + (shoulder.x - target.x) * 0.58, y: target.y - 26 };
+      return { shoulder, elbow, wrist: target };
+    }
+
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function drawLimb(a, b, width, color) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+
+    function draw() {
+      const width = stage.clientWidth;
+      const height = stage.clientHeight;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      followPalm();
+      const pose = solve(palm);
+      drawLimb(pose.shoulder, pose.elbow, 18, '#d9d0c3');
+      drawLimb(pose.elbow, pose.wrist, 16, '#f4efe6');
+      for (const joint of [pose.elbow, pose.wrist]) {
+        ctx.fillStyle = '#2c2824';
+        ctx.beginPath();
+        ctx.arc(joint.x, joint.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.save();
+      ctx.translate(pose.wrist.x, pose.wrist.y);
+      const curl = (1 - open) * 28;
+      function finger(x1, y1, x2, y2) {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#2c2824';
+      ctx.lineWidth = 8;
+      for (let i = 0; i < 4; i++) finger(-62, -16 + i * 11, -118 + curl, -22 + i * 14);
+      finger(-20, -24, -58 + curl * 0.4, -52 - open * 6);
+      ctx.strokeStyle = '#f7f3ec';
+      ctx.lineWidth = 5;
+      for (let i = 0; i < 4; i++) finger(-62, -16 + i * 11, -118 + curl, -22 + i * 14);
+      finger(-20, -24, -58 + curl * 0.4, -52 - open * 6);
+      ctx.fillStyle = '#f7f3ec';
+      ctx.strokeStyle = '#2c2824';
+      ctx.lineWidth = 2;
+      roundRect(-74, -28, 78, 56, 16);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      if (carry) {
+        ctx.fillStyle = '#fffdf8';
+        ctx.strokeStyle = '#e4ddd0';
+        ctx.lineWidth = 1;
+        roundRect(pose.wrist.x - 54, pose.wrist.y - 58, 108, 44, 10);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#1c1b19';
+        ctx.font = '700 14px system-ui, sans-serif';
+        ctx.fillText(byId[carry.id].name, pose.wrist.x - 36, pose.wrist.y - 32);
+      }
+    }
+
+    function resize() {
+      const rect = stage.getBoundingClientRect();
+      dpr = Math.min(2, devicePixelRatio || 1);
+      canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      draw();
+    }
+
+    function frame(now) {
+      const dt = Math.min(34, now - last);
+      last = now;
+      if (carry) {
+        carry.t += dt / 900;
+        if (carry.t >= 1) finishCarry();
+      }
+      if (drag && drag.near && drag.stillSince && now - drag.stillSince > 460) {
+        const id = drag.id;
+        stopDrag();
+        catchBlock(id);
+      }
+      updateCue();
+      draw();
+      raf = reduced ? 0 : requestAnimationFrame(frame);
+    }
+
+    function kick() {
+      updateCue();
+      if (reduced) { draw(); return; }
+      if (!raf) raf = requestAnimationFrame(frame);
+    }
+
+    renderStatus();
+    resize();
+    kick();
+  </script>
+</body>
+</html>
