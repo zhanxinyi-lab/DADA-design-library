@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>浅色灯珠进度条</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #070608;
+    --track: #120c0f;
+    --unlit: #221418;
+    --ink: #fff4f6;
+    --ink-on: #3a1018;
+    --pink: #e23b66;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    min-height: 100%;
+    background:
+      radial-gradient(1200px 420px at 50% 42%, rgba(120, 24, 48, 0.18), transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  }
+  main {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 28px;
+    padding: 28px 20px 36px;
+  }
+  .stage { width: min(920px, 100%); margin: 0 auto; }
+  .track {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 92px;
+    padding: 0 18px 0 16px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #1a1014, var(--track));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 220, 226, 0.08),
+      inset 0 -12px 24px rgba(0, 0, 0, 0.35),
+      0 24px 60px rgba(0, 0, 0, 0.35);
+    touch-action: none;
+    cursor: ew-resize;
+    outline: none;
+  }
+  .track:focus-visible {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 220, 226, 0.08),
+      0 0 0 3px #070608,
+      0 0 0 6px #ff8aa3;
+  }
+  .glow {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    height: 140%;
+    width: 0;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(255, 70, 110, 0.08), rgba(255, 120, 150, 0.55));
+    filter: blur(16px);
+    pointer-events: none;
+  }
+  .lamps {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: calc(100% - 78px);
+    height: 100%;
+  }
+  .lamp {
+    --a: 0;
+    flex: 1 1 0;
+    height: 58%;
+    min-width: 0;
+    border-radius: 999px;
+    background:
+      linear-gradient(180deg, rgb(255 236 241 / var(--a)), rgb(255 92 132 / calc(var(--a) * 0.92)) 46%, rgb(196 28 72 / var(--a))),
+      var(--unlit);
+    box-shadow:
+      0 0 calc(14px * var(--a)) rgb(255 50 90 / calc(var(--a) * 0.72)),
+      inset 0 1px 0 rgb(255 255 255 / calc(0.08 + var(--a) * 0.55));
+  }
+  .lamp.lead { filter: brightness(1.18); }
+  .pct {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    min-width: 3.2em;
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    font-size: clamp(16px, 2.4vw, 22px);
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+  }
+  .pct.on-light {
+    color: var(--ink-on);
+    text-shadow: none;
+  }
+  .controls {
+    width: min(920px, 100%);
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 18px;
+    color: rgba(255, 236, 240, 0.72);
+    font-size: 14px;
+  }
+  .controls label { display: flex; align-items: center; gap: 10px; flex: 1 1 220px; }
+  input[type="range"] {
+    flex: 1;
+    accent-color: var(--pink);
+    min-width: 120px;
+  }
+  button {
+    appearance: none;
+    border: 1px solid rgba(255, 180, 196, 0.28);
+    background: transparent;
+    color: inherit;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: inherit;
+    cursor: pointer;
+  }
+  button:focus-visible { outline: 2px solid #ff8aa3; outline-offset: 2px; }
+  .note {
+    width: min(920px, 100%);
+    margin: -8px auto 0;
+    color: rgba(255, 236, 240, 0.46);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  @media (max-width: 640px) {
+    .track { height: 64px; padding-right: 12px; }
+    .lamps { width: calc(100% - 68px); gap: 3px; }
+    .lamp { height: 52%; }
+    .controls { font-size: 13px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .glow { filter: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="stage">
+    <div class="track" id="track" role="slider" tabindex="0" aria-label="灯珠进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="0%">
+      <div class="glow" id="glow"></div>
+      <div class="lamps" id="lamps"></div>
+      <span class="pct" id="pct">0%</span>
+    </div>
+  </div>
+  <div class="controls">
+    <label>进度
+      <input id="slider" type="range" min="0" max="100" value="0" aria-label="进度百分比">
+    </label>
+    <button type="button" id="play">暂停</button>
+  </div>
+  <p class="note">方向键改一格，Home / End 到两端。点按或拖动灯带会停下自动播放。</p>
+</main>
+<script>
+(function () {
+  var lampsEl = document.getElementById("lamps");
+  var track = document.getElementById("track");
+  var pctEl = document.getElementById("pct");
+  var glow = document.getElementById("glow");
+  var slider = document.getElementById("slider");
+  var playBtn = document.getElementById("play");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var lamps = [];
+  var value = 0;
+  var playing = !reduce.matches;
+  var started = 0;
+  var raf = 0;
+  var pointerId = null;
+
+  function lampCount() {
+    var width = lampsEl.clientWidth || track.clientWidth - 90;
+    return Math.max(16, Math.min(40, Math.floor(width / 18)));
+  }
+
+  function build() {
+    var count = lampCount();
+    if (count === lamps.length) return;
+    lampsEl.replaceChildren();
+    lamps = [];
+    for (var i = 0; i < count; i++) {
+      var el = document.createElement("span");
+      el.className = "lamp";
+      lampsEl.appendChild(el);
+      lamps.push(el);
+    }
+  }
+
+  function render(next) {
+    value = Math.max(0, Math.min(1, next));
+    var lit = value * lamps.length;
+    var lead = Math.floor(lit);
+    for (var i = 0; i < lamps.length; i++) {
+      var amount = 0;
+      if (i < lead) amount = 1;
+      else if (i === lead) amount = lit - lead;
+      lamps[i].style.setProperty("--a", amount.toFixed(3));
+      lamps[i].classList.toggle("lead", amount > 0.08 && amount < 0.98);
+    }
+    var percent = Math.round(value * 100);
+    pctEl.textContent = percent + "%";
+    var travel = Math.min(0.9, Math.max(0.04, value));
+    pctEl.style.left = "calc(" + (travel * 100).toFixed(2) + "% )";
+    if (percent > 86) pctEl.style.left = "calc(100% - 4.4em)";
+    pctEl.classList.toggle("on-light", value > 0.72);
+    glow.style.width = Math.max(36, value * (track.clientWidth - 28)) + "px";
+    track.setAttribute("aria-valuenow", String(percent));
+    track.setAttribute("aria-valuetext", percent + "%");
+    if (String(percent) !== slider.value) slider.value = String(percent);
+    playBtn.textContent = playing ? "暂停" : "播放";
+  }
+
+  function demoAt(now) {
+    var cycle = 7600;
+    var u = ((now - started) % cycle) / cycle;
+    var tri = u < 0.58 ? u / 0.58 : 1 - (u - 0.58) / 0.42;
+    var s = tri * tri * (3 - 2 * tri);
+    return s;
+  }
+
+  function frame(now) {
+    if (!playing) return;
+    render(demoAt(now));
+    raf = requestAnimationFrame(frame);
+  }
+
+  function play() {
+    if (reduce.matches && !playBtn.dataset.allow) return;
+    playing = true;
+    started = performance.now() - demoAtInverse(value) * 7600;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(frame);
+    render(value);
+  }
+
+  function demoAtInverse(target) {
+    var lo = 0;
+    var hi = 0.58;
+    for (var i = 0; i < 16; i++) {
+      var mid = (lo + hi) / 2;
+      var tri = mid / 0.58;
+      var s = tri * tri * (3 - 2 * tri);
+      if (s < target) lo = mid;
+      else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
+  function pause() {
+    playing = false;
+    cancelAnimationFrame(raf);
+    render(value);
+  }
+
+  function setUser(next) {
+    pause();
+    render(next);
+  }
+
+  slider.addEventListener("input", function () {
+    setUser(Number(slider.value) / 100);
+  });
+  playBtn.addEventListener("click", function () {
+    if (playing) pause();
+    else {
+      playBtn.dataset.allow = "1";
+      play();
+    }
+  });
+
+  function pointerValue(event) {
+    var rect = track.getBoundingClientRect();
+    return (event.clientX - rect.left) / rect.width;
+  }
+  track.addEventListener("pointerdown", function (event) {
+    pointerId = event.pointerId;
+    track.setPointerCapture(pointerId);
+    setUser(pointerValue(event));
+  });
+  track.addEventListener("pointermove", function (event) {
+    if (pointerId !== event.pointerId) return;
+    setUser(pointerValue(event));
+  });
+  function endPointer(event) {
+    if (pointerId !== event.pointerId) return;
+    pointerId = null;
+  }
+  track.addEventListener("pointerup", endPointer);
+  track.addEventListener("pointercancel", endPointer);
+  track.addEventListener("keydown", function (event) {
+    var step = event.shiftKey ? 0.1 : 1 / Math.max(lamps.length, 1);
+    if (event.key === "ArrowRight" || event.key === "ArrowUp") setUser(value + step);
+    else if (event.key === "ArrowLeft" || event.key === "ArrowDown") setUser(value - step);
+    else if (event.key === "Home") setUser(0);
+    else if (event.key === "End") setUser(1);
+    else if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      playBtn.click();
+      return;
+    } else return;
+    event.preventDefault();
+  });
+
+  window.addEventListener("resize", function () {
+    build();
+    render(value);
+  });
+  reduce.addEventListener("change", function () {
+    if (reduce.matches) {
+      delete playBtn.dataset.allow;
+      pause();
+      render(0.64);
+    } else play();
+  });
+
+  build();
+  if (playing) play();
+  else render(0.64);
+})();
+</script>
+</body>
+</html>
