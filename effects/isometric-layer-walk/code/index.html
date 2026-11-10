@@ -42,7 +42,17 @@
     }
     .slot { grid-column: 2; height: 92px; position: relative; }
     .card { margin: 0; max-width: 340px; }
-    .card h2 { margin: 0 0 6px; font-size: 15px; line-height: 1.2; font-weight: 680; }
+    .card h2 {
+      margin: 0 0 6px;
+      color: #35353a;
+      font-size: 15px;
+      line-height: 1.2;
+      font-weight: 400;
+    }
+    .card[aria-current="true"] h2 {
+      color: #141727;
+      font-weight: 700;
+    }
     .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
     .row[data-side="left"] .card { grid-column: 1; justify-self: end; text-align: right; }
     .row[data-side="right"] .card { grid-column: 3; justify-self: start; }
@@ -121,7 +131,7 @@
     <div class="scene" id="scene">
       <div class="row" data-side="right">
         <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
-        <article class="card">
+        <article class="card" aria-current="true">
           <h2>第 1 层</h2>
           <p>高亮从最上层开始。</p>
         </article>
