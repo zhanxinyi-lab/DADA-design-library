@@ -6,88 +6,30 @@
   <title>侧栏过渡实验</title>
   <style>
     :root {
-      --paper: #f3efe6;
-      --ink: #1c2430;
-      --rail: #243244;
-      --rail-ink: #f7f4ee;
-      --muted: #5d6b7c;
-      --line: #e4ddd0;
-      --card: #fffdf8;
-      --accent: #d86a3a;
-      --closed: 76px;
-      --open: 228px;
+      --paper: #f6f5f2;
+      --ink: #1c1c1c;
+      --muted: #5e615c;
+      --line: #dedcd6;
+      --card: #fffcf7;
+      --rail: #fbfaf7;
+      --accent: #c4552a;
       --focus: 2px solid var(--accent);
+      --closed: 72px;
+      --open: 248px;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; }
     body {
       background: var(--paper);
       color: var(--ink);
-      font: 16px/1.5 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font: 16px/1.45 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     }
-    .page {
-      min-height: 100%;
-      display: grid;
-      grid-template-rows: auto 1fr;
-    }
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px 16px;
-      align-items: center;
-      padding: 16px;
-      border-bottom: 1px solid var(--line);
-    }
-    fieldset {
-      margin: 0;
-      padding: 4px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      display: flex;
-      gap: 4px;
-      background: var(--card);
-    }
-    legend {
-      padding: 0 6px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    fieldset label {
-      min-height: 44px;
-      min-width: 44px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 12px;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    fieldset input { position: absolute; opacity: 0; pointer-events: none; }
-    fieldset label:has(input:checked) { background: var(--ink); color: var(--paper); }
-    fieldset label:has(input:focus-visible) { outline: var(--focus); outline-offset: 2px; }
-    button, input[type="range"] { font: inherit; }
-    .toggle, .scrub-label {
-      min-height: 44px;
-      border: 1px solid var(--line);
-      background: var(--card);
-      border-radius: 12px;
-      padding: 0 14px;
-    }
-    .toggle { cursor: pointer; }
-    .toggle:focus-visible, input[type="range"]:focus-visible { outline: var(--focus); outline-offset: 2px; }
-    .scrub-label { display: inline-flex; align-items: center; gap: 10px; }
-    .scrub-label[hidden] { display: none; }
-    input[type="range"] { width: min(220px, 46vw); accent-color: var(--accent); }
-    .hint { margin: 0; color: var(--muted); font-size: 14px; flex: 1 1 220px; }
-    .stage {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      min-height: 0;
-    }
+    .page { min-height: 100%; display: grid; grid-template-rows: 1fr auto; }
+    .stage { display: grid; grid-template-columns: auto 1fr; min-height: 0; }
     .rail {
       width: calc(var(--closed) + (var(--open) - var(--closed)) * var(--p, 1));
       background: var(--rail);
-      color: var(--rail-ink);
+      border-right: 1px solid var(--line);
       position: relative;
       display: flex;
       flex-direction: column;
@@ -108,24 +50,20 @@
       background: var(--accent);
       flex: none;
     }
-    .brand b {
-      opacity: var(--p, 1);
-      overflow: hidden;
-    }
-    .items { list-style: none; margin: 8px 0; padding: 0; }
-    .items li { display: block; }
+    .brand b { opacity: var(--p, 1); overflow: hidden; }
+    .items { list-style: none; margin: 4px 0 12px; padding: 0; }
     .row {
       display: grid;
-      grid-template-columns: 28px calc(var(--ip, 1) * 8.2rem);
+      grid-template-columns: 28px minmax(0, 1fr);
       align-items: center;
       gap: 10px;
-      min-height: 48px;
-      margin: 0 12px;
+      min-height: 44px;
+      margin: 0 10px;
       padding: 0 8px;
       border-radius: 10px;
       overflow: hidden;
     }
-    .row svg { width: 22px; height: 22px; flex: none; }
+    .row svg { width: 22px; height: 22px; }
     .row span {
       opacity: var(--ip, 1);
       transform: translateX(calc((1 - var(--ip, 1)) * -8px));
@@ -134,8 +72,8 @@
     .edge {
       position: absolute;
       top: 0;
-      right: -18px;
-      width: 36px;
+      right: -22px;
+      width: 44px;
       height: 100%;
       border: 0;
       padding: 0;
@@ -148,37 +86,103 @@
       position: absolute;
       top: 18px;
       bottom: 18px;
-      left: 16px;
+      left: 20px;
       width: 4px;
       border-radius: 4px;
       background: var(--accent);
     }
-    .edge:focus-visible { outline: var(--focus); outline-offset: -4px; }
+    .edge:focus-visible { outline: var(--focus); outline-offset: -6px; }
     .edge[hidden] { display: none; }
-    .main { padding: 28px 22px; min-width: 0; }
+    .main { padding: 28px 22px 20px; min-width: 0; }
     .main h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: -0.03em; }
     .main p { margin: 0 0 16px; max-width: 62ch; }
-    .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
     .card {
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 16px;
       padding: 16px;
-      min-height: 112px;
+      min-height: 96px;
     }
     .card b { display: block; margin-bottom: 6px; }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      align-items: center;
+      padding: 12px 16px;
+      border-top: 1px solid var(--line);
+      background: var(--card);
+    }
+    fieldset {
+      margin: 0;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      display: flex;
+      gap: 4px;
+      background: var(--paper);
+    }
+    legend { padding: 0 6px; font-size: 12px; color: var(--muted); }
+    fieldset label {
+      min-height: 44px;
+      min-width: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    fieldset input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+    }
+    fieldset label:has(input:checked) { background: var(--ink); color: var(--paper); }
+    fieldset label:has(input:focus-visible) { outline: var(--focus); outline-offset: 2px; }
+    button, input[type="range"] { font: inherit; }
+    .toggle, .scrub-label {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      border-radius: 12px;
+      padding: 0 14px;
+    }
+    .toggle { cursor: pointer; }
+    .toggle:focus-visible, input[type="range"]:focus-visible { outline: var(--focus); outline-offset: 2px; }
+    .scrub-label { display: inline-flex; align-items: center; gap: 10px; }
+    .scrub-label[hidden], .toggle[hidden] { display: none; }
+    input[type="range"] { width: min(220px, 46vw); accent-color: var(--accent); touch-action: none; }
+    .hint { margin: 0; color: var(--muted); font-size: 14px; flex: 1 1 220px; }
     .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
     @media (max-width: 720px) {
-      .stage { grid-template-columns: 1fr; }
-      .rail { min-height: auto; width: 100%; }
-      .edge { display: none; }
-      h1 { font-size: 24px; }
+      .main { padding: 20px 16px; }
+      .main h1 { font-size: 22px; }
     }
   </style>
 </head>
 <body>
   <div class="page">
-    <div class="toolbar">
+    <div class="stage">
+      <aside class="rail" id="rail">
+        <div class="brand"><i class="mark" aria-hidden="true"></i><b>田间记录</b></div>
+        <ul class="items" id="items"></ul>
+        <button type="button" class="edge" id="edge" hidden aria-label="拖动侧栏边缘，左右键微调"></button>
+      </aside>
+      <main class="main">
+        <h1>三种收放</h1>
+        <p id="copy">整栏共用一条缓出。点「收起侧栏」，图标和文字一起进去，宽度大约要 0.76 秒。</p>
+        <div class="cards">
+          <article class="card"><b>上午</b>把三块田的湿度记在同一列里。</article>
+          <article class="card"><b>中午</b>队列里还有两张没核对的单。</article>
+          <article class="card"><b>傍晚</b>成员按自己的节奏补备注。</article>
+        </div>
+      </main>
+    </div>
+    <div class="controls">
       <fieldset>
         <legend>过渡</legend>
         <label><input type="radio" name="mode" value="ease" checked>缓出</label>
@@ -188,25 +192,9 @@
       <button type="button" class="toggle" id="toggle" aria-expanded="true">收起侧栏</button>
       <label class="scrub-label" id="scrubLabel" hidden>
         开合
-        <input id="scrub" type="range" min="0" max="100" value="100" disabled>
+        <input id="scrub" type="range" min="0" max="100" value="100" disabled aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
       </label>
-      <p class="hint" id="hint">缓出：整栏一起变化，大约半秒。</p>
-    </div>
-    <div class="stage">
-      <aside class="rail" id="rail" style="--p:1">
-        <div class="brand"><i class="mark"></i><b>田间记录</b></div>
-        <ul class="items" id="items"></ul>
-        <button type="button" class="edge" id="edge" hidden aria-label="拖动侧栏边缘"></button>
-      </aside>
-      <main class="main">
-        <h1>三种收放</h1>
-        <p id="copy">整栏共用一条缓出曲线。点「收起侧栏」，图标和文字一起进去。</p>
-        <div class="cards">
-          <article class="card"><b>上午</b>把三块田的湿度记在同一列里。</article>
-          <article class="card"><b>中午</b>队列里还有两张没核对的单。</article>
-          <article class="card"><b>傍晚</b>成员按自己的节奏补备注。</article>
-        </div>
-      </main>
+      <p class="hint" id="hint">缓出：整栏一起变化，大约 0.76 秒。</p>
     </div>
   </div>
   <p class="sr" id="live" aria-live="polite"></p>
@@ -221,14 +209,14 @@
         ["设置", "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 3v2M12 19v2M3 12h2M19 12h2"]
       ];
       const COPY = {
-        ease: "整栏共用一条缓出曲线。点「收起侧栏」，图标和文字一起进去。",
-        cascade: "每一行比上一行晚大约 60 毫秒。收起和展开都是上面先动。",
-        scrub: "按住橙色边缘左右拖，或移动滑杆。松手后停在当前位置，不会自己播完。"
+        ease: "整栏共用一条缓出。点「收起侧栏」，图标和文字一起进去，宽度大约要 0.76 秒。",
+        cascade: "文字从上往下错开，大约每行 40 毫秒。侧栏宽度另走一条大约 1.1 秒的缓出，展开时不会先撑满。",
+        scrub: "按住橙色边缘左右拖，或移动滑杆。可以停在半开，松手后停在原地。"
       };
       const HINT = {
-        ease: "缓出：整栏一起变化，大约半秒。",
-        cascade: "依次：六行从上到下错开。",
-        scrub: "跟手：拖边缘或滑杆，进度跟着指针。"
+        ease: "缓出：整栏一起变化，大约 0.76 秒。",
+        cascade: "依次：六行从上到下错开，宽度比文字收得更慢。",
+        scrub: "跟手：拖边缘或滑杆。方向键可微调，不会自己播完。"
       };
       const rail = document.getElementById("rail");
       const list = document.getElementById("items");
@@ -239,66 +227,88 @@
       const hint = document.getElementById("hint");
       const copy = document.getElementById("copy");
       const live = document.getElementById("live");
-      const radios = [...document.querySelectorAll('input[name="mode"]')];
-      const rows = ITEMS.map(([name, d], index) => {
+      const radios = Array.prototype.slice.call(document.querySelectorAll('input[name="mode"]'));
+      const rows = ITEMS.map(function (item) {
         const li = document.createElement("li");
         const row = document.createElement("div");
         row.className = "row";
         row.style.setProperty("--ip", "1");
-        row.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="' + d + '"/></svg><span></span>';
-        row.querySelector("span").textContent = name;
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "1.8");
+        svg.setAttribute("aria-hidden", "true");
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", item[1]);
+        svg.appendChild(path);
+        const span = document.createElement("span");
+        span.textContent = item[0];
+        row.appendChild(svg);
+        row.appendChild(span);
         li.appendChild(row);
         list.appendChild(li);
         return row;
       });
 
       const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const narrowQ = window.matchMedia("(max-width: 720px)");
       let mode = "ease";
-      let itemP = rows.map(() => 1);
+      let widthP = 1;
+      let itemP = rows.map(function () { return 1; });
       let frame = 0;
       let dragging = false;
 
       function reduced() { return motion.matches; }
       function clamp(n) { return Math.max(0, Math.min(1, n)); }
       function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
-
-      function paint() {
-        const widthP = Math.max(...itemP);
-        rail.style.setProperty("--p", String(widthP));
-        rows.forEach((row, i) => row.style.setProperty("--ip", String(itemP[i])));
-        const open = widthP > 0.5;
-        toggle.setAttribute("aria-expanded", String(open));
-        toggle.textContent = open ? "收起侧栏" : "展开侧栏";
-        scrub.value = String(Math.round(itemP[0] * 100));
+      function metrics() {
+        if (narrowQ.matches) return { closed: 56, open: Math.min(window.innerWidth * 0.58, 200) };
+        return { closed: 72, open: 248 };
       }
-
+      function paint() {
+        const size = metrics();
+        rail.style.setProperty("--closed", size.closed + "px");
+        rail.style.setProperty("--open", size.open + "px");
+        rail.style.setProperty("--p", String(widthP));
+        rows.forEach(function (row, i) { row.style.setProperty("--ip", String(itemP[i])); });
+        const open = widthP > 0.5;
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        toggle.textContent = open ? "收起侧栏" : "展开侧栏";
+        const pct = Math.round(widthP * 100);
+        scrub.value = String(pct);
+        scrub.setAttribute("aria-valuenow", String(pct));
+      }
       function say(text) { live.textContent = text; }
-
-      function jump(values) {
+      function jump(value) {
         cancelAnimationFrame(frame);
-        itemP = values.slice();
+        widthP = value;
+        itemP = rows.map(function () { return value; });
         paint();
       }
-
       function animate(to) {
         cancelAnimationFrame(frame);
-        const from = itemP.slice();
-        const dur = reduced() ? 0 : (mode === "cascade" ? 340 : 520);
-        const gap = reduced() || mode !== "cascade" ? 0 : 60;
+        const fromW = widthP;
+        const fromI = itemP.slice();
+        const widthDur = reduced() ? 0 : (mode === "cascade" ? 1100 : 760);
+        const itemDur = reduced() ? 0 : (mode === "cascade" ? 200 : 760);
+        const gap = reduced() || mode !== "cascade" ? 0 : 40;
+        const total = Math.max(widthDur, itemDur + gap * (rows.length - 1));
         const t0 = performance.now();
-        const tick = (now) => {
+        const tick = function (now) {
           const elapsed = now - t0;
-          itemP = from.map((start, i) => {
-            const local = dur === 0 ? 1 : clamp((elapsed - i * gap) / dur);
+          const wLocal = widthDur === 0 ? 1 : clamp(elapsed / widthDur);
+          widthP = fromW + (to - fromW) * easeOut(wLocal);
+          itemP = fromI.map(function (start, i) {
+            const local = itemDur === 0 ? 1 : clamp((elapsed - i * gap) / itemDur);
             return start + (to - start) * easeOut(local);
           });
           paint();
-          if (elapsed < dur + gap * (rows.length - 1)) frame = requestAnimationFrame(tick);
+          if (elapsed < total) frame = requestAnimationFrame(tick);
           else say(to > 0.5 ? "侧栏已展开" : "侧栏已收起");
         };
         frame = requestAnimationFrame(tick);
       }
-
       function setMode(next) {
         mode = next;
         hint.textContent = HINT[next];
@@ -306,65 +316,57 @@
         const scrubOn = next === "scrub";
         scrubLabel.hidden = !scrubOn;
         scrub.disabled = !scrubOn;
-        edge.hidden = !scrubOn || window.matchMedia("(max-width: 720px)").matches;
+        edge.hidden = !scrubOn;
         toggle.hidden = scrubOn;
         cancelAnimationFrame(frame);
         paint();
       }
-
-      radios.forEach((input) => {
-        input.addEventListener("change", () => { if (input.checked) setMode(input.value); });
+      radios.forEach(function (input) {
+        input.addEventListener("change", function () { if (input.checked) setMode(input.value); });
       });
-
-      toggle.addEventListener("click", () => {
+      toggle.addEventListener("click", function () {
         if (mode === "scrub") return;
-        const opening = Math.max(...itemP) <= 0.5;
-        animate(opening ? 1 : 0);
+        animate(widthP <= 0.5 ? 1 : 0);
       });
-
-      scrub.addEventListener("input", () => {
+      scrub.addEventListener("input", function () {
         if (mode !== "scrub") return;
-        const value = Number(scrub.value) / 100;
-        jump(rows.map(() => value));
+        jump(Number(scrub.value) / 100);
       });
-
       function pointerProgress(event) {
         const rect = rail.getBoundingClientRect();
-        const closed = 76;
-        const open = 228;
-        return clamp((event.clientX - rect.left - closed) / (open - closed));
+        const size = metrics();
+        return clamp((event.clientX - rect.left - size.closed) / (size.open - size.closed));
       }
-
-      edge.addEventListener("pointerdown", (event) => {
+      edge.addEventListener("pointerdown", function (event) {
         if (mode !== "scrub") return;
         edge.setPointerCapture(event.pointerId);
         dragging = true;
-        jump(rows.map(() => pointerProgress(event)));
+        jump(pointerProgress(event));
       });
-      edge.addEventListener("pointermove", (event) => {
+      edge.addEventListener("pointermove", function (event) {
         if (!dragging) return;
-        jump(rows.map(() => pointerProgress(event)));
+        jump(pointerProgress(event));
       });
-      edge.addEventListener("pointerup", () => {
+      function endDrag() {
+        if (!dragging) return;
         dragging = false;
-        say(Math.max(...itemP) > 0.5 ? "侧栏停在偏开" : "侧栏停在偏收");
-      });
-      edge.addEventListener("keydown", (event) => {
+        say(widthP > 0.5 ? "侧栏停在偏开" : "侧栏停在偏收");
+      }
+      edge.addEventListener("pointerup", endDrag);
+      edge.addEventListener("pointercancel", endDrag);
+      edge.addEventListener("keydown", function (event) {
         if (mode !== "scrub") return;
         const step = event.shiftKey ? 0.2 : 0.08;
-        if (event.key === "ArrowRight" || event.key === "ArrowUp") jump(rows.map(() => clamp(itemP[0] + step)));
-        else if (event.key === "ArrowLeft" || event.key === "ArrowDown") jump(rows.map(() => clamp(itemP[0] - step)));
-        else if (event.key === "Home") jump(rows.map(() => 0));
-        else if (event.key === "End") jump(rows.map(() => 1));
+        if (event.key === "ArrowRight" || event.key === "ArrowUp") jump(clamp(widthP + step));
+        else if (event.key === "ArrowLeft" || event.key === "ArrowDown") jump(clamp(widthP - step));
+        else if (event.key === "Home") jump(0);
+        else if (event.key === "End") jump(1);
         else return;
         event.preventDefault();
+        say("侧栏开合 " + Math.round(widthP * 100) + "%");
       });
-
-      motion.addEventListener("change", () => {
-        cancelAnimationFrame(frame);
-        paint();
-      });
-      window.addEventListener("resize", () => setMode(mode));
+      motion.addEventListener("change", function () { cancelAnimationFrame(frame); paint(); });
+      window.addEventListener("resize", function () { paint(); });
       setMode("ease");
       paint();
     })();
