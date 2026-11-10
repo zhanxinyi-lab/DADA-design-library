@@ -122,36 +122,36 @@
       <div class="row" data-side="right">
         <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
         <article class="card">
-          <h2>Scenarios</h2>
-          <p>Plain files in your repo. A goal, a persona and what must never happen. Saggar writes the variations.</p>
+          <h2>第 1 层</h2>
+          <p>高亮从最上层开始。</p>
         </article>
       </div>
       <div class="row" data-side="left">
         <article class="card">
-          <h2>Personas</h2>
-          <p>Impatient, confused, adversarial, multilingual. Simulated users that behave like your worst Tuesday.</p>
+          <h2>第 2 层</h2>
+          <p>高亮下移到这一层。</p>
         </article>
         <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
       </div>
       <div class="row" data-side="right">
         <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
         <article class="card">
-          <h2>The firing</h2>
-          <p>Thousands of conversations run in parallel against sandboxed tools. Nothing touches real data.</p>
+          <h2>第 3 层</h2>
+          <p>高亮停在中间。</p>
         </article>
       </div>
       <div class="row" data-side="left">
         <article class="card">
-          <h2>Traces</h2>
-          <p>Every regression comes with the exact turn, the tool call and a diff against the last release that passed.</p>
+          <h2>第 4 层</h2>
+          <p>高亮继续下移。</p>
         </article>
         <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
       </div>
       <div class="row" data-side="right">
         <div class="slot"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
         <article class="card">
-          <h2>The gate</h2>
-          <p>Below the bar you set, the merge is held. Above it, ship with proof instead of hope.</p>
+          <h2>第 5 层</h2>
+          <p>高亮停在最底层。</p>
         </article>
       </div>
       <div class="hot" id="hot" aria-hidden="true"><div class="slab"><span class="top"></span><span class="depth"></span></div></div>
@@ -167,7 +167,7 @@
     const HOLD = 1600;
     const MOVE = 800;
     const LAST = 4;
-    const titles = ['Scenarios', 'Personas', 'The firing', 'Traces', 'The gate'];
+    const titles = ['第 1 层', '第 2 层', '第 3 层', '第 4 层', '第 5 层'];
     const scene = document.getElementById('scene');
     const hot = document.getElementById('hot');
     const slots = [...document.querySelectorAll('.slot')];
