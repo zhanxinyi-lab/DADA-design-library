@@ -3,7 +3,6 @@ title = "DADA"
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "VoiceOrbs gooey filter uses SVG SourceGraphic, which contains the sourcegraph keyword. The upstream commit SHA is 40 hex and otherwise matches that rule."
+[allowlist]
 regexTarget = "secret"
 regexes = ['''(?i)8b2799917734f52c9293a489e08982ca5b0187e9''']
