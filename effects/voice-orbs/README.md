@@ -8,7 +8,7 @@
 - 线上演示：https://voiceorbs.vercel.app/
 - 上游提交：8b2799917734f52c9293a489e08982ca5b0187e9（main，2026-09-28，`show advanced controls without a disclosure`）
 - 素材 ID：voice-orbs
-- 版本：1.0.0
+- 版本：1.0.1
 
 公开库 20 个光球，加上上游 `/drafts` 里已有实现、但没有放进首页的 3 个草稿（Radiance Orb、Dot Orbit、Duotone Flow）。预览不请求 voiceorbs.vercel.app。
 

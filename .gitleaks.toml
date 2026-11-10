@@ -5,4 +5,4 @@ useDefault = true
 
 [allowlist]
 regexTarget = "secret"
-regexes = ['''(?i)8b2799917734f52c9293a489e08982ca5b0187e9''']
+regexes = ['''(?i)^8b2799917734f52c9293a489e08982ca5b0187e9$''']
