@@ -135,9 +135,10 @@
       const h = view.h;
       const t = smooth(shown);
       const morph = Math.sin(Math.PI * shown);
-      const time = reduceMotion ? 0 : now * 0.001;
-      const burst = reduceMotion ? 0 : Math.pow(Math.max(0, Math.sin(time * 0.65)), 6);
-      const copperAmt = reduceMotion ? t : Math.min(1, t * 0.92 + (1 - t) * burst * 0.85 + morph * 0.35);
+      const still = reduceMotion || (target === 1 && shown >= 1);
+      const time = still ? 0 : now * 0.001;
+      const burst = still ? 0 : Math.pow(Math.max(0, Math.sin(time * 0.65)), 6);
+      const copperAmt = still ? t : Math.min(1, t * 0.92 + (1 - t) * burst * 0.85 + morph * 0.35);
 
       const top = mix(LIGHT_TOP, DARK_TOP, t);
       const bot = mix(LIGHT_BOT, DARK_BOT, t);
@@ -160,7 +161,7 @@
       const cy = h * 0.58;
       const margin = rx * 1.35 + 28;
       cx = Math.min(w - margin, Math.max(margin, cx));
-      const amp = reduceMotion ? 0 : 0.55 + morph * 1.05 + (1 - t) * burst * 0.35;
+      const amp = still ? 0 : (1 - t) * 0.55 + morph * 1.05 + (1 - t) * burst * 0.35;
       const fill = mix(BLACK, COPPER, copperAmt);
 
       ctx.save();
@@ -207,7 +208,7 @@
       else if (shown < target) shown = Math.min(target, shown + dt / 0.46);
       else if (shown > target) shown = Math.max(target, shown - dt / 0.46);
       draw(now);
-      if (reduceMotion) {
+      if (reduceMotion || (target === 1 && shown >= 1)) {
         running = false;
         return;
       }
