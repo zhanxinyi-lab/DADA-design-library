@@ -1,21 +1,8 @@
-title = "DADA design library"
+title = "DADA"
 
 [extend]
 useDefault = true
 
-# workflow_dispatch 会检出全部引用。gitleaks 8.24 的 sourcegraph 规则
-# 在命中关键词后，会把任意 40 位十六进制串也当成令牌。voice-orbs 里被扫到的
-# 是公开 git 提交号，不是 sgp_ 令牌。只在这两个文件上放行「整段恰好是 40 位
-# 十六进制」的命中；真正的 sgp_ 令牌仍然失败。
-[[rules]]
-id = "sourcegraph-access-token"
-
-[[rules.allowlists]]
-description = "Public git SHA recorded by voice-orbs, not a Sourcegraph token."
-condition = "AND"
+[allowlist]
 regexTarget = "secret"
-regexes = ['''(?i)^[a-f0-9]{40}$''']
-paths = [
-  '''(?:^|/)effects/voice-orbs/code/index\.html$''',
-  '''(?:^|/)effects/voice-orbs/code/upstream\.json$''',
-]
+regexes = ['''(?i)^8b2799917734f52c9293a489e08982ca5b0187e9$''']
