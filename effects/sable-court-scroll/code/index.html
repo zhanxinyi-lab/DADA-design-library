@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sable Court</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --yellow: #f6e568;
+      --ink: #241c14;
+      --cream: #f3f1ec;
+      --stone: #d7c4aa;
+      --stone-deep: #b08968;
+      --shadow: #3c342c;
+      --glass: #24303a;
+      --leaf: #3e5344;
+      --sky: #d5e3ea;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--cream); color: var(--ink); }
+    html { scrollbar-width: none; }
+    html::-webkit-scrollbar { display: none; }
+    body {
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+    .runway { height: 250vh; position: relative; background: var(--yellow); }
+    .pin {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background: var(--yellow);
+    }
+    .scene {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 145%;
+      will-change: transform;
+    }
+    .sky {
+      position: absolute;
+      inset: 0 0 58% 0;
+      background:
+        linear-gradient(180deg, #e7f0f3 0%, var(--sky) 55%, #c5d5df 100%);
+    }
+    .cloud {
+      position: absolute;
+      height: 7%;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .72);
+    }
+    .cloud-a { width: 18%; left: 12%; top: 10%; }
+    .cloud-b { width: 11%; left: 62%; top: 16%; }
+    .mass {
+      position: absolute;
+      left: 7%;
+      right: 7%;
+      top: 34%;
+      bottom: 8%;
+      background: linear-gradient(180deg, #e6d3bc 0%, var(--stone) 28%, #c8ad90 100%);
+      box-shadow: 0 18px 40px rgba(36, 28, 20, .16);
+    }
+    .wing {
+      position: absolute;
+      top: 18%;
+      bottom: 0;
+      width: 22%;
+      background: linear-gradient(180deg, #efe0cc, #c9ae92);
+    }
+    .wing-l { left: 0; }
+    .wing-r { right: 0; }
+    .court {
+      position: absolute;
+      left: 18%;
+      right: 18%;
+      top: 8%;
+      bottom: 12%;
+      background: #efe6da;
+    }
+    .windows {
+      position: absolute;
+      inset: 6% 7% 22%;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 7%;
+    }
+    .windows span {
+      background: linear-gradient(180deg, #8ea4b3, var(--glass) 45%, #141a20);
+      box-shadow: inset 0 0 0 2px rgba(255, 248, 230, .35);
+    }
+    .mullions {
+      position: absolute;
+      left: 6%;
+      right: 6%;
+      top: 26%;
+      height: 22%;
+      background: repeating-linear-gradient(90deg, #172027 0 22px, #e7d3b8 22px 34px);
+    }
+    .door {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      width: 14%;
+      height: 28%;
+      transform: translateX(-50%);
+      background: linear-gradient(180deg, #6b4a32, #2b211b);
+    }
+    .step {
+      position: absolute;
+      left: 18%;
+      right: 18%;
+      bottom: 0;
+      height: 7%;
+      background: #8d7964;
+    }
+    .tree {
+      position: absolute;
+      left: 16%;
+      bottom: 16%;
+      width: 9%;
+      height: 16%;
+      background: var(--leaf);
+      border-radius: 50% 50% 46% 46%;
+    }
+    .tree:before {
+      content: "";
+      position: absolute;
+      left: 46%;
+      top: 92%;
+      width: 8%;
+      height: 70%;
+      background: #5c4634;
+    }
+    .ground {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 8%;
+      background: #cfc3b2;
+    }
+    .veil {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      will-change: transform;
+    }
+    .veil-fill {
+      flex: 1;
+      background: var(--yellow);
+    }
+    .veil-word {
+      width: 100%;
+      aspect-ratio: 1400 / 230;
+      color: transparent;
+      font-size: 1px;
+      background: var(--yellow);
+      -webkit-mask-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1400 230'%3E%3Crect width='1400' height='230' fill='white'/%3E%3Ctext x='700' y='188' text-anchor='middle' font-size='168' font-family='Impact, Arial Black, sans-serif' fill='black' textLength='1320' lengthAdjust='spacing'%3ESABLE COURT%3C/text%3E%3C/svg%3E");
+      mask-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1400 230'%3E%3Crect width='1400' height='230' fill='white'/%3E%3Ctext x='700' y='188' text-anchor='middle' font-size='168' font-family='Impact, Arial Black, sans-serif' fill='black' textLength='1320' lengthAdjust='spacing'%3ESABLE COURT%3C/text%3E%3C/svg%3E");
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      mask-position: center;
+      -webkit-mask-size: 100% 100%;
+      mask-size: 100% 100%;
+      mask-mode: luminance;
+    }
+    .veil-foot {
+      height: 7vh;
+      background: var(--yellow);
+    }
+    .chapter {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      align-items: center;
+      padding: 10vh 6vw;
+      background: var(--cream);
+    }
+    .chapter-copy {
+      max-width: 36rem;
+    }
+    .kicker {
+      margin: 0 0 .6rem;
+      font-size: .78rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    h2 {
+      margin: 0;
+      font-family: "Arial Black", Impact, "Segoe UI", sans-serif;
+      font-size: clamp(2.2rem, 6vw, 5rem);
+      letter-spacing: -0.04em;
+      line-height: .9;
+    }
+    .chapter p { font-size: 1.05rem; line-height: 1.5; max-width: 34rem; }
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+      gap: 6vw;
+      align-items: center;
+      width: min(1100px, 100%);
+      margin: 0 auto;
+    }
+    .plan {
+      aspect-ratio: 4 / 5;
+      background: #e7e1d8;
+      position: relative;
+      overflow: hidden;
+    }
+    .plan-wall {
+      position: absolute;
+      background: var(--shadow);
+    }
+    .plan-wall-n { left: 8%; right: 8%; top: 8%; height: 3%; }
+    .plan-wall-s { left: 8%; right: 22%; bottom: 10%; height: 3%; }
+    .plan-wall-w { left: 8%; top: 8%; bottom: 10%; width: 3%; }
+    .plan-wall-e { right: 8%; top: 8%; bottom: 28%; width: 3%; }
+    .plan-court {
+      position: absolute;
+      left: 22%;
+      right: 22%;
+      top: 24%;
+      bottom: 26%;
+      background: #c9d3c4;
+    }
+    .plan-tree {
+      position: absolute;
+      width: 16%;
+      height: 13%;
+      border-radius: 50%;
+      background: var(--leaf);
+      left: 38%;
+      top: 42%;
+    }
+    .plan-room {
+      position: absolute;
+      right: 14%;
+      bottom: 16%;
+      width: 28%;
+      height: 22%;
+      background: #efe8dc;
+      box-shadow: inset 0 0 0 6px #d9cbb8;
+    }
+    .slats {
+      min-height: 100vh;
+      min-height: 100dvh;
+      position: relative;
+      overflow: hidden;
+      background: #1c1916;
+      color: #f6f1e8;
+      display: grid;
+      align-items: end;
+    }
+    .slat-row {
+      position: absolute;
+      inset: 0;
+      display: flex;
+    }
+    .slat-row i {
+      flex: 1;
+      background: linear-gradient(180deg, #f0d7b4 0%, #e7c89a 18%, #8d5b3c 55%, #2a211c 100%);
+    }
+    .slat-row i:nth-child(odd) { filter: brightness(.72); }
+    .slat-row i:nth-child(3n) { flex: 1.4; }
+    .slat-copy {
+      position: relative;
+      padding: 8vh 6vw;
+      max-width: 40rem;
+    }
+    .slat-copy h2 { color: #f6f1e8; }
+    .end {
+      min-height: 88vh;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background: var(--cream);
+      padding: 8vh 6vw;
+    }
+    .end strong {
+      display: block;
+      font-family: "Arial Black", Impact, "Segoe UI", sans-serif;
+      font-size: clamp(2rem, 6vw, 4.5rem);
+      letter-spacing: -0.05em;
+    }
+    .hint, .replay {
+      position: fixed;
+      z-index: 3;
+      font: 600 .78rem/1 "Segoe UI", Helvetica, Arial, sans-serif;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .hint {
+      left: 1.2rem;
+      bottom: 1.2rem;
+      color: var(--ink);
+    }
+    .replay {
+      right: 1.2rem;
+      bottom: 1.2rem;
+      border: 0;
+      background: var(--ink);
+      color: #f6f1e8;
+      padding: .7rem .9rem;
+      cursor: pointer;
+    }
+    .replay:focus-visible, .replay:hover { outline: 2px solid var(--ink); outline-offset: 3px; }
+    @media (max-width: 720px) {
+      .split { grid-template-columns: 1fr; }
+      .veil-foot { height: 5vh; }
+      .plan { aspect-ratio: 5 / 4; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .scene, .veil { will-change: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="runway" data-runway>
+      <div class="pin">
+        <div class="scene" data-scene>
+          <div class="sky"></div>
+          <div class="cloud cloud-a"></div>
+          <div class="cloud cloud-b"></div>
+          <div class="mass">
+            <div class="wing wing-l"></div>
+            <div class="wing wing-r"></div>
+            <div class="court">
+              <div class="windows" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <div class="door"></div>
+            </div>
+            <div class="mullions"></div>
+            <div class="tree"></div>
+            <div class="step"></div>
+          </div>
+          <div class="ground"></div>
+        </div>
+        <div class="veil" data-veil>
+          <div class="veil-fill"></div>
+          <h1 class="veil-word">Sable Court</h1>
+          <div class="veil-foot"></div>
+        </div>
+      </div>
+    </section>
+    <section class="chapter">
+      <div class="split">
+        <div class="chapter-copy">
+          <p class="kicker">Court plan</p>
+          <h2>Rooms around a quiet yard.</h2>
+          <p>Walls hold the shade. One opening stays wide enough for the afternoon to cross the floor.</p>
+        </div>
+        <div class="plan" aria-hidden="true">
+          <div class="plan-wall plan-wall-n"></div>
+          <div class="plan-wall plan-wall-s"></div>
+          <div class="plan-wall plan-wall-w"></div>
+          <div class="plan-wall plan-wall-e"></div>
+          <div class="plan-court"></div>
+          <div class="plan-tree"></div>
+          <div class="plan-room"></div>
+        </div>
+      </div>
+    </section>
+    <section class="slats">
+      <div class="slat-row" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <div class="slat-copy">
+        <p class="kicker">Light</p>
+        <h2>The long room keeps the sun in stripes.</h2>
+      </div>
+    </section>
+    <section class="end">
+      <div>
+        <strong>Sable Court</strong>
+        <p>A study in stone, shade, and the cut of a window.</p>
+      </div>
+    </section>
+  </main>
+  <p class="hint" data-hint>Scroll</p>
+  <button class="replay" type="button" data-replay>Replay</button>
+  <script>
+    const runway = document.querySelector("[data-runway]");
+    const scene = document.querySelector("[data-scene]");
+    const veil = document.querySelector("[data-veil]");
+    const hint = document.querySelector("[data-hint]");
+    const replay = document.querySelector("[data-replay]");
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let auto = !reduced;
+    let started = 0;
+    const DURATION = 18000;
+
+    function place(p) {
+      const reveal = Math.min(1, Math.max(0, p / 0.45));
+      const lift = Math.min(1, Math.max(0, (p - 0.34) / 0.66));
+      const y = 2 - reveal * 16;
+      scene.style.transform = "translateY(" + y.toFixed(2) + "%)";
+      veil.style.transform = "translateY(" + (-lift * 108).toFixed(2) + "%)";
+      hint.style.opacity = String(Math.max(0, 1 - p * 5));
+    }
+
+    function progress() {
+      const total = runway.offsetHeight - window.innerHeight;
+      if (total <= 0) return 0;
+      const scrolled = Math.min(total, Math.max(0, -runway.getBoundingClientRect().top));
+      return scrolled / total;
+    }
+
+    function render() { place(progress()); }
+
+    function tick(now) {
+      if (!auto) return;
+      if (!started) started = now;
+      const t = Math.min(1, (now - started) / DURATION);
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      window.scrollTo(0, t * max);
+      render();
+      if (t < 1) requestAnimationFrame(tick);
+      else auto = false;
+    }
+
+    function handoff() { auto = false; }
+
+    window.addEventListener("scroll", render, { passive: true });
+    window.addEventListener("resize", render);
+    window.addEventListener("wheel", handoff, { passive: true });
+    window.addEventListener("touchstart", handoff, { passive: true });
+    window.addEventListener("keydown", (event) => {
+      if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(event.key)) handoff();
+    });
+    replay.addEventListener("click", () => {
+      window.scrollTo(0, 0);
+      render();
+      if (reduced) return;
+      auto = true;
+      started = 0;
+      requestAnimationFrame(tick);
+    });
+
+    if (reduced) {
+      const total = runway.offsetHeight - window.innerHeight;
+      window.scrollTo(0, total * 0.22);
+    }
+    render();
+    if (auto) requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
