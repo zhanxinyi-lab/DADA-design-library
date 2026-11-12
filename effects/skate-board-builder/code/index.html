@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Board Builder</title>
+  <style>
+    :root {
+      --bg: #fff;
+      --stage: #efefef;
+      --ink: #161616;
+      --muted: #5e5e5e;
+      --line: #e4e4e4;
+      --card: #fff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+    }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .nav {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+    }
+    .nav button, .nav span {
+      background: none;
+      border: 0;
+      padding: 0;
+      font-size: 13px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .nav .current { box-shadow: inset 0 -2px 0 var(--ink); padding-bottom: 4px; }
+    .nav .quiet { color: var(--muted); }
+    .cart { margin-left: auto; }
+    .body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+      min-height: calc(100% - 52px);
+    }
+    .stage {
+      position: relative;
+      background: var(--stage);
+      min-height: 460px;
+      display: flex;
+      flex-direction: column;
+    }
+    .stage-bar {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 14px 18px 0;
+    }
+    .stage-bar button {
+      background: none;
+      border: 0;
+      padding: 4px 0;
+      font-size: 14px;
+    }
+    .tabs { display: flex; gap: 16px; }
+    .tabs button[aria-selected="true"] { font-weight: 650; box-shadow: inset 0 -2px 0 var(--ink); }
+    #view {
+      flex: 1;
+      width: 100%;
+      min-height: 320px;
+      display: block;
+      touch-action: none;
+      background: transparent;
+    }
+    #view:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; }
+    .hint {
+      margin: 0;
+      padding: 0 18px 14px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .replay {
+      position: absolute;
+      right: 16px;
+      bottom: 40px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+    .presets {
+      position: absolute;
+      left: 18px;
+      top: 64px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: min(240px, 70%);
+    }
+    .presets button, .panel button.card, .line button, .next, .checkout {
+      text-align: left;
+    }
+    .presets button {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .panel {
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--line);
+      min-height: 0;
+    }
+    .scroll {
+      flex: 1;
+      overflow: auto;
+      padding: 18px 16px 8px;
+    }
+    .section { margin: 0 0 18px; }
+    .section h2 {
+      margin: 0 0 10px;
+      font-size: 12px;
+      letter-spacing: .08em;
+      font-weight: 650;
+    }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 8px;
+      min-height: 132px;
+    }
+    .card[aria-pressed="true"] { border: 2px solid var(--ink); padding: 7px; }
+    .swatch {
+      display: block;
+      height: 42px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      background: #ddd center/cover no-repeat;
+    }
+    .name { display: block; font-size: 12px; font-weight: 650; }
+    .detail, .price { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .price { color: var(--ink); }
+    .foot {
+      border-top: 1px solid var(--line);
+      padding: 12px 16px 16px;
+    }
+    .next, .checkout {
+      width: 100%;
+      background: var(--ink);
+      color: #fff;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 16px;
+      font-size: 14px;
+    }
+    .line {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 4px 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .line button {
+      background: none;
+      border: 0;
+      padding: 0;
+      text-decoration: underline;
+      align-self: center;
+    }
+    .total { margin: 14px 0; font-weight: 650; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 800px) {
+      .body { grid-template-columns: 1fr; }
+      .stage { min-height: 380px; }
+      .panel { border-left: 0; border-top: 1px solid var(--line); }
+      .cards { grid-template-columns: 1fr; }
+      .card { min-height: 0; display: grid; grid-template-columns: 54px 1fr; column-gap: 10px; }
+      .swatch { height: 54px; grid-row: span 3; margin: 0; }
+      .nav { gap: 12px; overflow: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <button type="button" id="nav-skate">Skate</button>
+    <span class="quiet">Clothing &amp; Accessories</span>
+    <button type="button" class="current" id="nav-builder">Board Builder</button>
+    <span class="quiet">Gift Cards</span>
+    <button type="button" class="cart" id="cart">Cart 0</button>
+  </header>
+  <div class="body">
+    <section class="stage" aria-label="滑板预览">
+      <div class="stage-bar">
+        <button type="button" id="back">Back</button>
+        <div class="tabs" role="tablist" aria-label="建造方式">
+          <button type="button" id="tab-build" role="tab" aria-selected="true" aria-controls="view">Custom Build</button>
+          <button type="button" id="tab-rec" role="tab" aria-selected="false" aria-controls="presets">Recommended</button>
+        </div>
+      </div>
+      <canvas id="view" tabindex="0" aria-describedby="hint"></canvas>
+      <div class="presets" id="presets" role="tabpanel" hidden></div>
+      <p class="hint" id="hint">Drag to turn. Scroll to zoom. Click a part to change it. Arrow keys turn the focused preview. Plus and minus zoom.</p>
+      <button type="button" class="replay" id="replay">Replay assembly</button>
+    </section>
+    <aside class="panel" aria-label="零件目录">
+      <div class="scroll" id="scroll">
+        <div id="picker"></div>
+        <div id="summary" hidden></div>
+      </div>
+      <div class="foot">
+        <button type="button" class="next" id="next">Next</button>
+      </div>
+    </aside>
+  </div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <script>
+    const CATALOG = {
+      decks: [
+        { id: 'field', name: 'Field Note', detail: 'Graph paper gloss deck 8.25', price: 72 },
+        { id: 'glass', name: 'North Glass', detail: 'Arc window graphic deck 8.25', price: 78 },
+        { id: 'type', name: 'Quiet Type', detail: 'Letterpress deck 8.25', price: 68 }
+      ],
+      trucks: [
+        { id: 'cast', name: 'Plain Cast', detail: '139 raw cast standard trucks', price: 58, color: [0.62, 0.58, 0.54], spec: 0.28, shine: 12 },
+        { id: 'mirror', name: 'Mirror Line', detail: '139 polished hollow trucks', price: 82, color: [0.87, 0.9, 0.93], spec: 0.92, shine: 72 },
+        { id: 'matte', name: 'Matte Night', detail: '139 powder coat trucks', price: 64, color: [0.16, 0.16, 0.18], spec: 0.06, shine: 6 }
+      ],
+      wheels: [
+        { id: 'ink', name: 'Ink Dot', detail: '53mm ink dot 99a', price: 42, color: [0.94, 0.94, 0.91], accent: [0.12, 0.12, 0.12] },
+        { id: 'petal', name: 'Petal Ring', detail: '53mm petal ring 99a', price: 42, color: [0.96, 0.9, 0.84], accent: [0.74, 0.24, 0.3] },
+        { id: 'burst', name: 'Blue Burst', detail: '54mm blue burst 99a', price: 46, color: [0.12, 0.27, 0.58], accent: [0.72, 0.86, 0.96] }
+      ]
+    };
+    const PRESETS = [
+      { name: 'Studio flat', detail: 'Field Note, cast trucks, ink dots', deck: 0, truck: 0, wheel: 0 },
+      { name: 'Night glass', detail: 'North Glass, powder trucks, blue burst', deck: 1, truck: 2, wheel: 2 },
+      { name: 'Quiet mirror', detail: 'Quiet Type, polished trucks, petal rings', deck: 2, truck: 1, wheel: 1 }
+    ];
+
+    const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
+    let reduced = reducedQuery.matches;
+    const pick = { deck: 0, truck: 0, wheel: 0 };
+    const anim = { print: 1, truck: 0, wheel: 0 };
+    const cam = { yaw: 0.48, pitch: 0.42, dist: 5.3 };
+    let mode = 'build';
+    let cartCount = 0;
+    const jobs = [];
+
+    const view = document.getElementById('view');
+    const live = document.getElementById('live');
+    const picker = document.getElementById('picker');
+    const summary = document.getElementById('summary');
+    const scroll = document.getElementById('scroll');
+    const nextBtn = document.getElementById('next');
+    const presets = document.getElementById('presets');
+    const tabBuild = document.getElementById('tab-build');
+    const tabRec = document.getElementById('tab-rec');
+
+    function money(n) { return '$' + n.toFixed(2); }
+    function total() {
+      return CATALOG.decks[pick.deck].price + CATALOG.trucks[pick.truck].price + CATALOG.wheels[pick.wheel].price;
+    }
+    function say(text) { live.textContent = text; }
+    function tween(key, to, dur) {
+      jobs.splice(0, jobs.length, ...jobs.filter((job) => job.key !== key));
+      if (reduced || dur <= 0) { anim[key] = to; return; }
+      jobs.push({ key, from: anim[key], to, t0: performance.now(), dur });
+    }
+    function stepJobs(now) {
+      for (let i = jobs.length - 1; i >= 0; i--) {
+        const job = jobs[i];
+        if (now < job.t0) continue;
+        const k = Math.min(1, (now - job.t0) / job.dur);
+        const e = 1 - (1 - k) ** 3;
+        anim[job.key] = job.from + (job.to - job.from) * e;
+        if (k >= 1) jobs.splice(i, 1);
+      }
+    }
+
+    function swatchStyle(group, item) {
+      if (group === 'decks') {
+        if (item.id === 'field') return 'background:repeating-linear-gradient(0deg,#d7e0f5 0 2px,#f4f1e8 2px 16px),repeating-linear-gradient(90deg,#d7e0f5 0 2px,transparent 2px 16px)';
+        if (item.id === 'glass') return 'background:radial-gradient(circle at 50% 60%,#143844 0 34%,#e7f3f4 36%)';
+        return 'background:#f6f1e6;color:#111';
+      }
+      if (group === 'trucks') {
+        const c = item.color.map((v) => Math.round(v * 255)).join(',');
+        return 'background:rgb(' + c + ')';
+      }
+      const a = item.color.map((v) => Math.round(v * 255)).join(',');
+      const b = item.accent.map((v) => Math.round(v * 255)).join(',');
+      return 'background:radial-gradient(circle,rgb(' + b + ') 0 28%,rgb(' + a + ') 32%)';
+    }
+
+    function renderPicker() {
+      picker.innerHTML = '';
+      for (const group of ['decks', 'trucks', 'wheels']) {
+        const section = document.createElement('section');
+        section.className = 'section';
+        section.id = 'sec-' + group;
+        const title = group === 'decks' ? 'Select deck' : group === 'trucks' ? 'Select trucks' : 'Select wheels';
+        const h2 = document.createElement('h2');
+        h2.textContent = title;
+        section.appendChild(h2);
+        const cards = document.createElement('div');
+        cards.className = 'cards';
+        CATALOG[group].forEach((item, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'card';
+          button.setAttribute('aria-pressed', String(pick[group.slice(0, -1)] === index));
+          const sw = document.createElement('span');
+          sw.className = 'swatch';
+          sw.style.cssText = swatchStyle(group, item);
+          if (item.id === 'type') sw.textContent = 'Q';
+          const name = document.createElement('span');
+          name.className = 'name';
+          name.textContent = item.name;
+          const detail = document.createElement('span');
+          detail.className = 'detail';
+          detail.textContent = item.detail;
+          const price = document.createElement('span');
+          price.className = 'price';
+          price.textContent = money(item.price);
+          button.append(sw, name, detail, price);
+          button.addEventListener('click', () => choose(group, index, true));
+          cards.appendChild(button);
+        });
+        section.append(cards);
+        picker.appendChild(section);
+      }
+    }
+
+    function renderSummary() {
+      summary.innerHTML = '';
+      const rows = [
+        ['decks', pick.deck, 'decks'],
+        ['trucks', pick.truck, 'trucks'],
+        ['wheels', pick.wheel, 'wheels']
+      ];
+      for (const [group, index] of rows) {
+        const item = CATALOG[group][index];
+        const line = document.createElement('div');
+        line.className = 'line';
+        const text = document.createElement('div');
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = item.name;
+        const detail = document.createElement('span');
+        detail.className = 'detail';
+        detail.textContent = item.detail;
+        const price = document.createElement('span');
+        price.className = 'price';
+        price.textContent = money(item.price);
+        text.append(name, detail, price);
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.textContent = 'Edit';
+        edit.addEventListener('click', () => {
+          showBuild();
+          document.getElementById('sec-' + group).scrollIntoView({ block: 'start' });
+        });
+        line.append(text, edit);
+        summary.appendChild(line);
+      }
+      const totalLine = document.createElement('p');
+      totalLine.className = 'total';
+      totalLine.textContent = 'Total ' + money(total());
+      summary.appendChild(totalLine);
+    }
+
+    function updateNext() {
+      const label = mode === 'build' ? 'Next — ' + money(total()) : 'Checkout — ' + money(total());
+      nextBtn.textContent = label;
+      nextBtn.className = mode === 'build' ? 'next' : 'checkout';
+    }
+    function updateCanvasLabel() {
+      const deck = CATALOG.decks[pick.deck];
+      const truck = CATALOG.trucks[pick.truck];
+      const wheel = CATALOG.wheels[pick.wheel];
+      view.setAttribute('aria-label', '滑板预览。当前是 ' + deck.name + '，' + truck.name + '，' + wheel.name + '。拖动旋转，滚轮缩放，单击零件可跳到目录。');
+    }
+    function showBuild() {
+      mode = 'build';
+      picker.hidden = false;
+      summary.hidden = true;
+      updateNext();
+    }
+    function showSummary() {
+      mode = 'summary';
+      renderSummary();
+      picker.hidden = true;
+      summary.hidden = false;
+      updateNext();
+      say('已选清单，合计 ' + money(total()) + '。');
+    }
+
+    function choose(group, index, announce) {
+      const key = group === 'decks' ? 'deck' : group === 'trucks' ? 'truck' : 'wheel';
+      pick[key] = index;
+      renderPicker();
+      updateNext();
+      updateCanvasLabel();
+      const item = CATALOG[group][index];
+      if (group === 'decks') {
+        anim.print = 0;
+        tween('print', 1, 520);
+        if (announce) say('板面图案出现：' + item.name + '。');
+      } else if (group === 'trucks') {
+        anim.truck = 1;
+        tween('truck', 0, 620);
+        if (announce) say('支架落到桥钉上：' + item.name + '。');
+      } else {
+        anim.wheel = 1;
+        tween('wheel', 0, 560);
+        if (announce) say('轮子沿轮轴滑入：' + item.name + '。');
+      }
+    }
+
+    function replay() {
+      if (reduced) {
+        anim.print = 1; anim.truck = 0; anim.wheel = 0;
+        say('装配已完成，减少动态效果时不播放过程。');
+        return;
+      }
+      anim.print = 0; anim.truck = 1; anim.wheel = 1;
+      jobs.length = 0;
+      const start = performance.now();
+      jobs.push(
+        { key: 'print', from: 0, to: 1, t0: start, dur: 520 },
+        { key: 'truck', from: 1, to: 0, t0: start + 420, dur: 620 },
+        { key: 'wheel', from: 1, to: 0, t0: start + 980, dur: 560 }
+      );
+      say('重新装配：图案出现，支架落到桥钉上，轮子沿轴滑入。');
+    }
+
+    function applyPreset(preset) {
+      showBuild();
+      tabBuild.setAttribute('aria-selected', 'true');
+      tabRec.setAttribute('aria-selected', 'false');
+      presets.hidden = true;
+      pick.deck = preset.deck;
+      pick.truck = preset.truck;
+      pick.wheel = preset.wheel;
+      renderPicker();
+      updateNext();
+      updateCanvasLabel();
+      replay();
+    }
+
+    function ident() {
+      return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    }
+    function mul(a, b) {
+      const o = new Float32Array(16);
+      for (let c = 0; c < 4; c++) {
+        for (let r = 0; r < 4; r++) {
+          o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+        }
+      }
+      return o;
+    }
+    function translated(x, y, z) {
+      const m = ident();
+      m[12] = x; m[13] = y; m[14] = z;
+      return m;
+    }
+    function rotX(a) {
+      const c = Math.cos(a); const s = Math.sin(a); const m = ident();
+      m[5] = c; m[6] = s; m[9] = -s; m[10] = c;
+      return m;
+    }
+    function rotY(a) {
+      const c = Math.cos(a); const s = Math.sin(a); const m = ident();
+      m[0] = c; m[2] = -s; m[8] = s; m[10] = c;
+      return m;
+    }
+    function perspective(fovy, aspect, near, far) {
+      const f = 1 / Math.tan(fovy / 2);
+      const o = new Float32Array(16);
+      o[0] = f / aspect; o[5] = f;
+      o[10] = (far + near) / (near - far); o[11] = -1;
+      o[14] = (2 * far * near) / (near - far);
+      return o;
+    }
+    function lookAt(eye, center, up) {
+      let zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
+      let len = Math.hypot(zx, zy, zz) || 1;
+      zx /= len; zy /= len; zz /= len;
+      let xx = up[1] * zz - up[2] * zy;
+      let xy = up[2] * zx - up[0] * zz;
+      let xz = up[0] * zy - up[1] * zx;
+      len = Math.hypot(xx, xy, xz) || 1;
+      xx /= len; xy /= len; xz /= len;
+      const yx = zy * xz - zz * xy;
+      const yy = zz * xx - zx * xz;
+      const yz = zx * xy - zy * xx;
+      return new Float32Array([
+        xx, yx, zx, 0,
+        xy, yy, zy, 0,
+        xz, yz, zz, 0,
+        -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
+        -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
+        -(zx * eye[0] + zy * eye[1] + zz * eye[2]),
+        1
+      ]);
+    }
+
+    function Mesh() {
+      this.pos = []; this.nrm = []; this.col = []; this.uv = []; this.use = []; this.idx = [];
+    }
+    Mesh.prototype.vert = function (p, n, c, u, v, use) {
+      const i = this.pos.length / 3;
+      this.pos.push(p[0], p[1], p[2]);
+      this.nrm.push(n[0], n[1], n[2]);
+      this.col.push(c[0], c[1], c[2]);
+      this.uv.push(u, v);
+      this.use.push(use);
+      return i;
+    };
+    Mesh.prototype.face = function (pts, n, c, uvs, use) {
+      const ids = pts.map((p, i) => this.vert(p, n, c, uvs[i][0], uvs[i][1], use));
+      this.idx.push(ids[0], ids[1], ids[2], ids[0], ids[2], ids[3]);
+    };
+    function addBox(mesh, cx, cy, cz, hx, hy, hz, color) {
+      const x0 = cx - hx, x1 = cx + hx, y0 = cy - hy, y1 = cy + hy, z0 = cz - hz, z1 = cz + hz;
+      const faces = [
+        { n: [0, 1, 0], p: [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]] },
+        { n: [0, -1, 0], p: [[x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]] },
+        { n: [1, 0, 0], p: [[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]] },
+        { n: [-1, 0, 0], p: [[x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [x0, y0, z0]] },
+        { n: [0, 0, 1], p: [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]] },
+        { n: [0, 0, -1], p: [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]] }
+      ];
+      const uv = [[0, 0], [1, 0], [1, 1], [0, 1]];
+      for (const face of faces) mesh.face(face.p, face.n, color, uv, 0);
+    }
+    function addCylZ(mesh, cx, cy, cz, radius, half, segs, color) {
+      for (let i = 0; i < segs; i++) {
+        const a0 = (i / segs) * Math.PI * 2;
+        const a1 = ((i + 1) / segs) * Math.PI * 2;
+        const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
+        const n0 = [c0, s0, 0], n1 = [c1, s1, 0];
+        const p00 = [cx + radius * c0, cy + radius * s0, cz - half];
+        const p01 = [cx + radius * c0, cy + radius * s0, cz + half];
+        const p11 = [cx + radius * c1, cy + radius * s1, cz + half];
+        const p10 = [cx + radius * c1, cy + radius * s1, cz - half];
+        const i0 = mesh.vert(p00, n0, color, 0, 0, 0);
+        const i1 = mesh.vert(p01, n0, color, 0, 1, 0);
+        const i2 = mesh.vert(p11, n1, color, 1, 1, 0);
+        const i3 = mesh.vert(p10, n1, color, 1, 0, 0);
+        mesh.idx.push(i0, i1, i2, i0, i2, i3);
+      }
+    }
+
+    function buildDeck() {
+      const mesh = new Mesh();
+      const nx = 42, nz = 16, L = 1.15, W = 0.31, TH = 0.05;
+      const pts = [];
+      for (let iz = 0; iz < nz; iz++) {
+        for (let ix = 0; ix < nx; ix++) {
+          const u = ix / (nx - 1);
+          const v = iz / (nz - 1);
+          const x = -L + 2 * L * u;
+          const ax = Math.abs(x) / L;
+          let taper = 1;
+          if (ax > 0.72) taper = 1 - 0.62 * ((ax - 0.72) / 0.28) ** 1.35;
+          const z = (-W + 2 * W * v) * taper;
+          let y = 0;
+          if (ax > 0.68) y += 0.34 * ((ax - 0.68) / 0.32) ** 2;
+          y += 0.034 * (Math.abs(z) / (W * Math.max(taper, 0.2))) ** 2;
+          pts.push([x, y, z, u, v]);
+        }
+      }
+      const at = (ix, iz) => pts[iz * nx + ix];
+      function normal(ix, iz) {
+        const a = at(Math.max(0, ix - 1), iz);
+        const b = at(Math.min(nx - 1, ix + 1), iz);
+        const c = at(ix, Math.max(0, iz - 1));
+        const d = at(ix, Math.min(nz - 1, iz + 1));
+        const dx = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+        const dz = [d[0] - c[0], d[1] - c[1], d[2] - c[2]];
+        const n = [
+          dz[1] * dx[2] - dz[2] * dx[1],
+          dz[2] * dx[0] - dz[0] * dx[2],
+          dz[0] * dx[1] - dz[1] * dx[0]
+        ];
+        const len = Math.hypot(n[0], n[1], n[2]) || 1;
+        return [n[0] / len, n[1] / len, n[2] / len];
+      }
+      const wood = [0.74, 0.55, 0.34];
+      const grip = [0.18, 0.18, 0.18];
+      const edge = [0.58, 0.42, 0.26];
+      const top = [], bot = [];
+      for (let iz = 0; iz < nz; iz++) {
+        for (let ix = 0; ix < nx; ix++) {
+          const p = at(ix, iz);
+          const n = normal(ix, iz);
+          top.push(mesh.vert([p[0], p[1], p[2]], n, wood, p[3], p[4], 1));
+          bot.push(mesh.vert([p[0], p[1] - TH, p[2]], [-n[0], -n[1], -n[2]], grip, p[3], p[4], 0));
+        }
+      }
+      for (let iz = 0; iz < nz - 1; iz++) {
+        for (let ix = 0; ix < nx - 1; ix++) {
+          const a = iz * nx + ix;
+          mesh.idx.push(top[a], top[a + 1], top[a + 1 + nx], top[a], top[a + 1 + nx], top[a + nx]);
+          mesh.idx.push(bot[a], bot[a + nx], bot[a + 1 + nx], bot[a], bot[a + 1 + nx], bot[a + 1]);
+        }
+      }
+      function side(ia, ib) {
+        const pa = at(ia % nx, Math.floor(ia / nx));
+        const pb = at(ib % nx, Math.floor(ib / nx));
+        const a = mesh.vert([pa[0], pa[1], pa[2]], [0, 0, 1], edge, 0, 0, 0);
+        const b = mesh.vert([pb[0], pb[1], pb[2]], [0, 0, 1], edge, 1, 0, 0);
+        const c = mesh.vert([pb[0], pb[1] - TH, pb[2]], [0, 0, 1], edge, 1, 1, 0);
+        const d = mesh.vert([pa[0], pa[1] - TH, pa[2]], [0, 0, 1], edge, 0, 1, 0);
+        mesh.idx.push(a, b, c, a, c, d);
+      }
+      for (let ix = 0; ix < nx - 1; ix++) side(ix, ix + 1);
+      for (let ix = 0; ix < nx - 1; ix++) side((nz - 1) * nx + ix + 1, (nz - 1) * nx + ix);
+      for (let iz = 0; iz < nz - 1; iz++) side((iz + 1) * nx, iz * nx);
+      for (let iz = 0; iz < nz - 1; iz++) side(iz * nx + nx - 1, (iz + 1) * nx + nx - 1);
+      return mesh;
+    }
+
+    function paintDeck(id) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024; canvas.height = 280;
+      const g = canvas.getContext('2d');
+      g.fillStyle = '#e7d3ae';
+      g.fillRect(0, 0, 1024, 280);
+      if (id === 'field') {
+        g.fillStyle = '#f4f1e8';
+        g.fillRect(0, 0, 1024, 280);
+        g.strokeStyle = '#2c4c9a';
+        g.lineWidth = 2;
+        for (let x = 0; x <= 1024; x += 36) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 280); g.stroke(); }
+        for (let y = 0; y <= 280; y += 36) { g.beginPath(); g.moveTo(0, y); g.lineTo(1024, y); g.stroke(); }
+        g.fillStyle = '#c83b3b';
+        g.fillRect(70, 36, 18, 18);
+      } else if (id === 'glass') {
+        g.fillStyle = '#e7f3f4';
+        g.fillRect(0, 0, 1024, 280);
+        g.fillStyle = '#143844';
+        g.beginPath();
+        g.arc(512, 168, 120, Math.PI, 0);
+        g.fill();
+        g.strokeStyle = '#c6a15a';
+        g.lineWidth = 8;
+        g.beginPath();
+        g.arc(512, 150, 150, Math.PI * 1.08, Math.PI * 1.92);
+        g.stroke();
+      } else {
+        g.fillStyle = '#f7f1e6';
+        g.fillRect(0, 0, 1024, 280);
+        g.fillStyle = '#1a1a1a';
+        g.font = '240px Georgia, serif';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText('Q', 512, 150);
+        g.fillRect(250, 230, 524, 6);
+      }
+      return canvas;
+    }
+
+    const deckMesh = buildDeck();
+    const truckMesh = new Mesh();
+    addBox(truckMesh, 0, 0.03, 0, 0.16, 0.016, 0.1, [1, 1, 1]);
+    addBox(truckMesh, 0, 0.07, 0, 0.1, 0.028, 0.045, [0.85, 0.85, 0.85]);
+    addCylZ(truckMesh, 0, 0.1, 0, 0.02, 0.42, 12, [0.75, 0.75, 0.75]);
+    addBox(truckMesh, 0, 0.055, 0, 0.018, 0.04, 0.018, [0.7, 0.7, 0.7]);
+    const wheelMesh = new Mesh();
+    addCylZ(wheelMesh, 0, 0, 0, 0.072, 0.028, 18, [1, 1, 1]);
+    const boltMesh = new Mesh();
+    addCylZ(boltMesh, 0, 0.02, 0, 0.016, 0.012, 8, [0.8, 0.8, 0.78]);
+    const shadowMesh = new Mesh();
+    shadowMesh.face(
+      [[-0.95, 0, -0.42], [0.95, 0, -0.42], [0.95, 0, 0.42], [-0.95, 0, 0.42]],
+      [0, 1, 0],
+      [1, 1, 1],
+      [[0, 0], [1, 0], [1, 1], [0, 1]],
+      0
+    );
+
+    const gl = view.getContext('webgl', { antialias: true, alpha: false });
+    let textures = [];
+    let gpu = null;
+    if (gl) {
+      const vs = `
+        attribute vec3 aPos; attribute vec3 aNrm; attribute vec3 aCol; attribute vec2 aUv; attribute float aUse;
+        uniform mat4 uMvp; uniform mat4 uModel;
+        varying vec3 vN; varying vec3 vW; varying vec3 vCol; varying vec2 vUv; varying float vUse;
+        void main() {
+          vec4 w = uModel * vec4(aPos, 1.0);
+          vW = w.xyz;
+          vN = mat3(uModel) * aNrm;
+          vCol = aCol; vUv = aUv; vUse = aUse;
+          gl_Position = uMvp * vec4(aPos, 1.0);
+        }`;
+      const fs = `
+        precision mediump float;
+        varying vec3 vN; varying vec3 vW; varying vec3 vCol; varying vec2 vUv; varying float vUse;
+        uniform vec3 uCam; uniform vec3 uTint; uniform sampler2D uTex; uniform float uPrint; uniform float uSpec; uniform float uShine; uniform float uShadow;
+        void main() {
+          if (uShadow > 0.5) {
+            vec2 p = vUv * 2.0 - 1.0;
+            float a = smoothstep(1.0, 0.15, length(p));
+            gl_FragColor = vec4(0.25, 0.25, 0.25, 0.28 * a);
+            return;
+          }
+          vec3 n = normalize(vN);
+          vec3 l = normalize(vec3(0.35, 0.9, 0.42));
+          float ndl = clamp(dot(n, l), 0.0, 1.0);
+          vec3 base = vCol * uTint;
+          if (vUse > 0.5) base = mix(vCol, texture2D(uTex, vUv).rgb, uPrint);
+          vec3 viewDir = normalize(uCam - vW);
+          float spec = pow(clamp(dot(reflect(-l, n), viewDir), 0.0, 1.0), uShine) * uSpec;
+          vec3 col = base * (0.34 + 0.7 * ndl) + vec3(spec);
+          gl_FragColor = vec4(col, 1.0);
+        }`;
+      function shader(type, src) {
+        const sh = gl.createShader(type);
+        gl.shaderSource(sh, src);
+        gl.compileShader(sh);
+        return sh;
+      }
+      const prog = gl.createProgram();
+      gl.attachShader(prog, shader(gl.VERTEX_SHADER, vs));
+      gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(prog);
+      if (gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        gpu = {
+          prog,
+          loc: {
+            pos: gl.getAttribLocation(prog, 'aPos'),
+            nrm: gl.getAttribLocation(prog, 'aNrm'),
+            col: gl.getAttribLocation(prog, 'aCol'),
+            uv: gl.getAttribLocation(prog, 'aUv'),
+            use: gl.getAttribLocation(prog, 'aUse'),
+            mvp: gl.getUniformLocation(prog, 'uMvp'),
+            model: gl.getUniformLocation(prog, 'uModel'),
+            cam: gl.getUniformLocation(prog, 'uCam'),
+            tint: gl.getUniformLocation(prog, 'uTint'),
+            tex: gl.getUniformLocation(prog, 'uTex'),
+            print: gl.getUniformLocation(prog, 'uPrint'),
+            spec: gl.getUniformLocation(prog, 'uSpec'),
+            shine: gl.getUniformLocation(prog, 'uShine'),
+            shadow: gl.getUniformLocation(prog, 'uShadow')
+          }
+        };
+        // Attribute state is global in WebGL1. Keep one buffer set per mesh and rebind before draw.
+        function pack(mesh) {
+          const make = (data) => {
+            const b = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, b);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+            return b;
+          };
+          const ib = gl.createBuffer();
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(mesh.idx), gl.STATIC_DRAW);
+          return {
+            count: mesh.idx.length,
+            ib,
+            pos: make(mesh.pos),
+            nrm: make(mesh.nrm),
+            col: make(mesh.col),
+            uv: make(mesh.uv),
+            use: make(mesh.use)
+          };
+        }
+        gpu.deck = pack(deckMesh);
+        gpu.truck = pack(truckMesh);
+        gpu.wheel = pack(wheelMesh);
+        gpu.bolt = pack(boltMesh);
+        gpu.shadow = pack(shadowMesh);
+        textures = CATALOG.decks.map((item) => {
+          const tex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, paintDeck(item.id));
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          return tex;
+        });
+        gl.enable(gl.DEPTH_TEST);
+        gl.clearColor(0.937, 0.937, 0.937, 1);
+      } else gpu = null;
+    }
+
+    function drawMesh(packed, model, mvp, spec, shine, shadow, tint) {
+      const loc = gpu.loc;
+      const bindAttr = (buf, locIndex, size) => {
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.enableVertexAttribArray(locIndex);
+        gl.vertexAttribPointer(locIndex, size, gl.FLOAT, false, 0, 0);
+      };
+      bindAttr(packed.pos, loc.pos, 3);
+      bindAttr(packed.nrm, loc.nrm, 3);
+      bindAttr(packed.col, loc.col, 3);
+      bindAttr(packed.uv, loc.uv, 2);
+      bindAttr(packed.use, loc.use, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, packed.ib);
+      gl.uniformMatrix4fv(loc.model, false, model);
+      gl.uniformMatrix4fv(loc.mvp, false, mvp);
+      gl.uniform1f(loc.spec, spec);
+      gl.uniform1f(loc.shine, shine);
+      gl.uniform1f(loc.shadow, shadow);
+      gl.uniform3fv(loc.tint, tint || [1, 1, 1]);
+      gl.drawElements(gl.TRIANGLES, packed.count, gl.UNSIGNED_SHORT, 0);
+    }
+
+    function fittedDist() {
+      const aspect = (view.width || 1) / Math.max(1, view.height || 1);
+      return cam.dist * (aspect < 0.95 ? 1.2 : 1);
+    }
+    function eyeOf() {
+      const dist = fittedDist();
+      const cp = Math.cos(cam.pitch);
+      return [
+        Math.sin(cam.yaw) * cp * dist,
+        Math.sin(cam.pitch) * dist + 0.08,
+        Math.cos(cam.yaw) * cp * dist
+      ];
+    }
+
+    function frame(now) {
+      stepJobs(now);
+      if (gpu) {
+        const dpr = Math.min(2, devicePixelRatio || 1);
+        const w = Math.max(2, view.clientWidth);
+        const h = Math.max(2, view.clientHeight);
+        if (view.width !== Math.floor(w * dpr) || view.height !== Math.floor(h * dpr)) {
+          view.width = Math.floor(w * dpr);
+          view.height = Math.floor(h * dpr);
+        }
+        gl.viewport(0, 0, view.width, view.height);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.useProgram(gpu.prog);
+        const eye = eyeOf();
+        const proj = perspective(0.7, view.width / view.height, 0.08, 40);
+        const viewM = lookAt(eye, [0, 0.18, 0], [0, 1, 0]);
+        const vp = mul(proj, viewM);
+        gl.uniform3f(gpu.loc.cam, eye[0], eye[1], eye[2]);
+        gl.uniform1f(gpu.loc.print, anim.print);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, textures[pick.deck]);
+        gl.uniform1i(gpu.loc.tex, 0);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.depthMask(false);
+        drawMesh(gpu.shadow, translated(0, -0.08, 0), mul(vp, translated(0, -0.08, 0)), 0, 1, 1, [1, 1, 1]);
+        gl.depthMask(true);
+        gl.disable(gl.BLEND);
+        const deckModel = ident();
+        drawMesh(gpu.deck, deckModel, mul(vp, deckModel), 0.45, 28, 0, [1, 1, 1]);
+        const truck = CATALOG.trucks[pick.truck];
+        const wheel = CATALOG.wheels[pick.wheel];
+        const lift = anim.truck * 0.78;
+        const slide = anim.wheel * 0.42;
+        for (const side of [-1, 1]) {
+          const model = translated(side * 0.62, 0.045 + lift, 0);
+          drawMesh(gpu.truck, model, mul(vp, model), truck.spec, truck.shine, 0, truck.color);
+          for (const bz of [-0.06, 0.06]) {
+            for (const bx of [-0.09, 0.09]) {
+              const bolt = translated(side * 0.62 + bx, 0.02, bz);
+              drawMesh(gpu.bolt, bolt, mul(vp, bolt), 0.55, 24, 0, [0.82, 0.8, 0.74]);
+            }
+          }
+          for (const wz of [-1, 1]) {
+            const wheelModel = translated(side * 0.62, 0.145 + lift, wz * (0.4 + slide));
+            drawMesh(gpu.wheel, wheelModel, mul(vp, wheelModel), 0.22, 14, 0, wheel.color);
+          }
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function focusGroup(group) {
+      showBuild();
+      const section = document.getElementById('sec-' + group);
+      if (section) section.scrollIntoView({ block: 'nearest' });
+    }
+    function pickPart(ev) {
+      if (!gpu) return;
+      const rect = view.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
+      const eye = eyeOf();
+      const proj = perspective(0.7, view.width / view.height, 0.08, 40);
+      const vp = mul(proj, lookAt(eye, [0, 0.18, 0], [0, 1, 0]));
+      const points = [
+        { group: 'decks', p: [0, 0.05, 0] },
+        { group: 'trucks', p: [-0.62, 0.16 + anim.truck * 0.78, 0] },
+        { group: 'trucks', p: [0.62, 0.16 + anim.truck * 0.78, 0] },
+        { group: 'wheels', p: [-0.62, 0.145 + anim.truck * 0.78, 0.4] },
+        { group: 'wheels', p: [0.62, 0.145 + anim.truck * 0.78, -0.4] }
+      ];
+      let best = null;
+      for (const item of points) {
+        const px = item.p[0], py = item.p[1], pz = item.p[2];
+        const cx = vp[0] * px + vp[4] * py + vp[8] * pz + vp[12];
+        const cy = vp[1] * px + vp[5] * py + vp[9] * pz + vp[13];
+        const cw = vp[3] * px + vp[7] * py + vp[11] * pz + vp[15];
+        if (cw <= 0) continue;
+        const sx = (cx / cw + 1) * 0.5 * rect.width;
+        const sy = (1 - cy / cw) * 0.5 * rect.height;
+        const d = Math.hypot(sx - x, sy - y);
+        if (!best || d < best.d) best = { d, group: item.group };
+      }
+      if (best && best.d < 90) focusGroup(best.group);
+    }
+
+    let dragging = false;
+    let moved = false;
+    let lastX = 0;
+    let lastY = 0;
+    view.addEventListener('pointerdown', (ev) => {
+      dragging = true; moved = false; lastX = ev.clientX; lastY = ev.clientY;
+      view.setPointerCapture(ev.pointerId);
+    });
+    view.addEventListener('pointermove', (ev) => {
+      if (!dragging) return;
+      const dx = ev.clientX - lastX;
+      const dy = ev.clientY - lastY;
+      if (Math.hypot(dx, dy) > 3) moved = true;
+      cam.yaw += dx * 0.008;
+      cam.pitch = Math.max(-0.2, Math.min(1.15, cam.pitch + dy * 0.006));
+      lastX = ev.clientX; lastY = ev.clientY;
+    });
+    view.addEventListener('pointerup', (ev) => {
+      dragging = false;
+      if (!moved) pickPart(ev);
+    });
+    view.addEventListener('wheel', (ev) => {
+      ev.preventDefault();
+      cam.dist = Math.max(2.6, Math.min(8, cam.dist + ev.deltaY * 0.004));
+    }, { passive: false });
+    view.addEventListener('keydown', (ev) => {
+      if (ev.key === 'ArrowLeft') cam.yaw -= 0.12;
+      else if (ev.key === 'ArrowRight') cam.yaw += 0.12;
+      else if (ev.key === 'ArrowUp') cam.pitch = Math.min(1.15, cam.pitch + 0.08);
+      else if (ev.key === 'ArrowDown') cam.pitch = Math.max(-0.2, cam.pitch - 0.08);
+      else if (ev.key === '+' || ev.key === '=') cam.dist = Math.max(2.6, cam.dist - 0.3);
+      else if (ev.key === '-' || ev.key === '_') cam.dist = Math.min(8, cam.dist + 0.3);
+      else return;
+      ev.preventDefault();
+    });
+
+    PRESETS.forEach((preset) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = preset.name;
+      const detail = document.createElement('span');
+      detail.className = 'detail';
+      detail.textContent = preset.detail;
+      button.append(name, detail);
+      button.addEventListener('click', () => applyPreset(preset));
+      presets.appendChild(button);
+    });
+
+    document.getElementById('back').addEventListener('click', () => {
+      if (mode === 'summary') showBuild();
+      else { cam.yaw = 0.48; cam.pitch = 0.42; cam.dist = 5.3; say('视角已复位。'); }
+    });
+    document.getElementById('nav-skate').addEventListener('click', () => {
+      showBuild();
+      tabBuild.click();
+      say('回到滑板定制。');
+    });
+    document.getElementById('nav-builder').addEventListener('click', () => showBuild());
+    document.getElementById('cart').addEventListener('click', () => showSummary());
+    tabBuild.addEventListener('click', () => {
+      tabBuild.setAttribute('aria-selected', 'true');
+      tabRec.setAttribute('aria-selected', 'false');
+      presets.hidden = true;
+    });
+    tabRec.addEventListener('click', () => {
+      tabRec.setAttribute('aria-selected', 'true');
+      tabBuild.setAttribute('aria-selected', 'false');
+      presets.hidden = false;
+    });
+    document.getElementById('replay').addEventListener('click', replay);
+    nextBtn.addEventListener('click', () => {
+      if (mode === 'build') showSummary();
+      else {
+        cartCount += 1;
+        document.getElementById('cart').textContent = 'Cart ' + cartCount;
+        say('已加入购物车，共 ' + cartCount + ' 套，合计 ' + money(total()) + '。');
+      }
+    });
+    reducedQuery.addEventListener('change', () => { reduced = reducedQuery.matches; });
+
+    renderPicker();
+    updateNext();
+    updateCanvasLabel();
+    if (!gpu) {
+      const note = document.createElement('p');
+      note.className = 'hint';
+      note.textContent = '这个浏览器没有可用的 WebGL，目录仍可选择，但 3D 预览无法显示。';
+      view.after(note);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
