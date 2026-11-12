@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="zh-CN">
+<!-- AI 复刻：倾角移动金属箔高光，前置摄像头或滑块采光。不复制上游无许可证演示的源码和画面。 -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>倾角采光金属箔</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:#140e09;color:#f6efe4;font-family:"Segoe UI",system-ui,sans-serif}
+  body{overflow:hidden;touch-action:none}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .hud{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;padding:max(16px,env(safe-area-inset-top)) 18px max(14px,env(safe-area-inset-bottom))}
+  header,footer{pointer-events:auto;max-width:920px}
+  .kicker{margin:0 0 4px;letter-spacing:.18em;font-size:11px;text-transform:uppercase;color:#e7c27a}
+  h1{margin:0;font-size:clamp(18px,2.4vw,28px);font-weight:620;line-height:1.25;text-shadow:0 1px 8px rgba(0,0,0,.45)}
+  .hint{margin:6px 0 0;font-size:13px;line-height:1.45;color:#f0e2cc;max-width:38em;text-shadow:0 1px 8px rgba(0,0,0,.45)}
+  footer{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;background:rgba(18,12,8,.62);border:1px solid rgba(255,236,210,.16);border-radius:16px;padding:10px 12px;backdrop-filter:blur(8px)}
+  fieldset{border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  legend{padding:0;margin-right:4px;font-size:12px;letter-spacing:.08em;color:#e7d3b4}
+  button,label.opt{font:13px/1 inherit;color:#f6efe4;background:rgba(255,255,255,.06);border:1px solid rgba(255,236,210,.2);border-radius:999px;padding:7px 12px;cursor:pointer}
+  label.opt{display:inline-flex;align-items:center;gap:6px}
+  label.opt input{accent-color:#e0b15a}
+  button:hover,label.opt:hover{background:rgba(255,255,255,.12)}
+  button:focus-visible,label.opt:focus-within,input:focus-visible,#stage:focus-visible{outline:2px solid #f2d48a;outline-offset:3px}
+  button[aria-pressed="true"]{background:#e0b15a;color:#2a1c0d;border-color:#e0b15a}
+  .light{display:flex;align-items:center;gap:8px;font-size:13px;color:#f0e2cc}
+  input[type=range]{width:min(180px,28vw);accent-color:#e0b15a}
+  #status{margin:0;flex-basis:100%;font-size:12px;line-height:1.4;color:#eadcc8}
+  .chip{width:14px;height:14px;border-radius:50%;display:inline-block;vertical-align:-2px;margin-right:4px;background:#e7c27a;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+  #stage{position:absolute;left:20%;top:18%;width:60%;height:58%;border-radius:28px;pointer-events:auto}
+  @media (max-width:640px){
+    h1{font-size:18px}
+    footer{border-radius:14px}
+  }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div class="hud">
+  <header>
+    <p class="kicker">Foil</p>
+    <h1>倾角移动高光，采光决定反射</h1>
+    <p class="hint">在箔面上移动指针，或用方向键。手机可倾斜。前置摄像头只在本机取样，用来当环境光。</p>
+  </header>
+  <div id="stage" tabindex="0" role="application" aria-label="金属箔。指针、方向键或手机倾斜会移动高光。"></div>
+  <footer>
+    <fieldset>
+      <legend>材质</legend>
+      <label class="opt"><input type="radio" name="mat" value="0" checked>金箔</label>
+      <label class="opt"><input type="radio" name="mat" value="1">银箔</label>
+      <label class="opt"><input type="radio" name="mat" value="2">玫瑰金</label>
+      <label class="opt"><input type="radio" name="mat" value="3">冷箔</label>
+    </fieldset>
+    <label class="light">环境光 <input id="gain" type="range" min="0" max="100" value="68" aria-valuemin="0" aria-valuemax="100" aria-valuenow="68"></label>
+    <button id="cam" type="button" aria-pressed="false">用前置摄像头采光</button>
+    <p id="status"><span class="chip" id="chip"></span><span id="status-text">指针或方向键移动高光。环境光滑块模拟采光。</span></p>
+  </footer>
+</div>
+<video id="probe" playsinline muted></video>
+<script>
+(function () {
+  'use strict';
+  const canvas = document.getElementById('view');
+  const stage = document.getElementById('stage');
+  const statusText = document.getElementById('status-text');
+  const chip = document.getElementById('chip');
+  const camBtn = document.getElementById('cam');
+  const gainInput = document.getElementById('gain');
+  const mats = document.querySelectorAll('input[name="mat"]');
+  const video = document.getElementById('probe');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  const state = {
+    tilt: { x: 0.22, y: -0.16 },
+    target: { x: 0.22, y: -0.16 },
+    color: [1, 0.84, 0.58],
+    targetColor: [1, 0.84, 0.58],
+    gain: 0.862,
+    targetGain: 0.862,
+    mat: 0,
+    lastInput: 0,
+    cam: false,
+    stream: null,
+    center: 0,
+    scale: 1,
+    box: [0.34, 0.46]
+  };
+
+  function say(text) { statusText.textContent = text; }
+  function paintChip() {
+    const c = state.color;
+    const g = Math.max(0.25, Math.min(1, state.gain));
+    chip.style.background = 'rgb(' + Math.round(c[0] * g * 255) + ',' + Math.round(c[1] * g * 255) + ',' + Math.round(c[2] * g * 255) + ')';
+  }
+
+  function setTilt(x, y) {
+    state.target.x = Math.max(-1, Math.min(1, x));
+    state.target.y = Math.max(-1, Math.min(1, y));
+    state.lastInput = performance.now();
+  }
+
+  stage.addEventListener('pointerdown', function () { stage.focus(); });
+  window.addEventListener('pointermove', function (e) {
+    if (e.target.closest && e.target.closest('footer, header, button, input, label, fieldset')) return;
+    const x = (e.clientX / Math.max(1, innerWidth)) * 2 - 1;
+    const y = (e.clientY / Math.max(1, innerHeight)) * 2 - 1;
+    setTilt(x * 0.95, -y * 0.8);
+  });
+  window.addEventListener('keydown', function (e) {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'button' || tag === 'label') return;
+    const step = e.shiftKey ? 0.18 : 0.08;
+    if (e.key === 'ArrowLeft') setTilt(state.target.x - step, state.target.y);
+    else if (e.key === 'ArrowRight') setTilt(state.target.x + step, state.target.y);
+    else if (e.key === 'ArrowUp') setTilt(state.target.x, state.target.y + step);
+    else if (e.key === 'ArrowDown') setTilt(state.target.x, state.target.y - step);
+    else return;
+    e.preventDefault();
+  });
+
+  function onOrient(e) {
+    if (e.gamma == null || e.beta == null) return;
+    setTilt(e.gamma / 26, (e.beta - 42) / 30);
+  }
+  window.addEventListener('deviceorientation', onOrient);
+
+  mats.forEach(function (el) {
+    el.addEventListener('change', function () {
+      if (!el.checked) return;
+      state.mat = Number(el.value) || 0;
+      const names = ['金箔', '银箔', '玫瑰金', '冷箔'];
+      say('当前材质是' + names[state.mat] + '。');
+    });
+  });
+
+  gainInput.addEventListener('input', function () {
+    const v = Number(gainInput.value) / 100;
+    state.targetGain = 0.08 + v * 1.15;
+    state.targetColor = [1, 0.78 + v * 0.12, 0.46 + v * 0.2];
+    gainInput.setAttribute('aria-valuenow', gainInput.value);
+    if (state.cam) stopCam('已改用滑块。摄像头已关闭。');
+    else say('环境光 ' + gainInput.value + '。');
+  });
+
+  const probeCanvas = document.createElement('canvas');
+  probeCanvas.width = 8;
+  probeCanvas.height = 8;
+  const probeCtx = probeCanvas.getContext('2d', { willReadFrequently: true });
+
+  function stopCam(message) {
+    state.cam = false;
+    camBtn.setAttribute('aria-pressed', 'false');
+    camBtn.textContent = '用前置摄像头采光';
+    gainInput.disabled = false;
+    if (state.stream) {
+      state.stream.getTracks().forEach(function (t) { t.stop(); });
+      state.stream = null;
+    }
+    video.srcObject = null;
+    if (message) say(message);
+  }
+
+  async function startCam() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      say('这个浏览器不能读取摄像头。请用环境光滑块。');
+      return;
+    }
+    try {
+      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const perm = await DeviceOrientationEvent.requestPermission();
+        if (perm !== 'granted') say('未获得倾斜权限。仍可用指针，摄像头继续尝试。');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: 'user', width: { ideal: 160 }, height: { ideal: 120 } }
+      });
+      state.stream = stream;
+      video.srcObject = stream;
+      await video.play();
+      state.cam = true;
+      camBtn.setAttribute('aria-pressed', 'true');
+      camBtn.textContent = '关闭摄像头';
+      gainInput.disabled = true;
+      say('正在用前置摄像头采光。画面不离开这台设备。');
+    } catch (err) {
+      stopCam('没有打开摄像头：' + (err && err.name ? err.name : '无法访问') + '。请用环境光滑块。');
+    }
+  }
+
+  camBtn.addEventListener('click', function () {
+    if (state.cam) stopCam('已关闭摄像头。环境光滑块继续有效。');
+    else startCam();
+  });
+
+  function sampleCam() {
+    if (!state.cam || video.readyState < 2) return;
+    probeCtx.drawImage(video, 0, 0, 8, 8);
+    const data = probeCtx.getImageData(0, 0, 8, 8).data;
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
+    }
+    if (!n) return;
+    r /= n; g /= n; b /= n;
+    const max = Math.max(r, g, b, 1);
+    const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    state.targetColor = [r / max, g / max, b / max];
+    state.targetGain = Math.max(0.08, Math.min(1.35, 0.12 + lum * 1.7));
+    const shown = String(Math.round(lum * 100));
+    gainInput.value = shown;
+    gainInput.setAttribute('aria-valuenow', shown);
+  }
+
+  const VS = [
+    'attribute vec2 aPos;',
+    'void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }'
+  ].join('\n');
+
+  const FS = [
+    '#extension GL_OES_standard_derivatives : enable',
+    'precision highp float;',
+    'uniform vec2 uRes;',
+    'uniform vec2 uTilt;',
+    'uniform vec3 uLight;',
+    'uniform float uGain;',
+    'uniform float uMat;',
+    'uniform float uTime;',
+    'uniform float uTwinkle;',
+    'uniform float uCenter;',
+    'uniform float uScale;',
+    'float hash21(vec2 p){',
+    '  p = fract(p * vec2(123.34, 345.45));',
+    '  p += dot(p, p + 34.345);',
+    '  return fract(p.x * p.y);',
+    '}',
+    'float vnoise(vec2 p){',
+    '  vec2 i = floor(p);',
+    '  vec2 f = fract(p);',
+    '  f = f * f * (3.0 - 2.0 * f);',
+    '  float a = hash21(i);',
+    '  float b = hash21(i + vec2(1.0, 0.0));',
+    '  float c = hash21(i + vec2(0.0, 1.0));',
+    '  float d = hash21(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);',
+    '}',
+    'float heightAt(vec2 p){',
+    '  float grain = sin(p.y * 210.0 + sin(p.x * 36.0) * 0.7);',
+    '  float cross = sin(dot(p, vec2(48.0, 170.0)));',
+    '  float wrinkle = vnoise(p * vec2(7.0, 2.4)) + 0.5 * vnoise(p * vec2(16.0, 5.0));',
+    '  return grain * 0.22 + cross * 0.16 + wrinkle;',
+    '}',
+    'float box(vec2 p, vec2 b, float r){',
+    '  vec2 q = abs(p) - b + r;',
+    '  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;',
+    '}',
+    'void main(){',
+    '  vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / min(uRes.x, uRes.y);',
+    '  uv.y -= uCenter;',
+    '  float aspect = uRes.x / max(uRes.y, 1.0);',
+    '  vec2 b = (aspect < 0.9 ? vec2(0.40, 0.50) : vec2(0.34, 0.46)) * uScale;',
+    '  float sdf = box(uv, b, 0.055);',
+    '  float aa = max(fwidth(sdf), 0.0015);',
+    '  float mask = 1.0 - smoothstep(-aa, aa, sdf);',
+    '  vec2 bgUv = gl_FragCoord.xy / uRes;',
+    '  vec3 bg = mix(vec3(0.07, 0.045, 0.03), vec3(0.16, 0.10, 0.06), bgUv.y);',
+    '  bg *= 1.0 - smoothstep(0.35, 1.2, length((bgUv - 0.5) * vec2(1.15, 1.0)));',
+    '  vec2 sh = uv - vec2(0.0, -b.y - 0.03);',
+    '  float shadow = exp(-dot(sh * vec2(2.4, 7.0), sh * vec2(2.4, 7.0)));',
+    '  bg = mix(bg, bg * 0.42, shadow * (1.0 - mask));',
+    '  vec2 p = uv / b;',
+    '  float e = 0.004;',
+    '  float h0 = heightAt(p);',
+    '  float hx = heightAt(p + vec2(e, 0.0)) - h0;',
+    '  float hy = heightAt(p + vec2(0.0, e)) - h0;',
+    '  vec3 N = normalize(vec3(-hx * 2.4, -hy * 1.3, 1.0));',
+    '  vec3 V = normalize(vec3(-uTilt.x * 0.75, -uTilt.y * 0.62, 1.15));',
+    '  vec2 lp = vec2(-0.06, 0.10) + uTilt * vec2(0.34, 0.26);',
+    '  vec2 rel = p - lp;',
+    '  float streak = exp(-dot(rel * vec2(1.15, 4.6), rel * vec2(1.15, 4.6)) * mix(7.5, 3.2, clamp(uGain, 0.0, 1.0)));',
+    '  float core = exp(-dot(rel * vec2(2.8, 7.5), rel * vec2(2.8, 7.5)) * mix(4.0, 1.6, clamp(uGain, 0.0, 1.0)));',
+    '  float ndv = clamp(dot(N, V), 0.0, 1.0);',
+    '  float fres = pow(1.0 - ndv, 2.1);',
+    '  float phase = dot(rel, vec2(1.6, 3.2)) + ndv * 4.5 + h0 * 0.35 + uTilt.x * 1.4;',
+    '  vec3 rainbow = 0.55 + 0.45 * cos(6.28318 * (vec3(phase) + vec3(0.00, 0.33, 0.67)));',
+    '  vec3 specCol = mix(uLight, rainbow, 0.78);',
+    '  vec3 metal = vec3(0.80, 0.52, 0.16);',
+    '  if (uMat > 0.5 && uMat < 1.5) metal = vec3(0.70, 0.73, 0.78);',
+    '  else if (uMat >= 1.5 && uMat < 2.5) metal = vec3(0.80, 0.46, 0.40);',
+    '  else if (uMat >= 2.5) metal = vec3(0.38, 0.56, 0.74);',
+    '  float sheen = 0.22 + 0.78 * uGain;',
+    '  vec3 col = metal * (0.16 + 0.62 * uGain) * (0.55 + 0.45 * ndv);',
+    '  col += metal * streak * 0.28 * sheen;',
+    '  col += specCol * (streak * 0.45 + core * 0.7) * sheen;',
+    '  col += specCol * fres * 0.28 * sheen;',
+    '  float spark = step(0.988, hash21(floor(p * vec2(180.0, 90.0))));',
+    '  float tw = mix(1.0, 0.65 + 0.35 * sin(uTime * 2.4 + hash21(floor(p * 40.0)) * 6.2), uTwinkle);',
+    '  col += spark * specCol * core * 1.8 * tw;',
+    '  float rim = (1.0 - smoothstep(0.0, 0.08, abs(sdf) + 0.045)) * mask;',
+    '  col += vec3(1.0, 0.92, 0.75) * rim * 0.18 * sheen;',
+    '  float inset = 1.0 - smoothstep(0.0, 0.012, abs(box(uv, b - vec2(0.035), 0.04)));',
+    '  col += specCol * inset * 0.22;',
+    '  col = col / (1.0 + col * 0.35);',
+    '  vec3 outCol = mix(bg, col, mask);',
+    '  outCol += (hash21(gl_FragCoord.xy + uTime) - 0.5) / 255.0;',
+    '  gl_FragColor = vec4(clamp(outCol, 0.0, 1.0), 1.0);',
+    '}'
+  ].join('\n');
+
+  const gl = canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
+  const deriv = gl && gl.getExtension('OES_standard_derivatives');
+  let program = null;
+  let loc = null;
+
+  function compile(type, src) {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      gl.deleteShader(sh);
+      return null;
+    }
+    return sh;
+  }
+
+  if (gl && deriv) {
+    const vs = compile(gl.VERTEX_SHADER, VS);
+    const fs = compile(gl.FRAGMENT_SHADER, FS);
+    if (vs && fs) {
+      program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.bindAttribLocation(program, 0, 'aPos');
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) program = null;
+    }
+    if (program) {
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      gl.useProgram(program);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      loc = {
+        res: gl.getUniformLocation(program, 'uRes'),
+        tilt: gl.getUniformLocation(program, 'uTilt'),
+        light: gl.getUniformLocation(program, 'uLight'),
+        gain: gl.getUniformLocation(program, 'uGain'),
+        mat: gl.getUniformLocation(program, 'uMat'),
+        time: gl.getUniformLocation(program, 'uTime'),
+        tw: gl.getUniformLocation(program, 'uTwinkle'),
+        center: gl.getUniformLocation(program, 'uCenter'),
+        scale: gl.getUniformLocation(program, 'uScale')
+      };
+    }
+  }
+
+  function fit() {
+    const d = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(innerWidth * d));
+    const h = Math.max(1, Math.round(innerHeight * d));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+  }
+
+  let flat = null;
+  function draw2d() {
+    if (!flat) {
+      flat = document.createElement('canvas');
+      flat.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0';
+      canvas.after(flat);
+    }
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(innerWidth * dpr));
+    const h = Math.max(1, Math.round(innerHeight * dpr));
+    if (flat.width !== w || flat.height !== h) { flat.width = w; flat.height = h; }
+    const ctx = flat.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#3a2414');
+    g.addColorStop(1, '#140e09');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    const s = Math.min(w, h);
+    const cw = s * state.box[0] * 2 * state.scale;
+    const ch = s * state.box[1] * 2 * state.scale;
+    const mid = h * 0.5 - state.center * s;
+    const x = (w - cw) / 2, y = mid - ch / 2;
+    const hx = x + cw * (0.5 + state.tilt.x * 0.28);
+    const hy = y + ch * (0.42 - state.tilt.y * 0.22);
+    ctx.save();
+    roundRect(ctx, x, y, cw, ch, s * 0.04);
+    ctx.clip();
+    const metals = ['#c4882a', '#c5c8ce', '#c47a72', '#6e93b0'];
+    ctx.fillStyle = metals[state.mat] || metals[0];
+    ctx.fillRect(x, y, cw, ch);
+    const rad = ctx.createRadialGradient(hx, hy, s * 0.02, hx, hy, s * 0.28);
+    const L = state.color;
+    rad.addColorStop(0, 'rgba(' + Math.round(L[0] * 255) + ',' + Math.round(L[1] * 255) + ',' + Math.round(L[2] * 255) + ',' + (0.35 + state.gain * 0.55) + ')');
+    rad.addColorStop(0.45, 'rgba(120,220,255,0.28)');
+    rad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rad;
+    ctx.fillRect(x, y, cw, ch);
+    ctx.restore();
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  canvas.addEventListener('webglcontextlost', function (e) {
+    e.preventDefault();
+    program = null;
+    say('箔面着色器中断，已改用简化绘制。');
+  });
+  if (!program) say('这台设备没能打开箔面着色器，显示的是简化箔面。');
+  function layout() {
+    const header = document.querySelector('header');
+    const footer = document.querySelector('footer');
+    const top = header.getBoundingClientRect().bottom + 14;
+    const bottom = Math.max(top + 80, footer.getBoundingClientRect().top - 14);
+    const unit = Math.max(1, Math.min(innerWidth, innerHeight));
+    const mid = (top + bottom) / 2;
+    state.center = (innerHeight / 2 - mid) / unit;
+    const aspect = innerWidth / Math.max(1, innerHeight);
+    const base = aspect < 0.9 ? [0.40, 0.50] : [0.34, 0.46];
+    state.box = base;
+    const availH = (bottom - top) / unit;
+    const availW = (innerWidth - 36) / unit;
+    state.scale = Math.max(0.45, Math.min(1, availH / (base[1] * 2 + 0.08), availW / (base[0] * 2 + 0.06)));
+    const bw = base[0] * state.scale * unit;
+    const bh = base[1] * state.scale * unit;
+    stage.style.left = ((innerWidth - bw * 2) / 2) + 'px';
+    stage.style.top = (mid - bh) + 'px';
+    stage.style.width = (bw * 2) + 'px';
+    stage.style.height = (bh * 2) + 'px';
+  }
+  const t0 = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - (frame.prev || now)) / 1000);
+    frame.prev = now;
+    if (!reduced.matches && now - state.lastInput > 1600) {
+      const t = (now - t0) / 1000;
+      state.target.x = Math.sin(t * 0.33) * 0.62;
+      state.target.y = Math.cos(t * 0.27) * 0.38;
+    }
+    const k = 1 - Math.pow(0.001, dt);
+    state.tilt.x += (state.target.x - state.tilt.x) * k;
+    state.tilt.y += (state.target.y - state.tilt.y) * k;
+    sampleCam();
+    state.gain += (state.targetGain - state.gain) * k;
+    for (let i = 0; i < 3; i++) state.color[i] += (state.targetColor[i] - state.color[i]) * k;
+    paintChip();
+    fit();
+    layout();
+    if (program && gl && !gl.isContextLost()) {
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.useProgram(program);
+      gl.uniform2f(loc.res, canvas.width, canvas.height);
+      gl.uniform2f(loc.tilt, state.tilt.x, state.tilt.y);
+      gl.uniform3f(loc.light, state.color[0], state.color[1], state.color[2]);
+      gl.uniform1f(loc.gain, state.gain);
+      gl.uniform1f(loc.mat, state.mat);
+      gl.uniform1f(loc.time, (now - t0) / 1000);
+      gl.uniform1f(loc.tw, reduced.matches ? 0 : 1);
+      gl.uniform1f(loc.center, state.center);
+      gl.uniform1f(loc.scale, state.scale);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    } else {
+      draw2d();
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
