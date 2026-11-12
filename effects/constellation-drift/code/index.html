@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Constellation drift</title>
+  <style>
+    :root {
+      --ink: #e8eefc;
+      --dim: rgba(232, 238, 252, .62);
+      --line: rgba(232, 238, 252, .28);
+      --bg: #070910;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink); }
+    body { font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif; }
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+    header, .card, .hero, .cue { pointer-events: none; }
+    header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 22px 28px;
+    }
+    .mark {
+      font: 600 13px/1 ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      padding-top: 10px;
+    }
+    .tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; pointer-events: auto; }
+    button {
+      appearance: none;
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 9px 14px;
+      font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: .04em;
+      cursor: pointer;
+    }
+    button:hover { border-color: rgba(232, 238, 252, .7); }
+    button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    button[aria-pressed="true"] { background: rgba(232, 238, 252, .12); }
+    .hero {
+      position: absolute;
+      left: 8vw;
+      top: 28vh;
+      max-width: 16em;
+    }
+    .eyebrow, .kicker, .meta, .cue span, .seed {
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    .eyebrow, .seed { font-size: 11px; color: var(--dim); }
+    h1 { margin: 12px 0 0; font-weight: 500; font-size: clamp(40px, 6vw, 76px); line-height: .96; letter-spacing: -.03em; }
+    h1 span { display: block; animation: rise .8s ease both; }
+    h1 span:nth-child(2) { animation-delay: .12s; }
+    .seed { margin: 22px 0 0; }
+    .card {
+      position: absolute;
+      right: 8vw;
+      top: 46%;
+      width: min(380px, 78vw);
+      transform: translateY(-50%);
+    }
+    .kicker { margin: 0; font-size: 12px; color: var(--dim); }
+    .dist {
+      margin: 8px 0 0;
+      font-size: clamp(64px, 9vw, 104px);
+      line-height: .86;
+      font-weight: 500;
+      letter-spacing: -.04em;
+    }
+    h2 { margin: 14px 0 0; font-size: clamp(28px, 3vw, 36px); font-weight: 500; letter-spacing: -.02em; }
+    .why { margin: 8px 0 0; font-size: 18px; line-height: 1.35; color: var(--dim); }
+    .meta { margin: 18px 0 0; font-size: 11px; color: var(--dim); }
+    .ticks { display: flex; gap: 6px; margin-top: 10px; }
+    .ticks i {
+      width: 18px;
+      height: 2px;
+      background: rgba(232, 238, 252, .25);
+      display: block;
+    }
+    .ticks i.on { background: var(--ink); }
+    .cue {
+      position: absolute;
+      left: 28px;
+      bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--dim);
+      font-size: 11px;
+    }
+    .orbit {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      position: relative;
+    }
+    .orbit i {
+      position: absolute;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--ink);
+      left: 11px;
+      top: -2px;
+      transform-origin: 2.5px 16px;
+      animation: spin 4.8s linear infinite;
+    }
+    .runway { height: 560vh; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 720px) {
+      header { padding: 16px; }
+      .hero { left: 20px; right: 20px; top: 22vh; }
+      h1 { font-size: 40px; }
+      .card { left: 20px; right: 20px; top: auto; bottom: 72px; width: auto; transform: none; }
+      .dist { font-size: 68px; }
+      .cue { left: 16px; bottom: 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .runway { height: 0; }
+      h1 span, .orbit i { animation: none; }
+      h1 span { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="field"></canvas>
+  <div class="overlay">
+    <header>
+      <div class="mark">Lumen field</div>
+      <div class="tools">
+        <button type="button" id="tone" aria-pressed="false">Tone off</button>
+        <button type="button" id="prev">Previous</button>
+        <button type="button" id="next">Next</button>
+      </div>
+    </header>
+    <section class="hero" id="hero">
+      <p class="eyebrow">Listening posts</p>
+      <h1>
+        <span>Begin with one tone.</span>
+        <span>Leave it further behind.</span>
+      </h1>
+      <p class="seed">First tone · Glass Harbor</p>
+    </section>
+    <article class="card" id="card" hidden>
+      <p class="kicker" id="kicker"></p>
+      <p class="dist" id="dist"></p>
+      <div class="ticks" id="ticks" aria-hidden="true"></div>
+      <h2 id="title"></h2>
+      <p class="why" id="why"></p>
+      <p class="meta" id="meta"></p>
+    </article>
+    <div class="cue" id="cue">
+      <span class="orbit" aria-hidden="true"><i></i></span>
+      <span>Scroll the field</span>
+    </div>
+  </div>
+  <div class="runway" aria-hidden="true"></div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <script>
+    const stations = [
+      { dist: "NEAR", kicker: "01 / 06", title: "Glass Harbor", why: "A softer room, still within sight of the first tone.", meta: "Same current", hue: 214, tone: 220 },
+      { dist: "LIT", kicker: "02 / 06", title: "Copper Rain", why: "Brighter, and a little more electric.", meta: "A known turn", hue: 236, tone: 247 },
+      { dist: "MID", kicker: "03 / 06", title: "Low Atlas", why: "Halfway out. The rhythm thins.", meta: "Balanced distance", hue: 262, tone: 294 },
+      { dist: "WIDE", kicker: "04 / 06", title: "Violet Mile", why: "The first tone is only a direction now.", meta: "Further weather", hue: 286, tone: 330 },
+      { dist: "OUTER", kicker: "05 / 06", title: "Salt Choir", why: "People who stayed for the first tone also stop here.", meta: "Shared listeners", hue: 330, tone: 370 },
+      { dist: "CLEAR", kicker: "06 / 06", title: "Unmapped Bay", why: "Nothing from the start comes back.", meta: "Open chart", hue: 28, tone: 415 }
+    ];
+    const fieldCard = {
+      dist: "FIELD",
+      kicker: "Outer chart",
+      title: "Sixty-four posts",
+      why: "Spread past the last named stop. The path does not loop back.",
+      meta: "Unnamed",
+      hue: 200
+    };
+
+    const canvas = document.getElementById("field");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    const hero = document.getElementById("hero");
+    const card = document.getElementById("card");
+    const cue = document.getElementById("cue");
+    const live = document.getElementById("live");
+    const toneBtn = document.getElementById("tone");
+    const prevBtn = document.getElementById("prev");
+    const nextBtn = document.getElementById("next");
+    const kicker = document.getElementById("kicker");
+    const distEl = document.getElementById("dist");
+    const titleEl = document.getElementById("title");
+    const whyEl = document.getElementById("why");
+    const metaEl = document.getElementById("meta");
+    const ticks = document.getElementById("ticks");
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    const rand = mulberry32(0x5eed);
+    const anchorPos = [
+      { x: 0.24, y: 0.62 },
+      { x: 0.34, y: 0.46 },
+      { x: 0.46, y: 0.38 },
+      { x: 0.56, y: 0.52 },
+      { x: 0.66, y: 0.34 },
+      { x: 0.78, y: 0.46 }
+    ];
+    const nodes = anchorPos.map((p, i) => ({
+      x: p.x, y: p.y, r: 2.6, anchor: true, i,
+      phase: rand() * 6, speed: 0.7 + rand() * 0.6, depth: 0.15
+    }));
+    for (let i = 0; i < 58; i++) {
+      const host = anchorPos[i % anchorPos.length];
+      nodes.push({
+        x: Math.min(0.94, Math.max(0.06, host.x + (rand() - 0.5) * 0.36)),
+        y: Math.min(0.88, Math.max(0.14, host.y + (rand() - 0.5) * 0.46)),
+        r: 0.6 + rand() * 1.15,
+        anchor: false,
+        phase: rand() * 6,
+        speed: 0.35 + rand() * 1.4,
+        depth: 0.25 + rand() * 0.9
+      });
+    }
+    const anchors = nodes.filter((n) => n.anchor);
+    const links = [];
+    for (let i = 0; i < anchors.length - 1; i++) links.push({ a: anchors[i], b: anchors[i + 1], path: i });
+    for (const dust of nodes) {
+      if (dust.anchor) continue;
+      let best = anchors[0];
+      let bestD = Infinity;
+      for (const anchor of anchors) {
+        const d = Math.hypot(dust.x - anchor.x, dust.y - anchor.y);
+        if (d < bestD) { best = anchor; bestD = d; }
+      }
+      if (bestD < 0.16) links.push({ a: dust, b: best, path: -1 });
+    }
+    ticks.innerHTML = stations.map(() => "<i></i>").join("");
+    const tickEls = [...ticks.children];
+
+    let forced = -1;
+    let shown = null;
+    let toneOn = false;
+    let audio = null;
+    let frame = 0;
+
+    function pageProgress() {
+      if (motion.matches) {
+        if (forced < 0) return 0;
+        if (forced >= 6) return 1;
+        return 0.18 + (forced / 5) * 0.68;
+      }
+      const max = document.documentElement.scrollHeight - innerHeight;
+      if (max <= 0) return 0;
+      return Math.min(1, Math.max(0, scrollY / max));
+    }
+
+    function indexAt(p) {
+      if (p < 0.14) return -1;
+      if (p > 0.9) return 6;
+      return Math.min(5, Math.floor(((p - 0.14) / 0.76) * 6));
+    }
+
+    function targetProgress(index) {
+      if (index < 0) return 0;
+      if (index >= 6) return 1;
+      return 0.18 + (index / 5) * 0.66;
+    }
+
+    function resize() {
+      const dpr = Math.min(2, devicePixelRatio || 1);
+      canvas.width = Math.round(innerWidth * dpr);
+      canvas.height = Math.round(innerHeight * dpr);
+      place(pageProgress());
+      draw(performance.now());
+    }
+
+    function place(p) {
+      const w = canvas.width;
+      const h = canvas.height;
+      const shift = (p - 0.35) * 0.05;
+      for (const n of nodes) {
+        n.px = (n.x + shift * n.depth) * w;
+        n.py = n.y * h;
+      }
+    }
+
+    function hsl(h, s, l, a) {
+      return `hsla(${h}, ${s}%, ${l}%, ${a})`;
+    }
+
+    function draw(now) {
+      const p = pageProgress();
+      const index = indexAt(p);
+      const station = index >= 6 ? fieldCard : stations[Math.max(index, 0)];
+      const hue = station.hue;
+      place(p);
+      const w = canvas.width;
+      const h = canvas.height;
+      const t = motion.matches ? 0 : now * 0.001;
+      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      bg.addColorStop(0, "#05070d");
+      bg.addColorStop(1, hsl(hue, 46, 7, 1));
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      const focus = anchors[Math.max(0, Math.min(5, index))];
+      const bloom = ctx.createRadialGradient(focus.px, focus.py, 0, focus.px, focus.py, Math.min(w, h) * 0.46);
+      bloom.addColorStop(0, hsl(hue, 80, 62, index < 0 ? 0.16 : 0.34));
+      bloom.addColorStop(0.45, hsl(hue, 70, 40, 0.08));
+      bloom.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = bloom;
+      ctx.fillRect(0, 0, w, h);
+
+      const along = index < 0 ? 0 : index >= 6 ? 5 : index + Math.min(1, ((p - 0.14) / 0.76) * 6 - index);
+      ctx.lineWidth = Math.max(1, canvas.width / 1400);
+      for (const link of links) {
+        const hot = link.path >= 0 && link.path < along;
+        ctx.strokeStyle = hot ? hsl(hue, 85, 78, 0.9) : "rgba(186, 206, 232, 0.16)";
+        ctx.beginPath();
+        ctx.moveTo(link.a.px, link.a.py);
+        ctx.lineTo(link.b.px, link.b.py);
+        ctx.stroke();
+      }
+
+      for (const n of nodes) {
+        const tw = motion.matches ? 0.8 : 0.55 + 0.45 * Math.sin(t * n.speed + n.phase);
+        const active = n.anchor && n.i === Math.max(0, Math.min(5, index));
+        ctx.fillStyle = n.anchor ? hsl(hue, 90, 84, active ? 1 : 0.75) : `rgba(214, 226, 244, ${0.18 + 0.55 * tw})`;
+        ctx.beginPath();
+        ctx.arc(n.px, n.py, (active ? n.r * 2.1 : n.r) * (canvas.width / 1280), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const ring = 18 + (motion.matches ? 0 : 5 * Math.sin(t * 2));
+      ctx.strokeStyle = hsl(hue, 90, 82, 0.85);
+      ctx.lineWidth = Math.max(1.25, canvas.width / 900);
+      ctx.beginPath();
+      ctx.arc(focus.px, focus.py, ring * (canvas.width / 1280), 0, Math.PI * 2);
+      ctx.stroke();
+      show(index, station);
+    }
+
+    function show(index, station) {
+      const key = index < 0 ? "hero" : String(index);
+      hero.hidden = index >= 0;
+      cue.hidden = index >= 0 || motion.matches;
+      card.hidden = index < 0;
+      if (key === shown) return;
+      shown = key;
+      if (index >= 0) {
+        kicker.textContent = station.kicker;
+        distEl.textContent = station.dist;
+        titleEl.textContent = station.title;
+        whyEl.textContent = station.why;
+        metaEl.textContent = station.meta;
+        tickEls.forEach((el, i) => el.classList.toggle("on", i <= Math.min(index, 5)));
+      }
+      live.textContent = index < 0
+        ? "Begin with one tone. Scroll the field to leave it behind."
+        : `${station.kicker}. ${station.dist}. ${station.title}. ${station.why}`;
+      if (toneOn) retune(station.tone || 220);
+    }
+
+    function loop(now) {
+      draw(now);
+      if (!motion.matches && !document.hidden) frame = requestAnimationFrame(loop);
+    }
+
+    function ensureAudio() {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      if (audio) return audio;
+      const actx = new Ctx();
+      const master = actx.createGain();
+      master.gain.value = 0.0001;
+      const filter = actx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = 900;
+      const low = actx.createOscillator();
+      const high = actx.createOscillator();
+      low.type = "sine";
+      high.type = "triangle";
+      low.frequency.value = 220;
+      high.frequency.value = 330;
+      const lowGain = actx.createGain();
+      const highGain = actx.createGain();
+      lowGain.gain.value = 0.7;
+      highGain.gain.value = 0.18;
+      low.connect(lowGain).connect(filter);
+      high.connect(highGain).connect(filter);
+      filter.connect(master).connect(actx.destination);
+      low.start();
+      high.start();
+      audio = { actx, master, filter, low, high };
+      return audio;
+    }
+
+    function retune(freq) {
+      const eng = audio;
+      if (!eng) return;
+      const now = eng.actx.currentTime;
+      eng.low.frequency.cancelScheduledValues(now);
+      eng.high.frequency.cancelScheduledValues(now);
+      eng.filter.frequency.cancelScheduledValues(now);
+      eng.low.frequency.linearRampToValueAtTime(freq, now + 0.12);
+      eng.high.frequency.linearRampToValueAtTime(freq * 1.5, now + 0.12);
+      eng.filter.frequency.linearRampToValueAtTime(520 + freq, now + 0.12);
+    }
+
+    function setTone(on) {
+      toneOn = on;
+      toneBtn.textContent = on ? "Tone on" : "Tone off";
+      toneBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      const eng = on ? ensureAudio() : audio;
+      if (!eng) return;
+      if (eng.actx.state === "suspended") eng.actx.resume();
+      const now = eng.actx.currentTime;
+      eng.master.gain.cancelScheduledValues(now);
+      eng.master.gain.linearRampToValueAtTime(on ? 0.028 : 0.0001, now + 0.08);
+      if (on) {
+        const index = indexAt(pageProgress());
+        const station = index >= 0 && index < 6 ? stations[index] : stations[0];
+        retune(station.tone);
+      }
+    }
+
+    function currentIndex() {
+      return motion.matches ? forced : shown === "hero" || shown == null ? -1 : Number(shown);
+    }
+
+    function go(index) {
+      const next = Math.max(-1, Math.min(6, index));
+      if (motion.matches) {
+        forced = next;
+        draw(performance.now());
+        return;
+      }
+      const max = document.documentElement.scrollHeight - innerHeight;
+      window.scrollTo({ top: targetProgress(next) * Math.max(0, max), behavior: "smooth" });
+    }
+
+    toneBtn.addEventListener("click", () => setTone(!toneOn));
+    prevBtn.addEventListener("click", () => go(currentIndex() - 1));
+    nextBtn.addEventListener("click", () => go(currentIndex() + 1));
+    addEventListener("scroll", () => { if (!motion.matches) draw(performance.now()); }, { passive: true });
+    addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) cancelAnimationFrame(frame);
+      else if (!motion.matches) frame = requestAnimationFrame(loop);
+    });
+    motion.addEventListener("change", () => {
+      cancelAnimationFrame(frame);
+      if (motion.matches) forced = shown === "hero" || shown == null ? -1 : Number(shown);
+      resize();
+      if (!motion.matches) frame = requestAnimationFrame(loop);
+    });
+
+    resize();
+    live.textContent = "Begin with one tone. Scroll the field to leave it behind.";
+    if (!motion.matches) frame = requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
