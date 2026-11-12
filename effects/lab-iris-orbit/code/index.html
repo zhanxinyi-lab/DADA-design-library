@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>液态虹彩导航轨道</title>
+  <style>
+    :root {
+      --field: #0b0d0c;
+      --ink: #ebe6db;
+      --muted: rgba(235, 230, 219, 0.62);
+      --faint: rgba(235, 230, 219, 0.38);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--field);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+    }
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .stage {
+      position: relative;
+      z-index: 1;
+      min-height: 100%;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 28px;
+      padding: 28px 20px 36px;
+    }
+    h1 {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .row {
+      width: min(1080px, 96vw);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      gap: clamp(8px, 2vw, 28px);
+    }
+    .orbit {
+      position: relative;
+      width: min(32vw, 360px);
+      aspect-ratio: 2;
+      justify-self: center;
+    }
+    .orbit.left { justify-self: end; }
+    .orbit.right { justify-self: start; }
+    .orbit a {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      color: #fff;
+      font-size: clamp(15px, 1.7vw, 22px);
+      font-style: italic;
+      font-weight: 300;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      text-decoration: none;
+      white-space: nowrap;
+      padding: 6px 4px;
+    }
+    .orbit a:hover,
+    .orbit a:focus-visible,
+    .orbit a[aria-current="true"] {
+      color: #fff;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
+    }
+    .orbit a:focus-visible {
+      outline: 1px solid rgba(235, 230, 219, 0.8);
+      outline-offset: 4px;
+    }
+    .mark {
+      width: min(34vmin, 280px);
+      aspect-ratio: 1;
+      color: var(--ink);
+    }
+    .mark svg { width: 100%; height: 100%; display: block; }
+    .line, .status {
+      margin: 0;
+      text-align: center;
+      font-weight: 300;
+    }
+    .line {
+      color: var(--muted);
+      font-size: clamp(16px, 2vw, 22px);
+      letter-spacing: -0.02em;
+    }
+    .status {
+      min-height: 1.2em;
+      color: var(--faint);
+      font-size: 13px;
+    }
+    @media (max-width: 760px) {
+      body { overflow: auto; }
+      .stage { align-content: start; padding-top: 36px; }
+      .row {
+        grid-template-columns: 1fr;
+        justify-items: center;
+        gap: 18px;
+      }
+      .orbit, .orbit.left, .orbit.right {
+        width: min(78vw, 340px);
+        justify-self: center;
+      }
+      .mark { width: min(52vw, 220px); }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="field" aria-hidden="true"></canvas>
+  <main class="stage">
+    <h1>Orra</h1>
+    <div class="row">
+      <nav class="orbit left" aria-label="左侧">
+        <a href="#home" data-angle="3.1416" style="left:16%;top:50%">Home</a>
+        <a href="#atlas" data-angle="-0.62" style="left:77.64%;top:30.25%">Atlas</a>
+        <a href="#tests" data-angle="1.75" style="left:43.95%;top:83.46%">Tests</a>
+      </nav>
+      <div class="mark" role="img" aria-label="Orra">
+        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor">
+          <circle cx="50" cy="50" r="30" stroke-width="1.25"/>
+          <circle cx="50" cy="50" r="18" stroke-width="1.25"/>
+          <path d="M50 16v10M50 74v10" stroke-width="1.25"/>
+        </svg>
+      </div>
+      <nav class="orbit right" aria-label="右侧">
+        <a href="#labs" data-angle="0" style="left:84%;top:50%">Labs</a>
+        <a href="#research" data-angle="3.7616" style="left:22.36%;top:30.25%">Research</a>
+        <a href="#contact" data-angle="1.39" style="left:55.85%;top:83.46%">Contact</a>
+      </nav>
+    </div>
+    <p class="line">Held in a slow orbit.</p>
+    <p class="status" id="status" role="status"></p>
+  </main>
+  <script>
+    const TAU = Math.PI * 2;
+    const RX = 68 / 200;
+    const RY = 34 / 100;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+    const canvas = document.getElementById('field');
+    const ctx = canvas.getContext('2d');
+    const orbits = [...document.querySelectorAll('.orbit')];
+    const links = [...document.querySelectorAll('.orbit a')];
+    const status = document.getElementById('status');
+    const notes = {
+      '#home': 'Home — 回到这枚标志。',
+      '#atlas': 'Atlas — 轨道上的索引，不是原品牌名。',
+      '#tests': 'Tests — 试运行中的条目。',
+      '#labs': 'Labs — 实验分区。',
+      '#research': 'Research — 还在展开的问题。',
+      '#contact': 'Contact — 只留在这个页面里。'
+    };
+    let hot = null;
+    let pointer = null;
+    let running = !reduce.matches;
+    let raf = 0;
+    const t0 = performance.now();
+
+    function resize() {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.round(innerWidth * dpr));
+      canvas.height = Math.max(1, Math.round(innerHeight * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function labelGap(x, y, boxes) {
+      let nearest = 48;
+      for (const box of boxes) {
+        const dx = Math.max(box.left - x, 0, x - box.right);
+        const dy = Math.max(box.top - y, 0, y - box.bottom);
+        nearest = Math.min(nearest, Math.hypot(dx, dy));
+      }
+      if (nearest < 6) return 0;
+      if (nearest > 22) return 1;
+      return (nearest - 6) / 16;
+    }
+
+    function strokeArc(pts) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+    }
+
+    function ribbon(rect, boxes, time, active) {
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const rx = rect.width * RX;
+      const ry = rect.height * RY;
+      const bands = 32;
+      const breathe = reduce.matches ? 1 : 1 + Math.sin(time * 0.7) * 0.02;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (let i = 0; i < bands; i++) {
+        const a0 = (i / bands) * TAU;
+        const a1 = ((i + 1) / bands) * TAU;
+        const pts = [];
+        let open = 1;
+        for (let s = 0; s <= 5; s++) {
+          const angle = a0 + (a1 - a0) * (s / 5);
+          const wobble = reduce.matches ? 0 : Math.sin(angle * 3 + time) * 6 + Math.sin(angle * 5 - time * 1.25) * 3.2;
+          const pull = pointerPull(cx, cy, angle, rx, ry);
+          const p = point(cx, cy, rx, ry, angle, breathe, wobble, pull);
+          pts.push(p);
+          open = Math.min(open, labelGap(p.x, p.y, boxes));
+        }
+        if (open < 0.2) continue;
+        const hue = (i * 17 + time * 22 + (active ? 18 : 0)) % 360;
+        const swell = reduce.matches ? 0 : Math.sin(a0 * 2 + time * 1.6) * 3;
+        ctx.strokeStyle = 'hsla(' + hue + ', 82%, 58%, ' + (0.42 * open) + ')';
+        ctx.lineWidth = (active ? 20 : 15) + swell;
+        strokeArc(pts);
+        ctx.strokeStyle = 'hsla(' + ((hue + 36) % 360) + ', 95%, 86%, ' + (0.92 * open) + ')';
+        ctx.lineWidth = active ? 2.6 : 1.8;
+        strokeArc(pts);
+      }
+    }
+
+    function point(cx, cy, rx, ry, angle, breathe, wobble, pull) {
+      const c = Math.cos(angle);
+      const s = Math.sin(angle);
+      return {
+        x: cx + c * (rx * breathe + wobble) + pull.x,
+        y: cy + s * (ry * breathe + wobble * 0.72) + pull.y
+      };
+    }
+
+    function pointerPull(cx, cy, angle, rx, ry) {
+      if (!pointer || reduce.matches) return { x: 0, y: 0 };
+      const x = cx + Math.cos(angle) * rx;
+      const y = cy + Math.sin(angle) * ry;
+      const dx = pointer.x - x;
+      const dy = pointer.y - y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 140 || dist < 1) return { x: 0, y: 0 };
+      const fall = (1 - dist / 140) * 10;
+      return { x: dx / dist * fall, y: dy / dist * fall };
+    }
+
+    function frame(now) {
+      const time = reduce.matches ? 0.8 : (now - t0) / 1000;
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      const wash = ctx.createRadialGradient(innerWidth * 0.5, innerHeight * 0.48, 40, innerWidth * 0.5, innerHeight * 0.5, Math.max(innerWidth, innerHeight) * 0.62);
+      wash.addColorStop(0, 'rgba(28, 36, 42, 0.55)');
+      wash.addColorStop(1, 'rgba(11, 13, 12, 0)');
+      ctx.fillStyle = wash;
+      ctx.fillRect(0, 0, innerWidth, innerHeight);
+      for (const orbit of orbits) {
+        const rect = orbit.getBoundingClientRect();
+        if (rect.width < 2) continue;
+        const boxes = [...orbit.querySelectorAll('a')].map((a) => a.getBoundingClientRect());
+        ribbon(rect, boxes, time, hot && orbit.contains(hot));
+      }
+      if (running) raf = requestAnimationFrame(frame);
+    }
+
+    function choose(link) {
+      hot = link;
+      for (const item of links) item.removeAttribute('aria-current');
+      link.setAttribute('aria-current', 'true');
+      status.textContent = notes[link.getAttribute('href')] || link.textContent;
+      if (!running) frame(performance.now());
+    }
+
+    for (const link of links) {
+      link.addEventListener('pointerenter', () => { hot = link; if (!running) frame(performance.now()); });
+      link.addEventListener('pointerleave', () => { if (hot === link && link.getAttribute('aria-current') !== 'true') hot = null; });
+      link.addEventListener('focus', () => { hot = link; if (!running) frame(performance.now()); });
+      link.addEventListener('blur', () => { if (hot === link && link.getAttribute('aria-current') !== 'true') hot = null; });
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        choose(link);
+      });
+    }
+
+    addEventListener('pointermove', (event) => {
+      pointer = { x: event.clientX, y: event.clientY };
+      if (!running) frame(performance.now());
+    });
+    addEventListener('resize', () => { resize(); if (!running) frame(performance.now()); });
+    reduce.addEventListener('change', () => {
+      running = !reduce.matches;
+      cancelAnimationFrame(raf);
+      if (running) raf = requestAnimationFrame(frame);
+      else frame(performance.now());
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!running) return;
+      cancelAnimationFrame(raf);
+      if (!document.hidden) raf = requestAnimationFrame(frame);
+    });
+
+    resize();
+    raf = requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

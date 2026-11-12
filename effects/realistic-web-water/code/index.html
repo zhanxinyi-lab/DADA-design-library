@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<!-- AI 复刻：写实网页水面。原作是预告片，这里是自己的水面着色，不是 Water Pro 源码，也不贴原画面。 -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>写实网页水面</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#123e44;overflow:hidden;color:#f4f7fb;font-family:system-ui,sans-serif}
+  #gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  #mark{position:fixed;left:20px;top:18px;z-index:2;letter-spacing:.22em;font:600 13px/1.3 system-ui,sans-serif;text-transform:uppercase;text-shadow:0 1px 10px rgba(0,0,0,.45)}
+  #sub{display:block;margin-top:4px;letter-spacing:.08em;font-weight:500;font-size:11px;opacity:.78}
+  #palette{position:fixed;right:16px;bottom:14px;z-index:2;background:rgba(8,16,18,.38);color:#f4f7fb;
+    border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:8px 14px;font:12px/1 inherit;letter-spacing:.14em;cursor:pointer}
+  #palette:focus-visible{outline:2px solid #fff;outline-offset:3px}
+  @media (max-width:640px){#mark{left:14px;top:14px;font-size:12px}}
+</style>
+</head>
+<body>
+<canvas id="gl" aria-label="写实网页水面，可拖拽观看，也可切换配色"></canvas>
+<p id="mark"></p>
+<button id="palette" type="button">配色</button>
+<script>
+// ===== 改这里：品牌名，以及落地页可以换的三套场景配色 =====
+const BRAND = {
+  title: 'NORTHWATER',
+  palettes: [
+    { name: '日间海港', deep: '#0c3a3e', shallow: '#2f8d8e', zenith: '#6d86ab', horizon: '#c5d0e2', sun: '#fff4e4', land: '#5a634c', foam: '#e7eef0', sunDir: [0.46, 0.30, -0.84] },
+    { name: '黄昏铜海', deep: '#1a2438', shallow: '#c47a4a', zenith: '#24304a', horizon: '#e7b089', sun: '#ffd0a4', land: '#3d342c', foam: '#f3e2d2', sunDir: [0.62, 0.16, -0.76] },
+    { name: '潟湖', deep: '#06343a', shallow: '#1f9a8a', zenith: '#7eb0b4', horizon: '#d5ebe6', sun: '#f4fff8', land: '#3f5a45', foam: '#e8f6f2', sunDir: [0.2, 0.48, -0.85] }
+  ]
+};
+// ============================================================
+(function () {
+  'use strict';
+  const hex = (s) => {
+    const n = parseInt(s.slice(1), 16);
+    return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  };
+  const norm = (v) => {
+    const L = Math.hypot(v[0], v[1], v[2]) || 1;
+    return [v[0] / L, v[1] / L, v[2] / L];
+  };
+  const palettes = BRAND.palettes.map((p) => ({
+    name: p.name,
+    deep: hex(p.deep), shallow: hex(p.shallow), zenith: hex(p.zenith), horizon: hex(p.horizon),
+    sun: hex(p.sun), land: hex(p.land), foam: hex(p.foam), sunDir: norm(p.sunDir)
+  }));
+
+  const cv = document.getElementById('gl');
+  const mark = document.getElementById('mark');
+  const sub = document.createElement('span');
+  sub.id = 'sub';
+  mark.textContent = BRAND.title;
+  mark.appendChild(sub);
+  let palette = 0;
+  const showName = () => { sub.textContent = palettes[palette].name; };
+  showName();
+  document.getElementById('palette').addEventListener('click', () => {
+    palette = (palette + 1) % palettes.length;
+    showName();
+    if (reduce) draw(FROZEN);
+  });
+
+  const gl = cv.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false });
+  if (!gl) return;
+
+  const VS = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
+  const FS = [
+    'precision highp float;',
+    'uniform vec2 uRes;',
+    'uniform float uTime;',
+    'uniform vec3 uEye;',
+    'uniform vec3 uTarget;',
+    'uniform vec3 uDeep,uShallow,uZenith,uHorizon,uSun,uLand,uFoam,uSunDir;',
+    'float waveH(vec2 xz){',
+    '  float t=uTime; float h=0.0;',
+    '  h+=0.58*sin(dot(xz,vec2(0.170,0.038))+t*0.78);',
+    '  h+=0.31*sin(dot(xz,vec2(-0.055,0.262))+t*1.07);',
+    '  h+=0.15*sin(dot(xz,vec2(0.47,0.41))+t*1.55);',
+    '  h+=0.08*sin(dot(xz,vec2(-0.73,0.58))+t*2.05);',
+    '  h+=0.045*sin(dot(xz,vec2(1.27,-0.91))+t*2.7);',
+    '  h+=0.022*sin(dot(xz,vec2(-1.63,1.48))+t*3.25);',
+    '  return h;',
+    '}',
+    'vec3 waveN(vec2 xz){',
+    '  float t=uTime; vec3 n=vec3(0.0,1.0,0.0); vec2 k; float A,ph;',
+    '  k=vec2(0.170,0.038); A=0.58; ph=dot(xz,k)+t*0.78; n.xz-=k*A*cos(ph);',
+    '  k=vec2(-0.055,0.262); A=0.31; ph=dot(xz,k)+t*1.07; n.xz-=k*A*cos(ph);',
+    '  k=vec2(0.47,0.41); A=0.15; ph=dot(xz,k)+t*1.55; n.xz-=k*A*cos(ph);',
+    '  k=vec2(-0.73,0.58); A=0.08; ph=dot(xz,k)+t*2.05; n.xz-=k*A*cos(ph);',
+    '  k=vec2(1.27,-0.91); A=0.045; ph=dot(xz,k)+t*2.7; n.xz-=k*A*cos(ph);',
+    '  k=vec2(-1.63,1.48); A=0.022; ph=dot(xz,k)+t*3.25; n.xz-=k*A*cos(ph);',
+    '  return normalize(n);',
+    '}',
+    'vec3 sky(vec3 rd){',
+    '  float up=clamp(rd.y,0.0,1.0);',
+    '  vec3 col=mix(uHorizon,uZenith,pow(up,0.72));',
+    '  col=mix(col,uHorizon,exp(-abs(rd.y)*5.5)*0.42);',
+    '  float sd=max(dot(rd,uSunDir),0.0);',
+    '  col+=uSun*(pow(sd,1600.0)*1.05+pow(sd,32.0)*0.18);',
+    '  float cloud=sin(rd.x*6.2+rd.z*3.4+uTime*0.035)*sin(rd.z*5.1-rd.x*1.7);',
+    '  col=mix(col,min(uHorizon+vec3(0.08),vec3(1.0)),smoothstep(0.45,0.96,cloud)*smoothstep(0.06,0.4,rd.y)*0.14);',
+    '  float ang=atan(rd.x,rd.z);',
+    '  float delta=atan(sin(ang-2.15),cos(ang-2.15));',
+    '  float hump=exp(-delta*delta*5.5);',
+    '  float edge=hump*0.055;',
+    '  float hill=smoothstep(edge,-0.002,rd.y)*smoothstep(0.15,0.72,hump);',
+    '  vec3 rock=mix(uLand*0.68,uLand,smoothstep(0.0,edge,rd.y));',
+    '  col=mix(col,rock,hill*0.92);',
+    '  return col;',
+    '}',
+    'float spark(vec2 p){',
+    '  vec2 q=p+vec2(sin(p.y*0.37+uTime*0.31),cos(p.x*0.29-uTime*0.23))*1.4;',
+    '  return sin(q.x*2.7+sin(q.y*1.3))*sin(q.y*2.2+sin(q.x*1.1+uTime*0.6));',
+    '}',
+    'void main(){',
+    '  vec2 uv=(gl_FragCoord.xy/uRes)*2.0-1.0;',
+    '  uv.x*=uRes.x/max(uRes.y,1.0);',
+    '  if(uRes.y>uRes.x) uv.y-=0.12;',
+    '  vec3 ro=uEye;',
+    '  vec3 ww=normalize(uTarget-uEye);',
+    '  vec3 uu=normalize(cross(ww,vec3(0.0,1.0,0.0)));',
+    '  vec3 vv=cross(uu,ww);',
+    '  vec3 rd=normalize(ww*1.15+uu*uv.x+vv*uv.y);',
+    '  vec3 col=sky(rd);',
+    '  if(rd.y<-0.02){',
+    '    float lo=0.2; float hi=78.0;',
+    '    for(int i=0;i<8;i++){',
+    '      float mid=(lo+hi)*0.5;',
+    '      vec3 q=ro+rd*mid;',
+    '      if(q.y>waveH(q.xz)) lo=mid; else hi=mid;',
+    '    }',
+    '    float tHit=hi;',
+    '    vec3 p=ro+rd*tHit;',
+    '    float h=waveH(p.xz);',
+    '    if(tHit<76.0 && p.y<h+0.35){',
+    '      vec3 n=waveN(p.xz);',
+    '      float micro=spark(p.xz*3.4);',
+    '      n=normalize(n+vec3(micro,0.0,spark(p.xz*3.4+vec2(4.2,1.7)))*0.035);',
+    '      vec3 v=normalize(ro-p);',
+    '      float ndv=max(dot(n,v),0.0);',
+    '      float F=0.02+0.98*pow(1.0-ndv,5.0);',
+    '      vec3 refl=sky(reflect(-v,n));',
+    '      float crest=smoothstep(0.05,0.72,h);',
+    '      float lit=clamp(dot(n,uSunDir)*0.45+0.55,0.0,1.0);',
+    '      vec3 body=mix(uDeep,uShallow,crest*0.45+lit*0.22);',
+    '      col=mix(body,refl,clamp(F,0.0,1.0));',
+    '      vec3 hh=normalize(uSunDir+v);',
+    '      float spec=pow(max(dot(n,hh),0.0),180.0);',
+    '      vec2 to=p.xz-ro.xz;',
+    '      vec2 sunXZ=normalize(uSunDir.xz+vec2(1e-4,0.0));',
+    '      float across=abs(to.x*(-sunXZ.y)+to.y*sunXZ.x);',
+    '      float along=dot(normalize(to+vec2(1e-4,0.0)),sunXZ);',
+    '      float path=exp(-across*across*0.045)*smoothstep(-0.2,0.45,along);',
+    '      float dots=smoothstep(0.72,0.97,spark(p.xz*1.6)*0.5+0.5);',
+    '      float dots2=smoothstep(0.8,0.98,spark(p.xz*4.1+3.0)*0.5+0.5);',
+    '      col+=uSun*(spec*(0.12+path*0.85)+path*(dots*0.42+dots2*0.28));',
+    '      float foam=smoothstep(0.72,1.05,h)*smoothstep(0.12,0.45,1.0-n.y);',
+    '      col=mix(col,uFoam,foam*0.45);',
+    '      col=mix(col,sky(rd),smoothstep(22.0,70.0,tHit));',
+    '    }',
+    '  }',
+    '  gl_FragColor=vec4(pow(clamp(col,0.0,1.0),vec3(0.94)),1.0);',
+    '}'
+  ].join('\n');
+
+  const sh = (type, src) => {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) || 'shader');
+    return s;
+  };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+  gl.bindAttribLocation(prog, 0, 'p');
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog) || 'link');
+  gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  const U = {};
+  ['uRes', 'uTime', 'uEye', 'uTarget', 'uDeep', 'uShallow', 'uZenith', 'uHorizon', 'uSun', 'uLand', 'uFoam', 'uSunDir']
+    .forEach((k) => { U[k] = gl.getUniformLocation(prog, k); });
+
+  const look = { yaw: 0, pitch: 0 };
+  let drag = null;
+  cv.addEventListener('pointerdown', (e) => {
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, yaw: look.yaw, pitch: look.pitch };
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    look.yaw = drag.yaw + (e.clientX - drag.x) * 0.005;
+    look.pitch = Math.max(-0.35, Math.min(0.35, drag.pitch + (drag.y - e.clientY) * 0.003));
+    if (reduce) draw(FROZEN);
+  });
+  const endDrag = (e) => { if (drag && e.pointerId === drag.id) drag = null; };
+  cv.addEventListener('pointerup', endDrag);
+  cv.addEventListener('pointercancel', endDrag);
+
+  const freezeArg = new URLSearchParams(location.search).get('freeze');
+  const freezeAt = freezeArg === null ? null : Number(freezeArg);
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches || Number.isFinite(freezeAt);
+  const FROZEN = Number.isFinite(freezeAt) ? freezeAt : 4.2;
+  const t0 = performance.now();
+  function fit() {
+    const d = Math.min(window.devicePixelRatio || 1, 1.5);
+    const w = Math.round(window.innerWidth * d);
+    const h = Math.round(window.innerHeight * d);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  }
+  function camera(t) {
+    const yaw = (reduce ? 0.18 : 0.24 * Math.sin(t * 0.11)) + look.yaw;
+    const bob = reduce ? 0 : 0.1 * Math.sin(t * 0.08);
+    const dist = 16;
+    const eye = [Math.sin(yaw) * dist, 3.2 + bob, Math.cos(yaw) * dist];
+    const target = [Math.sin(yaw) * 1.1, 0.22 + look.pitch, Math.cos(yaw) * 1.1];
+    return { eye, target };
+  }
+  function draw(t) {
+    fit();
+    const { eye, target } = camera(t);
+    const p = palettes[palette];
+    gl.viewport(0, 0, cv.width, cv.height);
+    gl.uniform2f(U.uRes, cv.width, cv.height);
+    gl.uniform1f(U.uTime, t);
+    gl.uniform3fv(U.uEye, eye);
+    gl.uniform3fv(U.uTarget, target);
+    gl.uniform3fv(U.uDeep, p.deep);
+    gl.uniform3fv(U.uShallow, p.shallow);
+    gl.uniform3fv(U.uZenith, p.zenith);
+    gl.uniform3fv(U.uHorizon, p.horizon);
+    gl.uniform3fv(U.uSun, p.sun);
+    gl.uniform3fv(U.uLand, p.land);
+    gl.uniform3fv(U.uFoam, p.foam);
+    gl.uniform3fv(U.uSunDir, p.sunDir);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  addEventListener('resize', () => { if (reduce) draw(FROZEN); });
+  function frame(now) {
+    draw((now - t0) / 1000);
+    requestAnimationFrame(frame);
+  }
+  if (reduce) draw(FROZEN);
+  else { draw(0.8); requestAnimationFrame(frame); }
+})();
+</script>
+</body>
+</html>
