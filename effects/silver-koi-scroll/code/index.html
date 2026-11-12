@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>银粒子锦鲤</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #070a16; }
+    body { color: #e7edf6; font-family: Georgia, "Iowan Old Style", Palatino, serif; }
+    .story { height: 340vh; }
+    .stage {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      height: 100svh;
+      overflow: hidden;
+      background: #070a16;
+    }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .mark, .cap, .hint, .rail, .jump, .live { position: absolute; z-index: 2; }
+    .mark {
+      top: 28px;
+      left: 28px;
+      margin: 0;
+      font-size: 13px;
+      letter-spacing: .28em;
+      text-indent: .28em;
+    }
+    .cap {
+      left: 28px;
+      bottom: 36px;
+      margin: 0;
+      max-width: min(70vw, 420px);
+      font-size: clamp(18px, 2.4vw, 28px);
+      line-height: 1.35;
+    }
+    .hint {
+      left: 28px;
+      bottom: 92px;
+      margin: 0;
+      color: rgba(231, 237, 246, .62);
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      letter-spacing: .18em;
+    }
+    .rail {
+      right: 26px;
+      top: 18%;
+      bottom: 18%;
+      width: 1px;
+      background: rgba(220, 226, 236, .28);
+    }
+    #dot {
+      position: absolute;
+      left: -3px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #e8eef8;
+      transform: translateY(-50%);
+    }
+    .jump {
+      right: 48px;
+      bottom: 28px;
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      border: 1px solid rgba(231, 237, 246, .35);
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: rgba(7, 10, 22, .35);
+      color: inherit;
+      font: 12px/1 system-ui, sans-serif;
+      letter-spacing: .08em;
+      cursor: pointer;
+    }
+    button:hover { background: rgba(231, 237, 246, .12); }
+    button:focus-visible { outline: 2px solid #e8eef8; outline-offset: 3px; }
+    .live {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      border: 0;
+    }
+    @media (max-width: 640px) {
+      .mark, .cap, .hint { left: 16px; }
+      .mark { top: 18px; }
+      .cap { bottom: 78px; }
+      .hint { bottom: 128px; }
+      .jump { right: 16px; bottom: 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .story { height: 100vh; height: 100svh; }
+      .hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="story" id="story">
+    <div class="stage">
+      <canvas id="view" aria-label="银色粒子先游成锦鲤，滚动后聚成瓶与杯"></canvas>
+      <p class="mark">银粒子</p>
+      <p class="hint" id="hint">向下滚动</p>
+      <p class="cap" id="cap">粒子游成一条锦鲤</p>
+      <div class="rail" aria-hidden="true"><i id="dot"></i></div>
+      <div class="jump">
+        <button type="button" id="btn-koi">锦鲤</button>
+        <button type="button" id="btn-cup">瓶与杯</button>
+      </div>
+      <p class="live" id="live">粒子游成一条锦鲤</p>
+    </div>
+  </div>
+  <script>
+    const canvas = document.getElementById('view');
+    const ctx = canvas.getContext('2d');
+    const story = document.getElementById('story');
+    const cap = document.getElementById('cap');
+    const hint = document.getElementById('hint');
+    const dot = document.getElementById('dot');
+    const live = document.getElementById('live');
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const stageQuery = new URLSearchParams(location.search).get('stage');
+    let manual = stageQuery === 'cup' || location.hash === '#cup' ? 1 : stageQuery === 'mid' ? 0.45 : 0;
+    let pinned = manual > 0;
+    let shown = '';
+
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) >>> 0;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function koiRadius(t) {
+      if (t < 0.07) return 0.028 + t * 1.15;
+      if (t < 0.18) return 0.11 + (t - 0.07) * 0.38;
+      if (t < 0.62) return 0.152 - (t - 0.18) * 0.04;
+      return 0.132 * Math.pow(Math.max(0, 1 - (t - 0.62) / 0.38), 0.75);
+    }
+
+    function bottleHalf(y) {
+      if (y > 0.84) return 0.11;
+      if (y > 0.62) return 0.048;
+      if (y > 0.36) {
+        const u = (0.62 - y) / 0.26;
+        return 0.048 + Math.pow(u, 1.4) * 0.2;
+      }
+      if (y > -0.82) return 0.248;
+      const u = Math.min(1, (-0.82 - y) / 0.18);
+      return 0.248 - u * 0.03;
+    }
+
+    function sampleCup(count, rnd) {
+      const pts = [];
+      const cx = 0.36;
+      const rimY = 0.08;
+      const rimN = Math.floor(count * 0.42);
+      for (let i = 0; i < rimN; i++) {
+        const ang = rnd() * Math.PI * 2;
+        const rx = 0.2 * (0.94 + rnd() * 0.08);
+        const ry = 0.03 * (0.85 + rnd() * 0.3);
+        pts.push([cx + Math.cos(ang) * rx, rimY + Math.sin(ang) * ry]);
+      }
+      while (pts.length < count) {
+        const t = rnd();
+        const y = -0.16 + t * 0.24;
+        const half = 0.075 + t * 0.125;
+        const side = rnd() < 0.5 ? -1 : 1;
+        const inset = Math.pow(rnd(), 0.35) * 0.04;
+        pts.push([cx + side * (half - inset), y]);
+      }
+      return pts;
+    }
+
+    function fillShape(count, half, hollow, rnd) {
+      const pts = [];
+      let guard = 0;
+      while (pts.length < count && guard < count * 100) {
+        guard += 1;
+        const y = -1 + rnd() * 2;
+        const h = half(y);
+        if (h <= 0) continue;
+        const x = (rnd() * 2 - 1) * h;
+        const edge = Math.abs(x) / h;
+        if (hollow && edge < 0.58 && y < 0.55 && y > -0.05 && rnd() < 0.75) continue;
+        if (!hollow && edge < 0.22 && rnd() < 0.12) continue;
+        pts.push([x, y]);
+      }
+      while (pts.length < count) pts.push(pts.length ? pts[pts.length - 1] : [0, 0]);
+      return pts;
+    }
+
+    function buildParticles(n, rnd) {
+      const bodyN = Math.floor(n * 0.78);
+      const finN = Math.floor(n * 0.07);
+      const tailN = n - bodyN - finN;
+      const koi = [];
+      for (let i = 0; i < bodyN; i++) {
+        const t = (i + rnd()) / bodyN;
+        const rad = koiRadius(t);
+        const ang = rnd() * Math.PI * 2;
+        const rr = Math.sqrt(rnd()) * rad;
+        const x = -0.62 + t * 1.08 + Math.cos(ang) * rr * 0.36;
+        let y = Math.sin(ang) * rr * 0.92;
+        if (t > 0.13 && t < 0.19 && (x + 0.46) ** 2 + (y - 0.035) ** 2 < 0.0016) {
+          y += y > 0 ? 0.04 : -0.028;
+        }
+        koi.push([x, y, t]);
+      }
+      for (let i = 0; i < finN; i++) {
+        if (i % 2 === 0) {
+          const t = 0.36 + rnd() * 0.16;
+          koi.push([-0.62 + t * 1.08, koiRadius(t) * (0.75 + rnd() * 0.85), t]);
+        } else {
+          const t = 0.24 + rnd() * 0.12;
+          koi.push([-0.62 + t * 1.08 - 0.02, -koiRadius(t) * (0.9 + rnd() * 1.15), t]);
+        }
+      }
+      for (let i = 0; i < tailN; i++) {
+        const side = i % 2 === 0 ? 1 : -1;
+        const u = Math.pow(rnd(), 0.85);
+        const spread = 0.035 + u * 0.26;
+        koi.push([0.44 + u * 0.18, side * spread * (0.35 + 0.65 * rnd()), 0.98 + u * 0.02]);
+      }
+      koi.sort((a, b) => a[2] - b[2]);
+      const bottleCount = Math.floor(n * 0.5);
+      const bottle = fillShape(bottleCount, bottleHalf, false, rnd);
+      const cup = sampleCup(n - bottleCount, rnd);
+      return koi.map((point, i) => {
+        let tx;
+        let ty;
+        if (i < bottleCount) {
+          tx = -0.34 + bottle[i][0] * 0.2;
+          ty = 0.02 + bottle[i][1] * 0.38;
+        } else {
+          tx = cup[i - bottleCount][0];
+          ty = cup[i - bottleCount][1];
+        }
+        return {
+          kx: point[0],
+          ky: point[1],
+          tx,
+          ty,
+          jx: rnd() - 0.5,
+          jy: rnd() - 0.5,
+          size: 1.8 + rnd() * 2.2,
+          shade: 198 + Math.floor(rnd() * 57),
+        };
+      });
+    }
+
+    const count = Math.min(2600, Math.max(1100, Math.floor(innerWidth * 1.6)));
+    const particles = buildParticles(count, mulberry32(20261102));
+    const dust = Array.from({ length: 48 }, () => {
+      const rnd = Math.random();
+      return { x: Math.random(), y: Math.random(), a: 0.08 + rnd * 0.12 };
+    });
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function smoother(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+
+    function scrollProgress() {
+      if (reduce || pinned) return manual;
+      const total = story.offsetHeight - window.innerHeight;
+      if (total <= 1) return manual;
+      return clamp(-story.getBoundingClientRect().top / total, 0, 1);
+    }
+
+    function morphOf(progress) {
+      if (progress < 0.18) return 0;
+      if (progress > 0.72) return 1;
+      return smoother((progress - 0.18) / 0.54);
+    }
+
+    function resize() {
+      const dpr = Math.min(2, devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function project(x, y, w, h) {
+      const s = Math.min(w * 0.58, h * 0.78);
+      return [w * 0.5 + x * s, h * 0.46 - y * s];
+    }
+
+    let running = false;
+    function draw(now) {
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const progress = scrollProgress();
+      const morph = morphOf(progress);
+      const time = reduce ? 0 : now / 1000;
+      const burst = Math.sin(Math.PI * morph);
+      ctx.clearRect(0, 0, width, height);
+      const sky = ctx.createLinearGradient(0, 0, 0, height);
+      sky.addColorStop(0, '#070a16');
+      sky.addColorStop(1, '#15192e');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = 'rgba(232,238,248,0.9)';
+      for (const speck of dust) {
+        ctx.globalAlpha = speck.a;
+        ctx.fillRect(speck.x * width, speck.y * height, 1.2, 1.2);
+      }
+      for (const p of particles) {
+        const sway = Math.sin(time * 1.7 + p.kx * 8) * (0.018 + Math.max(0, p.kx + 0.15) * 0.04);
+        const drift = Math.sin(time * 0.55) * 0.02;
+        const sx = p.kx + (1 - morph) * drift;
+        const sy = p.ky + (1 - morph) * sway;
+        const x = sx + (p.tx - sx) * morph + p.jx * burst * 0.7;
+        const y = sy + (p.ty - sy) * morph + p.jy * burst * 0.55 + (morph > 0.98 ? Math.sin(time * 1.4 + p.tx * 12) * 0.006 : 0);
+        const at = project(x, y, width, height);
+        ctx.globalAlpha = 0.38 + (1 - burst) * 0.55;
+        ctx.fillStyle = 'rgb(' + p.shade + ',' + Math.min(255, p.shade + 6) + ',' + Math.min(255, p.shade + 14) + ')';
+        ctx.beginPath();
+        ctx.arc(at[0], at[1], p.size * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      const text = morph < 0.5 ? '粒子游成一条锦鲤' : '散开之后，聚成瓶与杯';
+      if (text !== shown) {
+        shown = text;
+        cap.textContent = text;
+        live.textContent = text;
+      }
+      hint.hidden = reduce || progress > 0.06;
+      dot.style.top = (progress * 100) + '%';
+    }
+
+    function loop(now) {
+      draw(now);
+      if (!reduce && !document.hidden) requestAnimationFrame(loop);
+      else running = false;
+    }
+
+    function start() {
+      if (running || reduce) {
+        draw(performance.now());
+        return;
+      }
+      running = true;
+      requestAnimationFrame(loop);
+    }
+
+    function go(progress) {
+      manual = progress;
+      if (reduce) {
+        history.replaceState(null, '', progress > 0.5 ? '#cup' : '#koi');
+        draw(0);
+        return;
+      }
+      const total = Math.max(1, story.offsetHeight - window.innerHeight);
+      window.scrollTo({ top: story.offsetTop + total * progress, behavior: 'smooth' });
+    }
+
+    document.getElementById('btn-koi').addEventListener('click', () => go(0));
+    document.getElementById('btn-cup').addEventListener('click', () => go(1));
+    addEventListener('resize', () => { resize(); draw(performance.now()); });
+    if (!reduce) {
+      addEventListener('scroll', () => {
+        if (window.scrollY > 2) pinned = false;
+        if (!running) start();
+      }, { passive: true });
+      document.addEventListener('visibilitychange', start);
+    }
+    resize();
+    start();
+  </script>
+</body>
+</html>
