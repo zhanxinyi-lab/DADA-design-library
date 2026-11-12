@@ -25,6 +25,7 @@ DADA 的设计素材、可复用效果和设计工作流 Skill。站点：https:
 - nickbaked-ink-type
 - noel-kinetic-type
 - osmo-list-grid-toggle
+- light-progress-bar
 - threejs-sequin-field
 
 其余效果目录只保留说明。原先那套通用占位动画已删除，不能再当成复刻结果。

@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>圆角点击玩具</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; background: #090b12; }
+    #toy {
+      position: fixed;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: 0;
+      background: #090b12;
+      color: inherit;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    #toy:focus-visible { outline: 2px solid #f3efe6; outline-offset: -6px; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <button id="toy" type="button" aria-describedby="live" aria-label="圆角点击玩具。按下会鼓起并发亮，松开后弹回。也可用 Enter 或空格。">
+    <canvas id="view" width="960" height="720" aria-hidden="true"></canvas>
+  </button>
+  <p id="live" class="sr-only" role="status" aria-live="polite"></p>
+  <script>
+    const toy = document.getElementById('toy');
+    const canvas = document.getElementById('view');
+    const live = document.getElementById('live');
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+
+    const vert = 'attribute vec2 a;void main(){gl_Position=vec4(a,0.0,1.0);}';
+    const frag = [
+      'precision mediump float;',
+      'uniform vec2 uCenter;',
+      'uniform float uRadius;',
+      'uniform float uScale;',
+      'uniform vec2 uSquash;',
+      'uniform float uBloom;',
+      'float field(vec2 p){',
+      '  vec2 q=abs(p);',
+      '  return pow(pow(q.x,4.0)+pow(q.y,4.0),0.25);',
+      '}',
+      'void main(){',
+      '  vec2 p=(gl_FragCoord.xy-uCenter)/max(uSquash,vec2(0.35));',
+      '  float r=max(uRadius*uScale,1.0);',
+      '  float dist=(field(p/r)-1.0)*r;',
+      '  float edge=smoothstep(1.6,-1.2,dist);',
+      '  vec3 bg=vec3(0.035,0.043,0.071);',
+      '  float lit=smoothstep(0.04,0.82,uBloom);',
+      '  vec3 body=mix(vec3(0.105,0.112,0.128),vec3(0.855,0.835,0.792),lit);',
+      '  vec2 spot=p-vec2(0.0,r*0.06);',
+      '  float disc=smoothstep(r*0.34,r*0.12,length(spot));',
+      '  vec3 hi=mix(vec3(0.62,0.64,0.67),vec3(0.98,0.96,0.92),clamp(uBloom,0.0,1.0));',
+      '  vec2 specP=p-vec2(-r*0.1,r*0.2);',
+      '  float spec=smoothstep(r*0.16,0.0,length(specP));',
+      '  vec3 col=mix(bg,body,edge);',
+      '  col=mix(col,hi,disc*edge*0.85);',
+      '  col+=spec*edge*vec3(0.18+0.4*clamp(uBloom,0.0,1.0));',
+      '  gl_FragColor=vec4(col,1.0);',
+      '}'
+    ].join('');
+
+    let gl = canvas.getContext('webgl', { alpha: false, antialias: false, premultipliedAlpha: false });
+    let program = null;
+    let buffer = null;
+    let loc = {};
+    if (gl) {
+      function shader(type, source) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, source);
+        gl.compileShader(s);
+        return s;
+      }
+      program = gl.createProgram();
+      gl.attachShader(program, shader(gl.VERTEX_SHADER, vert));
+      gl.attachShader(program, shader(gl.FRAGMENT_SHADER, frag));
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) gl = null;
+    }
+    if (gl) {
+      buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const at = gl.getAttribLocation(program, 'a');
+      gl.enableVertexAttribArray(at);
+      gl.vertexAttribPointer(at, 2, gl.FLOAT, false, 0, 0);
+      gl.useProgram(program);
+      for (const name of ['uCenter', 'uRadius', 'uScale', 'uSquash', 'uBloom']) loc[name] = gl.getUniformLocation(program, name);
+    }
+    const ctx2d = gl ? null : canvas.getContext('2d');
+
+    let held = false;
+    let bloom = 0;
+    let bVel = 0;
+    let squash = 0;
+    let sVel = 0;
+    let raf = 0;
+    let last = 0;
+    let width = 960;
+    let height = 720;
+
+    function reduced() { return motion.matches; }
+
+    function pose() {
+      const amount = Math.max(0, bloom);
+      const scale = 1 + amount * 4.2;
+      const sx = Math.max(0.45, 1 - squash);
+      const sy = Math.max(0.45, 1 + squash * 0.9);
+      const radius = Math.min(width, height) * 0.17;
+      return {
+        cx: width * 0.5,
+        cy: height * 0.43,
+        radius,
+        scale,
+        sx,
+        sy
+      };
+    }
+
+    function hit(px, py) {
+      const p = pose();
+      const dx = (px - p.cx) / p.sx;
+      const dy = ((height - py) - p.cy) / p.sy;
+      const r = Math.max(p.radius * p.scale, 1);
+      return Math.pow(Math.abs(dx) / r, 4) + Math.pow(Math.abs(dy) / r, 4) <= 1;
+    }
+
+    function resize() {
+      const dpr = Math.min(2, devicePixelRatio || 1);
+      width = Math.max(1, Math.round(canvas.clientWidth * dpr));
+      height = Math.max(1, Math.round(canvas.clientHeight * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      draw();
+    }
+
+    function draw() {
+      const p = pose();
+      if (gl) {
+        gl.viewport(0, 0, width, height);
+        gl.uniform2f(loc.uCenter, p.cx, p.cy);
+        gl.uniform1f(loc.uRadius, p.radius);
+        gl.uniform1f(loc.uScale, p.scale);
+        gl.uniform2f(loc.uSquash, p.sx, p.sy);
+        gl.uniform1f(loc.uBloom, Math.max(0, bloom));
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        return;
+      }
+      ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+      ctx2d.clearRect(0, 0, width, height);
+      ctx2d.fillStyle = '#090b12';
+      ctx2d.fillRect(0, 0, width, height);
+      const r = p.radius * p.scale;
+      ctx2d.save();
+      ctx2d.translate(p.cx, height - p.cy);
+      ctx2d.scale(p.sx, p.sy);
+      const lit = Math.max(0, Math.min(1, (bloom - 0.04) / 0.78));
+      const g = ctx2d.createRadialGradient(0, r * 0.08, r * 0.08, 0, 0, r);
+      const body = Math.round(27 + lit * 190);
+      g.addColorStop(0, 'rgb(' + (210 + lit * 30) + ',' + (206 + lit * 30) + ',' + (198 + lit * 28) + ')');
+      g.addColorStop(0.42, 'rgb(' + body + ',' + (body - 4) + ',' + (body - 10) + ')');
+      g.addColorStop(1, 'rgb(' + Math.max(18, body - 28) + ',' + Math.max(20, body - 26) + ',' + Math.max(24, body - 20) + ')');
+      ctx2d.fillStyle = g;
+      ctx2d.beginPath();
+      ctx2d.roundRect(-r, -r, r * 2, r * 2, r * 0.42);
+      ctx2d.fill();
+      ctx2d.restore();
+    }
+
+    function calm() {
+      return !held && Math.abs(bloom) < 0.004 && Math.abs(bVel) < 0.004 && Math.abs(squash) < 0.004 && Math.abs(sVel) < 0.004;
+    }
+
+    function step(now) {
+      const dt = Math.min(0.032, Math.max(0.001, (now - last) / 1000));
+      last = now;
+      if (reduced()) {
+        bloom = held ? 1 : 0;
+        bVel = 0;
+        squash = 0;
+        sVel = 0;
+        return;
+      }
+      bVel += ((held ? 1 : 0) - bloom) * 46 * dt;
+      bVel *= Math.exp(-6.4 * dt);
+      bloom += bVel * dt;
+      bloom = Math.max(-0.04, Math.min(1.4, bloom));
+      sVel += -squash * 78 * dt;
+      sVel *= Math.exp(-8.2 * dt);
+      squash += sVel * dt;
+      squash = Math.max(-0.46, Math.min(0.46, squash));
+    }
+
+    function frame(now) {
+      step(now);
+      draw();
+      if (calm()) { raf = 0; return; }
+      raf = requestAnimationFrame(frame);
+    }
+
+    function wake(now) {
+      last = now || performance.now();
+      if (!raf) raf = requestAnimationFrame(frame);
+    }
+
+    function press(fromKey) {
+      if (held) return;
+      held = true;
+      if (!reduced()) {
+        sVel = -8.2;
+        bVel += 3.4;
+      }
+      live.textContent = fromKey ? '键盘按下，圆角方块鼓起并发亮' : '按下，圆角方块鼓起并发亮';
+      wake(performance.now());
+      draw();
+    }
+
+    function release(fromKey) {
+      if (!held) return;
+      held = false;
+      if (!reduced()) sVel += 7.4;
+      live.textContent = fromKey ? '键盘松开，圆角方块弹回' : '松开，圆角方块弹回';
+      wake(performance.now());
+      draw();
+    }
+
+    toy.addEventListener('pointerdown', (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const px = (event.clientX - rect.left) * (width / rect.width);
+      const py = (event.clientY - rect.top) * (height / rect.height);
+      if (!hit(px, py)) return;
+      toy.setPointerCapture(event.pointerId);
+      press(false);
+    });
+    toy.addEventListener('pointerup', () => release(false));
+    toy.addEventListener('pointercancel', () => release(false));
+    toy.addEventListener('keydown', (event) => {
+      if (event.repeat || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      press(true);
+    });
+    toy.addEventListener('keyup', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      release(true);
+    });
+    toy.addEventListener('blur', () => release(false));
+    motion.addEventListener('change', () => { bloom = 0; bVel = 0; squash = 0; sVel = 0; draw(); });
+    addEventListener('resize', resize);
+    resize();
+  </script>
+</body>
+</html>
