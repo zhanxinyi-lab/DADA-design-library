@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Motion controls</title>
+  <style>
+    :root {
+      --bg: #101114;
+      --panel: #191b21;
+      --line: #ffffff1f;
+      --ink: #f4f0e8;
+      --muted: #9b968d;
+      --track: #2a2d35;
+      --accent: #f4f0e8;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.4 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    }
+    .app {
+      min-height: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+      grid-template-rows: minmax(280px, 1fr) auto;
+    }
+    .stage {
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      min-height: 280px;
+    }
+    .rig { position: relative; display: grid; justify-items: center; }
+    .word {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 0;
+      font-weight: 800;
+      letter-spacing: 0;
+      line-height: .86;
+      font-family: Impact, "Arial Black", "Segoe UI", sans-serif;
+    }
+    .ant {
+      position: absolute;
+      right: calc(100% + 10px);
+      top: 46%;
+      height: 2px;
+      background: #f4f0e8cc;
+      transform-origin: right center;
+    }
+    .ant::before {
+      content: "";
+      position: absolute;
+      left: -1px;
+      top: -4px;
+      border: 5px solid transparent;
+      border-right-color: #f4f0e8cc;
+    }
+    .tail { position: absolute; left: 50%; top: calc(100% + 6px); width: 0; height: 0; }
+    .tail i {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      margin: -3px 0 0 -3px;
+      border-radius: 50%;
+      background: #f4f0e8;
+    }
+    .transport {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px 18px;
+      border-top: 1px solid var(--line);
+    }
+    button, input { font: inherit; color: inherit; }
+    button {
+      min-width: 76px;
+      min-height: 44px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #262830;
+      cursor: pointer;
+    }
+    button:focus-visible, input:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+    .clock, .dur {
+      min-width: 3.2em;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+    }
+    .dur { text-align: right; }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      min-height: 28px;
+    }
+    .scrub { flex: 1; }
+    .panel {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      margin: 0;
+      padding: 22px 18px;
+      background: var(--panel);
+      border-left: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .panel h2 {
+      margin: 0 0 4px;
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .ctrl { display: grid; gap: 4px; }
+    .ctrl span, .ctrl output {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .ctrl output { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .head { display: flex; justify-content: space-between; align-items: baseline; }
+    svg { width: 100%; height: 46px; display: block; }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 720px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: 46vh auto auto; }
+      .panel { grid-column: 1; grid-row: 3; border-left: 0; border-top: 1px solid var(--line); }
+      .transport { grid-row: 2; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="stage" id="stage" aria-label="MOTION 舞台。这是可见控制台的前端演示，不会调用 Remotion、GSAP 或 Claude。">
+      <div class="rig" id="rig">
+        <i class="ant" id="ant" aria-hidden="true"></i>
+        <p class="word" id="word" aria-hidden="true"></p>
+        <div class="tail" id="tail" aria-hidden="true"></div>
+      </div>
+    </section>
+    <form class="panel" id="panel">
+      <h2>controls</h2>
+      <label class="ctrl">
+        <span class="head">spacing <output id="spacing-val" for="spacing">24</output></span>
+        <input id="spacing" type="range" min="0" max="80" step="1" value="24" aria-valuetext="24">
+      </label>
+      <label class="ctrl">
+        <span class="head">typography <output id="type-val" for="typography">16</output></span>
+        <input id="typography" type="range" min="0" max="64" step="1" value="16" aria-valuetext="16">
+      </label>
+      <label class="ctrl">
+        <span class="head">motion blur <output id="blur-val" for="blur">0.4</output></span>
+        <input id="blur" type="range" min="0" max="20" step="1" value="4" aria-valuetext="0.4">
+      </label>
+      <label class="ctrl">
+        <span class="head">easing <output id="ease-val" for="easing">ease-out</output></span>
+        <input id="easing" type="range" min="0" max="4" step="1" value="2" aria-valuetext="ease-out">
+        <svg id="curve" viewBox="0 -8 100 48" aria-hidden="true">
+          <path id="curve-path" d="" fill="none" stroke="#f4f0e8" stroke-width="1.6"></path>
+        </svg>
+      </label>
+      <label class="ctrl">
+        <span class="head">follow-through <output id="follow-val" for="follow">3f</output></span>
+        <input id="follow" type="range" min="0" max="12" step="1" value="3" aria-valuetext="3 frames">
+      </label>
+      <label class="ctrl">
+        <span class="head">anticipation <output id="ant-val" for="anticipation">2f</output></span>
+        <input id="anticipation" type="range" min="0" max="12" step="1" value="2" aria-valuetext="2 frames">
+      </label>
+    </form>
+    <div class="transport">
+      <button type="button" id="play" aria-pressed="true">Pause</button>
+      <span class="clock" id="clock">0.0s</span>
+      <input class="scrub" id="scrub" type="range" min="0" max="71" step="1" value="0" aria-label="时间轴" aria-valuemin="0" aria-valuemax="71" aria-valuenow="0" aria-valuetext="0.0秒，共2.4秒">
+      <span class="dur">2.4s</span>
+    </div>
+  </main>
+  <p class="sr" id="live" aria-live="polite"></p>
+  <script>
+    const FPS = 30;
+    const LOOP = 72;
+    const MOVE = 18;
+    const HOLD = 46;
+    const EASES = ['linear', 'ease-in', 'ease-out', 'in-out', 'back'];
+    const easeFn = {
+      linear: (k) => k,
+      'ease-in': (k) => k * k * k,
+      'ease-out': (k) => 1 - Math.pow(1 - k, 3),
+      'in-out': (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2),
+      back: (k) => {
+        const c1 = 1.70158;
+        const c3 = c1 + 1;
+        return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2);
+      }
+    };
+
+    const stage = document.getElementById('stage');
+    const rig = document.getElementById('rig');
+    const word = document.getElementById('word');
+    const ant = document.getElementById('ant');
+    const tail = document.getElementById('tail');
+    const playBtn = document.getElementById('play');
+    const scrub = document.getElementById('scrub');
+    const clock = document.getElementById('clock');
+    const live = document.getElementById('live');
+    const curve = document.getElementById('curve-path');
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    const dots = Array.from({ length: 5 }, () => {
+      const dot = document.createElement('i');
+      tail.appendChild(dot);
+      return dot;
+    });
+    word.replaceChildren(...'MOTION'.split('').map((ch) => {
+      const span = document.createElement('span');
+      span.textContent = ch;
+      return span;
+    }));
+
+    let frame = 0;
+    let playing = !motion.matches;
+    let last = 0;
+    let acc = 0;
+
+    function params() {
+      return {
+        spacing: Number(document.getElementById('spacing').value),
+        type: Number(document.getElementById('typography').value),
+        blur: Number(document.getElementById('blur').value) / 10,
+        ease: EASES[Number(document.getElementById('easing').value)] || 'ease-out',
+        follow: Number(document.getElementById('follow').value),
+        ant: Number(document.getElementById('anticipation').value)
+      };
+    }
+
+    function wrap(f) {
+      return ((f % LOOP) + LOOP) % LOOP;
+    }
+
+    function pose(f, p) {
+      const at = wrap(f);
+      const room = Math.max(90, stage.clientWidth * 0.4);
+      const travel = (p.spacing / 80) * room;
+      const back = Math.min(room * 0.22, p.ant * 8);
+      let x = 0;
+      if (at < p.ant) {
+        const k = p.ant ? at / p.ant : 0;
+        x = -back * Math.sin(k * Math.PI);
+      } else if (at < p.ant + MOVE) {
+        const k = (at - p.ant) / MOVE;
+        x = travel * easeFn[p.ease](clamp01(k));
+      } else if (at < HOLD) {
+        x = travel;
+      } else if (at < HOLD + MOVE) {
+        const k = (at - HOLD) / MOVE;
+        x = travel * (1 - easeFn[p.ease](clamp01(k)));
+      }
+      return { x, travel };
+    }
+
+    function clamp01(k) {
+      return Math.min(1, Math.max(0, k));
+    }
+
+    function paintCurve(name) {
+      const fn = easeFn[name];
+      let d = '';
+      for (let i = 0; i <= 28; i++) {
+        const k = i / 28;
+        const x = 2 + k * 96;
+        const y = 34 - fn(k) * 30;
+        d += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+      }
+      curve.setAttribute('d', d.trim());
+    }
+
+    function syncReadouts(p) {
+      document.getElementById('spacing-val').textContent = String(p.spacing);
+      document.getElementById('type-val').textContent = String(p.type);
+      document.getElementById('blur-val').textContent = p.blur.toFixed(1);
+      document.getElementById('ease-val').textContent = p.ease;
+      document.getElementById('follow-val').textContent = p.follow + 'f';
+      document.getElementById('ant-val').textContent = p.ant + 'f';
+      document.getElementById('spacing').setAttribute('aria-valuetext', String(p.spacing));
+      document.getElementById('typography').setAttribute('aria-valuetext', String(p.type));
+      document.getElementById('blur').setAttribute('aria-valuetext', p.blur.toFixed(1));
+      document.getElementById('easing').setAttribute('aria-valuetext', p.ease);
+      document.getElementById('follow').setAttribute('aria-valuetext', p.follow + ' frames');
+      document.getElementById('anticipation').setAttribute('aria-valuetext', p.ant + ' frames');
+      paintCurve(p.ease);
+    }
+
+    function render(at) {
+      frame = wrap(at);
+      const p = params();
+      syncReadouts(p);
+      const now = pose(frame, p);
+      const prev = pose(frame - 1, p);
+      const size = 40 + p.type * 2.15;
+      const open = now.travel ? Math.min(1, Math.abs(now.x) / now.travel) : 0;
+      const gap = 2 + p.spacing * 0.35 * (0.35 + 0.65 * open);
+      const vel = Math.abs(now.x - prev.x);
+      const blur = motion.matches ? 0 : Math.min(16, p.blur * vel * 0.45);
+      rig.style.transform = 'translateX(' + now.x.toFixed(2) + 'px)';
+      word.style.fontSize = size.toFixed(1) + 'px';
+      word.style.gap = gap.toFixed(1) + 'px';
+      word.style.maxWidth = p.type >= 40 ? (size * 3.05).toFixed(1) + 'px' : 'none';
+      word.style.filter = blur > 0.25 ? 'blur(' + blur.toFixed(2) + 'px)' : 'none';
+      ant.style.width = (p.ant ? 10 + p.ant * 7 : 0) + 'px';
+      ant.style.opacity = p.ant ? '0.85' : '0';
+      dots.forEach((dot, i) => {
+        const old = pose(frame - p.follow * (i + 1), p);
+        const dx = old.x - now.x - i * 11;
+        dot.style.transform = 'translate(' + dx.toFixed(1) + 'px, ' + (10 + i * 3) + 'px)';
+        dot.style.opacity = p.follow ? String(Math.max(0.12, 0.72 - i * 0.12)) : '0';
+      });
+      const label = (frame / FPS).toFixed(1) + 's';
+      clock.textContent = label;
+      scrub.value = String(frame);
+      scrub.setAttribute('aria-valuenow', String(frame));
+      scrub.setAttribute('aria-valuetext', label + '，共2.4秒');
+      playBtn.textContent = motion.matches ? 'Step' : (playing ? 'Pause' : 'Play');
+      playBtn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+      playBtn.setAttribute('aria-label', motion.matches ? '前进 6 帧' : (playing ? '暂停' : '播放'));
+    }
+
+    function tick(now) {
+      if (!last) last = now;
+      const dt = Math.min(50, now - last);
+      last = now;
+      if (playing && !motion.matches) {
+        acc += dt;
+        const step = 1000 / FPS;
+        while (acc >= step) {
+          acc -= step;
+          frame += 1;
+        }
+        render(frame);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    document.getElementById('panel').addEventListener('input', () => render(frame));
+    document.getElementById('panel').addEventListener('submit', (e) => e.preventDefault());
+    scrub.addEventListener('input', () => {
+      playing = false;
+      acc = 0;
+      render(Number(scrub.value));
+    });
+    playBtn.addEventListener('click', () => {
+      if (motion.matches) {
+        render(frame + 6);
+        live.textContent = '停在 ' + clock.textContent;
+        return;
+      }
+      playing = !playing;
+      acc = 0;
+      render(frame);
+    });
+    addEventListener('keydown', (e) => {
+      if (e.code !== 'Space') return;
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      playBtn.click();
+    });
+    motion.addEventListener('change', () => {
+      playing = false;
+      acc = 0;
+      render(frame);
+      live.textContent = motion.matches ? '已减少动态，可用 Step 或时间轴逐帧查看。' : '可以播放。';
+    });
+
+    render(0);
+    if (motion.matches) live.textContent = '已减少动态，可用 Step 或时间轴逐帧查看。';
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
