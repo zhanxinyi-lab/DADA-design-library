@@ -1,0 +1,4039 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Robot Avatar</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background:
+      radial-gradient(900px 420px at 50% 28%, #fff, transparent 70%),
+      #f3efe6;
+    color: #1c1915;
+    font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  }
+  main {
+    width: min(880px, 100%);
+    margin: 0 auto;
+    padding: 28px 16px 36px;
+    display: grid;
+    justify-items: center;
+    gap: 18px;
+  }
+  h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: 0; }
+  .lead { margin: 0; max-width: 38em; text-align: center; color: #5c564c; font-size: 14px; line-height: 1.5; }
+  .stage {
+    display: grid;
+    place-items: center;
+    width: min(100%, 420px);
+    min-height: 240px;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    width: min(100%, 640px);
+    margin: 0;
+    padding: 0;
+  }
+  button {
+    appearance: none;
+    border: 1px solid #d9d0c2;
+    background: #fffdf8;
+    color: #1c1915;
+    border-radius: 999px;
+    padding: 8px 12px;
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+  button:hover { border-color: #1c1915; }
+  button:focus-visible { outline: 3px solid #1c1915; outline-offset: 2px; }
+  button[aria-pressed="true"] { background: #1c1915; color: #fffdf8; border-color: #1c1915; }
+  .now { margin: 0; color: #5c564c; font-size: 13px; }
+  .credit { margin: 8px 0 0; max-width: 40em; text-align: center; color: #6f685e; font-size: 12px; line-height: 1.5; }
+  .credit a { color: #1c1915; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Agent Robot Avatar</h1>
+  <p class="lead">BoopFace 的 lite 头像。眼睛跟着指针，按住头部可以拖，松手会弹回去。下面每个按钮只播放组件自己的一个动作。</p>
+  <div class="stage">
+    <agent-robot-avatar id="avatar" size="180" auto-sleep="0"></agent-robot-avatar>
+  </div>
+  <div class="actions" role="group" aria-label="表情">
+    <button type="button" data-action="idle" aria-pressed="true">待机</button>
+    <button type="button" data-action="bored">无聊</button>
+    <button type="button" data-action="waiting-spin">等待</button>
+    <button type="button" data-action="input">输入</button>
+    <button type="button" data-action="affirm">点头</button>
+    <button type="button" data-action="success">成功</button>
+    <button type="button" data-action="failure">失败</button>
+    <button type="button" data-action="wary">警惕</button>
+    <button type="button" data-action="inspect">检查</button>
+    <button type="button" data-action="angry">生气</button>
+    <button type="button" data-action="refuse">拒绝</button>
+    <button type="button" data-action="surprise">惊讶</button>
+    <button type="button" data-action="love">喜欢</button>
+    <button type="button" data-action="random">随机</button>
+    <button type="button" data-action="sleep">睡觉</button>
+    <button type="button" data-action="wake">醒来</button>
+  </div>
+  <p class="now">当前：<span id="action-name">待机</span></p>
+  <p class="credit">MIT · Copyright (c) 2026 CX ART Lab · v0.7.2 lite，不含皮肤。<a href="https://github.com/CX-ArtLab/BoopFace">CX-ArtLab/BoopFace</a> · <a href="https://github.com/zhanxinyi-lab/agent-robot-avatar">agent-robot-avatar</a></p>
+</main>
+<script type="module">
+/*
+ * Agent Robot Avatar lite build, v0.7.2
+ * Commit 6603a04
+ * https://github.com/zhanxinyi-lab/agent-robot-avatar
+ * Forked from https://github.com/CX-ArtLab/BoopFace
+ * Upstream package repository: https://github.com/CX-ArtLab/agent-robot-avatar
+ * Bundled from the lite entry only. Skins and the embedded port are not included.
+ * The preview shell around this script is original to this effect page.
+ *
+ * MIT License
+ *
+ * Copyright (c) 2026 CX ART Lab
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+// src/agent-robot-avatar-core.js
+var AgentRobotAvatar = (() => {
+  const HTMLElementBase = typeof HTMLElement === "undefined" ? class {
+  } : HTMLElement;
+  const EASE = {
+    outQuint: (t) => 1 - Math.pow(1 - t, 5),
+    inOutCubic: (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+  };
+  const POSES = {
+    idle: {
+      w: 54,
+      h: 58,
+      rx: 27,
+      topY: -36,
+      bottomY: 36,
+      topAL: 0,
+      topAR: 0,
+      bottomAL: 0,
+      bottomAR: 0,
+      scale: 1
+    },
+    happy: {
+      w: 58,
+      h: 58,
+      rx: 29,
+      topY: -36,
+      bottomY: 0,
+      topAL: 0,
+      topAR: 0,
+      bottomAL: 0,
+      bottomAR: 0,
+      scale: 1
+    },
+    sad: {
+      w: 58,
+      h: 58,
+      rx: 29,
+      topY: -5,
+      bottomY: 36,
+      topAL: -16,
+      topAR: 16,
+      bottomAL: 0,
+      bottomAR: 0,
+      scale: 1
+    },
+    angry: {
+      w: 58,
+      h: 58,
+      rx: 29,
+      topY: -5,
+      bottomY: 36,
+      topAL: 16,
+      topAR: -16,
+      bottomAL: 0,
+      bottomAR: 0,
+      scale: 1
+    },
+    sleepy: {
+      w: 58,
+      h: 56,
+      rx: 28,
+      topY: 0,
+      bottomY: 36,
+      topAL: 0,
+      topAR: 0,
+      bottomAL: 0,
+      bottomAR: 0,
+      scale: 1
+    },
+    input: {
+      w: 12,
+      h: 78,
+      rx: 2,
+      topY: -44,
+      bottomY: 44,
+      topAL: 0,
+      topAR: 0,
+      bottomAL: 0,
+      bottomAR: 0,
+      scale: 1
+    },
+    // Same eye as sleepy; the lids meet in a thin slit instead of squashing it.
+    sleep: {
+      w: 58,
+      h: 56,
+      rx: 28,
+      topY: 7,
+      bottomY: 14,
+      topAL: 0,
+      topAR: 0,
+      bottomAL: 0,
+      bottomAR: 0,
+      scale: 1
+    },
+    surprise: {
+      w: 68,
+      h: 68,
+      rx: 34,
+      topY: -40,
+      bottomY: 40,
+      topAL: 0,
+      topAR: 0,
+      bottomAL: 0,
+      bottomAR: 0,
+      scale: 1
+    }
+  };
+  const clamp4 = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp4 = (a, b, t) => a + (b - a) * t;
+  const clonePose = (p) => ({ ...p });
+  const DEFAULT_SIZE = 112;
+  const parseSize = (value) => {
+    const text = String(value ?? "").trim();
+    if (!/^(?:\d+(?:\.\d+)?|\.\d+)(?:px)?$/i.test(text)) return DEFAULT_SIZE;
+    const numeric = Number.parseFloat(text);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : DEFAULT_SIZE;
+  };
+  const connectedFaces = /* @__PURE__ */ new Set();
+  const forEachConnectedFace = (callback) => {
+    for (const face of connectedFaces) {
+      if (face.isConnected) callback(face);
+    }
+  };
+  const handleGlobalPointerMove = (event) => {
+    forEachConnectedFace((face) => {
+      face._onPointerMove(event);
+      if (face._dragJelly.active || face._gestureFx?.held) face._onDragMove(event);
+    });
+  };
+  const handleGlobalPointerDown = (event) => forEachConnectedFace((face) => {
+    if (typeof face._noteEnvironmentActivity === "function") face._noteEnvironmentActivity(event);
+    else face.noteActivity();
+  });
+  const handleGlobalKeyDown = (event) => forEachConnectedFace((face) => {
+    if (typeof face._noteEnvironmentActivity === "function") face._noteEnvironmentActivity(event);
+    else face.noteActivity();
+  });
+  const handleGlobalPointerEnd = (event) => {
+    forEachConnectedFace((face) => {
+      if (face._dragJelly.active || face._gestureFx?.held) face._onDragEnd(event);
+    });
+  };
+  const handleGlobalVisibility = () => forEachConnectedFace((face) => face._onVisibility());
+  function registerConnectedFace(face) {
+    if (connectedFaces.has(face)) return;
+    const first = connectedFaces.size === 0;
+    connectedFaces.add(face);
+    if (!first) return;
+    window.addEventListener("pointermove", handleGlobalPointerMove, { passive: true });
+    window.addEventListener("pointerdown", handleGlobalPointerDown, { passive: true });
+    window.addEventListener("keydown", handleGlobalKeyDown, { passive: true });
+    window.addEventListener("pointerup", handleGlobalPointerEnd, { passive: true });
+    window.addEventListener("pointercancel", handleGlobalPointerEnd, { passive: true });
+    document.addEventListener("visibilitychange", handleGlobalVisibility);
+  }
+  function unregisterConnectedFace(face) {
+    connectedFaces.delete(face);
+    if (connectedFaces.size > 0) return;
+    window.removeEventListener("pointermove", handleGlobalPointerMove);
+    window.removeEventListener("pointerdown", handleGlobalPointerDown);
+    window.removeEventListener("keydown", handleGlobalKeyDown);
+    window.removeEventListener("pointerup", handleGlobalPointerEnd);
+    window.removeEventListener("pointercancel", handleGlobalPointerEnd);
+    document.removeEventListener("visibilitychange", handleGlobalVisibility);
+  }
+  class AgentFace extends HTMLElementBase {
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" });
+      this._state = "idle";
+      this._pose = clonePose(POSES.idle);
+      this._fromPose = clonePose(this._pose);
+      this._toPose = clonePose(this._pose);
+      this._morphStart = performance.now();
+      this._morphDuration = 0;
+      this._morphEase = EASE.outQuint;
+      this._wander = { x: 0, y: 0 };
+      this._wanderTarget = { x: 0, y: 0 };
+      this._nextWanderAt = performance.now() + 500;
+      this._pointer = { x: 0, y: 0, active: false, lastMove: 0 };
+      this._look = { x: 0, y: 0 };
+      this._headFollowPose = { x: 0, y: 0, rot: 0 };
+      this._headFollowVel = { x: 0, y: 0, rot: 0 };
+      this._headCenteringUntil = 0;
+      this._eyeMicro = { lX: 0, lY: 0, rX: 0, rY: 0 };
+      this._blink = 1;
+      this._blinkAnim = null;
+      this._nextBlinkAt = performance.now() + 1800 + Math.random() * 1800;
+      this._inputPhase = 0;
+      this._eyeNod = null;
+      this._eyeBob = null;
+      this._angryEyeDrop = null;
+      this._surpriseShake = null;
+      this._expressionLock = false;
+      this._transitionToken = 0;
+      this._inputWanted = false;
+      this._sleeping = false;
+      this._idleTimer = null;
+      this._pendingWaits = /* @__PURE__ */ new Map();
+      this._boredRoutine = null;
+      this._boredLookSpeed = null;
+      this._autoSleepMs = Number(this.getAttribute("auto-sleep")) || 0;
+      this._lastActivity = performance.now();
+      this._running = true;
+      this._framePaused = false;
+      this._lastFrame = 0;
+      this._raf = 0;
+      this._dragJelly = {
+        active: false,
+        returning: false,
+        snapped: false,
+        moved: false,
+        pointerId: null,
+        startX: 0,
+        startY: 0,
+        hotX: 120,
+        hotY: 120,
+        targetX: 0,
+        targetY: 0,
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        targetStretch: 0,
+        stretch: 0,
+        stretchVel: 0,
+        angle: 0,
+        threshold: 52,
+        ux: 0,
+        uy: 0,
+        anchorX: 50,
+        anchorY: 50,
+        shear: 0,
+        targetShear: 0,
+        shearVel: 0,
+        targetPullX: 0,
+        targetPullY: 0,
+        pullX: 0,
+        pullY: 0,
+        pullVX: 0,
+        pullVY: 0,
+        maxDist: 0,
+        angryThreshold: 32,
+        pendingReaction: null,
+        intent: "angry"
+      };
+      this._suppressClick = false;
+      this._boundDragStart = (e) => this._onDragStart(e);
+      this._boundClickCapture = (e) => this._onClickCapture(e);
+      this._renderShell();
+    }
+    connectedCallback() {
+      registerConnectedFace(this);
+      this.addEventListener("pointerdown", this._boundDragStart);
+      this.addEventListener("click", this._boundClickCapture, true);
+      this._running = !document.hidden;
+      this._lastActivity = performance.now();
+      this._resumeFrames();
+    }
+    disconnectedCallback() {
+      this._runtimeDisconnecting = true;
+      try {
+        unregisterConnectedFace(this);
+        this.removeEventListener("pointerdown", this._boundDragStart);
+        this.removeEventListener("click", this._boundClickCapture, true);
+        this._resetToIdle(false);
+        this._blinkAnim = null;
+        this._blink = 1;
+        this._pointer.active = false;
+        this._pointer.influence = 0;
+        const drag = this._dragJelly;
+        if (drag.pointerId != null) {
+          try {
+            this.releasePointerCapture(drag.pointerId);
+          } catch (_) {
+          }
+        }
+        drag.active = false;
+        drag.pointerId = null;
+        this._finishDragReturn(null);
+        this._suppressClick = false;
+        this._running = false;
+        cancelAnimationFrame(this._raf);
+        this._raf = 0;
+      } finally {
+        this._teardownRuntime?.();
+        this._runtimeDisconnecting = false;
+      }
+    }
+    static get observedAttributes() {
+      return ["color", "size", "auto-sleep"];
+    }
+    attributeChangedCallback(name, oldV, newV) {
+      if (oldV === newV) return;
+      if (name === "color") this._applyColor(newV);
+      if (name === "size") this._syncSizeAttribute();
+      if (name === "auto-sleep") {
+        this._autoSleepMs = Number(newV) || 0;
+        this._scheduleAutoSleep?.();
+      }
+    }
+    _syncSizeAttribute() {
+      if (!this.hasAttribute("size")) {
+        this.style.removeProperty("--face-size");
+        return DEFAULT_SIZE;
+      }
+      const size = parseSize(this.getAttribute("size"));
+      this.style.setProperty("--face-size", `${size}px`);
+      return size;
+    }
+    _applyColor(value) {
+      const color = value || "#08090b";
+      for (const part of [this._head, this._leftTop, this._rightTop, this._leftBottom, this._rightBottom, this._antennaDot]) {
+        if (part) part.setAttribute("fill", color);
+      }
+    }
+    _renderShell() {
+      this.shadowRoot.innerHTML = `
+        <style>
+          :host{display:inline-block;width:var(--face-size,112px);height:var(--face-size,112px);contain:layout style;overflow:visible;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+          svg{display:block;width:100%;height:100%;overflow:visible}
+          #dragMotion{transform-box:view-box;transform-origin:120px 120px;will-change:transform}
+          #headFollow{will-change:transform}
+          #headMotion{transform-origin:120px 120px;will-change:transform}
+          #inputL,#inputR{opacity:1}
+        </style>
+        <svg viewBox="0 0 240 240" role="img" aria-label="Agent robot avatar">
+          <defs>
+            <path id="headShape" d="M 120.00 20.00 L 132.80 20.05 L 139.87 20.20 L 145.68 20.44 L 150.79 20.78 L 155.43 21.22 L 159.71 21.76 L 163.69 22.40 L 167.44 23.14 L 170.99 23.97 L 174.34 24.90 L 177.53 25.93 L 180.57 27.07 L 183.46 28.30 L 186.22 29.63 L 188.85 31.06 L 191.36 32.59 L 193.75 34.22 L 196.03 35.96 L 198.19 37.80 L 200.25 39.75 L 202.20 41.81 L 204.04 43.97 L 205.78 46.25 L 207.41 48.64 L 208.94 51.15 L 210.37 53.78 L 211.70 56.54 L 212.93 59.43 L 214.07 62.47 L 215.10 65.66 L 216.03 69.01 L 216.86 72.56 L 217.60 76.31 L 218.24 80.29 L 218.78 84.57 L 219.22 89.21 L 219.56 94.32 L 219.80 100.13 L 219.95 107.20 L 220.00 120.00 L 219.95 132.80 L 219.80 139.87 L 219.56 145.68 L 219.22 150.79 L 218.78 155.43 L 218.24 159.71 L 217.60 163.69 L 216.86 167.44 L 216.03 170.99 L 215.10 174.34 L 214.07 177.53 L 212.93 180.57 L 211.70 183.46 L 210.37 186.22 L 208.94 188.85 L 207.41 191.36 L 205.78 193.75 L 204.04 196.03 L 202.20 198.19 L 200.25 200.25 L 198.19 202.20 L 196.03 204.04 L 193.75 205.78 L 191.36 207.41 L 188.85 208.94 L 186.22 210.37 L 183.46 211.70 L 180.57 212.93 L 177.53 214.07 L 174.34 215.10 L 170.99 216.03 L 167.44 216.86 L 163.69 217.60 L 159.71 218.24 L 155.43 218.78 L 150.79 219.22 L 145.68 219.56 L 139.87 219.80 L 132.80 219.95 L 120.00 220.00 L 107.20 219.95 L 100.13 219.80 L 94.32 219.56 L 89.21 219.22 L 84.57 218.78 L 80.29 218.24 L 76.31 217.60 L 72.56 216.86 L 69.01 216.03 L 65.66 215.10 L 62.47 214.07 L 59.43 212.93 L 56.54 211.70 L 53.78 210.37 L 51.15 208.94 L 48.64 207.41 L 46.25 205.78 L 43.97 204.04 L 41.81 202.20 L 39.75 200.25 L 37.80 198.19 L 35.96 196.03 L 34.22 193.75 L 32.59 191.36 L 31.06 188.85 L 29.63 186.22 L 28.30 183.46 L 27.07 180.57 L 25.93 177.53 L 24.90 174.34 L 23.97 170.99 L 23.14 167.44 L 22.40 163.69 L 21.76 159.71 L 21.22 155.43 L 20.78 150.79 L 20.44 145.68 L 20.20 139.87 L 20.05 132.80 L 20.00 120.00 L 20.05 107.20 L 20.20 100.13 L 20.44 94.32 L 20.78 89.21 L 21.22 84.57 L 21.76 80.29 L 22.40 76.31 L 23.14 72.56 L 23.97 69.01 L 24.90 65.66 L 25.93 62.47 L 27.07 59.43 L 28.30 56.54 L 29.63 53.78 L 31.06 51.15 L 32.59 48.64 L 34.22 46.25 L 35.96 43.97 L 37.80 41.81 L 39.75 39.75 L 41.81 37.80 L 43.97 35.96 L 46.25 34.22 L 48.64 32.59 L 51.15 31.06 L 53.78 29.63 L 56.54 28.30 L 59.43 27.07 L 62.47 25.93 L 65.66 24.90 L 69.01 23.97 L 72.56 23.14 L 76.31 22.40 L 80.29 21.76 L 84.57 21.22 L 89.21 20.78 L 94.32 20.44 L 100.13 20.20 L 107.20 20.05 Z"/>
+            <clipPath id="headClip"><use href="#headShape" transform="translate(7.2 7.2) scale(.94)"/></clipPath>
+            <clipPath id="eyeMaskClip" clipPathUnits="userSpaceOnUse"><rect x="-40" y="-54" width="80" height="108"/></clipPath>
+          </defs>
+          <g id="dragMotion">
+            <g id="headFollow">
+              <g id="headMotion">
+              <use id="head" href="#headShape" fill="#08090b" transform="translate(7.2 7.2) scale(.94)"/>
+              <g clip-path="url(#headClip)">
+                <g id="leftEye" transform="translate(86 126)">
+                  <ellipse id="leftBase" cx="0" cy="0" rx="27" ry="29" fill="#fff"/>
+                  <rect id="leftInputBase" x="-6" y="-39" width="12" height="78" rx="3" fill="#fff" opacity="0"/>
+                  <g clip-path="url(#eyeMaskClip)">
+                    <rect id="leftTop" x="-70" y="-96" width="140" height="60" fill="#08090b"/>
+                    <rect id="leftBottom" x="-70" y="36" width="140" height="60" fill="#08090b"/>
+                  </g>
+                </g>
+                <g id="rightEye" transform="translate(154 126)">
+                  <ellipse id="rightBase" cx="0" cy="0" rx="27" ry="29" fill="#fff"/>
+                  <rect id="rightInputBase" x="-6" y="-39" width="12" height="78" rx="3" fill="#fff" opacity="0"/>
+                  <g clip-path="url(#eyeMaskClip)">
+                    <rect id="rightTop" x="-70" y="-96" width="140" height="60" fill="#08090b"/>
+                    <rect id="rightBottom" x="-70" y="36" width="140" height="60" fill="#08090b"/>
+                  </g>
+                </g>
+              </g>
+            </g>
+          </g>
+        </g>
+        </svg>`;
+      this._headShape = this.shadowRoot.getElementById("headShape");
+      this._dragMotion = this.shadowRoot.getElementById("dragMotion");
+      this._headFollow = this.shadowRoot.getElementById("headFollow");
+      this._headMotion = this.shadowRoot.getElementById("headMotion");
+      this._head = this.shadowRoot.getElementById("head");
+      this._leftEye = this.shadowRoot.getElementById("leftEye");
+      this._rightEye = this.shadowRoot.getElementById("rightEye");
+      this._leftBase = this.shadowRoot.getElementById("leftBase");
+      this._rightBase = this.shadowRoot.getElementById("rightBase");
+      this._leftInputBase = this.shadowRoot.getElementById("leftInputBase");
+      this._rightInputBase = this.shadowRoot.getElementById("rightInputBase");
+      this._leftTop = this.shadowRoot.getElementById("leftTop");
+      this._rightTop = this.shadowRoot.getElementById("rightTop");
+      this._leftBottom = this.shadowRoot.getElementById("leftBottom");
+      this._rightBottom = this.shadowRoot.getElementById("rightBottom");
+      this._applyColor(this.getAttribute("color"));
+      this._baseHeadPathD = this._headShape.getAttribute("d");
+      this._baseHeadPoints = this._parseHeadPoints(this._baseHeadPathD);
+    }
+    _parseHeadPoints(d) {
+      const nums = (d.match(/-?\d*\.?\d+/g) || []).map(Number);
+      const pts = [];
+      for (let i = 0; i < nums.length - 1; i += 2) pts.push({ x: nums[i], y: nums[i + 1] });
+      return pts;
+    }
+    _pointsToPath(points) {
+      if (!points.length) return this._baseHeadPathD || "";
+      let d = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+      for (let i = 1; i < points.length; i++) d += ` L ${points[i].x.toFixed(2)} ${points[i].y.toFixed(2)}`;
+      return `${d} Z`;
+    }
+    _clientToLocal(clientX, clientY) {
+      const r = this.getBoundingClientRect();
+      return {
+        x: clamp4((clientX - r.left) / Math.max(1, r.width) * 240, 0, 240),
+        y: clamp4((clientY - r.top) / Math.max(1, r.height) * 240, 0, 240)
+      };
+    }
+    _applyHeadDeform() {
+      const j = this._dragJelly;
+      if (!this._headShape || !this._baseHeadPoints?.length) return;
+      const amount = Math.hypot(j.pullX, j.pullY);
+      if (amount < 0.015) {
+        this._headShape.setAttribute("d", this._baseHeadPathD);
+        return;
+      }
+      const radius = (50 + amount * 0.8) * 0.92;
+      const pts = this._baseHeadPoints.map((p) => {
+        const dx = p.x - j.hotX;
+        const dy = p.y - j.hotY;
+        const w = Math.exp(-(dx * dx + dy * dy) / (2 * radius * radius));
+        return { x: p.x + j.pullX * w, y: p.y + j.pullY * w };
+      });
+      this._headShape.setAttribute("d", this._pointsToPath(pts));
+    }
+    _onVisibility() {
+      this._running = !document.hidden;
+      if (this._running) this._resumeFrames();
+      else {
+        this._cancelGesture?.();
+        cancelAnimationFrame(this._raf);
+        this._raf = 0;
+      }
+    }
+    _onClickCapture(e) {
+      if (!this._suppressClick) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      this._suppressClick = false;
+    }
+    _onPointerMove(e) {
+      const r = this.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const dx = e.clientX - cx;
+      const dy = e.clientY - cy;
+      const near = Math.max(r.width, r.height) * 2.55;
+      const dist = Math.hypot(dx, dy);
+      const influence = clamp4(1 - dist / near, 0, 1);
+      const scale = Math.min(1, 120 / Math.max(1, r.width, r.height));
+      this._pointer.x = clamp4(dx * 0.42 * scale, -48, 48);
+      this._pointer.y = clamp4(dy * 0.38 * scale, -34, 34);
+      this._pointer.active = influence > 1e-3;
+      this._pointer.influence = influence;
+      this._pointer.lastMove = performance.now();
+      if ((this._pointer.influence || 0) > 0.65 && this._boredRoutine) {
+        this._boredRoutine = null;
+        this._boredLookSpeed = null;
+      }
+    }
+    _onDragStart(e) {
+      if (e.button != null && e.button !== 0) return;
+      const r = this.getBoundingClientRect();
+      const j = this._dragJelly;
+      j.active = true;
+      j.returning = false;
+      j.snapped = false;
+      j.moved = false;
+      j.pointerId = e.pointerId;
+      j.startX = e.clientX;
+      j.startY = e.clientY;
+      const local = this._clientToLocal(e.clientX, e.clientY);
+      j.hotX = local.x;
+      j.hotY = local.y;
+      j.targetX = j.x;
+      j.targetY = j.y;
+      j.targetStretch = j.stretch;
+      j.targetShear = j.shear;
+      j.targetPullX = j.pullX;
+      j.targetPullY = j.pullY;
+      j.threshold = clamp4(r.width * 0.4, 24, 46);
+      j.maxDist = 0;
+      j.pendingReaction = null;
+      j.intent = "angry";
+      j.angryThreshold = Math.max(j.threshold * 0.76, 22);
+      this._suppressClick = false;
+      this._boredRoutine = null;
+      this._boredLookSpeed = null;
+      this._wanderTarget.x = this._wanderTarget.y = 0;
+      try {
+        this.setPointerCapture(e.pointerId);
+      } catch (_) {
+      }
+    }
+    _onDragMove(e) {
+      const j = this._dragJelly;
+      if (!j.active || e.pointerId !== j.pointerId) return;
+      const dx = e.clientX - j.startX;
+      const dy = e.clientY - j.startY;
+      const dist = Math.hypot(dx, dy);
+      j.maxDist = Math.max(j.maxDist, dist);
+      if (dist > 2.5) {
+        j.moved = true;
+        this._suppressClick = true;
+      }
+      const r = this.getBoundingClientRect();
+      const size = Math.max(1, Math.max(r.width, r.height));
+      const localScale = 240 / size;
+      const pdx = dx * localScale;
+      const pdy = dy * localScale;
+      const cx = 120, cy = 120;
+      const rx = j.hotX - cx;
+      const ry = j.hotY - cy;
+      const rl = Math.max(1, Math.hypot(rx, ry));
+      const rux = rx / rl;
+      const ruy = ry / rl;
+      const radial = pdx * rux + pdy * ruy;
+      const tangent = -pdx * ruy + pdy * rux;
+      const motionLen = Math.max(1, Math.hypot(pdx, pdy));
+      j.ux = pdx / motionLen;
+      j.uy = pdy / motionLen;
+      j.angle = Math.atan2(j.uy, j.ux);
+      j.intent = radial < -6 ? "success" : "angry";
+      const gain = dist > j.threshold * 0.6 ? 0.24 : 0.19;
+      j.targetPullX = clamp4(pdx * gain, -25, 25);
+      j.targetPullY = clamp4(pdy * gain, -25, 25);
+      j.targetX = clamp4(dx * 0.065, -5.2, 5.2);
+      j.targetY = clamp4(dy * 0.065, -5.2, 5.2);
+      j.targetStretch = clamp4(radial / 240 * 0.08, -0.028, 0.052);
+      j.targetShear = clamp4(tangent / 240 * 0.05, -0.022, 0.022);
+      j.anchorX = clamp4(50 - rux * 31, 15, 85);
+      j.anchorY = clamp4(50 - ruy * 31, 15, 85);
+    }
+    _onDragEnd(e) {
+      const j = this._dragJelly;
+      if (!j.active || e.pointerId !== j.pointerId) return;
+      j.active = false;
+      try {
+        this.releasePointerCapture(e.pointerId);
+      } catch (_) {
+      }
+      j.pointerId = null;
+      const reactionThreshold = Math.max(j.angryThreshold, 22);
+      j.pendingReaction = j.maxDist >= reactionThreshold ? j.intent : null;
+      j.returning = true;
+      j.targetX = 0;
+      j.targetY = 0;
+      j.targetStretch = 0;
+      j.targetShear = 0;
+      j.targetPullX = 0;
+      j.targetPullY = 0;
+    }
+    _finishDragReturn(reaction) {
+      const j = this._dragJelly;
+      j.returning = false;
+      j.pendingReaction = null;
+      j.x = j.y = j.vx = j.vy = 0;
+      j.stretch = j.stretchVel = 0;
+      j.shear = j.shearVel = 0;
+      j.pullX = j.pullY = j.pullVX = j.pullVY = 0;
+      if (this._dragMotion) this._dragMotion.style.transform = "";
+      if (this._headShape) this._headShape.setAttribute("d", this._baseHeadPathD);
+      if (reaction === "angry") this.angry({ fromDrag: true });
+      else if (reaction === "success") this.success({ fromDrag: true });
+    }
+    _updateDragJelly(dt) {
+      const j = this._dragJelly;
+      const dtS = Math.min(dt, 34) / 1e3;
+      if (j.active) {
+        const fast = Math.min(1, dt / 14);
+        const k = 0.36 + 0.3 * fast;
+        j.x = lerp4(j.x, j.targetX, k);
+        j.y = lerp4(j.y, j.targetY, k);
+        j.stretch = lerp4(j.stretch, j.targetStretch, k * 0.85);
+        j.shear = lerp4(j.shear, j.targetShear, k * 0.8);
+        j.pullX = lerp4(j.pullX, j.targetPullX, k * 0.95);
+        j.pullY = lerp4(j.pullY, j.targetPullY, k * 0.95);
+      } else if (j.returning) {
+        const kx = 135, dx = 8.2;
+        const ax = -j.x * kx - j.vx * dx;
+        const ay = -j.y * kx - j.vy * dx;
+        j.vx += ax * dtS;
+        j.vy += ay * dtS;
+        j.x += j.vx * dtS;
+        j.y += j.vy * dtS;
+        const ks = 128, ds = 7.5;
+        const as = -j.stretch * ks - j.stretchVel * ds;
+        j.stretchVel += as * dtS;
+        j.stretch += j.stretchVel * dtS;
+        const kh = 118, dh = 7.2;
+        const ah = -j.shear * kh - j.shearVel * dh;
+        j.shearVel += ah * dtS;
+        j.shear += j.shearVel * dtS;
+        const kp = 118, dp = 7.1;
+        const apx = -j.pullX * kp - j.pullVX * dp;
+        const apy = -j.pullY * kp - j.pullVY * dp;
+        j.pullVX += apx * dtS;
+        j.pullVY += apy * dtS;
+        j.pullX += j.pullVX * dtS;
+        j.pullY += j.pullVY * dtS;
+        const visuallyRecovered = Math.abs(j.x) < 0.34 && Math.abs(j.y) < 0.34 && Math.abs(j.stretch) < 8e-3 && Math.abs(j.shear) < 35e-4 && Math.abs(j.pullX) < 0.4 && Math.abs(j.pullY) < 0.4;
+        if (j.pendingReaction && visuallyRecovered) {
+          this._finishDragReturn(j.pendingReaction);
+        } else if (Math.abs(j.x) < 0.02 && Math.abs(j.y) < 0.02 && Math.abs(j.vx) < 0.04 && Math.abs(j.vy) < 0.04 && Math.abs(j.stretch) < 1e-3 && Math.abs(j.stretchVel) < 3e-3 && Math.abs(j.shear) < 5e-4 && Math.abs(j.shearVel) < 2e-3 && Math.abs(j.pullX) < 0.03 && Math.abs(j.pullY) < 0.03 && Math.abs(j.pullVX) < 0.06 && Math.abs(j.pullVY) < 0.06) {
+          this._finishDragReturn(null);
+        }
+      }
+      j.stretch = clamp4(j.stretch, -0.035, 0.055);
+      j.shear = clamp4(j.shear, -0.026, 0.026);
+      j.pullX = clamp4(j.pullX, -26, 26);
+      j.pullY = clamp4(j.pullY, -26, 26);
+      this._applyHeadDeform();
+      if (this._dragMotion) {
+        const sx = 1 + j.stretch;
+        const sy = 1 - j.stretch * 0.3;
+        const shearDeg = j.shear * 180 / Math.PI;
+        this._dragMotion.style.transformOrigin = `${j.anchorX.toFixed(2)}% ${j.anchorY.toFixed(2)}%`;
+        this._dragMotion.style.transform = `translate(${j.x.toFixed(2)}px, ${j.y.toFixed(2)}px) rotate(${j.angle.toFixed(4)}rad) scale(${sx.toFixed(4)}, ${sy.toFixed(4)}) skewY(${shearDeg.toFixed(3)}deg) rotate(${(-j.angle).toFixed(4)}rad)`;
+      }
+    }
+    noteActivity(wake = true) {
+      this._lastActivity = performance.now();
+      this._resumeFrames();
+      if (wake && this._sleeping) this.wake();
+    }
+    play(name) {
+      const action = String(name || "").trim().toLowerCase();
+      switch (action) {
+        case "idle":
+          return this.reset();
+        case "bored":
+          return this.bored();
+        case "input":
+          return this.input(true);
+        case "send":
+          return this.send();
+        case "success":
+          return this.success();
+        case "error":
+          return this.error();
+        case "angry":
+          return this.angry();
+        case "surprise":
+          return this.surprise();
+        case "sleep":
+          return this.sleep();
+        case "wake":
+          return this.wake();
+        default:
+          throw new Error(`Unknown Agent Robot Avatar action: ${name}`);
+      }
+    }
+    reset() {
+      return this._resetToIdle();
+    }
+    _resetToIdle(notify = true) {
+      this._resetExtensionEffects?.();
+      this._inputWanted = false;
+      ++this._transitionToken;
+      this._cancelPendingWaits();
+      this._boredRoutine = null;
+      this._boredLookSpeed = null;
+      this._sleeping = false;
+      this._eyeNod = null;
+      this._eyeBob = null;
+      this._angryEyeDrop = null;
+      this._surpriseShake = null;
+      this.setState("idle", { notify, duration: notify ? 320 : 0 });
+      return this;
+    }
+    setState(name, opts = {}) {
+      if (!POSES[name]) throw new Error(`Unknown AgentFace state: ${name}`);
+      this._resumeFrames();
+      this._state = name;
+      this._sleeping = name === "sleep";
+      if (name === "idle" && !opts.keepGazeLock) this._releaseExpressionLock();
+      this._startMorph(POSES[name], opts.duration ?? (name === "surprise" ? 170 : 320), opts.ease || EASE.outQuint);
+      if (opts.notify !== false) this.dispatchEvent(new CustomEvent("face-state", { detail: { state: name } }));
+      return this;
+    }
+    _startMorph(target, duration, ease) {
+      this._fromPose = clonePose(this._pose);
+      this._toPose = clonePose(target);
+      this._morphStart = performance.now();
+      this._morphDuration = Math.max(0, duration);
+      this._morphEase = ease;
+    }
+    async success(opts = {}) {
+      const fromDrag = !!opts.fromDrag;
+      this.noteActivity();
+      this._inputWanted = false;
+      if (fromDrag) {
+        ++this._transitionToken;
+        this._expressionLock = true;
+        this._eyeMicro.lX = this._eyeMicro.lY = 0;
+        this._eyeMicro.rX = this._eyeMicro.rY = 0;
+        this._wanderTarget.x = this._wanderTarget.y = 0;
+        this._headCenteringUntil = performance.now() + 120;
+        this._look.x = 0;
+        this._look.y = 0;
+      } else {
+        if (!await this._prepareExpression({ normalizePose: true, duration: 180, pause: 320 })) return;
+      }
+      const token = this._transitionToken;
+      this.setState("happy", { duration: fromDrag ? 180 : 220, keepGazeLock: true });
+      this._eyeBob = { start: performance.now(), duration: 620, amp: 8 };
+      this._animateHead([
+        { transform: "translateY(0px)" },
+        { transform: "translateY(-2.4px)", offset: 0.42 },
+        { transform: "translateY(0px)" }
+      ], 760);
+      await this._wait(980);
+      if (token !== this._transitionToken) return;
+      this._eyeBob = null;
+      if (this._state === "happy") await this._returnToIdle(520);
+    }
+    async error() {
+      this.noteActivity();
+      this._inputWanted = false;
+      if (!await this._prepareExpression({ normalizePose: true, duration: 180, pause: 320 })) return;
+      const token = this._transitionToken;
+      this.setState("sad", { duration: 320, keepGazeLock: true });
+      this._eyeBob = { start: performance.now(), duration: 700, amp: 7 };
+      this._animateHead([
+        { transform: "translateY(0px)" },
+        { transform: "translateY(2.6px)", offset: 0.46 },
+        { transform: "translateY(0px)" }
+      ], 820);
+      await this._wait(1180);
+      if (token !== this._transitionToken) return;
+      this._eyeBob = null;
+      if (this._state === "sad") {
+        await this._returnToIdle(560);
+      }
+    }
+    async angry(opts = {}) {
+      const fromDrag = !!opts.fromDrag;
+      this.noteActivity();
+      this._inputWanted = false;
+      if (fromDrag) {
+        ++this._transitionToken;
+        this._expressionLock = true;
+        this._eyeMicro.lX = this._eyeMicro.lY = 0;
+        this._eyeMicro.rX = this._eyeMicro.rY = 0;
+        this._wanderTarget.x = this._wanderTarget.y = 0;
+        this._headCenteringUntil = performance.now() + 120;
+        this._look.x = 0;
+        this._look.y = 0;
+      } else {
+        if (!await this._prepareExpression({ normalizePose: true, duration: 180, pause: 320 })) return;
+      }
+      const token = this._transitionToken;
+      this.setState("angry", { duration: fromDrag ? 180 : 280, keepGazeLock: true });
+      this._angryEyeDrop = { start: performance.now(), duration: 680, amount: 4.8 };
+      this._animateHead([
+        { transform: "translateY(0px)" },
+        { transform: "translateY(2.6px)", offset: 0.46 },
+        { transform: "translateY(0px)" }
+      ], 820);
+      await this._wait(980);
+      if (token !== this._transitionToken) return;
+      this._angryEyeDrop = null;
+      if (this._state === "angry") await this._returnToIdle(500);
+    }
+    async surprise() {
+      this.noteActivity();
+      this._inputWanted = false;
+      if (!await this._prepareExpression({ normalizePose: true, duration: 180, pause: 320 })) return;
+      const token = this._transitionToken;
+      this._surpriseShake = null;
+      const pre = { ...POSES.idle, w: 34, h: 36, rx: 18 };
+      this._startMorph(pre, 235, EASE.inOutCubic);
+      await this._wait(235);
+      if (token !== this._transitionToken || this._state !== "idle") return;
+      this.setState("surprise", { duration: 175, ease: EASE.outQuint, keepGazeLock: true });
+      this._animateHead([{ transform: "scale(1)" }, { transform: "scale(1.035)" }], 175);
+      await this._wait(175);
+      if (token !== this._transitionToken || this._state !== "surprise") return;
+      this._surpriseShake = { start: performance.now(), duration: 420 };
+      await this._wait(420);
+      if (token !== this._transitionToken) return;
+      this._surpriseShake = null;
+      if (this._state === "surprise") {
+        this._animateHead([{ transform: "scale(1.035)" }, { transform: "scale(1)" }], 430);
+        await this._returnToIdle(430, EASE.inOutCubic);
+      }
+    }
+    async send() {
+      this.noteActivity();
+      this._inputWanted = false;
+      if (!await this._prepareExpression({ normalizePose: true, duration: 180, pause: 320 })) return;
+      const token = this._transitionToken;
+      this._eyeNod = { start: performance.now(), duration: 760 };
+      this._animateHead([
+        { transform: "translateY(0px)" },
+        { transform: "translateY(5px)", offset: 0.52 },
+        { transform: "translateY(0px)" }
+      ], 920);
+      await this._wait(860);
+      if (token !== this._transitionToken) return;
+      this._eyeNod = null;
+      this._releaseExpressionLock();
+    }
+    async sleep() {
+      if (this._sleeping) return;
+      if (!await this._prepareExpression({ normalizePose: true, duration: 160 })) return;
+      const token = this._transitionToken;
+      this._blinkAnim = null;
+      this._blink = 1;
+      this._nextBlinkAt = performance.now() + 1e4;
+      this.setState("sleepy", { duration: 940, ease: EASE.inOutCubic, keepGazeLock: true });
+      await this._wait(980);
+      if (token !== this._transitionToken || this._state !== "sleepy") return;
+      const reopen = { ...POSES.idle, topY: -22, bottomY: 36 };
+      this._startMorph(reopen, 105, EASE.outQuint);
+      await this._wait(120);
+      if (token !== this._transitionToken || this._state !== "sleepy") return;
+      this.setState("sleepy", { duration: 820, ease: EASE.inOutCubic, keepGazeLock: true });
+      await this._wait(870);
+      if (token !== this._transitionToken || this._state !== "sleepy") return;
+      await this._wait(120);
+      if (token !== this._transitionToken || this._state !== "sleepy") return;
+      this._animateHead([{ transform: "translateY(0)" }, { transform: "translateY(4px)" }], 980);
+      this._startMorph(POSES.sleep, 980, EASE.inOutCubic);
+      this._state = "sleep";
+      this.dispatchEvent(new CustomEvent("face-state", { detail: { state: "sleep" } }));
+      this._sleeping = true;
+      this._nextBlinkAt = performance.now() + 3200 + Math.random() * 2200;
+    }
+    async wake() {
+      if (!this._sleeping && this._state !== "sleep") return;
+      const token = ++this._transitionToken;
+      this._expressionLock = true;
+      this._sleeping = false;
+      this._animateHead([
+        { transform: "translateY(4px) scale(1)" },
+        { transform: "translateY(-2px) scale(1.015)", offset: 0.55 },
+        { transform: "translateY(0) scale(1)" }
+      ], 500);
+      this.setState("sleepy", { duration: 240, keepGazeLock: true });
+      await this._wait(260);
+      if (token !== this._transitionToken) return;
+      this.setState("surprise", { duration: 120, keepGazeLock: true });
+      await this._wait(190);
+      if (token !== this._transitionToken) return;
+      await this._returnToIdle(300);
+      if (token !== this._transitionToken) return;
+      this._lastActivity = performance.now();
+    }
+    async input(active = true) {
+      this.noteActivity();
+      if (active) {
+        if (this._inputWanted || this._state === "input") return;
+        this._inputWanted = true;
+        if (!await this._prepareExpression({ normalizePose: true, duration: 140 })) return;
+        if (!this._inputWanted) return;
+        this.setState("input", { duration: 210, keepGazeLock: true });
+      } else {
+        this._inputWanted = false;
+        ++this._transitionToken;
+        if (this._state === "input") this.setState("idle", { duration: 260 });
+        else this._releaseExpressionLock();
+      }
+    }
+    _animateHead(frames, duration) {
+      if (!this._headMotion.animate) return;
+      const token = this._transitionToken;
+      const anim = this._headMotion.animate(frames, { duration, easing: "cubic-bezier(.16,1,.3,1)", fill: "forwards" });
+      anim.onfinish = () => {
+        if (token === this._transitionToken) {
+          this._headMotion.style.transform = frames[frames.length - 1].transform || "";
+        }
+      };
+      return anim;
+    }
+    _wait(ms) {
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          this._pendingWaits.delete(timer);
+          resolve();
+        }, ms);
+        this._pendingWaits.set(timer, resolve);
+      });
+    }
+    _cancelPendingWaits() {
+      for (const [timer, resolve] of this._pendingWaits) {
+        clearTimeout(timer);
+        resolve();
+      }
+      this._pendingWaits.clear();
+    }
+    async _returnToIdle(duration = 320, ease = EASE.outQuint) {
+      const token = this._transitionToken;
+      this.setState("idle", { duration, ease, keepGazeLock: true });
+      this._headCenteringUntil = Math.max(this._headCenteringUntil || 0, performance.now() + duration);
+      await this._wait(duration);
+      if (token === this._transitionToken && this._state === "idle") this._releaseExpressionLock();
+    }
+    async _prepareExpression({ normalizePose = true, duration = 180, pause = 320 } = {}) {
+      const token = ++this._transitionToken;
+      this._expressionLock = true;
+      this._eyeMicro.lX = this._eyeMicro.lY = 0;
+      this._eyeMicro.rX = this._eyeMicro.rY = 0;
+      this._wanderTarget.x = this._wanderTarget.y = 0;
+      this._headCenteringUntil = performance.now() + duration + pause;
+      if (normalizePose && this._state !== "idle") {
+        this.setState("idle", { duration: Math.min(140, duration), keepGazeLock: true });
+      }
+      await this._wait(duration);
+      if (token !== this._transitionToken) return false;
+      if (pause > 0) await this._wait(pause);
+      return token === this._transitionToken;
+    }
+    async bored() {
+      this.noteActivity();
+      this._inputWanted = false;
+      this._sleeping = false;
+      if (!await this._prepareExpression({ normalizePose: true, duration: 180, pause: 620 })) return;
+      this._expressionLock = false;
+      this._look.x = 0;
+      this._look.y = 0;
+      this._wander.x = 0;
+      this._wander.y = 0;
+      this._startBoredRoutine(performance.now());
+    }
+    _startBoredRoutine(now) {
+      this._boredRoutine = {
+        index: 0,
+        nextAt: now,
+        steps: [
+          { x: -18, y: -11, hold: 1400, lookSpeed: 2 },
+          { x: 18, y: -11, hold: 1400, lookSpeed: 2 },
+          { x: 0, y: 0, hold: 320, lookSpeed: 2 }
+        ]
+      };
+    }
+    _updateBored(now) {
+      if (!this._boredRoutine) return false;
+      if (now < this._boredRoutine.nextAt) return true;
+      const step = this._boredRoutine.steps[this._boredRoutine.index];
+      if (!step) {
+        this._boredRoutine = null;
+        this._boredLookSpeed = null;
+        this._wanderTarget.x = this._wanderTarget.y = 0;
+        return false;
+      }
+      this._wanderTarget.x = step.x;
+      this._wanderTarget.y = step.y;
+      this._boredLookSpeed = step.lookSpeed ?? null;
+      this._boredRoutine.index += 1;
+      this._boredRoutine.nextAt = now + step.hold;
+      return true;
+    }
+    _releaseExpressionLock() {
+      this._expressionLock = false;
+      this._headCenteringUntil = 0;
+    }
+    _updateMorph(now) {
+      if (!this._morphDuration) {
+        this._pose = clonePose(this._toPose);
+        return;
+      }
+      const t = clamp4((now - this._morphStart) / this._morphDuration, 0, 1);
+      const k = this._morphEase(t);
+      const p = {};
+      for (const key of Object.keys(this._toPose)) p[key] = lerp4(this._fromPose[key], this._toPose[key], k);
+      this._pose = p;
+      if (t >= 1) this._morphDuration = 0;
+    }
+    _updateBlink(now) {
+      if (this._sleeping || this._state === "input") return;
+      if (this._blinkAnim) {
+        const t = clamp4((now - this._blinkAnim.start) / this._blinkAnim.duration, 0, 1);
+        this._blink = t < 0.5 ? lerp4(1, 0.08, t * 2) : lerp4(0.08, 1, (t - 0.5) * 2);
+        if (t >= 1) {
+          this._blinkAnim = null;
+          this._blink = 1;
+          this._nextBlinkAt = now + 1900 + Math.random() * 2600;
+        }
+      } else if (!this._expressionLock && now >= this._nextBlinkAt) {
+        this._blinkAnim = { start: now, duration: 150 + Math.random() * 70 };
+      }
+    }
+    _updateLook(now, dt) {
+      this._updateBored(now);
+      const pointerFresh = now - this._pointer.lastMove < 900;
+      const antennaGaze = this._gestureFx?.kind === "antenna-drag" && this._gestureFx.held;
+      const gazeLocked = this._expressionLock && !antennaGaze;
+      if (!this._expressionLock && !this._boredRoutine && !this._sleeping && this._state !== "input" && now >= this._nextWanderAt) {
+        const ampX = 12 + Math.random() * 13;
+        const ampY = 5 + Math.random() * 9;
+        this._wanderTarget.x = (Math.random() * 2 - 1) * ampX;
+        this._wanderTarget.y = (Math.random() * 2 - 1) * ampY;
+        this._nextWanderAt = now + 1150 + Math.random() * 1900;
+      }
+      const draggingJelly = this._dragJelly.active || this._dragJelly.returning;
+      const pointerMix = !gazeLocked && !this._boredRoutine && pointerFresh && this._pointer.active && !this._sleeping && this._state !== "input" ? Math.pow(this._pointer.influence || 0, 1.6) : 0;
+      let targetX = antennaGaze ? this._gestureFx.gazeX : gazeLocked ? 0 : lerp4(this._wanderTarget.x, this._pointer.x, pointerMix);
+      let targetY = antennaGaze ? this._gestureFx.gazeY : gazeLocked ? 0 : lerp4(this._wanderTarget.y, this._pointer.y, pointerMix);
+      const reach = Math.hypot(targetX / 48, targetY / 34);
+      if (reach > 1) {
+        targetX /= reach;
+        targetY /= reach;
+      }
+      const lookSpeed = antennaGaze ? 0.42 : gazeLocked ? 0.4 : draggingJelly ? 0.42 : this._boredRoutine && this._boredLookSpeed != null ? this._boredLookSpeed : pointerMix > 0.05 ? 0.28 : 0.16;
+      const kL = 1 - Math.pow(1 - clamp4(lookSpeed, 0.02, 0.9), dt / 16.67);
+      this._look.x = lerp4(this._look.x, targetX, kL);
+      this._look.y = lerp4(this._look.y, targetY, kL);
+      if (this._sleeping) {
+        this._look.x *= 0.92;
+        this._look.y *= 0.92;
+      }
+    }
+    _autoSleep(now) {
+      if (!this._autoSleepMs || this._sleeping || this._expressionLock || ["input", "happy", "sad", "surprise"].includes(this._state)) return;
+      if (now - this._lastActivity > this._autoSleepMs) this.sleep();
+    }
+    _updateHeadFollow(now, dt) {
+      const pointerFresh = now - this._pointer.lastMove < 900;
+      const pointerInRange = pointerFresh && this._pointer.active && (this._pointer.influence || 0) > 0.03;
+      const headCentering = now < (this._headCenteringUntil || 0);
+      const jellyBusy = this._dragJelly.active || this._dragJelly.returning;
+      const canFollowPointer = pointerInRange && !jellyBusy && !this._sleeping && !this._boredRoutine && !headCentering && !this._expressionLock;
+      const srcX = canFollowPointer ? this._pointer.x : this._look.x;
+      const srcY = canFollowPointer ? this._pointer.y : this._look.y;
+      const nx = clamp4(srcX / 48, -1, 1);
+      const ny = clamp4(srcY / 34, -1, 1);
+      const diag = clamp4(nx * ny, -1, 1);
+      const targetRot = diag * 8;
+      const targetX = canFollowPointer ? nx * 4.2 : 0;
+      const targetY = canFollowPointer ? ny * 4.2 : 0;
+      const dtS = Math.min(dt, 34) / 1e3;
+      const rotStiffness = canFollowPointer ? 70 : 56;
+      const rotDamping = canFollowPointer ? 15 : 13;
+      const aRot = (targetRot - this._headFollowPose.rot) * rotStiffness - this._headFollowVel.rot * rotDamping;
+      this._headFollowVel.rot += aRot * dtS;
+      this._headFollowPose.rot += this._headFollowVel.rot * dtS;
+      const stiffness = canFollowPointer ? 95 : 80;
+      const damping = canFollowPointer ? 16 : 14;
+      const ax = (targetX - this._headFollowPose.x) * stiffness - this._headFollowVel.x * damping;
+      const ay = (targetY - this._headFollowPose.y) * stiffness - this._headFollowVel.y * damping;
+      this._headFollowVel.x += ax * dtS;
+      this._headFollowVel.y += ay * dtS;
+      this._headFollowPose.x += this._headFollowVel.x * dtS;
+      this._headFollowPose.y += this._headFollowVel.y * dtS;
+      if (!canFollowPointer) {
+        if (Math.abs(this._headFollowPose.x) < 0.01 && Math.abs(this._headFollowVel.x) < 0.01) {
+          this._headFollowPose.x = 0;
+          this._headFollowVel.x = 0;
+        }
+        if (Math.abs(this._headFollowPose.y) < 0.01 && Math.abs(this._headFollowVel.y) < 0.01) {
+          this._headFollowPose.y = 0;
+          this._headFollowVel.y = 0;
+        }
+        if (Math.abs(this._headFollowPose.rot) < 0.01 && Math.abs(this._headFollowVel.rot) < 0.01) {
+          this._headFollowPose.rot = 0;
+          this._headFollowVel.rot = 0;
+        }
+      }
+      if (this._headFollow) {
+        const a = this._headFollowPose.rot.toFixed(2);
+        const tx = this._headFollowPose.x.toFixed(2);
+        const ty = this._headFollowPose.y.toFixed(2);
+        this._headFollow.setAttribute("transform", `translate(${tx} ${ty}) translate(120 120) rotate(${a}) translate(-120 -120)`);
+      }
+    }
+    _draw(now) {
+      const p = this._pose;
+      let nodY = 0;
+      let nodScaleY = 1;
+      if (this._eyeNod) {
+        const elapsed = now - this._eyeNod.start;
+        let depth = 0;
+        if (elapsed < 150) depth = elapsed / 150;
+        else if (elapsed < 300) depth = 1 - (elapsed - 150) / 150;
+        else if (elapsed < 450) depth = (elapsed - 300) / 150;
+        else if (elapsed < 760) depth = 1 - (elapsed - 450) / 310;
+        else {
+          depth = 0;
+          this._eyeNod = null;
+        }
+        depth = clamp4(depth, 0, 1);
+        nodY = 31 * depth;
+        nodScaleY = 1 - 0.3 * depth;
+      }
+      let angryDropY = 0;
+      if (this._angryEyeDrop) {
+        const t = clamp4((now - this._angryEyeDrop.start) / this._angryEyeDrop.duration, 0, 1);
+        const settle = 1 - Math.exp(-5.2 * t) * Math.cos(8.6 * t);
+        angryDropY = this._angryEyeDrop.amount * settle;
+        if (t >= 1) angryDropY = this._angryEyeDrop.amount;
+      }
+      let emotionBobY = 0;
+      if (this._eyeBob) {
+        const t = clamp4((now - this._eyeBob.start) / this._eyeBob.duration, 0, 1);
+        const cycles = 2;
+        emotionBobY = Math.sin(t * Math.PI * cycles * 2) * this._eyeBob.amp * (1 - 0.38 * t);
+        if (t >= 1) this._eyeBob = null;
+      }
+      let surpriseScale = 1;
+      if (this._surpriseShake) {
+        const t = clamp4((now - this._surpriseShake.start) / this._surpriseShake.duration, 0, 1);
+        surpriseScale = 1 + 0.022 * Math.sin(t * Math.PI * 8) * (1 - 0.18 * t);
+        if (t >= 1) this._surpriseShake = null;
+      }
+      const blinkH = Math.max(2.6, p.h * this._blink * nodScaleY * surpriseScale);
+      const yAdjust = (p.h - blinkH) * 0.02;
+      const cursorPeriod = 530;
+      const inputBlinkOn = this._state === "input" ? Math.floor(now / (cursorPeriod / 2)) % 2 === 0 : true;
+      const inputPulseL = this._state === "input" ? inputBlinkOn ? 1 : 0 : 1;
+      const inputPulseR = inputPulseL;
+      const jellyEyeOffset = (cx, cy) => {
+        const j = this._dragJelly;
+        const amount = Math.hypot(j.pullX, j.pullY);
+        if (amount < 0.05) return { x: 0, y: 0 };
+        const radius = (50 + amount * 0.8) * 0.92;
+        const dx = cx - j.hotX;
+        const dy = cy - j.hotY;
+        const w = Math.exp(-(dx * dx + dy * dy) / (2 * radius * radius)) * 0.24;
+        return { x: j.pullX * w, y: j.pullY * w };
+      };
+      const setEye2 = (base, inputBase, top, bottom, side, cx, microX, microY, opacity) => {
+        const isInput = this._state === "input";
+        const projectedX = cx + this._look.x + microX;
+        const edgeDistance = side === "L" ? projectedX - 32 : 208 - projectedX;
+        const edgeFactor = clamp4(1 - edgeDistance / 58, 0, 1);
+        const baseW = p.w * surpriseScale;
+        const baseH = blinkH;
+        const w = baseW * (1 - 0.22 * edgeFactor * edgeFactor);
+        const h = baseH * (1 - 0.08 * edgeFactor * edgeFactor);
+        const inwardShift = (baseW - w) * 0.58 * (side === "L" ? 1 : -1);
+        if (isInput) {
+          base.setAttribute("opacity", "0");
+          inputBase.setAttribute("x", (-p.w / 2).toFixed(2));
+          inputBase.setAttribute("y", (-p.h / 2 + yAdjust).toFixed(2));
+          inputBase.setAttribute("width", p.w.toFixed(2));
+          inputBase.setAttribute("height", p.h.toFixed(2));
+          inputBase.setAttribute("rx", "3");
+          inputBase.setAttribute("opacity", opacity.toFixed(3));
+        } else {
+          inputBase.setAttribute("opacity", "0");
+          base.setAttribute("cx", "0");
+          base.setAttribute("cy", yAdjust.toFixed(2));
+          base.setAttribute("rx", (w / 2).toFixed(2));
+          base.setAttribute("ry", (h / 2).toFixed(2));
+          base.setAttribute("opacity", opacity.toFixed(3));
+        }
+        const topY = p.topY;
+        const bottomY = p.bottomY;
+        const ta = side === "L" ? p.topAL : p.topAR;
+        const ba = side === "L" ? p.bottomAL : p.bottomAR;
+        top.setAttribute("y", (topY - 90).toFixed(2));
+        top.setAttribute("height", "90");
+        top.setAttribute("transform", `rotate(${ta.toFixed(2)} 0 ${topY.toFixed(2)})`);
+        bottom.setAttribute("y", bottomY.toFixed(2));
+        bottom.setAttribute("height", "90");
+        bottom.setAttribute("transform", `rotate(${ba.toFixed(2)} 0 ${bottomY.toFixed(2)})`);
+        const jelly = jellyEyeOffset(cx, 126);
+        return `translate(${(cx + this._look.x + microX + jelly.x + (isInput ? 0 : inwardShift)).toFixed(2)} ${(126 + this._look.y + microY + jelly.y + nodY + angryDropY + emotionBobY).toFixed(2)})`;
+      };
+      const inputCenter = this._state === "input";
+      const surpriseSpread = this._state === "surprise" ? 3.4 * EASE.outQuint(clamp4((p.w - 34) / (POSES.surprise.w - 34), 0, 1)) : 0;
+      const leftCX = inputCenter ? 120 : 86 - surpriseSpread;
+      const rightCX = inputCenter ? 120 : 154 + surpriseSpread;
+      this._leftEye.setAttribute("transform", setEye2(this._leftBase, this._leftInputBase, this._leftTop, this._leftBottom, "L", leftCX, this._eyeMicro.lX, this._eyeMicro.lY, inputPulseL));
+      this._rightEye.setAttribute("transform", setEye2(this._rightBase, this._rightInputBase, this._rightTop, this._rightBottom, "R", rightCX, this._eyeMicro.rX, this._eyeMicro.rY, inputPulseR));
+    }
+    _resumeFrames() {
+      if (!this.isConnected || document.hidden || this._raf) return;
+      this._running = true;
+      this._framePaused = false;
+      this._lastFrame = performance.now();
+      this._raf = requestAnimationFrame(this._loop);
+    }
+    _canPauseFrames(now) {
+      if (!this._sleeping || this._state !== "sleep") return false;
+      if (now - this._morphStart < this._morphDuration) return false;
+      if (this._dragJelly.active || this._dragJelly.returning) return false;
+      if (this._waitingFx || this._inspectFx || this._failureFx || this._warningFx || this._systemErrorShake) return false;
+      const animations = this._headMotion?.getAnimations?.() || [];
+      return !animations.some((animation) => animation.playState === "running" || animation.playState === "pending");
+    }
+    _loop = (ts = performance.now()) => {
+      if (!this._running || !this.isConnected) {
+        this._raf = 0;
+        return;
+      }
+      if (ts - this._lastFrame >= 33) {
+        const dt = Math.min(66, ts - (this._lastFrame || ts - 33));
+        this._lastFrame = ts;
+        this._updateMorph(ts);
+        this._updateBlink(ts);
+        this._updateLook(ts, dt);
+        this._updateHeadFollow(ts, dt);
+        this._updateDragJelly(dt);
+        this._draw(ts);
+      }
+      if (this._canPauseFrames(ts)) {
+        this._framePaused = true;
+        this._raf = 0;
+        return;
+      }
+      this._raf = requestAnimationFrame(this._loop);
+    };
+  }
+  if (typeof customElements !== "undefined" && !customElements.get("agent-robot-avatar")) {
+    customElements.define("agent-robot-avatar", AgentFace);
+  }
+  if (typeof window !== "undefined") window.AgentRobotAvatar = AgentFace;
+  return AgentFace;
+})();
+var agent_robot_avatar_core_default = AgentRobotAvatar;
+
+// src/agent-robot-avatar-extension-host.js
+var proto = agent_robot_avatar_core_default.prototype;
+var basePlay = proto.play;
+var baseReset = proto.reset;
+var baseDraw = proto._draw;
+var extensionNames = /* @__PURE__ */ new Set();
+var actionHandlers = /* @__PURE__ */ new Map();
+var beforePlayHooks = [];
+var afterPlayHooks = [];
+var resetHooks = [];
+var drawHooks = [];
+function registerAvatarExtension({
+  name,
+  actions = {},
+  beforePlay,
+  afterPlay,
+  reset,
+  draw
+}) {
+  if (!name || extensionNames.has(name)) {
+    throw new Error(`Agent Robot Avatar extension already registered: ${name || "(unnamed)"}`);
+  }
+  extensionNames.add(name);
+  for (const [action, handler] of Object.entries(actions)) {
+    if (actionHandlers.has(action)) {
+      throw new Error(`Agent Robot Avatar action already registered: ${action}`);
+    }
+    actionHandlers.set(action, handler);
+  }
+  if (beforePlay) beforePlayHooks.push(beforePlay);
+  if (afterPlay) afterPlayHooks.push(afterPlay);
+  if (reset) resetHooks.push(reset);
+  if (draw) drawHooks.push(draw);
+}
+proto.play = function(name) {
+  this._resumeFrames?.();
+  const action = String(name || "").trim().toLowerCase();
+  const context = {};
+  for (const hook of beforePlayHooks) hook.call(this, action, context);
+  let result;
+  try {
+    const handler = actionHandlers.get(action);
+    result = handler ? handler.call(this, action) : basePlay.call(this, action);
+  } catch (error) {
+    context.error = error;
+    for (const hook of afterPlayHooks) hook.call(this, action, void 0, context);
+    throw error;
+  }
+  for (const hook of afterPlayHooks) hook.call(this, action, result, context);
+  return result;
+};
+proto._resetExtensionEffects = function() {
+  for (const hook of resetHooks) hook.call(this);
+};
+proto.reset = function() {
+  this._resumeFrames?.();
+  return baseReset.call(this);
+};
+proto._draw = function(now) {
+  baseDraw.call(this, now);
+  for (const hook of drawHooks) hook.call(this, now);
+};
+var agent_robot_avatar_extension_host_default = agent_robot_avatar_core_default;
+
+// src/agent-robot-avatar-actions.js
+if (!agent_robot_avatar_extension_host_default) {
+  throw new Error("Agent Robot Avatar core failed to load.");
+}
+var proto2 = agent_robot_avatar_extension_host_default.prototype;
+var baseUpdateLook = proto2._updateLook;
+var baseOnPointerMove = proto2._onPointerMove;
+var clamp01 = (value) => Math.max(0, Math.min(1, value));
+var lerp = (a, b, t) => a + (b - a) * t;
+var outQuint = (t) => 1 - Math.pow(1 - t, 5);
+var smooth = (t) => {
+  t = clamp01(t);
+  return t * t * (3 - 2 * t);
+};
+var WARNING_TIMING = Object.freeze({
+  W1: 480,
+  W2: 400,
+  W4: 600,
+  W5: 200,
+  W5P: 300,
+  W6: 200,
+  W6P: 500,
+  W7: 100,
+  W8: 800,
+  W9: 227
+});
+function buildWarningPhases() {
+  let cursor = 0;
+  const phases = {};
+  for (const key of ["W2", "W4", "W5", "W5P", "W6", "W6P", "W7", "W8", "W9"]) {
+    phases[`${key.toLowerCase()}Start`] = cursor;
+    cursor += WARNING_TIMING[key];
+    phases[`${key.toLowerCase()}End`] = cursor;
+  }
+  phases.duration = cursor;
+  return Object.freeze(phases);
+}
+var WARNING_PHASES = buildWarningPhases();
+function segment(t, a, b, from, to) {
+  if (t <= a) return from;
+  if (t >= b) return to;
+  return lerp(from, to, smooth((t - a) / (b - a)));
+}
+function errorEyeSweep(t) {
+  if (t < 0.16) return segment(t, 0, 0.16, 0, -1);
+  if (t < 0.4) return segment(t, 0.16, 0.4, -1, 1);
+  if (t < 0.64) return segment(t, 0.4, 0.64, 1, -0.88);
+  if (t < 0.84) return segment(t, 0.64, 0.84, -0.88, 0.58);
+  return segment(t, 0.84, 1, 0.58, 0);
+}
+function dispatchActionState(instance, state) {
+  instance.dispatchEvent(new CustomEvent("face-state", { detail: { state } }));
+}
+function centerHeadTransform(instance) {
+  if (!instance._headMotion) return;
+  instance._headMotion.style.transformBox = "view-box";
+  instance._headMotion.style.transformOrigin = "120px 120px";
+}
+function cancelCustomMotion(instance) {
+  instance._systemErrorShake = null;
+  instance._warningFx = null;
+  instance._look.x = 0;
+  instance._look.y = 0;
+}
+function interruptRunningAction(instance) {
+  ++instance._transitionToken;
+  instance._inputWanted = false;
+  instance._boredRoutine = null;
+  instance._boredLookSpeed = null;
+  instance._eyeNod = null;
+  instance._eyeBob = null;
+  instance._angryEyeDrop = null;
+  instance._surpriseShake = null;
+  cancelCustomMotion(instance);
+  if (instance._headMotion?.getAnimations) {
+    instance._headMotion.getAnimations().forEach((animation) => animation.cancel());
+  }
+  if (instance._headMotion) instance._headMotion.style.transform = "";
+}
+function playBuiltInAction(action) {
+  if (action === "idle") return this.reset();
+  if (action === "input" && (this._inputWanted || this._state === "input")) return this;
+  if (action === "wake" && !this._sleeping && this._state !== "sleep") return this;
+  if (action === "sleep" && this._sleeping) return this;
+  interruptRunningAction(this);
+  if (action === "warning") return this.warning();
+  if (action === "system-error" || action === "connection-error") return this.error();
+  if (action === "blocked" || action === "policy-blocked") return this.angry();
+  return this[action]();
+}
+var BUILT_IN_ACTIONS = [
+  "idle",
+  "bored",
+  "input",
+  "send",
+  "success",
+  "warning",
+  "error",
+  "system-error",
+  "connection-error",
+  "angry",
+  "blocked",
+  "policy-blocked",
+  "surprise",
+  "sleep",
+  "wake"
+];
+var actionHandlers2 = Object.fromEntries(BUILT_IN_ACTIONS.map((action) => [
+  action,
+  function() {
+    return playBuiltInAction.call(this, action);
+  }
+]));
+proto2.setPointerFollow = function(enabled = true) {
+  this._pointerFollowEnabled = enabled !== false;
+  if (!this._pointerFollowEnabled) {
+    this._pointer.active = false;
+    this._pointer.influence = 0;
+    this._pointer.lastMove = 0;
+    this._headCenteringUntil = performance.now() + 320;
+  }
+  return this;
+};
+proto2._onPointerMove = function(event) {
+  if (this._pointerFollowEnabled === false) return;
+  return baseOnPointerMove.call(this, event);
+};
+proto2._returnToIdle = async function(duration = 320, ease = outQuint) {
+  const token = this._transitionToken;
+  this.setState("idle", { duration, ease, keepGazeLock: true });
+  this._headCenteringUntil = Math.max(this._headCenteringUntil || 0, performance.now() + duration);
+  await this._wait(duration);
+  if (token === this._transitionToken && this._state === "idle") this._releaseExpressionLock();
+};
+proto2.send = async function() {
+  this.noteActivity();
+  this._inputWanted = false;
+  if (!await this._prepareExpression({ normalizePose: true, duration: 180, pause: 320 })) return;
+  const token = this._transitionToken;
+  this._eyeNod = { start: performance.now(), duration: 760 };
+  this._animateHead([
+    { transform: "translateY(0px)" },
+    { transform: "translateY(5px)", offset: 0.52 },
+    { transform: "translateY(0px)" }
+  ], 920);
+  await this._wait(860);
+  if (token !== this._transitionToken) return;
+  this._eyeNod = null;
+  this._releaseExpressionLock();
+};
+proto2.wake = async function() {
+  if (!this._sleeping && this._state !== "sleep") return;
+  this._resumeFrames?.();
+  const token = ++this._transitionToken;
+  this._expressionLock = true;
+  this._sleeping = false;
+  this._animateHead([
+    { transform: "translateY(4px) scale(1)" },
+    { transform: "translateY(-2px) scale(1.015)", offset: 0.55 },
+    { transform: "translateY(0) scale(1)" }
+  ], 500);
+  this.setState("sleepy", { duration: 240, keepGazeLock: true });
+  await this._wait(260);
+  if (token !== this._transitionToken) return;
+  this.setState("surprise", { duration: 120, keepGazeLock: true });
+  await this._wait(190);
+  if (token !== this._transitionToken) return;
+  await this._returnToIdle(300);
+  if (token !== this._transitionToken) return;
+  this._lastActivity = performance.now();
+};
+proto2.error = async function() {
+  this.noteActivity();
+  this._inputWanted = false;
+  cancelCustomMotion(this);
+  if (!await this._prepareExpression({ normalizePose: true, duration: 180, pause: 240 })) return;
+  const token = this._transitionToken;
+  const eyeDuration = 980;
+  const headDuration = 1380;
+  this._systemErrorShake = { start: performance.now(), duration: eyeDuration };
+  dispatchActionState(this, "refuse");
+  centerHeadTransform(this);
+  if (this._headMotion?.animate) {
+    const animationToken = this._transitionToken;
+    const anim = this._headMotion.animate([
+      { transform: "translateX(0px)", offset: 0, easing: "cubic-bezier(.38,0,.28,1)" },
+      { transform: "translateX(-4px)", offset: 0.34, easing: "cubic-bezier(.35,0,.22,1)" },
+      { transform: "translateX(4px)", offset: 0.72, easing: "cubic-bezier(.35,0,.22,1)" },
+      { transform: "translateX(0px)", offset: 1 }
+    ], { duration: headDuration, easing: "linear", fill: "forwards" });
+    anim.onfinish = () => {
+      if (animationToken === this._transitionToken) this._headMotion.style.transform = "translateX(0px)";
+    };
+  }
+  await this._wait(headDuration + 40);
+  if (token !== this._transitionToken) return;
+  this._systemErrorShake = null;
+  this._look.x = 0;
+  this._look.y = 0;
+  this._releaseExpressionLock();
+  dispatchActionState(this, "idle");
+};
+proto2.warning = async function() {
+  this.noteActivity();
+  this._inputWanted = false;
+  cancelCustomMotion(this);
+  if (!await this._prepareExpression({ normalizePose: true, duration: 200, pause: WARNING_TIMING.W1 - 200 })) return;
+  const token = this._transitionToken;
+  const duration = WARNING_PHASES.duration;
+  this._warningFx = { start: performance.now(), duration };
+  dispatchActionState(this, "wary");
+  centerHeadTransform(this);
+  if (this._headMotion?.animate) {
+    const animationToken = this._transitionToken;
+    const anim = this._headMotion.animate([
+      { transform: "translateY(0px)", offset: 0 },
+      { transform: "translateY(0px)", offset: WARNING_PHASES.w5Start / duration, easing: "cubic-bezier(.38,0,.25,1)" },
+      { transform: "translateY(5px)", offset: WARNING_PHASES.w5End / duration, easing: "cubic-bezier(.35,0,.22,1)" },
+      { transform: "translateY(5px)", offset: WARNING_PHASES.w5pEnd / duration, easing: "cubic-bezier(.35,0,.22,1)" },
+      { transform: "translateY(-4px)", offset: WARNING_PHASES.w6End / duration },
+      { transform: "translateY(-4px)", offset: WARNING_PHASES.w6pEnd / duration, easing: "cubic-bezier(.35,0,.22,1)" },
+      { transform: "translateY(0px)", offset: WARNING_PHASES.w7End / duration },
+      { transform: "translateY(0px)", offset: 1 }
+    ], { duration, easing: "linear", fill: "forwards" });
+    anim.onfinish = () => {
+      if (animationToken === this._transitionToken) this._headMotion.style.transform = "translateY(0px)";
+    };
+  }
+  await this._wait(duration + 40);
+  if (token !== this._transitionToken) return;
+  this._warningFx = null;
+  this._look.x = 0;
+  this._look.y = 0;
+  this._releaseExpressionLock();
+  dispatchActionState(this, "idle");
+};
+proto2._startBoredRoutine = function(now) {
+  this._boredRoutine = {
+    index: 0,
+    nextAt: now,
+    steps: [
+      { x: -18, y: -16, hold: 1400, lookSpeed: 0.5 },
+      { x: 18, y: -16, hold: 1400, lookSpeed: 0.5 },
+      { x: 0, y: 0, hold: 320, lookSpeed: 0.5 }
+    ]
+  };
+};
+proto2._updateLook = function(now, dt) {
+  baseUpdateLook.call(this, now, dt);
+  if (this._systemErrorShake) {
+    const t = clamp01((now - this._systemErrorShake.start) / this._systemErrorShake.duration);
+    this._look.x = errorEyeSweep(t) * 30;
+    this._look.y = 0;
+    if (t >= 1) this._systemErrorShake = null;
+  }
+};
+function drawWarning(now) {
+  const fx = this._warningFx;
+  if (!fx) return;
+  const elapsed = Math.max(0, Math.min(fx.duration, now - fx.start));
+  let proximity = elapsed < WARNING_PHASES.w2End ? smooth(elapsed / WARNING_TIMING.W2) : 1;
+  let lids = elapsed < WARNING_PHASES.w2End ? smooth(elapsed / WARNING_TIMING.W2) : 1;
+  const release = elapsed > WARNING_PHASES.w8End ? 1 - smooth((elapsed - WARNING_PHASES.w8End) / WARNING_TIMING.W9) : 1;
+  proximity *= release;
+  lids *= release;
+  let lidShift = 0;
+  const lightPress = 4.2;
+  const w4PressEnd = Math.min(WARNING_PHASES.w4Start + 120, WARNING_PHASES.w4End);
+  if (elapsed >= WARNING_PHASES.w4Start && elapsed < WARNING_PHASES.w4End) {
+    lidShift = elapsed < w4PressEnd ? segment(elapsed, WARNING_PHASES.w4Start, w4PressEnd, 0, lightPress) : lightPress;
+  } else if (elapsed >= WARNING_PHASES.w5Start && elapsed < WARNING_PHASES.w5End) {
+    lidShift = segment(elapsed, WARNING_PHASES.w5Start, WARNING_PHASES.w5End, lightPress, 20.5);
+  } else if (elapsed >= WARNING_PHASES.w5pStart && elapsed < WARNING_PHASES.w5pEnd) {
+    lidShift = 20.5;
+  } else if (elapsed >= WARNING_PHASES.w6Start && elapsed < WARNING_PHASES.w6End) {
+    lidShift = segment(elapsed, WARNING_PHASES.w6Start, WARNING_PHASES.w6End, 20.5, -6.5);
+  } else if (elapsed >= WARNING_PHASES.w6pStart && elapsed < WARNING_PHASES.w6pEnd) {
+    lidShift = -6.5;
+  } else if (elapsed >= WARNING_PHASES.w7Start && elapsed < WARNING_PHASES.w7End) {
+    lidShift = segment(elapsed, WARNING_PHASES.w7Start, WARNING_PHASES.w7End, -6.5, lightPress);
+  } else if (elapsed >= WARNING_PHASES.w8Start && elapsed < WARNING_PHASES.w8End) {
+    lidShift = lightPress;
+  }
+  let farLowOffset = 0;
+  if (elapsed >= WARNING_PHASES.w5Start && elapsed < WARNING_PHASES.w5End) {
+    farLowOffset = segment(elapsed, WARNING_PHASES.w5Start, WARNING_PHASES.w5End, 0, 2.4);
+  } else if (elapsed >= WARNING_PHASES.w5pStart && elapsed < WARNING_PHASES.w5pEnd) {
+    farLowOffset = 2.4;
+  } else if (elapsed >= WARNING_PHASES.w6Start && elapsed < WARNING_PHASES.w6End) {
+    farLowOffset = segment(elapsed, WARNING_PHASES.w6Start, WARNING_PHASES.w6End, 2.4, 0);
+  }
+  let farDeepLidDrop = 0;
+  if (elapsed >= WARNING_PHASES.w5Start && elapsed < WARNING_PHASES.w5End) {
+    farDeepLidDrop = segment(elapsed, WARNING_PHASES.w5Start, WARNING_PHASES.w5End, 0, 3.5);
+  } else if (elapsed >= WARNING_PHASES.w5pStart && elapsed < WARNING_PHASES.w5pEnd) {
+    farDeepLidDrop = 3.5;
+  } else if (elapsed >= WARNING_PHASES.w6Start && elapsed < WARNING_PHASES.w6End) {
+    farDeepLidDrop = segment(elapsed, WARNING_PHASES.w6Start, WARNING_PHASES.w6End, 3.5, 0);
+  }
+  const nearSX = lerp(1, 1.37, proximity);
+  const nearSY = lerp(1, 1.4, proximity);
+  const farSX = lerp(1, 0.68, proximity);
+  const farSY = lerp(1, 0.99, proximity);
+  const nearTilt = lerp(0, -6.5, proximity);
+  const farTilt = lerp(0, 7.5, proximity);
+  const nearX = lerp(86, 102, proximity);
+  const farX = lerp(154, 174.5, proximity);
+  const nearY = lerp(126, 125.5, proximity);
+  const farY = lerp(126, 133.5, proximity) + farLowOffset;
+  this._leftEye.setAttribute(
+    "transform",
+    `translate(${nearX.toFixed(2)} ${nearY.toFixed(2)}) rotate(${nearTilt.toFixed(2)}) scale(${nearSX.toFixed(3)} ${nearSY.toFixed(3)})`
+  );
+  this._rightEye.setAttribute(
+    "transform",
+    `translate(${farX.toFixed(2)} ${farY.toFixed(2)}) rotate(${farTilt.toFixed(2)}) scale(${farSX.toFixed(3)} ${farSY.toFixed(3)})`
+  );
+  const nearTopY = lerp(-36, -8, lids) + lidShift;
+  const farTopY = lerp(-36, -10, lids) + lidShift * 0.95 + farDeepLidDrop;
+  const nearTopRot = lerp(0, 25, lids);
+  const farTopRot = lerp(0, -17, lids);
+  this._leftTop.setAttribute("y", (nearTopY - 90).toFixed(2));
+  this._leftTop.setAttribute("height", "90");
+  this._leftTop.setAttribute("transform", `rotate(${nearTopRot.toFixed(2)} 0 ${nearTopY.toFixed(2)})`);
+  this._rightTop.setAttribute("y", (farTopY - 90).toFixed(2));
+  this._rightTop.setAttribute("height", "90");
+  this._rightTop.setAttribute("transform", `rotate(${farTopRot.toFixed(2)} 0 ${farTopY.toFixed(2)})`);
+  const nearBottomY = lerp(36, 35.3, lids);
+  const farBottomY = lerp(36, 35.6, lids);
+  this._leftBottom.setAttribute("y", nearBottomY.toFixed(2));
+  this._leftBottom.setAttribute("height", "90");
+  this._leftBottom.setAttribute("transform", `rotate(0 0 ${nearBottomY.toFixed(2)})`);
+  this._rightBottom.setAttribute("y", farBottomY.toFixed(2));
+  this._rightBottom.setAttribute("height", "90");
+  this._rightBottom.setAttribute("transform", `rotate(0 0 ${farBottomY.toFixed(2)})`);
+}
+registerAvatarExtension({
+  name: "actions",
+  actions: actionHandlers2,
+  reset() {
+    interruptRunningAction(this);
+  },
+  draw: drawWarning
+});
+
+// src/agent-robot-avatar-geometry.js
+var DEFAULT_HEAD_HEIGHT_SCALE = 0.9;
+var clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+var smooth01 = (value) => {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
+};
+function flattenHeadPoints(points, heightScale = DEFAULT_HEAD_HEIGHT_SCALE) {
+  if (!points?.length) return [];
+  const source = points.map((point) => ({ x: point.x, y: point.y }));
+  const minY = Math.min(...source.map((point) => point.y));
+  const maxY = Math.max(...source.map((point) => point.y));
+  const height = maxY - minY;
+  if (!(height > 0)) return source;
+  const scale = clamp(Number(heightScale), 0.1, 1);
+  const centerY = (minY + maxY) / 2;
+  const inset = height * (1 - scale) / 2;
+  const upperLockY = minY + height * 0.4;
+  const lowerLockY = maxY - height * 0.4;
+  return source.map((point) => {
+    let shiftY = 0;
+    if (point.y <= upperLockY) {
+      shiftY = inset;
+    } else if (point.y < centerY) {
+      const t = (centerY - point.y) / Math.max(1e-3, centerY - upperLockY);
+      shiftY = inset * smooth01(t);
+    } else if (point.y >= lowerLockY) {
+      shiftY = -inset;
+    } else if (point.y > centerY) {
+      const t = (point.y - centerY) / Math.max(1e-3, lowerLockY - centerY);
+      shiftY = -inset * smooth01(t);
+    }
+    return { x: point.x, y: point.y + shiftY };
+  });
+}
+
+// src/agent-robot-avatar-antenna.js
+var SVG_NS = "http://www.w3.org/2000/svg";
+var ANTENNA_DEFAULTS = Object.freeze({
+  x: 120,
+  y: 12,
+  radius: 15,
+  stiffness: 180,
+  damping: 5.6
+});
+var runtimeWindow = typeof window !== "undefined" ? window : null;
+var antennaConfig = runtimeWindow?.AgentRobotAvatarAntennaConfig && typeof runtimeWindow.AgentRobotAvatarAntennaConfig === "object" ? runtimeWindow.AgentRobotAvatarAntennaConfig : {};
+for (const [key, value] of Object.entries(ANTENNA_DEFAULTS)) {
+  if (!Number.isFinite(Number(antennaConfig[key]))) antennaConfig[key] = value;
+}
+if (runtimeWindow) {
+  runtimeWindow.AgentRobotAvatarAntennaConfig = antennaConfig;
+  runtimeWindow.AgentRobotAvatarAntennaDefaults = ANTENNA_DEFAULTS;
+}
+function configNumber(key, fallback, min, max) {
+  const value = Number(antennaConfig[key]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, value));
+}
+function antennaHome() {
+  return {
+    x: configNumber("x", ANTENNA_DEFAULTS.x, 60, 180),
+    y: configNumber("y", ANTENNA_DEFAULTS.y, -40, 60)
+  };
+}
+function flattenHead(instance) {
+  if (instance._headFlattenedR32 || !instance._headShape || !instance._baseHeadPoints?.length) return;
+  const flattened = flattenHeadPoints(instance._baseHeadPoints, DEFAULT_HEAD_HEIGHT_SCALE);
+  const path = typeof instance._pointsToPath === "function" ? instance._pointsToPath(flattened) : `M ${flattened.map((point, index) => `${index ? "L " : ""}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ")} Z`;
+  instance._baseHeadPoints = flattened;
+  instance._baseHeadPathD = path;
+  instance._headShape.setAttribute("d", path);
+  instance._headFlattenedR32 = true;
+}
+function ensureAntenna(instance, now) {
+  flattenHead(instance);
+  if (instance._antennaDot?.isConnected && instance._antennaSpring) return true;
+  const svg = instance.shadowRoot?.querySelector("svg");
+  if (!svg || !instance._headMotion) return false;
+  const home = antennaHome();
+  let dot = instance.shadowRoot.getElementById("antennaDot");
+  if (!dot) {
+    dot = document.createElementNS(SVG_NS, "circle");
+    dot.id = "antennaDot";
+    dot.setAttribute("cx", String(home.x));
+    dot.setAttribute("cy", String(home.y));
+    dot.setAttribute("r", String(configNumber("radius", ANTENNA_DEFAULTS.radius, 2, 40)));
+    dot.setAttribute("fill", instance._head?.getAttribute("fill") || "#08090b");
+    dot.setAttribute("aria-hidden", "true");
+    dot.style.pointerEvents = "auto";
+    svg.appendChild(dot);
+  }
+  instance._antennaDot = dot;
+  instance._antennaSpring = {
+    x: home.x,
+    y: home.y,
+    vx: 0,
+    vy: 0,
+    last: now,
+    initialized: false
+  };
+  return true;
+}
+function antennaTarget(instance) {
+  const svg = instance.shadowRoot?.querySelector("svg");
+  const headMatrix = instance._headMotion?.getScreenCTM?.();
+  const svgMatrix = svg?.getScreenCTM?.();
+  const home = antennaHome();
+  if (!svg || !headMatrix || !svgMatrix || typeof DOMPoint === "undefined") return home;
+  try {
+    const screenPoint = new DOMPoint(home.x, home.y).matrixTransform(headMatrix);
+    const localPoint = screenPoint.matrixTransform(svgMatrix.inverse());
+    return { x: localPoint.x, y: localPoint.y };
+  } catch (_) {
+    return home;
+  }
+}
+function updateAntenna(instance, now) {
+  if (!ensureAntenna(instance, now)) return;
+  const spring = instance._antennaSpring;
+  const dot = instance._antennaDot;
+  const target = antennaTarget(instance);
+  if (instance._isReducedMotion?.()) {
+    spring.x = target.x;
+    spring.y = target.y;
+    spring.vx = 0;
+    spring.vy = 0;
+    spring.last = now;
+    spring.initialized = true;
+  } else {
+    if (!spring.initialized) {
+      spring.x = target.x;
+      spring.y = target.y;
+      spring.last = now;
+      spring.initialized = true;
+    }
+    const dt = Math.max(1e-3, Math.min(0.05, (now - spring.last) / 1e3 || 0.033));
+    spring.last = now;
+    const stiffness = configNumber("stiffness", ANTENNA_DEFAULTS.stiffness, 5, 300);
+    const damping = configNumber("damping", ANTENNA_DEFAULTS.damping, 0.5, 40);
+    const ax = (target.x - spring.x) * stiffness - spring.vx * damping;
+    const ay = (target.y - spring.y) * stiffness - spring.vy * damping;
+    spring.vx += ax * dt;
+    spring.vy += ay * dt;
+    spring.x += spring.vx * dt;
+    spring.y += spring.vy * dt;
+  }
+  dot.setAttribute("cx", spring.x.toFixed(2));
+  dot.setAttribute("cy", spring.y.toFixed(2));
+  dot.setAttribute("r", configNumber("radius", ANTENNA_DEFAULTS.radius, 2, 40).toFixed(2));
+  dot.setAttribute("fill", instance._head?.getAttribute("fill") || "#08090b");
+}
+function drawAntenna(now) {
+  updateAntenna(this, now);
+}
+registerAvatarExtension({
+  name: "antenna",
+  draw: drawAntenna
+});
+
+// src/agent-robot-avatar-wrap.js
+var WRAP_CYCLE = 2400;
+var RADIUS = 85;
+var EYE_ANGLE = Math.asin(34 / RADIUS);
+var HALF_WIDTH = 27 / Math.cos(EYE_ANGLE);
+var FRAMES = [
+  [0, 0, null],
+  [834, -Math.PI / 2 + EYE_ANGLE, [0.6123122262631361, 0, 0.8763337613684284, 0.3403039133642485]],
+  [996, -Math.PI / 2 - EYE_ANGLE, null],
+  [1260, -3 * Math.PI / 2 + EYE_ANGLE, null],
+  [1390, -3 * Math.PI / 2 - EYE_ANGLE, null],
+  [2400, -2 * Math.PI, [0.16771539711108435, 0.7245980352977247, 0.32366613843706765, 1]]
+];
+function progress(t, curve) {
+  if (!curve || t <= 0 || t >= 1) return t;
+  const b = (s, a, z) => 3 * (1 - s) * (1 - s) * s * a + 3 * (1 - s) * s * s * z + s * s * s;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (b(mid, curve[0], curve[2]) < t) lo = mid;
+    else hi = mid;
+  }
+  return b((lo + hi) / 2, curve[1], curve[3]);
+}
+function wrapEyeHeight(width) {
+  const side = Math.max(0, Math.min(1, 1 - width / 54));
+  return 58 - 18 * side * side * (3 - 2 * side);
+}
+function wrapEyeX(x, width) {
+  const side = Math.max(0, Math.min(1, 1 - width / 54));
+  return x + Math.sign(x - 120) * 9 * side ** 3;
+}
+function sampleWrapPose(elapsed) {
+  const time = Math.max(0, Math.min(WRAP_CYCLE, elapsed));
+  const index = Math.max(1, FRAMES.findIndex((frame) => frame[0] >= time));
+  const a = FRAMES[index - 1], b = FRAMES[index], t = progress((time - a[0]) / (b[0] - a[0]), b[2]);
+  const angle = a[1] + (b[1] - a[1]) * t;
+  const pose = {};
+  for (const [side, offset] of [["left", -EYE_ANGLE], ["right", EYE_ANGLE]]) {
+    const eyeAngle = angle + offset;
+    const front = Math.cos(eyeAngle);
+    pose[side + "Y"] = 126;
+    pose[side + "Width"] = front > 1e-10 ? 2 * HALF_WIDTH * front : 0;
+    pose[side + "X"] = wrapEyeX(120 + RADIUS * Math.sin(eyeAngle), pose[side + "Width"]);
+    pose[side + "Height"] = wrapEyeHeight(pose[side + "Width"]);
+    pose[side + "Opacity"] = 1;
+  }
+  return pose;
+}
+function drawWrapWaiting(instance, elapsed) {
+  const pose = sampleWrapPose(elapsed);
+  for (const side of ["left", "right"]) {
+    instance["_" + side + "Eye"].setAttribute("transform", `translate(${pose[side + "X"]} 126)`);
+    const eye = instance["_" + side + "Base"];
+    eye.setAttribute("rx", pose[side + "Width"] / 2);
+    eye.setAttribute("ry", pose[side + "Height"] / 2);
+    eye.setAttribute("opacity", "1");
+    instance["_" + side + "InputBase"].setAttribute("opacity", "0");
+  }
+}
+
+// src/agent-robot-avatar-waiting.js
+var WAITING_CYCLE = 3200;
+var WAVE_WAITING_CYCLE = 1100;
+var WAVE_WAITING_REPEATS = 3;
+var proto3 = agent_robot_avatar_extension_host_default.prototype;
+var clamp012 = (value) => Math.max(0, Math.min(1, value));
+var smooth2 = (value) => {
+  const t = clamp012(value);
+  return t * t * (3 - 2 * t);
+};
+var waitingDuration = (variant) => variant === "wave" ? WAVE_WAITING_CYCLE * WAVE_WAITING_REPEATS : variant === "wrap" ? WRAP_CYCLE : WAITING_CYCLE;
+function dispatchWaitingState(instance, state) {
+  instance.dispatchEvent(new CustomEvent("face-state", {
+    detail: { state }
+  }));
+}
+function readEyeY(eye) {
+  const raw = eye?.getAttribute("transform") || "";
+  const match = raw.match(/translate\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)/);
+  return match ? Number(match[2]) : 126;
+}
+function setEyeOrbitTransform(eye, x, scaleX, scaleY) {
+  if (!eye) return;
+  const y = readEyeY(eye);
+  eye.setAttribute(
+    "transform",
+    `translate(${x.toFixed(2)} ${y.toFixed(2)}) scale(${scaleX.toFixed(4)} ${scaleY.toFixed(4)})`
+  );
+}
+async function enterWaiting(instance, continuous, source, options = {}) {
+  const requested = options?.variant ?? "default";
+  const variant = requested === "spin" ? "default" : requested;
+  if (variant !== "default" && variant !== "wrap" && variant !== "wave") throw new TypeError(`Unknown waiting variant: ${requested}`);
+  instance.noteActivity();
+  instance._inputWanted = false;
+  instance.reset();
+  instance._waitingRequested = true;
+  if (!await instance._prepareExpression({ normalizePose: true, duration: 120, pause: 0 })) return null;
+  if (!instance._waitingRequested) return null;
+  const token = instance._transitionToken;
+  instance._expressionLock = true;
+  instance._look.x = 0;
+  instance._look.y = 0;
+  instance._waitingFx = {
+    start: performance.now(),
+    duration: waitingDuration(variant),
+    variant,
+    continuous: continuous === true,
+    source
+  };
+  dispatchWaitingState(instance, "waiting");
+  return token;
+}
+proto3.waiting = async function(options = {}) {
+  const token = await enterWaiting(this, false, "play", options);
+  if (token == null) return;
+  await this._wait(waitingDuration(options?.variant));
+  if (token !== this._transitionToken || !this._waitingRequested) return;
+  this._waitingRequested = false;
+  this._waitingFx = null;
+  this._releaseExpressionLock();
+  dispatchWaitingState(this, "idle");
+};
+proto3.startWaiting = async function(options = {}) {
+  await enterWaiting(this, true, "runtime", options);
+  return this;
+};
+proto3.stopWaiting = function() {
+  return this.reset();
+};
+function drawWaiting(now) {
+  const fx = this._waitingFx;
+  if (!fx) return;
+  const elapsed = Math.max(0, now - fx.start);
+  const phaseMs = fx.continuous ? elapsed % fx.duration : Math.min(fx.duration, elapsed);
+  const t = clamp012(phaseMs / fx.duration);
+  if (fx.variant === "wrap") {
+    drawWrapWaiting(this, phaseMs);
+    return;
+  }
+  if (fx.variant === "wave") {
+    let amplitude = 10 * smooth2(elapsed / 140);
+    if (!fx.continuous) amplitude *= smooth2((fx.duration - phaseMs) / 140);
+    const angle2 = elapsed % WAVE_WAITING_CYCLE / WAVE_WAITING_CYCLE * Math.PI * 2;
+    for (const [side, x, offset] of [["left", 86, 0], ["right", 154, 0.7]]) {
+      this[`_${side}Base`].setAttribute("cx", "0");
+      this[`_${side}Base`].setAttribute("cy", "0");
+      this[`_${side}Base`].setAttribute("rx", "27");
+      this[`_${side}Base`].setAttribute("ry", "29");
+      this[`_${side}Eye`].setAttribute(
+        "transform",
+        `translate(${x} ${(126 + Math.sin(angle2 + offset) * amplitude).toFixed(2)})`
+      );
+    }
+    return;
+  }
+  const angle = t * Math.PI * 4;
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+  const leftX = 120 - 34 * cosA;
+  const rightX = 120 + 34 * cosA;
+  const foreshorten = 0.72 + 0.28 * Math.abs(cosA);
+  const leftDepth = 1 + 0.08 * sinA;
+  const rightDepth = 1 - 0.08 * sinA;
+  setEyeOrbitTransform(this._leftEye, leftX, foreshorten * leftDepth, leftDepth);
+  setEyeOrbitTransform(this._rightEye, rightX, foreshorten * rightDepth, rightDepth);
+}
+registerAvatarExtension({
+  name: "waiting",
+  actions: {
+    waiting() {
+      return this.waiting();
+    },
+    wait() {
+      return this.waiting();
+    },
+    "waiting-wrap"() {
+      return this.waiting({ variant: "wrap" });
+    },
+    "waiting-wave"() {
+      return this.waiting({ variant: "wave" });
+    }
+  },
+  beforePlay(action) {
+    if (action === "waiting" || action === "wait" || action === "waiting-wrap" || action === "waiting-wave") return;
+    this._waitingRequested = false;
+    this._waitingFx = null;
+  },
+  reset() {
+    this._waitingRequested = false;
+    this._waitingFx = null;
+  },
+  draw: drawWaiting
+});
+
+// src/agent-robot-avatar-inspect.js
+var proto4 = agent_robot_avatar_extension_host_default.prototype;
+var clamp013 = (value) => Math.max(0, Math.min(1, value));
+var lerp2 = (a, b, t) => a + (b - a) * t;
+var smooth3 = (t) => {
+  t = clamp013(t);
+  return t * t * (3 - 2 * t);
+};
+var INSPECT_DEFAULTS = Object.freeze({
+  aperture: 16,
+  scanOffset: 16,
+  prepPause: 120,
+  close: 220,
+  holdClosed: 880,
+  down1: 400,
+  holdDown1: 560,
+  up1: 160,
+  holdUp1: 580,
+  center1: 140,
+  holdCenter: 760,
+  down2: 140,
+  holdDown2: 620,
+  up2: 180,
+  holdUp2: 620,
+  center2: 100,
+  holdAfter: 940,
+  open: 260
+});
+var INSPECT_BOUNDS = Object.freeze({
+  aperture: [6, 40],
+  scanOffset: [0, 24],
+  prepPause: [0, 2400],
+  close: [40, 2400],
+  holdClosed: [0, 2400],
+  down1: [40, 2400],
+  holdDown1: [0, 2400],
+  up1: [40, 2400],
+  holdUp1: [0, 2400],
+  center1: [40, 2400],
+  holdCenter: [0, 2400],
+  down2: [40, 2400],
+  holdDown2: [0, 2400],
+  up2: [40, 2400],
+  holdUp2: [0, 2400],
+  center2: [40, 2400],
+  holdAfter: [0, 2400],
+  open: [40, 2400]
+});
+var runtimeWindow2 = typeof window !== "undefined" ? window : null;
+var inspectConfig = runtimeWindow2?.AgentRobotAvatarInspectConfig && typeof runtimeWindow2.AgentRobotAvatarInspectConfig === "object" ? runtimeWindow2.AgentRobotAvatarInspectConfig : {};
+function normalizeConfigValue(key, value) {
+  const fallback = INSPECT_DEFAULTS[key];
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  const [min, max] = INSPECT_BOUNDS[key];
+  return Math.max(min, Math.min(max, numeric));
+}
+for (const key of Object.keys(INSPECT_DEFAULTS)) {
+  inspectConfig[key] = normalizeConfigValue(key, inspectConfig[key]);
+}
+if (runtimeWindow2) {
+  runtimeWindow2.AgentRobotAvatarInspectConfig = inspectConfig;
+  runtimeWindow2.AgentRobotAvatarInspectDefaults = INSPECT_DEFAULTS;
+}
+function currentInspectConfig() {
+  const config = {};
+  for (const key of Object.keys(INSPECT_DEFAULTS)) {
+    config[key] = normalizeConfigValue(key, inspectConfig[key]);
+  }
+  return config;
+}
+function dispatchInspectState(instance, state) {
+  instance.dispatchEvent(new CustomEvent("face-state", {
+    detail: { state }
+  }));
+}
+function makeTimeline(config) {
+  let cursor = 0;
+  const phases = {};
+  const add = (key) => {
+    phases[`${key}Start`] = cursor;
+    cursor += config[key];
+    phases[`${key}End`] = cursor;
+  };
+  for (const key of [
+    "close",
+    "holdClosed",
+    "down1",
+    "holdDown1",
+    "up1",
+    "holdUp1",
+    "center1",
+    "holdCenter",
+    "down2",
+    "holdDown2",
+    "up2",
+    "holdUp2",
+    "center2",
+    "holdAfter",
+    "open"
+  ]) add(key);
+  phases.duration = cursor;
+  return phases;
+}
+function move(elapsed, start, end, from, to) {
+  if (elapsed <= start) return from;
+  if (elapsed >= end) return to;
+  const span = Math.max(1, end - start);
+  return lerp2(from, to, smooth3((elapsed - start) / span));
+}
+function verticalShift(elapsed, phases, offset) {
+  if (elapsed < phases.down1Start) return 0;
+  if (elapsed < phases.down1End) return move(elapsed, phases.down1Start, phases.down1End, 0, offset);
+  if (elapsed < phases.holdDown1End) return offset;
+  if (elapsed < phases.up1End) return move(elapsed, phases.up1Start, phases.up1End, offset, -offset);
+  if (elapsed < phases.holdUp1End) return -offset;
+  if (elapsed < phases.center1End) return move(elapsed, phases.center1Start, phases.center1End, -offset, 0);
+  if (elapsed < phases.holdCenterEnd) return 0;
+  if (elapsed < phases.down2End) return move(elapsed, phases.down2Start, phases.down2End, 0, offset);
+  if (elapsed < phases.holdDown2End) return offset;
+  if (elapsed < phases.up2End) return move(elapsed, phases.up2Start, phases.up2End, offset, 0);
+  return 0;
+}
+function animateInspectHead(instance, phases) {
+  if (!instance._headMotion?.animate) return;
+  const token = instance._transitionToken;
+  const start = phases.down1Start;
+  const end = phases.center1End;
+  const duration = Math.max(1, end - start);
+  const offset = (time) => Math.max(0, Math.min(1, (time - start) / duration));
+  instance._headMotion.style.transformBox = "view-box";
+  instance._headMotion.style.transformOrigin = "120px 120px";
+  const anim = instance._headMotion.animate([
+    { transform: "translateY(0px)", offset: 0, easing: "cubic-bezier(.38,0,.25,1)" },
+    { transform: "translateY(5px)", offset: offset(phases.down1End) },
+    { transform: "translateY(5px)", offset: offset(phases.holdDown1End), easing: "cubic-bezier(.35,0,.22,1)" },
+    { transform: "translateY(-4px)", offset: offset(phases.up1End) },
+    { transform: "translateY(-4px)", offset: offset(phases.holdUp1End), easing: "cubic-bezier(.35,0,.22,1)" },
+    { transform: "translateY(0px)", offset: 1 }
+  ], {
+    duration,
+    delay: start,
+    easing: "linear",
+    fill: "forwards"
+  });
+  anim.onfinish = () => {
+    if (token === instance._transitionToken) instance._headMotion.style.transform = "translateY(0px)";
+  };
+}
+proto4.inspect = async function() {
+  this.noteActivity();
+  this._inputWanted = false;
+  const config = currentInspectConfig();
+  this.reset();
+  if (!await this._prepareExpression({ normalizePose: true, duration: 160, pause: config.prepPause })) return;
+  const token = this._transitionToken;
+  this._expressionLock = true;
+  this._look.x = 0;
+  this._look.y = 0;
+  const phases = makeTimeline(config);
+  this._inspectFx = { start: performance.now(), duration: phases.duration, config, phases };
+  dispatchInspectState(this, "inspect");
+  animateInspectHead(this, phases);
+  await this._wait(phases.duration + 30);
+  if (token !== this._transitionToken) return;
+  this._inspectFx = null;
+  this._look.x = 0;
+  this._look.y = 0;
+  this._releaseExpressionLock();
+  dispatchInspectState(this, "idle");
+};
+function drawInspect(now) {
+  const fx = this._inspectFx;
+  if (!fx) return;
+  const config = fx.config || currentInspectConfig();
+  const phases = fx.phases || makeTimeline(config);
+  const elapsed = Math.max(0, Math.min(phases.duration, now - fx.start));
+  let lidBlend = 1;
+  if (elapsed < phases.closeEnd) {
+    lidBlend = smooth3(elapsed / Math.max(1, config.close));
+  } else if (elapsed >= phases.openStart) {
+    lidBlend = 1 - smooth3((elapsed - phases.openStart) / Math.max(1, config.open));
+  }
+  const yShift = verticalShift(elapsed, phases, config.scanOffset);
+  this._leftEye.setAttribute("transform", `translate(86 ${(126 + yShift).toFixed(2)}) scale(1 1)`);
+  this._rightEye.setAttribute("transform", `translate(154 ${(126 + yShift).toFixed(2)}) scale(1 1)`);
+  const apertureHalf = config.aperture / 2;
+  const topEdge = lerp2(-36, -apertureHalf, lidBlend);
+  const bottomEdge = lerp2(36, apertureHalf, lidBlend);
+  for (const top of [this._leftTop, this._rightTop]) {
+    top.setAttribute("y", (topEdge - 90).toFixed(2));
+    top.setAttribute("height", "90");
+    top.setAttribute("transform", `rotate(0 0 ${topEdge.toFixed(2)})`);
+  }
+  for (const bottom of [this._leftBottom, this._rightBottom]) {
+    bottom.setAttribute("y", bottomEdge.toFixed(2));
+    bottom.setAttribute("height", "90");
+    bottom.setAttribute("transform", `rotate(0 0 ${bottomEdge.toFixed(2)})`);
+  }
+}
+registerAvatarExtension({
+  name: "inspect",
+  actions: {
+    inspect() {
+      return this.inspect();
+    },
+    verify() {
+      return this.inspect();
+    },
+    review() {
+      return this.inspect();
+    }
+  },
+  beforePlay(action) {
+    if (action === "inspect" || action === "verify" || action === "review") return;
+    this._inspectFx = null;
+  },
+  reset() {
+    this._inspectFx = null;
+  },
+  draw: drawInspect
+});
+
+// src/agent-robot-avatar-failure.js
+var proto5 = agent_robot_avatar_extension_host_default.prototype;
+var FAILURE_HEAD_DROP = 5.5;
+var FAILURE_EYE_DROP = 4.8;
+function dispatchFailureState(instance, state) {
+  instance.dispatchEvent(new CustomEvent("face-state", {
+    detail: { state }
+  }));
+}
+function animateFailureHead(instance, frames, duration) {
+  if (!instance._headMotion?.animate) return null;
+  const token = instance._transitionToken;
+  instance._headMotion.style.transformBox = "view-box";
+  instance._headMotion.style.transformOrigin = "120px 120px";
+  const anim = instance._headMotion.animate(frames, {
+    duration,
+    easing: "cubic-bezier(.32,0,.24,1)",
+    fill: "forwards"
+  });
+  anim.onfinish = () => {
+    if (token === instance._transitionToken) {
+      instance._headMotion.style.transform = frames[frames.length - 1].transform || "";
+    }
+  };
+  return anim;
+}
+function smooth012(t) {
+  t = Math.max(0, Math.min(1, t));
+  return t * t * (3 - 2 * t);
+}
+function failureEyeDrop(fx, now) {
+  const elapsed = Math.max(0, now - fx.start);
+  if (elapsed < fx.headDown) {
+    return FAILURE_EYE_DROP * smooth012(elapsed / Math.max(1, fx.headDown));
+  }
+  if (elapsed < fx.headDown + fx.hold) return FAILURE_EYE_DROP;
+  const recoverElapsed = elapsed - fx.headDown - fx.hold;
+  if (recoverElapsed < fx.recover) {
+    return FAILURE_EYE_DROP * (1 - smooth012(recoverElapsed / Math.max(1, fx.recover)));
+  }
+  return 0;
+}
+function addEyeDrop(eye, amount) {
+  if (!eye || Math.abs(amount) < 1e-3) return;
+  const current = eye.getAttribute("transform") || "";
+  eye.setAttribute("transform", `${current} translate(0 ${amount.toFixed(2)})`);
+}
+proto5.failure = async function() {
+  this.noteActivity();
+  this._inputWanted = false;
+  this._failureFx = null;
+  this.reset();
+  if (!await this._prepareExpression({ normalizePose: true, duration: 180, pause: 260 })) return;
+  const token = this._transitionToken;
+  const eyeIn = 320;
+  this.setState("sad", { duration: eyeIn, keepGazeLock: true });
+  dispatchFailureState(this, "failure");
+  await this._wait(eyeIn);
+  if (token !== this._transitionToken || this._state !== "sad") return;
+  const headDown = 720;
+  const loweredHold = 720;
+  const recover = 520;
+  this._failureFx = {
+    start: performance.now(),
+    headDown,
+    hold: loweredHold,
+    recover
+  };
+  animateFailureHead(this, [
+    { transform: "translateY(0px)" },
+    { transform: `translateY(${FAILURE_HEAD_DROP}px)` }
+  ], headDown);
+  await this._wait(headDown);
+  if (token !== this._transitionToken) return;
+  await this._wait(loweredHold);
+  if (token !== this._transitionToken) return;
+  animateFailureHead(this, [
+    { transform: `translateY(${FAILURE_HEAD_DROP}px)` },
+    { transform: "translateY(0px)" }
+  ], recover);
+  if (this._state === "sad") await this._returnToIdle(recover);
+  if (token !== this._transitionToken) return;
+  this._failureFx = null;
+};
+function drawFailure(now) {
+  const fx = this._failureFx;
+  if (!fx) return;
+  const drop = failureEyeDrop(fx, now);
+  addEyeDrop(this._leftEye, drop);
+  addEyeDrop(this._rightEye, drop);
+}
+registerAvatarExtension({
+  name: "failure",
+  actions: {
+    failure() {
+      return this.failure();
+    },
+    failed() {
+      return this.failure();
+    },
+    fail() {
+      return this.failure();
+    }
+  },
+  beforePlay(action) {
+    if (action === "failure" || action === "failed" || action === "fail") return;
+    this._failureFx = null;
+  },
+  reset() {
+    this._failureFx = null;
+  },
+  draw: drawFailure
+});
+
+// src/agent-robot-avatar-love.js
+var proto6 = agent_robot_avatar_extension_host_default.prototype;
+var clamp014 = (value) => Math.max(0, Math.min(1, value));
+var lerp3 = (a, b, t) => a + (b - a) * t;
+var smooth4 = (t) => {
+  t = clamp014(t);
+  return t * t * (3 - 2 * t);
+};
+var LOVE_DEFAULTS = Object.freeze({
+  rx: 28,
+  ry: 43,
+  tilt: 42,
+  cross: 13,
+  centerY: 126,
+  pulse: 0.155,
+  prep: 120,
+  morphIn: 240,
+  beat: 760,
+  beats: 3,
+  morphOut: 360,
+  swayAngle: 0,
+  swayLift: 2
+});
+var LOVE_BOUNDS = Object.freeze({
+  rx: [10, 50],
+  ry: [20, 70],
+  tilt: [0, 60],
+  cross: [-10, 20],
+  centerY: [90, 150],
+  pulse: [0, 0.3],
+  prep: [0, 1200],
+  morphIn: [40, 1500],
+  beat: [200, 2e3],
+  beats: [1, 60],
+  morphOut: [40, 1500],
+  swayAngle: [0, 8],
+  swayLift: [0, 8]
+});
+var runtimeWindow3 = typeof window !== "undefined" ? window : null;
+var loveConfig = runtimeWindow3?.AgentRobotAvatarLoveConfig && typeof runtimeWindow3.AgentRobotAvatarLoveConfig === "object" ? runtimeWindow3.AgentRobotAvatarLoveConfig : {};
+function normalizeConfigValue2(key, value) {
+  const fallback = LOVE_DEFAULTS[key];
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  const [min, max] = LOVE_BOUNDS[key];
+  return Math.max(min, Math.min(max, numeric));
+}
+if (runtimeWindow3) {
+  runtimeWindow3.AgentRobotAvatarLoveConfig = loveConfig;
+  runtimeWindow3.AgentRobotAvatarLoveDefaults = LOVE_DEFAULTS;
+  runtimeWindow3.AgentRobotAvatarLoveBounds = LOVE_BOUNDS;
+}
+function currentLoveConfig() {
+  const config = {};
+  for (const key of Object.keys(LOVE_DEFAULTS)) config[key] = normalizeConfigValue2(key, loveConfig[key]);
+  config.beats = Math.round(config.beats);
+  return config;
+}
+function loveDuration(config) {
+  return config.morphIn + config.beat * config.beats + config.morphOut;
+}
+function reducedMotion(instance) {
+  const requested = String(instance.getAttribute("motion") || "auto").trim().toLowerCase();
+  if (requested === "reduce") return true;
+  if (requested === "full") return false;
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+function dispatchLoveState(instance, state) {
+  instance.dispatchEvent(new CustomEvent("face-state", { detail: { state } }));
+}
+function animateLoveHead(instance, config, duration, elapsed = 0) {
+  if (!instance._headMotion?.animate) return;
+  const token = instance._transitionToken;
+  const { swayAngle, swayLift } = config;
+  instance._headMotion.style.transformBox = "view-box";
+  instance._headMotion.style.transformOrigin = "120px 120px";
+  const anim = instance._headMotion.animate([
+    { transform: "translateY(0px) rotate(0deg)", offset: 0, easing: "cubic-bezier(.38,0,.25,1)" },
+    { transform: `translateY(${-swayLift}px) rotate(${-swayAngle}deg)`, offset: 0.3, easing: "cubic-bezier(.35,0,.22,1)" },
+    { transform: `translateY(${-swayLift / 2}px) rotate(${swayAngle}deg)`, offset: 0.68, easing: "cubic-bezier(.35,0,.22,1)" },
+    { transform: "translateY(0px) rotate(0deg)", offset: 1 }
+  ], { duration, delay: -elapsed, easing: "linear", fill: "forwards" });
+  anim.onfinish = () => {
+    if (token === instance._transitionToken) instance._headMotion.style.transform = "translateY(0px)";
+  };
+}
+proto6.love = async function() {
+  this.noteActivity();
+  this._inputWanted = false;
+  const config = currentLoveConfig();
+  this.reset();
+  if (!await this._prepareExpression({ normalizePose: true, duration: 160, pause: config.prep })) return;
+  const token = this._transitionToken;
+  this._expressionLock = true;
+  this._look.x = 0;
+  this._look.y = 0;
+  const duration = loveDuration(config);
+  this._loveFx = { start: performance.now(), duration, timing: config, headStarted: false };
+  dispatchLoveState(this, "love");
+  if (!reducedMotion(this)) {
+    this._loveFx.headStarted = true;
+    animateLoveHead(this, config, duration);
+  }
+  await this._wait(duration + 30);
+  if (token !== this._transitionToken) return;
+  this._loveFx = null;
+  this._look.x = 0;
+  this._look.y = 0;
+  this._releaseExpressionLock();
+  dispatchLoveState(this, "idle");
+};
+function drawLove(now) {
+  const fx = this._loveFx;
+  if (!fx) return;
+  const timing = fx.timing;
+  const shape = currentLoveConfig();
+  const elapsed = Math.max(0, Math.min(fx.duration, now - fx.start));
+  const holdEnd = timing.morphIn + timing.beat * timing.beats;
+  const reduced = reducedMotion(this);
+  if (!reduced && !fx.headStarted) {
+    fx.headStarted = true;
+    animateLoveHead(this, timing, fx.duration, elapsed);
+  }
+  let morph = 1;
+  if (reduced) morph = 1;
+  else if (elapsed < timing.morphIn) morph = smooth4(elapsed / timing.morphIn);
+  else if (elapsed > holdEnd) morph = 1 - smooth4((elapsed - holdEnd) / timing.morphOut);
+  let pulse = 0;
+  if (!reduced && elapsed >= timing.morphIn && elapsed <= holdEnd) {
+    const phase = (elapsed - timing.morphIn) % timing.beat / timing.beat;
+    const swell = (centre, width) => Math.max(0, 1 - Math.abs(phase - centre) / width);
+    pulse = Math.max(smooth4(swell(0.12, 0.12)), 0.6 * smooth4(swell(0.36, 0.12)));
+  }
+  const scale = 1 + shape.pulse * pulse;
+  const tiltRad = shape.tilt * Math.PI / 180;
+  const baseY = shape.centerY + (shape.ry - 3) * Math.cos(tiltRad);
+  const beat = `translate(120 ${shape.centerY}) scale(${scale.toFixed(3)}) translate(-120 -${shape.centerY})`;
+  const eyes = [
+    [this._leftEye, this._leftBase, this._leftTop, this._leftBottom, 86, -1],
+    [this._rightEye, this._rightBase, this._rightTop, this._rightBottom, 154, 1]
+  ];
+  for (const [eye, base, top, bottom, restX, side] of eyes) {
+    const x = lerp3(restX, 120 - side * shape.cross, morph);
+    const y = lerp3(126, baseY, morph);
+    const tilt = side * shape.tilt * morph;
+    eye.setAttribute("transform", `${beat} translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${tilt.toFixed(2)})`);
+    base.setAttribute("cx", "0");
+    base.setAttribute("cy", lerp3(0, -(shape.ry - 3), morph).toFixed(2));
+    base.setAttribute("rx", lerp3(27, shape.rx, morph).toFixed(2));
+    base.setAttribute("ry", lerp3(29, shape.ry, morph).toFixed(2));
+    base.setAttribute("opacity", "1");
+    const topY = lerp3(-36, -150, morph);
+    const bottomY = lerp3(36, 150, morph);
+    top.setAttribute("y", (topY - 90).toFixed(2));
+    top.setAttribute("height", "90");
+    top.setAttribute("transform", `rotate(0 0 ${topY.toFixed(2)})`);
+    bottom.setAttribute("y", bottomY.toFixed(2));
+    bottom.setAttribute("height", "90");
+    bottom.setAttribute("transform", `rotate(0 0 ${bottomY.toFixed(2)})`);
+  }
+}
+registerAvatarExtension({
+  name: "love",
+  actions: {
+    love() {
+      return this.love();
+    }
+  },
+  beforePlay(action) {
+    if (action === "love") return;
+    this._loveFx = null;
+  },
+  reset() {
+    this._loveFx = null;
+  },
+  draw: drawLove
+});
+
+// src/agent-robot-avatar-random.js
+var proto7 = agent_robot_avatar_extension_host_default.prototype;
+var clamp015 = (value) => Math.max(0, Math.min(1, value));
+var smooth5 = (t) => {
+  t = clamp015(t);
+  return t * t * (3 - 2 * t);
+};
+var RANDOM_DEFAULTS = Object.freeze({
+  radius: 50,
+  gap: 0,
+  squeeze: 12.5,
+  speed: 0.6,
+  ramp: 220,
+  spin: 1e3,
+  stagger: 420,
+  slowDist: 40,
+  overshoot: 8,
+  bouncePeriod: 200,
+  damping: 0.3,
+  prep: 120
+});
+var RANDOM_BOUNDS = Object.freeze({
+  radius: [50, 100],
+  gap: [0, 200],
+  squeeze: [0, 30],
+  speed: [0.15, 1.6],
+  ramp: [40, 800],
+  spin: [100, 4e3],
+  stagger: [0, 1500],
+  slowDist: [40, 400],
+  overshoot: [0, 40],
+  bouncePeriod: [120, 800],
+  damping: [0.1, 0.9],
+  prep: [0, 1200]
+});
+var runtimeWindow4 = typeof window !== "undefined" ? window : null;
+var randomConfig = runtimeWindow4?.AgentRobotAvatarRandomConfig && typeof runtimeWindow4.AgentRobotAvatarRandomConfig === "object" ? runtimeWindow4.AgentRobotAvatarRandomConfig : {};
+function normalizeConfigValue3(key, value) {
+  const fallback = RANDOM_DEFAULTS[key];
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  const [min, max] = RANDOM_BOUNDS[key];
+  return Math.max(min, Math.min(max, numeric));
+}
+if (runtimeWindow4) {
+  runtimeWindow4.AgentRobotAvatarRandomConfig = randomConfig;
+  runtimeWindow4.AgentRobotAvatarRandomDefaults = RANDOM_DEFAULTS;
+  runtimeWindow4.AgentRobotAvatarRandomBounds = RANDOM_BOUNDS;
+}
+function currentRandomConfig() {
+  const config = {};
+  for (const key of Object.keys(RANDOM_DEFAULTS)) config[key] = normalizeConfigValue3(key, randomConfig[key]);
+  return config;
+}
+function planReel(config, slowAt) {
+  const { speed: v, ramp, period: P, slowDist: L, overshoot: O, bouncePeriod, damping: zeta } = config;
+  const spinPos = (t) => t < ramp ? v * t * t / (2 * ramp) : v * (t - ramp / 2);
+  const rampEnd = v * ramp / 2;
+  let n = Math.max(1, Math.round((spinPos(slowAt) + L - O) / P));
+  while (n * P + O - L < rampEnd) n += 1;
+  const target = n * P;
+  const pStop = target + O - L;
+  const tStop = pStop / v + ramp / 2;
+  const D = 2 * L / v;
+  const wd = 2 * Math.PI / bouncePeriod;
+  const w = wd / Math.sqrt(1 - zeta * zeta);
+  const decay = zeta * w;
+  const bounceLength = O > 0.1 ? Math.log(O / 0.1) / decay : 0;
+  const tLand = tStop + D;
+  const tEnd = tLand + bounceLength;
+  const position = (t) => {
+    if (t < tStop) return spinPos(t);
+    if (t < tLand) {
+      const u = (t - tStop) / D;
+      const h10 = u * u * u - 2 * u * u + u;
+      const h01 = -2 * u * u * u + 3 * u * u;
+      return pStop + L * (2 * h10 + h01);
+    }
+    if (t >= tEnd) return target;
+    const tau = t - tLand;
+    return target + O * Math.exp(-decay * tau) * (Math.cos(wd * tau) + decay / wd * Math.sin(wd * tau));
+  };
+  return { position, tEnd, tStop, tLand, period: P };
+}
+function reducedMotion2(instance) {
+  const requested = String(instance.getAttribute("motion") || "auto").trim().toLowerCase();
+  if (requested === "reduce") return true;
+  if (requested === "full") return false;
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+function dispatchRandomState(instance, state) {
+  instance.dispatchEvent(new CustomEvent("face-state", { detail: { state } }));
+}
+function buildRandomFx(config, start, extra = {}) {
+  const period = Math.PI * config.radius + config.gap;
+  const reel = { ...config, period };
+  const plans = [planReel(reel, config.spin), planReel(reel, config.spin + config.stagger)];
+  return {
+    start,
+    duration: Math.max(plans[0].tEnd, plans[1].tEnd),
+    plans,
+    period,
+    radius: config.radius,
+    squeeze: config.squeeze,
+    ...extra
+  };
+}
+proto7._previewRandom = function(elapsed) {
+  if (elapsed === null) {
+    if (this._randomFx?.preview) {
+      this._randomFx = null;
+      this._releaseExpressionLock();
+      dispatchRandomState(this, "idle");
+    }
+    return 0;
+  }
+  if (!this._randomFx?.preview) {
+    this.reset();
+    this._expressionLock = true;
+    this._look.x = 0;
+    this._look.y = 0;
+    dispatchRandomState(this, "random");
+  }
+  this._randomFx = buildRandomFx(currentRandomConfig(), 0, { preview: true, frozenAt: elapsed });
+  this._resumeFrames?.();
+  return this._randomFx.duration;
+};
+proto7.random = async function() {
+  this.noteActivity();
+  this._inputWanted = false;
+  const config = currentRandomConfig();
+  this.reset();
+  if (!await this._prepareExpression({ normalizePose: true, duration: 160, pause: config.prep })) return;
+  const token = this._transitionToken;
+  this._expressionLock = true;
+  this._look.x = 0;
+  this._look.y = 0;
+  this._randomFx = buildRandomFx(config, performance.now());
+  const duration = this._randomFx.duration;
+  dispatchRandomState(this, "random");
+  await this._wait(duration + 30);
+  if (token !== this._transitionToken) return;
+  this._randomFx = null;
+  this._look.x = 0;
+  this._look.y = 0;
+  this._releaseExpressionLock();
+  dispatchRandomState(this, "idle");
+};
+function drawRandom(now) {
+  const fx = this._randomFx;
+  if (!fx) return;
+  const elapsed = fx.frozenAt ?? Math.max(0, now - fx.start);
+  const reduced = fx.preview ? false : reducedMotion2(this);
+  const { period: P, radius: R, squeeze } = fx;
+  const half = Math.PI * R / 2;
+  fx.plans.forEach((plan, index) => {
+    if (elapsed >= plan.tEnd) return;
+    const base = index === 0 ? this._leftBase : this._rightBase;
+    const top = index === 0 ? this._leftTop : this._rightTop;
+    const bottom = index === 0 ? this._leftBottom : this._rightBottom;
+    const position = reduced ? P * 0.3 : plan.position(elapsed);
+    let offset = (position % P + P) % P;
+    if (offset > P / 2) offset -= P;
+    const angle = Math.abs(offset) < half ? offset / R : Math.sign(offset) * Math.PI / 2;
+    const front = Math.abs(offset) < half ? Math.cos(angle) : 0;
+    const side = 1 - front;
+    const width = 54 - squeeze * smooth5(side);
+    const y = R * Math.sin(angle) + Math.sign(angle) * 6 * side ** 3;
+    base.setAttribute("cx", "0");
+    base.setAttribute("cy", y.toFixed(2));
+    base.setAttribute("rx", (width / 2).toFixed(2));
+    base.setAttribute("ry", (29 * front).toFixed(2));
+    base.setAttribute("opacity", "1");
+    top.setAttribute("y", "-240");
+    top.setAttribute("height", "90");
+    top.setAttribute("transform", "rotate(0 0 -150)");
+    bottom.setAttribute("y", "150");
+    bottom.setAttribute("height", "90");
+    bottom.setAttribute("transform", "rotate(0 0 150)");
+  });
+}
+registerAvatarExtension({
+  name: "random",
+  actions: {
+    random() {
+      return this.random();
+    },
+    slot() {
+      return this.random();
+    }
+  },
+  beforePlay(action) {
+    if (action === "random" || action === "slot") return;
+    this._randomFx = null;
+  },
+  reset() {
+    this._randomFx = null;
+  },
+  draw: drawRandom
+});
+
+// src/agent-robot-avatar-version.js
+var VERSION = "0.7.2";
+
+// src/agent-robot-avatar-head-roundness.js
+var proto8 = agent_robot_avatar_extension_host_default.prototype;
+var DEFAULT_ROUNDNESS = 50;
+function clamp2(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+function ensureDefaultGeometry(instance) {
+  if (!instance?._headShape || !instance._baseHeadPoints?.length) return false;
+  if (instance._headRoundnessDefaultPoints?.length) return true;
+  let points = instance._baseHeadPoints.map((point) => ({ x: point.x, y: point.y }));
+  if (!instance._headFlattenedR32) {
+    points = flattenHeadPoints(points);
+    instance._headFlattenedR32 = true;
+    instance._baseHeadPoints = points.map((point) => ({ ...point }));
+    instance._baseHeadPathD = instance._pointsToPath(points);
+    instance._headShape.setAttribute("d", instance._baseHeadPathD);
+  }
+  instance._headRoundnessDefaultPoints = instance._baseHeadPoints.map((point) => ({ x: point.x, y: point.y }));
+  instance._headRoundness = DEFAULT_ROUNDNESS;
+  return true;
+}
+function superellipsePoint(angle, cx, cy, halfW, halfH, exponent) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const xTerm = Math.pow(Math.abs(cos) / Math.max(1e-3, halfW), exponent);
+  const yTerm = Math.pow(Math.abs(sin) / Math.max(1e-3, halfH), exponent);
+  const denom = Math.pow(xTerm + yTerm, 1 / exponent);
+  const radius = denom > 0 ? 1 / denom : 0;
+  return { x: cx + cos * radius, y: cy + sin * radius };
+}
+function targetShape(points, exponent) {
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const minY = Math.min(...points.map((point) => point.y));
+  const maxY = Math.max(...points.map((point) => point.y));
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const halfW = (maxX - minX) / 2;
+  const halfH = (maxY - minY) / 2;
+  return points.map((point) => {
+    const angle = Math.atan2(point.y - cy, point.x - cx);
+    return superellipsePoint(angle, cx, cy, halfW, halfH, exponent);
+  });
+}
+function mixPoints(from, to, amount) {
+  const t = clamp2(amount, 0, 1);
+  return from.map((point, index) => ({
+    x: point.x + (to[index].x - point.x) * t,
+    y: point.y + (to[index].y - point.y) * t
+  }));
+}
+proto8.setHeadRoundness = function(value = DEFAULT_ROUNDNESS) {
+  if (!ensureDefaultGeometry(this)) return this;
+  const roundness = clamp2(Number(value) || 0, 0, 100);
+  const baseline = this._headRoundnessDefaultPoints;
+  let points = baseline.map((point) => ({ ...point }));
+  if (roundness < DEFAULT_ROUNDNESS) {
+    const squarer = targetShape(baseline, 10);
+    points = mixPoints(baseline, squarer, (DEFAULT_ROUNDNESS - roundness) / DEFAULT_ROUNDNESS);
+  } else if (roundness > DEFAULT_ROUNDNESS) {
+    const rounder = targetShape(baseline, 2.2);
+    points = mixPoints(baseline, rounder, (roundness - DEFAULT_ROUNDNESS) / DEFAULT_ROUNDNESS);
+  }
+  this._headRoundness = roundness;
+  this._baseHeadPoints = points;
+  this._baseHeadPathD = this._pointsToPath(points);
+  if (this._dragJelly?.active || this._dragJelly?.returning) this._applyHeadDeform?.();
+  else this._headShape.setAttribute("d", this._baseHeadPathD);
+  this.dispatchEvent(new CustomEvent("head-roundness-change", {
+    detail: { value: roundness, version: VERSION }
+  }));
+  return this;
+};
+proto8.getHeadRoundness = function() {
+  return Number.isFinite(this._headRoundness) ? this._headRoundness : DEFAULT_ROUNDNESS;
+};
+if (typeof window !== "undefined") {
+  window.AgentRobotAvatarVersion = VERSION;
+  window.AgentRobotAvatarHeadRoundnessDefault = DEFAULT_ROUNDNESS;
+}
+
+// src/agent-robot-avatar-gestures.js
+var proto9 = agent_robot_avatar_extension_host_default.prototype;
+var clamp3 = (v, a, b) => Math.max(a, Math.min(b, v));
+var disabled = (face, key) => face.getAttribute(key) === "false";
+var emit = (face, state) => face.dispatchEvent(new CustomEvent("face-state", { detail: { state } }));
+var ANTENNA_GAZE_REACH = 0.6;
+var gazeTarget = (box, event) => {
+  const x = (event.clientX - box.left - box.width / 2) * 0.42, y = (event.clientY - box.top - box.height / 2) * 0.38;
+  const k = Math.min(1, ANTENNA_GAZE_REACH / (Math.hypot(x / 48, y / 34) || 1));
+  return { x: x * k, y: y * k };
+};
+var SQUEEZE_HOLD_SECONDS = 0.14;
+function restore(face) {
+  face._headMotion.style.transform = "";
+  face._headMotion.removeAttribute("transform");
+  face._dragMotion.style.transform = "";
+  face._dragMotion.style.transformOrigin = "";
+  face._headShape.setAttribute("d", face._baseHeadPathD);
+  face._antennaDot?.removeAttribute("transform");
+  if (face._antennaSpring) face._antennaSpring.initialized = false;
+  face._releaseExpressionLock();
+}
+proto9._cancelGesture = function(silent = false) {
+  const fx = this._gestureFx;
+  if (!fx) return;
+  this._gestureFx = null;
+  try {
+    if (fx.pointerId != null && this.hasPointerCapture(fx.pointerId)) this.releasePointerCapture(fx.pointerId);
+  } catch (_) {
+  }
+  if (!fx.committed) return;
+  restore(this);
+  this._endGestureAction?.("cancel", false, silent);
+};
+function commit(face, s, look = null) {
+  if (s.committed || face._gestureFx !== s) return false;
+  face._gestureFx = null;
+  face.reset();
+  face._gestureFx = s;
+  s.committed = true;
+  face.noteActivity(false);
+  face._expressionLock = true;
+  if (look) {
+    face._look.x = look.x;
+    face._look.y = look.y;
+  }
+  face._beginGestureAction?.(s.kind);
+  emit(face, s.kind);
+  face._resumeFrames();
+  return true;
+}
+proto9.setPressSqueeze = function(enabled = true) {
+  this.setAttribute("press-squeeze", String(Boolean(enabled)));
+  if (!enabled && this._gestureFx?.kind === "squeeze") this._cancelGesture();
+  return this;
+};
+var warnedAntennaFlash = false;
+proto9.setAntennaFlash = function() {
+  if (!warnedAntennaFlash) {
+    warnedAntennaFlash = true;
+    console.warn("agent-robot-avatar: setAntennaFlash() was removed in 0.6 and does nothing. It will be deleted in 1.0.");
+  }
+  return this;
+};
+proto9.setAntennaDrag = function(enabled = true) {
+  this.setAttribute("antenna-drag", String(Boolean(enabled)));
+  if (!enabled && this._gestureFx?.kind === "antenna-drag") this._cancelGesture();
+  return this;
+};
+proto9._startGesture = function(event) {
+  if (event.button !== 0 || event.isPrimary === false || this._gestureFx?.held) return false;
+  const box = this.getBoundingClientRect(), dot = this._antennaDot;
+  const x = (event.clientX - box.left) / box.width - 0.5, y = (event.clientY - box.top) / box.height - 0.5;
+  const r = dot?.getBoundingClientRect(), radius = r ? Math.max(10, Math.max(r.width, r.height) / 2 + 3) : 0;
+  const onAntenna = r && Number(dot.getAttribute("opacity") ?? 1) > 0.01 && Math.hypot(event.clientX - r.left - r.width / 2, event.clientY - r.top - r.height / 2) <= radius;
+  const kind = onAntenna && !disabled(this, "antenna-drag") ? "antenna-drag" : !onAntenna && event.pointerType !== "touch" && !disabled(this, "press-squeeze") && x * x + y * y <= 0.32 * 0.32 ? "squeeze" : null;
+  if (!kind) return false;
+  event.preventDefault();
+  const home = { x: Number(dot?.getAttribute("cx") ?? 120), y: Number(dot?.getAttribute("cy") ?? 12) };
+  const gaze = kind === "antenna-drag" ? gazeTarget(box, event) : null;
+  const currentLook = gaze ? { ...this._look } : null;
+  this._gestureFx = {
+    kind,
+    held: true,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    pointerType: event.pointerType,
+    size: Math.max(1, box.width),
+    threshold: clamp3(box.width * 0.4, 24, 46),
+    home,
+    start: performance.now(),
+    last: performance.now(),
+    age: 0,
+    releaseAge: 0,
+    maxDist: 0,
+    react: false,
+    committed: false,
+    gazeX: gaze?.x ?? 0,
+    gazeY: gaze?.y ?? 0,
+    q: 0,
+    v: 0,
+    pressure: 0,
+    apex: 0,
+    releaseDepth: 1,
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    hx: 0,
+    hy: 0,
+    hvx: 0,
+    hvy: 0,
+    tx: 0,
+    ty: 0
+  };
+  try {
+    this.setPointerCapture(event.pointerId);
+  } catch (_) {
+  }
+  if (kind === "antenna-drag") commit(this, this._gestureFx, currentLook);
+  this._resumeFrames();
+  return true;
+};
+proto9._moveGesture = function(event) {
+  const s = this._gestureFx;
+  if (!s?.held || s.pointerId !== event.pointerId) return;
+  if (s.kind === "antenna-drag") {
+    const gaze = gazeTarget(this.getBoundingClientRect(), event);
+    s.gazeX = gaze.x;
+    s.gazeY = gaze.y;
+  }
+  const dx = event.clientX - s.startX, dy = event.clientY - s.startY, dist = Math.hypot(dx, dy);
+  s.maxDist = Math.max(s.maxDist, dist);
+  if (s.kind === "squeeze" && dist > 4) {
+    this._cancelGesture(true);
+    this._startHeadDragFromGesture?.(event, s);
+    return;
+  }
+  if (dist > 2.5) this._suppressClick = true;
+  const gain = dist > s.threshold * 0.6 ? 0.24 : 0.19, scale = 240 / s.size;
+  s.tx = clamp3(dx * scale * gain, -25, 25);
+  s.ty = clamp3(dy * scale * gain, -25, 25);
+  this._runtimeVisualDirty = true;
+  this._resumeFrames();
+};
+proto9._endGesture = function(event) {
+  const s = this._gestureFx;
+  if (!s?.held || s.pointerId !== event.pointerId) return;
+  if (event.type === "pointercancel") {
+    this._cancelGesture();
+    return;
+  }
+  if (!s.committed) {
+    this._cancelGesture(true);
+    return;
+  }
+  s.held = false;
+  s.releaseAge = 0;
+  s.react = s.kind === "antenna-drag" && s.maxDist > 2.5;
+  s.releaseDepth = Math.min(1, Math.abs(s.q));
+  const id = s.pointerId;
+  s.pointerId = null;
+  try {
+    if (this.hasPointerCapture(id)) this.releasePointerCapture(id);
+  } catch (_) {
+  }
+  if (s.kind === "squeeze" && s.age > 0.15) this._suppressClick = true;
+  this._runtimeVisualDirty = true;
+  this._resumeFrames();
+};
+function finish(face, s) {
+  face._gestureFx = null;
+  restore(face);
+  emit(face, "idle");
+  face._endGestureAction?.("end", s.react);
+}
+function drawSqueeze(face, s, dt, reduced) {
+  if (reduced) {
+    s.q = s.held ? 1 : 0;
+    s.v = 0;
+  } else {
+    const omega = 6 / 0.57, k = s.held ? omega * omega : 190, d = s.held ? 2 * omega : 9, oldV = s.v;
+    for (let remaining = dt; remaining > 0; ) {
+      const h = Math.min(1 / 240, remaining);
+      remaining -= h;
+      s.v += ((s.held ? 1 : 0) - s.q) * k * h - s.v * d * h;
+      s.q += s.v * h;
+    }
+    if (!s.held && !s.apex && oldV < 0 && s.v >= 0 && s.q < 0) s.apex = s.age;
+  }
+  const pressure = s.held ? clamp3((s.q - 0.94) / 0.06, 0, 1) : s.pressure * Math.exp(-s.releaseAge * 20);
+  if (s.held) s.pressure = pressure;
+  const phase = s.age * 2 * Math.PI, jitter = reduced ? 0 : 2 * pressure;
+  const ripple = s.apex ? 0.012 * Math.exp(-(s.age - s.apex) * 12) * Math.sin((s.age - s.apex) * 72) * s.releaseDepth : 0;
+  const jelly = jitter * 5e-3 * Math.sin(phase * 11) + ripple, scale = 1 - 0.29 * s.q;
+  face._headFollow.setAttribute("transform", "");
+  face._headMotion.style.transform = `translate(${jitter * (0.7 * Math.sin(phase * 13) + 0.3 * Math.sin(phase * 19))}px,${jitter * 0.45 * Math.sin(phase * 17)}px) scale(${scale + jelly},${scale - jelly})`;
+  for (const [side, home, delta] of [["left", 86, 24], ["right", 154, -24]]) {
+    face["_" + side + "Eye"].setAttribute("transform", `translate(${home + delta * s.q} 126)`);
+    const eye = face["_" + side + "Base"];
+    eye.setAttribute("rx", Math.max(0, 54 - 31 * s.q) / 2);
+    eye.setAttribute("ry", Math.max(0.1, 58 - 20 * s.q) / 2);
+    eye.setAttribute("opacity", "1");
+    face["_" + side + "InputBase"].setAttribute("opacity", "0");
+    face["_" + side + "Top"].setAttribute("y", "-126");
+    face["_" + side + "Top"].setAttribute("height", "90");
+    face["_" + side + "Bottom"].setAttribute("y", "36");
+  }
+  if (face._antennaDot) {
+    face._antennaDot.setAttribute("cx", s.home.x + jitter * 0.6 * Math.sin(phase * 11 - 0.5));
+    face._antennaDot.setAttribute("cy", s.home.y + (1 - scale + jelly) * 78 - s.v * 0.5);
+  }
+  return !s.held && (reduced || s.releaseAge > 0.35 && Math.abs(s.q) < 15e-4 && Math.abs(s.v) < 0.018);
+}
+function drawAntennaDrag(face, s, dt, reduced) {
+  const settle = clamp3((s.releaseAge - 0.45) / 0.35, 0, 1);
+  if (reduced) {
+    s.x = s.held ? s.tx : 0;
+    s.y = s.held ? s.ty : 0;
+    s.hx = s.x * 0.45;
+    s.hy = s.y * 0.45;
+  } else for (let remaining = dt; remaining > 0; ) {
+    const h = Math.min(1 / 240, remaining);
+    remaining -= h;
+    if (s.held) {
+      const b = 1 - Math.exp(-45 * h);
+      s.x += (s.tx - s.x) * b;
+      s.y += (s.ty - s.y) * b;
+      s.vx = s.vy = 0;
+    } else {
+      const d2 = 10 + 14 * settle;
+      s.vx += (-460 * s.x - d2 * s.vx) * h;
+      s.vy += (-460 * s.y - d2 * s.vy) * h;
+      s.x += s.vx * h;
+      s.y += s.vy * h;
+    }
+    const k = s.held ? 118 : 330, d = s.held ? 7.1 : 10 + 12 * settle;
+    s.hvx += (k * ((s.held ? s.x * 0.45 : 0) - s.hx) - d * s.hvx) * h;
+    s.hvy += (k * ((s.held ? s.y * 0.45 : 0) - s.hy) - d * s.hvy) * h;
+    s.hx += s.hvx * h;
+    s.hy += s.hvy * h;
+  }
+  const pullX = clamp3(s.hx, -25, 25), pullY = clamp3(s.hy, -25, 25), radius = (50 + Math.hypot(pullX, pullY) * 0.8) * 0.92;
+  const points = face._baseHeadPoints.map((p) => {
+    const w = Math.exp(-((p.x - s.home.x) ** 2 + (p.y - clamp3(s.home.y, 20, 220)) ** 2) / (2 * radius * radius));
+    return { x: p.x + pullX * w, y: p.y + pullY * w };
+  });
+  face._headShape.setAttribute("d", face._pointsToPath(points));
+  face._headFollow.setAttribute("transform", "");
+  face._headMotion.style.transform = `translate(${s.hx * 0.12}px,${s.hy * 0.12}px) rotate(${s.hx * 0.08}deg)`;
+  const dot = face._antennaDot;
+  if (dot) {
+    const x = s.home.x + s.x, y = s.home.y + s.y, stretch = clamp3(s.vy * 4e-4, -0.06, 0.06);
+    dot.setAttribute("cx", x);
+    dot.setAttribute("cy", y);
+    dot.setAttribute("transform", `translate(${x} ${y}) scale(${1 + stretch} ${1 - stretch}) translate(${-x} ${-y})`);
+  }
+  return !s.held && (reduced || Math.max(Math.abs(s.x), Math.abs(s.y), Math.abs(s.hx), Math.abs(s.hy)) < 0.025 && Math.max(Math.abs(s.vx), Math.abs(s.vy), Math.abs(s.hvx), Math.abs(s.hvy)) < 0.06);
+}
+registerAvatarExtension({ name: "gestures", reset() {
+  this._cancelGesture(this._runtimeResetNotify === false);
+}, draw(now) {
+  const s = this._gestureFx;
+  if (!s) return;
+  const dt = Math.min(0.034, Math.max(0, (now - s.last) / 1e3));
+  s.last = now;
+  s.age += dt;
+  if (!s.held) s.releaseAge += dt;
+  if (s.kind === "squeeze" && !s.committed) {
+    if (s.age < SQUEEZE_HOLD_SECONDS) return;
+    if (!commit(this, s)) return;
+  }
+  const done = s.kind === "squeeze" ? drawSqueeze(this, s, dt, this._isReducedMotion?.()) : drawAntennaDrag(this, s, dt, this._isReducedMotion?.());
+  if (done) finish(this, s);
+} });
+
+// src/agent-robot-avatar-runtime.js
+var proto10 = agent_robot_avatar_extension_host_default.prototype;
+var basePlay2 = proto10.play;
+var baseNoteActivity = proto10.noteActivity;
+var baseSleep = proto10.sleep;
+var baseWake = proto10.wake;
+var baseResetToIdle = proto10._resetToIdle;
+var baseStartMorph = proto10._startMorph;
+var baseAnimateHead = proto10._animateHead;
+var baseUpdateBlink = proto10._updateBlink;
+var baseUpdateLook2 = proto10._updateLook;
+var baseUpdateHeadFollow = proto10._updateHeadFollow;
+var baseUpdateDragJelly = proto10._updateDragJelly;
+var baseOnPointerMove2 = proto10._onPointerMove;
+var baseOnDragMove = proto10._onDragMove;
+var baseOnDragStart = proto10._onDragStart;
+var baseOnDragEnd = proto10._onDragEnd;
+var baseResumeFrames = proto10._resumeFrames;
+var baseCanPauseFrames = proto10._canPauseFrames;
+var baseInput = proto10.input;
+var baseStartWaiting = proto10.startWaiting;
+var baseStopWaiting = proto10.stopWaiting;
+var baseDraw2 = proto10._draw;
+var ACTION_ALIASES = Object.freeze({
+  idle: "idle",
+  bored: "bored",
+  waiting: "waiting",
+  "waiting-spin": "waiting",
+  wait: "waiting",
+  "waiting-wrap": "waiting",
+  "waiting-wave": "waiting",
+  input: "input",
+  affirm: "affirm",
+  send: "affirm",
+  success: "success",
+  failure: "failure",
+  failed: "failure",
+  fail: "failure",
+  wary: "wary",
+  warning: "wary",
+  inspect: "inspect",
+  verify: "inspect",
+  review: "inspect",
+  angry: "angry",
+  blocked: "angry",
+  "policy-blocked": "angry",
+  refuse: "refuse",
+  error: "refuse",
+  "system-error": "refuse",
+  "connection-error": "refuse",
+  surprise: "surprise",
+  love: "love",
+  random: "random",
+  slot: "random",
+  sleep: "sleep",
+  wake: "wake"
+});
+var DEPRECATED_ACTIONS = Object.freeze({
+  wait: "waiting-spin",
+  send: "affirm",
+  failed: "failure",
+  fail: "failure",
+  warning: "wary",
+  verify: "inspect",
+  review: "inspect",
+  blocked: "angry",
+  "policy-blocked": "angry",
+  error: "refuse",
+  "system-error": "refuse",
+  "connection-error": "refuse",
+  slot: "random"
+});
+var ACTION_IMPLEMENTATIONS = Object.freeze({
+  "waiting-spin": "waiting",
+  affirm: "send",
+  wary: "warning",
+  refuse: "error"
+});
+var warnedDeprecations = /* @__PURE__ */ new Set();
+function warnDeprecatedAction(raw) {
+  const replacement = DEPRECATED_ACTIONS[raw];
+  if (!replacement || warnedDeprecations.has(raw)) return;
+  warnedDeprecations.add(raw);
+  console.warn(`agent-robot-avatar: action "${raw}" is deprecated, use "${replacement}". Old names stop working in 1.0.`);
+}
+function normalizeAction(name) {
+  const raw = String(name || "").trim().toLowerCase();
+  const canonical = Object.hasOwn(ACTION_ALIASES, raw) ? ACTION_ALIASES[raw] : null;
+  if (canonical) warnDeprecatedAction(raw);
+  return { raw, canonical, implementation: ACTION_IMPLEMENTATIONS[raw] ?? raw };
+}
+function wakePolicy(instance) {
+  const value = String(instance.getAttribute("wake-on") || "activity").trim().toLowerCase();
+  return value === "manual" || value === "interaction" ? value : "activity";
+}
+function requestedMotion(instance) {
+  const value = String(instance.getAttribute("motion") || "auto").trim().toLowerCase();
+  return value === "reduce" || value === "full" ? value : "auto";
+}
+function reducedMotion3(instance) {
+  const requested = requestedMotion(instance);
+  if (requested === "reduce") return true;
+  if (requested === "full") return false;
+  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+  return instance._runtimeMotionQuery?.matches === true;
+}
+function emitActionState(instance, record, phase, silent = false) {
+  if (!record || phase !== "start" && record.terminal) return;
+  if (phase !== "start") record.terminal = true;
+  if (silent) return;
+  instance.dispatchEvent(new CustomEvent("action-state", {
+    detail: { action: record.action, phase, source: record.source },
+    bubbles: true,
+    composed: true
+  }));
+}
+function cancelActiveAction(instance, { silent = false } = {}) {
+  const record = instance._activeActionState;
+  if (!record || record.terminal) return;
+  if (instance._activeActionState === record) instance._activeActionState = null;
+  emitActionState(instance, record, "cancel", silent);
+}
+function beginAction(instance, action, source, continuous = false) {
+  clearAutoSleep(instance);
+  cancelActiveAction(instance);
+  const record = {
+    id: (instance._actionStateSequence || 0) + 1,
+    action,
+    source,
+    continuous,
+    terminal: false
+  };
+  instance._actionStateSequence = record.id;
+  instance._activeActionState = record;
+  emitActionState(instance, record, "start");
+  return record;
+}
+function finishAction(instance, record, phase = "end") {
+  if (!record || record.terminal) return;
+  if (instance._activeActionState !== record) return;
+  instance._activeActionState = null;
+  emitActionState(instance, record, phase);
+  scheduleAutoSleep(instance);
+}
+function trackFiniteAction(instance, record, result) {
+  if (record.continuous) return;
+  if (result && typeof result.then === "function") {
+    Promise.resolve(result).then(
+      () => finishAction(instance, record, "end"),
+      () => finishAction(instance, record, "cancel")
+    );
+  } else {
+    finishAction(instance, record, "end");
+  }
+}
+function applySize(instance) {
+  instance._syncSizeAttribute();
+  instance._runtimeSizeApplied = instance.hasAttribute("size");
+}
+function hasVisibleLayout(instance) {
+  if (!instance.isConnected) return false;
+  const rects = instance.getClientRects?.();
+  if (!rects || rects.length === 0) return false;
+  const rect = instance.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+function cancelHeadAnimations(instance) {
+  const animations = instance._headMotion?.getAnimations?.() || [];
+  for (const animation of animations) animation.cancel();
+  if (instance._headMotion) instance._headMotion.style.transform = "";
+}
+function cancelContinuousMotion(instance) {
+  cancelHeadAnimations(instance);
+  instance._blinkAnim = null;
+  instance._blink = 1;
+  instance._boredRoutine = null;
+  instance._boredLookSpeed = null;
+  if (instance._wanderTarget) instance._wanderTarget.x = instance._wanderTarget.y = 0;
+  if (instance._wander) instance._wander.x = instance._wander.y = 0;
+  if (instance._look) instance._look.x = instance._look.y = 0;
+}
+function dragAtRest(drag) {
+  if (!drag || drag.active || drag.returning || drag.pendingReaction) return false;
+  return Math.abs(drag.x) < 1e-4 && Math.abs(drag.y) < 1e-4 && Math.abs(drag.vx) < 1e-4 && Math.abs(drag.vy) < 1e-4 && Math.abs(drag.stretch) < 1e-4 && Math.abs(drag.shear) < 1e-4 && Math.abs(drag.pullX) < 1e-4 && Math.abs(drag.pullY) < 1e-4;
+}
+function clearIdleDragVisuals(instance) {
+  if (!dragAtRest(instance._dragJelly)) return;
+  if (instance._dragMotion) {
+    instance._dragMotion.style.transform = "";
+    instance._dragMotion.style.transformOrigin = "";
+  }
+  if (instance._headShape && instance._baseHeadPathD) {
+    instance._headShape.setAttribute("d", instance._baseHeadPathD);
+  }
+}
+function clearAutoSleep(instance) {
+  if (!instance._runtimeAutoSleepTimer) return;
+  clearTimeout(instance._runtimeAutoSleepTimer);
+  instance._runtimeAutoSleepTimer = 0;
+}
+function autoSleepBlocked(instance) {
+  const record = instance._activeActionState;
+  return Boolean(
+    !instance.isConnected || instance._runtimeDisconnecting || instance._sleeping || record && !record.terminal && record.source !== "interaction" || instance._waitingRequested || instance._waitingFx || instance._inputWanted || instance._state === "input" || instance._expressionLock || instance._gestureFx
+  );
+}
+function scheduleAutoSleep(instance) {
+  clearAutoSleep(instance);
+  const delayMs = Number(instance._autoSleepMs);
+  if (!Number.isFinite(delayMs) || delayMs <= 0 || autoSleepBlocked(instance)) return;
+  const remaining = Math.max(0, instance._lastActivity + delayMs - performance.now());
+  instance._runtimeAutoSleepTimer = setTimeout(() => {
+    instance._runtimeAutoSleepTimer = 0;
+    if (autoSleepBlocked(instance)) return;
+    const currentDelay = Number(instance._autoSleepMs);
+    if (!Number.isFinite(currentDelay) || currentDelay <= 0) return;
+    const nextRemaining = instance._lastActivity + currentDelay - performance.now();
+    if (nextRemaining > 1) {
+      scheduleAutoSleep(instance);
+      return;
+    }
+    const previousSource = instance._runtimeActionSource;
+    instance._runtimeActionSource = "automatic";
+    try {
+      instance.sleep();
+    } finally {
+      instance._runtimeActionSource = previousSource;
+    }
+  }, remaining);
+}
+function requestVisualCommit(instance) {
+  if (!instance.isConnected || instance._runtimeDisconnecting) return;
+  instance._runtimeVisualDirty = true;
+  instance._resumeFrames?.();
+}
+function syncMotionPreference(instance) {
+  const reduced = reducedMotion3(instance);
+  if (instance._runtimeLastReducedMotion === reduced) return reduced;
+  instance._runtimeLastReducedMotion = reduced;
+  instance._runtimeVisualDirty = true;
+  if (reduced) cancelContinuousMotion(instance);
+  return reduced;
+}
+function clearDragGeometry(instance, { preserveClick = false, releaseCapture = true } = {}) {
+  const drag = instance._dragJelly;
+  if (!drag) return;
+  const pointerId = drag.pointerId;
+  const suppressClick = preserveClick && drag.moved;
+  drag.active = false;
+  drag.returning = false;
+  drag.snapped = false;
+  drag.pointerId = null;
+  drag.pendingReaction = null;
+  drag.targetX = drag.targetY = drag.x = drag.y = drag.vx = drag.vy = 0;
+  drag.targetStretch = drag.stretch = drag.stretchVel = 0;
+  drag.targetShear = drag.shear = drag.shearVel = 0;
+  drag.targetPullX = drag.targetPullY = drag.pullX = drag.pullY = drag.pullVX = drag.pullVY = 0;
+  drag.angle = 0;
+  drag.maxDist = 0;
+  drag.ux = drag.uy = 0;
+  drag.anchorX = drag.anchorY = 50;
+  instance._pendingDragEvent = null;
+  if (releaseCapture && pointerId != null) {
+    try {
+      instance.releasePointerCapture(pointerId);
+    } catch (_) {
+    }
+  }
+  if (instance._dragMotion) {
+    instance._dragMotion.style.transform = "";
+    instance._dragMotion.style.transformOrigin = "";
+  }
+  if (instance._headShape && instance._baseHeadPathD) {
+    instance._headShape.setAttribute("d", instance._baseHeadPathD);
+  }
+  instance._suppressClick = suppressClick;
+}
+function programActionOwnsExpression(instance) {
+  const record = instance._activeActionState;
+  if (record && !record.terminal && record.source !== "interaction") return true;
+  return Boolean(
+    instance._waitingRequested || instance._waitingFx || instance._inputWanted || instance._inspectFx || instance._loveFx || instance._randomFx || instance._failureFx || instance._warningFx || instance._systemErrorShake || instance._sleeping || instance._expressionLock && instance._state !== "idle"
+  );
+}
+function startDragReaction(instance, reaction) {
+  if (!reaction || programActionOwnsExpression(instance)) return;
+  const result = reaction === "angry" ? instance.angry({ fromDrag: true }) : instance.success({ fromDrag: true });
+  const record = beginAction(instance, "reaction", "interaction", false);
+  trackFiniteAction(instance, record, result);
+}
+function finishDragReturn(instance, reaction) {
+  clearDragGeometry(instance, { preserveClick: true, releaseCapture: false });
+  startDragReaction(instance, reaction);
+}
+function applyDragTransform(instance) {
+  const drag = instance._dragJelly;
+  if (!drag) return;
+  instance._applyHeadDeform?.();
+  if (!instance._dragMotion) return;
+  const sx = 1 + drag.stretch;
+  const sy = 1 - drag.stretch * 0.3;
+  const shearDeg = drag.shear * 180 / Math.PI;
+  instance._dragMotion.style.transformOrigin = `${drag.anchorX.toFixed(2)}% ${drag.anchorY.toFixed(2)}%`;
+  instance._dragMotion.style.transform = `translate(${drag.x.toFixed(2)}px, ${drag.y.toFixed(2)}px) rotate(${drag.angle.toFixed(4)}rad) scale(${sx.toFixed(4)}, ${sy.toFixed(4)}) skewY(${shearDeg.toFixed(3)}deg) rotate(${(-drag.angle).toFixed(4)}rad)`;
+}
+function flushPointerWork(instance) {
+  const pointer = instance._pendingPointerEvent;
+  instance._pendingPointerEvent = null;
+  if (pointer) {
+    baseOnPointerMove2.call(instance, pointer);
+    instance._runtimePointerFlushCount = (instance._runtimePointerFlushCount || 0) + 1;
+  }
+  const drag = instance._pendingDragEvent;
+  instance._pendingDragEvent = null;
+  if (drag && instance._dragJelly?.active && drag.pointerId === instance._dragJelly.pointerId) {
+    baseOnDragMove.call(instance, drag);
+    instance._runtimeDragFlushCount = (instance._runtimeDragFlushCount || 0) + 1;
+  }
+}
+function setRuntimeVisible(instance, visible) {
+  const next = visible === true;
+  if (instance._runtimeVisible === next) return;
+  instance._runtimeVisible = next;
+  if (!next) {
+    instance._cancelGesture?.();
+    if (instance._raf) cancelAnimationFrame(instance._raf);
+    instance._raf = 0;
+    instance._framePaused = true;
+    instance._pendingPointerEvent = null;
+    if (instance._dragJelly?.active || instance._dragJelly?.returning) {
+      clearDragGeometry(instance, { preserveClick: true });
+    }
+    cancelHeadAnimations(instance);
+    if (instance._antennaSpring) {
+      instance._antennaSpring.vx = 0;
+      instance._antennaSpring.vy = 0;
+      instance._antennaSpring.initialized = false;
+    }
+    return;
+  }
+  instance._resumeFrames?.();
+}
+function handleMotionChange(instance) {
+  const reduced = syncMotionPreference(instance);
+  if (reduced) {
+    cancelContinuousMotion(instance);
+    instance._pose = { ...instance._toPose };
+    instance._fromPose = { ...instance._toPose };
+    instance._morphDuration = 0;
+    if (instance._dragJelly?.returning) finishDragReturn(instance, instance._dragJelly.pendingReaction);
+  }
+  requestVisualCommit(instance);
+  scheduleAutoSleep(instance);
+}
+function ensureRuntime(instance) {
+  if (instance._runtimePolicyReady || !instance.isConnected || instance._runtimeDisconnecting) return;
+  instance._runtimePolicyReady = true;
+  if (!instance.style.touchAction) instance.style.touchAction = "pinch-zoom";
+  applySize(instance);
+  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const listener = () => handleMotionChange(instance);
+    instance._runtimeMotionQuery = query;
+    instance._runtimeMotionListener = listener;
+    if (query.addEventListener) query.addEventListener("change", listener);
+    else query.addListener?.(listener);
+  }
+  if (typeof MutationObserver !== "undefined") {
+    instance._runtimeAttributeObserver = new MutationObserver((records) => {
+      let motionChanged = false;
+      let autoSleepChanged = false;
+      for (const record of records) {
+        if (record.attributeName === "size") applySize(instance);
+        if (record.attributeName === "motion") motionChanged = true;
+        if (record.attributeName === "auto-sleep") autoSleepChanged = true;
+        if (record.attributeName === "skin") instance._applySkinAttribute?.();
+      }
+      if (motionChanged) handleMotionChange(instance);
+      if (autoSleepChanged) scheduleAutoSleep(instance);
+    });
+    instance._runtimeAttributeObserver.observe(instance, {
+      attributes: true,
+      attributeFilter: ["size", "motion", "wake-on", "auto-sleep", "skin"]
+    });
+  }
+  if (instance.hasAttribute("skin") && instance.getAttribute("skin") !== instance._skinAttributeApplied) instance._applySkinAttribute?.();
+  if (typeof IntersectionObserver !== "undefined") {
+    instance._runtimeIntersectionObserver = new IntersectionObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      if (!entry) return;
+      instance._runtimeIntersecting = entry.isIntersecting;
+      setRuntimeVisible(instance, entry.isIntersecting && hasVisibleLayout(instance));
+    });
+    instance._runtimeIntersectionObserver.observe(instance);
+  }
+  if (typeof ResizeObserver !== "undefined") {
+    instance._runtimeResizeObserver = new ResizeObserver(() => {
+      const inView = instance._runtimeIntersecting !== false;
+      setRuntimeVisible(instance, inView && hasVisibleLayout(instance));
+    });
+    instance._runtimeResizeObserver.observe(instance);
+  }
+  instance._runtimeVisible = hasVisibleLayout(instance);
+  instance._runtimeLostCapture = (event) => {
+    if (instance._gestureFx?.held && event.pointerId === instance._gestureFx.pointerId) {
+      instance._cancelGesture?.();
+    }
+    if (instance._dragJelly?.active && event.pointerId === instance._dragJelly.pointerId) {
+      clearDragGeometry(instance, { preserveClick: false, releaseCapture: false });
+    }
+  };
+  instance.addEventListener("lostpointercapture", instance._runtimeLostCapture);
+  if (!instance._runtimeLoopWrapped && typeof instance._loop === "function") {
+    const loop = instance._loop;
+    instance._loop = (ts) => {
+      flushPointerWork(instance);
+      return loop(ts);
+    };
+    instance._runtimeLoopWrapped = true;
+  }
+  scheduleAutoSleep(instance);
+}
+function teardownRuntime(instance) {
+  clearAutoSleep(instance);
+  cancelContinuousMotion(instance);
+  instance._runtimeIntersectionObserver?.disconnect();
+  instance._runtimeResizeObserver?.disconnect();
+  instance._runtimeAttributeObserver?.disconnect();
+  if (instance._runtimeMotionQuery && instance._runtimeMotionListener) {
+    if (instance._runtimeMotionQuery.removeEventListener) {
+      instance._runtimeMotionQuery.removeEventListener("change", instance._runtimeMotionListener);
+    } else {
+      instance._runtimeMotionQuery.removeListener?.(instance._runtimeMotionListener);
+    }
+  }
+  if (instance._runtimeLostCapture) {
+    instance.removeEventListener("lostpointercapture", instance._runtimeLostCapture);
+  }
+  instance._runtimeIntersectionObserver = null;
+  instance._runtimeResizeObserver = null;
+  instance._runtimeAttributeObserver = null;
+  instance._runtimeMotionQuery = null;
+  instance._runtimeMotionListener = null;
+  instance._runtimeLostCapture = null;
+  instance._runtimePolicyReady = false;
+  instance._runtimeVisible = false;
+  instance._runtimeLastReducedMotion = void 0;
+  instance._runtimeVisualDirty = false;
+  instance._pendingPointerEvent = null;
+  instance._pendingDragEvent = null;
+}
+function eventTargetsAvatar(event, instance) {
+  const path = event?.composedPath?.();
+  if (Array.isArray(path)) return path.includes(instance);
+  return event?.target === instance || instance.contains?.(event?.target);
+}
+proto10._isReducedMotion = function() {
+  return reducedMotion3(this);
+};
+proto10.noteActivity = function(wake = true) {
+  ensureRuntime(this);
+  const shouldWake = wake !== false && (this._sleeping || this._state === "sleep");
+  const result = baseNoteActivity.call(this, false);
+  scheduleAutoSleep(this);
+  if (shouldWake) this.wake();
+  return result;
+};
+proto10._noteEnvironmentActivity = function(event) {
+  ensureRuntime(this);
+  const shouldConsiderWake = this._sleeping || this._state === "sleep";
+  const result = baseNoteActivity.call(this, false);
+  scheduleAutoSleep(this);
+  if (!shouldConsiderWake) return result;
+  const policy = wakePolicy(this);
+  const shouldWake = policy === "activity" || policy === "interaction" && eventTargetsAvatar(event, this);
+  if (!shouldWake) return result;
+  const previousSource = this._runtimeActionSource;
+  this._runtimeActionSource = "automatic";
+  try {
+    return this.wake();
+  } finally {
+    this._runtimeActionSource = previousSource;
+  }
+};
+proto10._resetToIdle = function(notify = true) {
+  const previous = this._runtimeResetNotify;
+  this._runtimeResetNotify = notify;
+  try {
+    return baseResetToIdle.call(this, notify);
+  } finally {
+    this._runtimeResetNotify = previous;
+    scheduleAutoSleep(this);
+  }
+};
+proto10._startMorph = function(target, duration, ease) {
+  const reduced = reducedMotion3(this);
+  const result = baseStartMorph.call(this, target, reduced ? 0 : duration, ease);
+  if (reduced) requestVisualCommit(this);
+  return result;
+};
+proto10._animateHead = function(frames, duration) {
+  if (reducedMotion3(this)) {
+    cancelHeadAnimations(this);
+    return void 0;
+  }
+  return baseAnimateHead.call(this, frames, duration);
+};
+proto10._updateBlink = function(now) {
+  if (!reducedMotion3(this)) return baseUpdateBlink.call(this, now);
+  this._blinkAnim = null;
+  this._blink = 1;
+};
+proto10._updateLook = function(now, dt) {
+  if (!reducedMotion3(this)) return baseUpdateLook2.call(this, now, dt);
+  this._boredRoutine = null;
+  this._boredLookSpeed = null;
+  this._wanderTarget.x = this._wanderTarget.y = 0;
+  this._wander.x = this._wander.y = 0;
+  this._look.x = this._look.y = 0;
+};
+proto10._updateHeadFollow = function(now, dt) {
+  if (!reducedMotion3(this)) return baseUpdateHeadFollow.call(this, now, dt);
+  this._headFollowPose.x = this._headFollowPose.y = this._headFollowPose.rot = 0;
+  this._headFollowVel.x = this._headFollowVel.y = this._headFollowVel.rot = 0;
+  if (this._headFollow) this._headFollow.setAttribute("transform", "");
+};
+proto10._updateDragJelly = function(dt) {
+  const drag = this._dragJelly;
+  if (!reducedMotion3(this)) {
+    const result = baseUpdateDragJelly.call(this, dt);
+    clearIdleDragVisuals(this);
+    return result;
+  }
+  if (!drag) return;
+  if (drag.active) {
+    drag.x = drag.targetX;
+    drag.y = drag.targetY;
+    drag.stretch = drag.targetStretch;
+    drag.shear = drag.targetShear;
+    drag.pullX = drag.targetPullX;
+    drag.pullY = drag.targetPullY;
+    applyDragTransform(this);
+  } else if (drag.returning) {
+    finishDragReturn(this, drag.pendingReaction);
+  }
+  clearIdleDragVisuals(this);
+};
+proto10._onPointerMove = function(event) {
+  ensureRuntime(this);
+  if (this._runtimeVisible === false) return;
+  if (this._pointerFollowEnabled === false) return;
+  this._pendingPointerEvent = {
+    clientX: event.clientX,
+    clientY: event.clientY
+  };
+  if (this._sleeping && this._framePaused) return;
+  this._resumeFrames?.();
+};
+proto10._onDragMove = function(event) {
+  ensureRuntime(this);
+  if (this._gestureFx) {
+    this._moveGesture(event);
+    return;
+  }
+  if (!this._dragJelly?.active || event.pointerId !== this._dragJelly.pointerId) return;
+  this._pendingDragEvent = {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    pointerId: event.pointerId
+  };
+  this._resumeFrames?.();
+};
+proto10._onDragStart = function(event) {
+  ensureRuntime(this);
+  if (this._dragJelly?.active) return;
+  if (event.pointerType === "touch" && event.isPrimary === false) return;
+  if (this._gestureFx?.held) return;
+  if (this._startGesture?.(event)) return;
+  return baseOnDragStart.call(this, event);
+};
+proto10._startHeadDragFromGesture = function(event, start) {
+  baseOnDragStart.call(this, {
+    button: 0,
+    clientX: start.startX,
+    clientY: start.startY,
+    pointerId: event.pointerId,
+    pointerType: start.pointerType
+  });
+  baseOnDragMove.call(this, event);
+};
+proto10._beginGestureAction = function(kind) {
+  beginAction(this, kind, "interaction", true);
+};
+proto10._endGestureAction = function(phase, react = false, silent = false) {
+  const record = this._activeActionState;
+  if (record && (record.action === "squeeze" || record.action === "antenna-drag")) {
+    if (silent) cancelActiveAction(this, { silent: true });
+    else finishAction(this, record, phase);
+  }
+  if (react) startDragReaction(this, "angry");
+};
+proto10._onDragEnd = function(event) {
+  if (this._gestureFx) {
+    this._endGesture(event);
+    return;
+  }
+  const drag = this._dragJelly;
+  if (!drag?.active || event.pointerId !== drag.pointerId) return;
+  flushPointerWork(this);
+  if (event.type === "pointercancel") {
+    clearDragGeometry(this, { preserveClick: false });
+    return;
+  }
+  baseOnDragEnd.call(this, event);
+  if (reducedMotion3(this) && drag.returning) finishDragReturn(this, drag.pendingReaction);
+};
+proto10._finishDragReturn = function(reaction) {
+  finishDragReturn(this, reaction);
+};
+proto10._resumeFrames = function() {
+  if (!this.isConnected || this._runtimeDisconnecting) return;
+  ensureRuntime(this);
+  if (this._runtimeVisible === false) return;
+  if (syncMotionPreference(this)) this._runtimeVisualDirty = true;
+  return baseResumeFrames.call(this);
+};
+proto10._draw = function(now) {
+  syncMotionPreference(this);
+  const result = baseDraw2.call(this, now);
+  this._runtimeVisualDirty = false;
+  return result;
+};
+proto10._canPauseFrames = function(now) {
+  if (this._runtimeVisible === false) return true;
+  const reduced = syncMotionPreference(this);
+  if (!reduced) return baseCanPauseFrames.call(this, now);
+  if (this._pendingPointerEvent || this._pendingDragEvent || this._runtimeVisualDirty) return false;
+  return true;
+};
+function playNoOp(instance, canonical) {
+  if (canonical === "wake") return !instance._sleeping && instance._state !== "sleep";
+  if (canonical === "sleep") return instance._sleeping === true;
+  if (canonical === "input") return instance._inputWanted || instance._state === "input";
+  return false;
+}
+function leaveSleepForAction(instance) {
+  if (!instance._sleeping && instance._state !== "sleep") return;
+  instance._sleeping = false;
+  instance.setState("idle", { duration: reducedMotion3(instance) ? 0 : 120 });
+}
+function prepareReplacement(instance, canonical) {
+  instance._cancelGesture?.();
+  clearAutoSleep(instance);
+  cancelActiveAction(instance);
+  clearDragGeometry(instance, { preserveClick: true });
+  instance._cancelPendingWaits?.();
+  if (canonical !== "sleep" && canonical !== "wake" && canonical !== "idle") {
+    leaveSleepForAction(instance);
+  }
+}
+proto10.play = function(name) {
+  ensureRuntime(this);
+  const { canonical, implementation } = normalizeAction(name);
+  if (!canonical) throw new Error(`Unknown Agent Robot Avatar action: ${name}`);
+  if (playNoOp(this, canonical)) return this;
+  if (canonical === "idle") return basePlay2.call(this, implementation);
+  prepareReplacement(this, canonical);
+  let result;
+  this._runtimeInPlay = true;
+  try {
+    result = basePlay2.call(this, implementation);
+  } finally {
+    this._runtimeInPlay = false;
+  }
+  const record = beginAction(this, canonical, "api", canonical === "input");
+  trackFiniteAction(this, record, result);
+  if (reducedMotion3(this)) queueMicrotask(() => cancelHeadAnimations(this));
+  return result;
+};
+proto10.input = function(active = true) {
+  if (this._runtimeInPlay) return baseInput.call(this, active);
+  ensureRuntime(this);
+  if (active) {
+    if (this._inputWanted || this._state === "input") return this;
+    prepareReplacement(this, "input");
+    const result2 = baseInput.call(this, true);
+    beginAction(this, "input", "api", true);
+    return result2;
+  }
+  const record = this._activeActionState?.action === "input" ? this._activeActionState : null;
+  const result = baseInput.call(this, false);
+  if (record) finishAction(this, record, "end");
+  return result;
+};
+proto10.startWaiting = async function(options = {}) {
+  ensureRuntime(this);
+  clearAutoSleep(this);
+  const result = await baseStartWaiting.call(this, options);
+  if (this._waitingRequested && this._waitingFx) beginAction(this, "waiting", "api", true);
+  return result;
+};
+proto10.stopWaiting = function() {
+  ensureRuntime(this);
+  const record = this._activeActionState?.action === "waiting" ? this._activeActionState : null;
+  this._runtimeEndingWaiting = Boolean(record);
+  let result;
+  try {
+    result = baseStopWaiting.call(this);
+  } finally {
+    this._runtimeEndingWaiting = false;
+  }
+  if (record) finishAction(this, record, "end");
+  return result;
+};
+proto10.sleep = function() {
+  if (this._runtimeInPlay) return baseSleep.call(this);
+  ensureRuntime(this);
+  if (this._sleeping) return this;
+  prepareReplacement(this, "sleep");
+  const source = this._runtimeActionSource || "api";
+  const result = baseSleep.call(this);
+  const record = beginAction(this, "sleep", source, false);
+  trackFiniteAction(this, record, result);
+  return result;
+};
+proto10.wake = function() {
+  if (this._runtimeInPlay) return baseWake.call(this);
+  ensureRuntime(this);
+  if (!this._sleeping && this._state !== "sleep") return this;
+  prepareReplacement(this, "wake");
+  const source = this._runtimeActionSource || "api";
+  const result = baseWake.call(this);
+  const record = beginAction(this, "wake", source, false);
+  trackFiniteAction(this, record, result);
+  return result;
+};
+proto10._autoSleep = function() {
+};
+proto10._scheduleAutoSleep = function() {
+  scheduleAutoSleep(this);
+};
+proto10._teardownRuntime = function() {
+  teardownRuntime(this);
+};
+function setMask(top, bottom, topY, bottomY, topAngle = 0, bottomAngle = 0) {
+  if (top) {
+    top.setAttribute("y", (topY - 90).toFixed(2));
+    top.setAttribute("height", "90");
+    top.setAttribute("transform", `rotate(${topAngle.toFixed(2)} 0 ${topY.toFixed(2)})`);
+  }
+  if (bottom) {
+    bottom.setAttribute("y", bottomY.toFixed(2));
+    bottom.setAttribute("height", "90");
+    bottom.setAttribute("transform", `rotate(${bottomAngle.toFixed(2)} 0 ${bottomY.toFixed(2)})`);
+  }
+}
+function setEye(eye, x, y = 126, sx = 1, sy = 1) {
+  if (eye) eye.setAttribute("transform", `translate(${x.toFixed(2)} ${y.toFixed(2)}) scale(${sx.toFixed(3)} ${sy.toFixed(3)})`);
+}
+function drawReducedState(instance) {
+  if (!reducedMotion3(instance)) return;
+  if (instance._state === "input") {
+    instance._leftInputBase?.setAttribute("opacity", "1");
+    instance._rightInputBase?.setAttribute("opacity", "1");
+  }
+  if (instance._antennaDot) instance._antennaDot.style.opacity = "1";
+  if (instance._waitingFx) {
+    setEye(instance._leftEye, 100, 126, 0.92, 1);
+    setEye(instance._rightEye, 140, 126, 0.92, 1);
+    return;
+  }
+  if (instance._inspectFx) {
+    setEye(instance._leftEye, 86);
+    setEye(instance._rightEye, 154);
+    setMask(instance._leftTop, instance._leftBottom, -8, 8);
+    setMask(instance._rightTop, instance._rightBottom, -8, 8);
+    return;
+  }
+  if (instance._warningFx) {
+    setEye(instance._leftEye, 100, 126, 1.16, 1.1);
+    setEye(instance._rightEye, 172, 132, 0.84, 0.96);
+    setMask(instance._leftTop, instance._leftBottom, -18, 35, 8, 0);
+    setMask(instance._rightTop, instance._rightBottom, -20, 36, -7, 0);
+    return;
+  }
+  if (instance._systemErrorShake) {
+    setMask(instance._leftTop, instance._leftBottom, -5, 36, -15, 0);
+    setMask(instance._rightTop, instance._rightBottom, -5, 36, 15, 0);
+  }
+}
+for (const property of ["_waitingFx", "_inspectFx", "_loveFx", "_randomFx", "_failureFx", "_warningFx", "_systemErrorShake"]) {
+  const slot = Symbol(property);
+  Object.defineProperty(proto10, property, {
+    configurable: true,
+    get() {
+      return this[slot];
+    },
+    set(value) {
+      this[slot] = value;
+      this._runtimeVisualDirty = true;
+      if (this.isConnected && !this._runtimeDisconnecting && syncMotionPreference(this)) {
+        requestVisualCommit(this);
+        queueMicrotask(() => {
+          if (this.isConnected && !this._runtimeDisconnecting && syncMotionPreference(this)) {
+            cancelContinuousMotion(this);
+          }
+        });
+      }
+    }
+  });
+}
+registerAvatarExtension({
+  name: "runtime-policy",
+  reset() {
+    const silent = this._runtimeResetNotify === false;
+    if (!this._runtimeEndingWaiting) cancelActiveAction(this, { silent });
+    clearDragGeometry(this, { preserveClick: !silent });
+    this._pendingPointerEvent = null;
+  },
+  draw() {
+    ensureRuntime(this);
+    drawReducedState(this);
+  }
+});
+
+// agent-robot-avatar-lite.js
+var proto11 = agent_robot_avatar_extension_host_default.prototype;
+var warned = false;
+function explain() {
+  if (warned) return;
+  warned = true;
+  console.warn('agent-robot-avatar: skins are not part of the lite build; import "agent-robot-avatar" instead of "agent-robot-avatar/lite" to use them.');
+}
+if (!proto11.setSkin) {
+  proto11._applySkinAttribute = function() {
+    if (this.getAttribute("skin")) explain();
+  };
+  proto11.setSkin = function(value = null) {
+    if (value !== null && value !== "none") explain();
+    return this;
+  };
+  proto11.getSkin = () => null;
+}
+if (typeof document !== "undefined") {
+  document.querySelectorAll("agent-robot-avatar").forEach((avatar) => avatar._resumeFrames?.());
+}
+if (typeof window !== "undefined") {
+  window.AgentRobotAvatarVersion = VERSION;
+}
+var agent_robot_avatar_lite_default = agent_robot_avatar_extension_host_default;
+export {
+  agent_robot_avatar_extension_host_default as AgentRobotAvatar,
+  VERSION,
+  agent_robot_avatar_lite_default as default
+};
+
+</script>
+<script type="module">
+const avatar = document.querySelector('#avatar');
+const name = document.querySelector('#action-name');
+const buttons = [...document.querySelectorAll('.actions button')];
+document.querySelector('.actions').addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-action]');
+  if (!button || !avatar.play) return;
+  avatar.play(button.dataset.action);
+  name.textContent = button.textContent.trim();
+  for (const item of buttons) item.setAttribute('aria-pressed', item === button ? 'true' : 'false');
+});
+</script>
+</body>
+</html>

@@ -18,6 +18,7 @@ DADA 的设计素材、可复用效果和设计工作流 Skill。站点：https:
 - sonia-aurora-loader
 - fluxora-glow-path
 - tlg-fluted-glass（MIT，许可证见同目录 LICENSE）
+- agent-robot-avatar（MIT lite 预览，许可证在 code/index.html）
 - codrops-scroll-dissolve
 - enes-folded-scroll
 - gui-glow-card-hero
@@ -32,9 +33,9 @@ DADA 的设计素材、可复用效果和设计工作流 Skill。站点：https:
 
 ## 单独 fork 的头像仓库
 
-这几个没有并进本仓库，也还没放进上面的效果目录。它们各自留在 zhanxinyi-lab 名下的 fork，网站「设计」分类只放预览和链接。
+这几个没有整仓并进本仓库。agent-robot-avatar 另有一份 lite 预览在效果目录里，其余还没放进效果目录。它们各自留在 zhanxinyi-lab 名下的 fork，网站「设计」分类只放预览和链接。
 
-- [agent-robot-avatar](https://github.com/zhanxinyi-lab/agent-robot-avatar)：MIT，来自 CX-ArtLab/agent-robot-avatar。
+- [agent-robot-avatar](https://github.com/zhanxinyi-lab/agent-robot-avatar)：MIT，fork 自 [CX-ArtLab/BoopFace](https://github.com/CX-ArtLab/BoopFace)。`effects/agent-robot-avatar` 只收 v0.7.2 的 lite 预览，没有皮肤库，也没有嵌入式代码。
 - [avatar-studio](https://github.com/zhanxinyi-lab/avatar-studio)：MIT，来自 ai-calypse/avatar-studio。
 - [robo-face](https://github.com/zhanxinyi-lab/robo-face)、[animate-bot](https://github.com/zhanxinyi-lab/animate-bot)：MIT。bloub 与 animate-bot 的演示图相同，网站只保留 animate-bot，避免重复展示。
 - [procedural-expression-library](https://github.com/zhanxinyi-lab/procedural-expression-library)、[mascots](https://github.com/zhanxinyi-lab/mascots)：GPL-3.0，只保留 fork，不把源码抄进本仓库。
