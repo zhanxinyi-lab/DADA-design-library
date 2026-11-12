@@ -1,0 +1,84 @@
+{
+  "batch": "2026-11-12",
+  "sourcePackage": "x-material-library-newitems-20261112.zip",
+  "sourceZipMd5": "bde95699f710a32f2c5db68877236db5",
+  "mergeMode": "data-only additive merge into current repository snapshot; not a full site replacement",
+  "originalPackageItems": 14,
+  "newUniqueItems": 13,
+  "updatedExistingItems": 1,
+  "updatedExistingIds": [
+    "2120533831136751633"
+  ],
+  "resultingItems": 245,
+  "uniqueIds": 245,
+  "preservedPreviousSnapshotItems": 232,
+  "preservedLiveBaselineItems": 187,
+  "packageAssets": {
+    "directories": 14,
+    "files": 55,
+    "ids": [
+      "2120345620116308381",
+      "2120411877985681812",
+      "2120452220315697559",
+      "2120518489022595177",
+      "2120533299269619933",
+      "2120533831136751633",
+      "2120553374286594292",
+      "2120607242860757135",
+      "2120607704142037228",
+      "2120626950092083630",
+      "2120651303156130285",
+      "2120752319243723236",
+      "2120809570344050705",
+      "2120841809559535629"
+    ]
+  },
+  "categories": {
+    "品牌 · 网页交互": 12,
+    "AI工具/工作流": 1,
+    "3D": 1
+  },
+  "codeStatus": {
+    "pending_cindy": 11,
+    "needs_recreation": 3
+  },
+  "licenseStatus": {
+    "verified": 0,
+    "notVerified": 14,
+    "note": "No permissions were inferred. The existing x6sense item retains license_status=not_verified; other package records do not assert license status."
+  },
+  "mediaReferenceCleanup": {
+    "checkedPackageIds": 14,
+    "removedMissingOptionalReferences": 27,
+    "removedByKey": {
+      "gif_local": 13,
+      "full_video_local": 13,
+      "extra_videos_local": 1
+    },
+    "affectedItemIds": [
+      "2120345620116308381",
+      "2120411877985681812",
+      "2120518489022595177",
+      "2120533299269619933",
+      "2120533831136751633",
+      "2120553374286594292",
+      "2120607242860757135",
+      "2120607704142037228",
+      "2120626950092083630",
+      "2120651303156130285",
+      "2120752319243723236",
+      "2120809570344050705",
+      "2120841809559535629"
+    ],
+    "missingLocalReferencesAfterCleanup": 0
+  },
+  "updatedExistingRecordPreserved": {
+    "url": "https://x.com/x6sense/status/2120533831136751633?a=XI7oXi9H_dt7OhrLLGM&s=20",
+    "author": "x6sense",
+    "author_name": "x6sense",
+    "added_at": "2026-11-12T18:42:02+08:00",
+    "license_status": "not_verified"
+  },
+  "itemsFileOrder": "created_at descending; stable sort preserves existing ordering for ties and package order for new tied records",
+  "siteScope": "site-data/x-material-library/ only; no UI, layout, behavior, or deployment changes"
+}

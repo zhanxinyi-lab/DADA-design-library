@@ -1,39 +1,503 @@
 [
   {
+    "id": "2120841809559535629",
+    "url": "https://x.com/rebrandgallery/status/2120841809559535629",
+    "author": "rebrandgallery",
+    "author_name": "Rebrand",
+    "created_at": "2026-11-12T11:31:05.000Z",
+    "lang": "en",
+    "text": "Sukhishvili Rebrand by JoyBoy Creative Studio 🩰",
+    "sources": [
+      "hotscan",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "视觉识别",
+      "字体动效",
+      "演出",
+      "hotscan"
+    ],
+    "metrics": {
+      "bookmark_count": 11,
+      "impression_count": 1311,
+      "like_count": 44,
+      "quote_count": 0,
+      "reply_count": 1,
+      "repost_count": 2
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120841809559535629/poster0.jpg",
+      "assets/2120841809559535629/img1.jpg"
+    ],
+    "poster": "assets/2120841809559535629/poster0.jpg",
+    "video": "assets/2120841809559535629/preview.mp4",
+    "preview": "assets/2120841809559535629/preview.webm",
+    "duration_s": 89,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "rebrandgallery：Sukhishvili 国家舞团新形象（JoyBoy Creative Studio），跳跃舞者图形标、专属衬线字体、红黑米三色系统，字体带模糊/运动拖影动效",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120841809559535629"
+  },
+  {
+    "id": "2120809570344050705",
+    "url": "https://x.com/mxvdl/status/2120809570344050705",
+    "author": "mxvdl",
+    "author_name": "Max Vedel",
+    "created_at": "2026-11-12T09:22:58.000Z",
+    "lang": "en",
+    "text": "For the people interested by the @threejs ligthweight brush stroke shader and overal animation I posted yesterday, here's a complete breakdown.\n\nStill fully made with Fable 5.2 @claudeai \n\n(Yes you can also create these easily)",
+    "sources": [
+      "hotscan",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "Three.js",
+      "笔触shader",
+      "NPR",
+      "hotscan"
+    ],
+    "metrics": {
+      "bookmark_count": 130,
+      "impression_count": 5756,
+      "like_count": 127,
+      "quote_count": 1,
+      "reply_count": 8,
+      "repost_count": 5
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120809570344050705/poster0.jpg",
+      "assets/2120809570344050705/img1.jpg"
+    ],
+    "poster": "assets/2120809570344050705/poster0.jpg",
+    "video": "assets/2120809570344050705/preview.mp4",
+    "preview": "assets/2120809570344050705/preview.webm",
+    "duration_s": 100,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "mxvdl：three.js 轻量笔刷 shader 巴黎街景拆解，草图→3D 网格→笔触 shader→特效，鱼眼街景、半调投影、颠球小人，每帧浏览器实时手绘",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120809570344050705"
+  },
+  {
+    "id": "2120752319243723236",
+    "url": "https://x.com/techartist_/status/2120752319243723236",
+    "author": "techartist_",
+    "author_name": "Techartist",
+    "created_at": "2026-11-12T05:35:29.000Z",
+    "lang": "en",
+    "text": "bath temperature slider",
+    "sources": [
+      "hotscan",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "滑块",
+      "微交互",
+      "UI",
+      "hotscan"
+    ],
+    "metrics": {
+      "bookmark_count": 8,
+      "impression_count": 1996,
+      "like_count": 64,
+      "quote_count": 0,
+      "reply_count": 3,
+      "repost_count": 4
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120752319243723236/poster0.jpg",
+      "assets/2120752319243723236/img1.jpg"
+    ],
+    "poster": "assets/2120752319243723236/poster0.jpg",
+    "video": "assets/2120752319243723236/preview.mp4",
+    "preview": "assets/2120752319243723236/preview.webm",
+    "duration_s": 16,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "techartist_：「Just Right」洗澡水温滑块，推小黄鸭调温，越热背景越红冒蒸汽火星、越冷越蓝水面结冰，气泡实时显示温度",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120752319243723236"
+  },
+  {
+    "id": "2120651303156130285",
+    "url": "https://x.com/sonia_axion/status/2120651303156130285",
+    "author": "sonia_axion",
+    "author_name": "Sonia Tkachuk",
+    "created_at": "2026-11-11T22:54:05.000Z",
+    "lang": "en",
+    "text": "Can't take my eyes off this dashboard 😍",
+    "sources": [
+      "brief"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "Dashboard",
+      "看板",
+      "UI动效",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 24,
+      "impression_count": 970,
+      "like_count": 51,
+      "quote_count": 0,
+      "reply_count": 2,
+      "repost_count": 3
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120651303156130285/poster0.jpg",
+      "assets/2120651303156130285/img1.jpg"
+    ],
+    "poster": "assets/2120651303156130285/poster0.jpg",
+    "video": "assets/2120651303156130285/preview.mp4",
+    "preview": "assets/2120651303156130285/preview.webm",
+    "duration_s": 14,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "sonia_axion：Offerpost 求职跟进看板，把投递状态收成一块卡片式 Dashboard，带切换动效",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120651303156130285"
+  },
+  {
+    "id": "2120626950092083630",
+    "url": "https://x.com/techartist_/status/2120626950092083630",
+    "author": "techartist_",
+    "author_name": "Techartist",
+    "created_at": "2026-11-11T21:17:18.000Z",
+    "lang": "en",
+    "text": "I made a web app with Fable 5.2 on how supersonic flight works",
+    "sources": [
+      "brief"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "交互教学",
+      "信息设计",
+      "Fable",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 44,
+      "impression_count": 3686,
+      "like_count": 114,
+      "quote_count": 1,
+      "reply_count": 5,
+      "repost_count": 12
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120626950092083630/poster0.jpg",
+      "assets/2120626950092083630/img1.jpg"
+    ],
+    "poster": "assets/2120626950092083630/poster0.jpg",
+    "video": "assets/2120626950092083630/preview.mp4",
+    "preview": "assets/2120626950092083630/preview.webm",
+    "duration_s": 15,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "techartist_：「Breaking the Sound Barrier」交互课，拖速度条看喷气机前方声波聚成激波墙，左侧同步讲解阻力系数",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120626950092083630"
+  },
+  {
+    "id": "2120607704142037228",
+    "url": "https://x.com/rebrandgallery/status/2120607704142037228",
+    "author": "rebrandgallery",
+    "author_name": "Rebrand",
+    "created_at": "2026-11-11T20:00:50.000Z",
+    "lang": "en",
+    "text": "The Whisky Exchange Rebrand by Otherway 🦁",
+    "sources": [
+      "brief"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "视觉识别",
+      "零售",
+      "衬线",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 97,
+      "impression_count": 4043,
+      "like_count": 263,
+      "quote_count": 0,
+      "reply_count": 2,
+      "repost_count": 7
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120607704142037228/poster0.jpg",
+      "assets/2120607704142037228/img1.jpg"
+    ],
+    "poster": "assets/2120607704142037228/poster0.jpg",
+    "video": "assets/2120607704142037228/preview.mp4",
+    "preview": "assets/2120607704142037228/preview.webm",
+    "duration_s": 10,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "rebrandgallery：The Whisky Exchange 新识别（Otherway），淡紫、蜡封、衬线标题和产品摄影组成克制的烈酒零售识别，官网与货架立牌同一语言",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120607704142037228"
+  },
+  {
+    "id": "2120607242860757135",
+    "url": "https://x.com/stackedlol/status/2120607242860757135",
+    "author": "stackedlol",
+    "author_name": "stacked",
+    "created_at": "2026-11-11T19:59:00.000Z",
+    "lang": "en",
+    "text": "everyone has been loving ascii lately...",
+    "sources": [
+      "brief"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "ASCII",
+      "字符动效",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 46,
+      "impression_count": 3361,
+      "like_count": 211,
+      "quote_count": 0,
+      "reply_count": 6,
+      "repost_count": 12
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120607242860757135/poster0.jpg",
+      "assets/2120607242860757135/img1.jpg"
+    ],
+    "poster": "assets/2120607242860757135/poster0.jpg",
+    "video": "assets/2120607242860757135/preview.mp4",
+    "preview": "assets/2120607242860757135/preview.webm",
+    "duration_s": 23,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "stackedlol：ASCII 字符排成可动的星图/排版动效",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120607242860757135"
+  },
+  {
+    "id": "2120553374286594292",
+    "url": "https://x.com/jaimintf/status/2120553374286594292",
+    "author": "jaimintf",
+    "author_name": "jaimin",
+    "created_at": "2026-11-11T16:24:57.000Z",
+    "lang": "en",
+    "text": "Fable 5.2 is INSANE.\n\none-shotted this app that shows ur train seat view before you book.",
+    "sources": [
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "App",
+      "3D座位预览",
+      "Fable"
+    ],
+    "metrics": {
+      "bookmark_count": 257,
+      "impression_count": 21599,
+      "like_count": 530,
+      "quote_count": 3,
+      "reply_count": 33,
+      "repost_count": 29
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120553374286594292/poster0.jpg"
+    ],
+    "poster": "assets/2120553374286594292/poster0.jpg",
+    "video": "assets/2120553374286594292/preview.mp4",
+    "preview": "assets/2120553374286594292/preview.webm",
+    "duration_s": 11,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "jaimintf：用 Fable 5.2 一次生成的订票 App，选座前可预览火车座位视角（3D 车厢俯视/视角切换）",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120553374286594292"
+  },
+  {
     "id": "2120533831136751633",
     "url": "https://x.com/x6sense/status/2120533831136751633?a=XI7oXi9H_dt7OhrLLGM&s=20",
     "author": "x6sense",
     "author_name": "x6sense",
     "created_at": "2026-11-11T15:07:17.000Z",
     "lang": "en",
-    "text": "Why does modern design avoid taking risks? I’m noticing the same trend everywhere. Car design, colors, fashion, even movies, where we keep getting endless sequels instead of original stories. Why do you think this is happening?",
+    "text": "Why does modern design avoid taking risks?\n\nI’m noticing the same trend everywhere. Car design, colors, fashion, even movies, where we keep getting endless sequels instead of original stories.\n\nWhy do you think this is happening?",
     "sources": [
       "bookmark"
     ],
-    "category": "品牌 · 视觉趋势",
+    "category": "3D",
     "tags": [
-      "视觉参考",
-      "设计趋势",
-      "色彩"
+      "玻璃质感",
+      "光效",
+      "抽象渲染"
     ],
-    "metrics": {},
+    "metrics": {
+      "bookmark_count": 651,
+      "impression_count": 21482,
+      "like_count": 822,
+      "quote_count": 0,
+      "reply_count": 10,
+      "repost_count": 22
+    },
     "links": [],
     "code_links": [],
     "code_snippets": [],
-    "images": [],
-    "poster": null,
-    "video": null,
-    "preview": null,
+    "images": [
+      "assets/2120533831136751633/img0.jpg",
+      "assets/2120533831136751633/poster1.jpg",
+      "assets/2120533831136751633/img2.jpg",
+      "assets/2120533831136751633/poster3.jpg"
+    ],
+    "poster": "assets/2120533831136751633/poster1.jpg",
+    "video": "assets/2120533831136751633/preview.mp4",
+    "preview": "assets/2120533831136751633/preview.webm",
     "gif_local": null,
     "full_video_local": null,
-    "duration_s": null,
+    "duration_s": 9,
     "has_animation": true,
     "code_status": "needs_recreation",
     "code": null,
     "added_at": "2026-11-12T18:42:02+08:00",
-    "effect_zh": "x6sense：讨论现代设计在汽车、色彩、时尚与影视续作中的风险规避倾向；原帖附 2 张图片和 2 段视频，可作抽象色彩/图形及手机/字标画面的视觉参考，不将其视为可确认的网页交互。",
+    "effect_zh": "x6sense：「现代设计为何不冒险」配图合集——玻璃银行卡逆光、蓝色发光方块、彩色管阵、磨砂玻璃 N7 字标等 3D 光影渲染参考",
     "platform": "x",
     "license_status": "not_verified"
+  },
+  {
+    "id": "2120533299269619933",
+    "url": "https://x.com/MiladKambari/status/2120533299269619933",
+    "author": "MiladKambari",
+    "author_name": "milad_kambari",
+    "created_at": "2026-11-11T15:05:10.000Z",
+    "lang": "en",
+    "text": "AI Texturing | Blender Addon \nPrototype_01\n4K PBR texture\n\nYou can create textures for your 3D model based on a reference image without needing to write a prompt \n\n#blender\n#b3d",
+    "sources": [
+      "brief"
+    ],
+    "category": "AI工具/工作流",
+    "tags": [
+      "Blender",
+      "AI贴图",
+      "PBR",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 471,
+      "impression_count": 16108,
+      "like_count": 491,
+      "quote_count": 2,
+      "reply_count": 20,
+      "repost_count": 37
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120533299269619933/poster0.jpg",
+      "assets/2120533299269619933/img1.jpg"
+    ],
+    "poster": "assets/2120533299269619933/poster0.jpg",
+    "video": "assets/2120533299269619933/preview.mp4",
+    "preview": "assets/2120533299269619933/preview.webm",
+    "duration_s": 10,
+    "has_animation": true,
+    "code_status": "needs_recreation",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "MiladKambari：AI Texturing Blender 插件原型，用参考图直接给模型生成 4K PBR 贴图",
+    "platform": "x"
+  },
+  {
+    "id": "2120518489022595177",
+    "url": "https://x.com/brice_deg/status/2120518489022595177",
+    "author": "brice_deg",
+    "author_name": "Brice",
+    "created_at": "2026-11-11T14:06:19.000Z",
+    "lang": "en",
+    "text": "visual experiment, three.js + webgpu\nplay around:",
+    "sources": [
+      "hotscan",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "Three.js",
+      "WebGPU",
+      "TSL",
+      "hotscan"
+    ],
+    "metrics": {
+      "bookmark_count": 71,
+      "impression_count": 4707,
+      "like_count": 131,
+      "quote_count": 0,
+      "reply_count": 9,
+      "repost_count": 4
+    },
+    "links": [
+      "https://shutters.bricelab.dev"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120518489022595177/poster0.jpg",
+      "assets/2120518489022595177/img1.jpg"
+    ],
+    "poster": "assets/2120518489022595177/poster0.jpg",
+    "video": "assets/2120518489022595177/preview.mp4",
+    "preview": "assets/2120518489022595177/preview.webm",
+    "duration_s": 14,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "brice_deg：Shuttered Building，黄昏转角塔楼的钢制百叶窗跟着鼠标成片翻开，透出暖黄灯光（three.js + WebGPU + TSL 实时渲染）",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120518489022595177"
   },
   {
     "id": "2120508498236596597",
@@ -79,6 +543,99 @@
     "platform": "x"
   },
   {
+    "id": "2120452220315697559",
+    "url": "https://x.com/kfontsrc/status/2120452220315697559",
+    "author": "kfontsrc",
+    "author_name": "KPOP FONTS SOURCE",
+    "created_at": "2026-11-11T09:43:00.000Z",
+    "lang": "ko",
+    "text": "Creative Visual Direction &amp; LOGO / Graphic Design for\nNCT WISH The 4th Mini Album [I SPY]\n\nCreative Lead\n모채연\nCreative Visual Direction\n모채연, 박세형, 황현아, 유예진\nGraphic Design\n박세형, 황현아, 유예진\n\n🔗\n\n#NCTWISH #ISPY\n#NCTWISH_ISPY",
+    "sources": [
+      "brief"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "专辑视觉",
+      "标志",
+      "图形系统",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 66,
+      "impression_count": 5165,
+      "like_count": 170,
+      "quote_count": 0,
+      "reply_count": 0,
+      "repost_count": 43
+    },
+    "links": [
+      "https://instagram.com/sevro._/p/DfkMkRzmBcf/"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120452220315697559/img0.jpg",
+      "assets/2120452220315697559/img1.jpg"
+    ],
+    "poster": "assets/2120452220315697559/img0.jpg",
+    "video": null,
+    "preview": null,
+    "gif_local": null,
+    "full_video_local": null,
+    "duration_s": null,
+    "has_animation": false,
+    "code_status": "needs_recreation",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "kfontsrc：NCT WISH《I SPY》专辑视觉与标志，荧光粉底、粗描边、圆角几何把字标拆成可玩的图形零件（眼睛符号、「4」图形）",
+    "platform": "x"
+  },
+  {
+    "id": "2120411877985681812",
+    "url": "https://x.com/kevserctk/status/2120411877985681812",
+    "author": "kevserctk",
+    "author_name": "Kevser",
+    "created_at": "2026-11-11T07:02:41.000Z",
+    "lang": "tl",
+    "text": "Landing Page UI Animation",
+    "sources": [
+      "brief"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "落地页",
+      "SaaS",
+      "Hero",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 152,
+      "impression_count": 6871,
+      "like_count": 286,
+      "quote_count": 0,
+      "reply_count": 21,
+      "repost_count": 7
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120411877985681812/poster0.jpg",
+      "assets/2120411877985681812/img1.jpg"
+    ],
+    "poster": "assets/2120411877985681812/poster0.jpg",
+    "video": "assets/2120411877985681812/preview.mp4",
+    "preview": "assets/2120411877985681812/preview.webm",
+    "duration_s": 7,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "kevserctk：Altura 落地页，蓝天云层里托出现金跑道预测看板，出现与滚动动效很稳，SaaS 英雄区把复杂仪表盘做成主视觉",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120411877985681812"
+  },
+  {
     "id": "2120371661035700297",
     "url": "https://x.com/danielsantalla/status/2120371661035700297",
     "author": "danielsantalla",
@@ -122,6 +679,56 @@
     "added_at": "2026-11-11T23:07:38+08:00",
     "effect_zh": "danielsantalla：Unity 2D 卡通水面着色器，整片海只用一张贴图，在编辑器里画水流方向，浪花和焦散会绕着礁石走",
     "platform": "x"
+  },
+  {
+    "id": "2120345620116308381",
+    "url": "https://x.com/golan/status/2120345620116308381",
+    "author": "golan",
+    "author_name": "Golan Levin",
+    "created_at": "2026-11-11T02:39:24.000Z",
+    "lang": "en",
+    "text": "For anyone interested, I have ported @jamesonhodge's Chimera vocal synth to @p5xjs on @openprocessing, and have also added a puppeteering option via MediaPipe:",
+    "sources": [
+      "brief"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "p5.js",
+      "创意编程",
+      "MediaPipe",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 153,
+      "impression_count": 10713,
+      "like_count": 316,
+      "quote_count": 1,
+      "reply_count": 7,
+      "repost_count": 35
+    },
+    "links": [
+      "https://openprocessing.org/@golan/3059937",
+      "https://twitter.com/jamesonhodge/status/2118733265372860826"
+    ],
+    "code_links": [
+      "https://openprocessing.org/@golan/3059937"
+    ],
+    "code_snippets": [],
+    "images": [
+      "assets/2120345620116308381/poster0.jpg",
+      "assets/2120345620116308381/img1.jpg"
+    ],
+    "poster": "assets/2120345620116308381/poster0.jpg",
+    "video": "assets/2120345620116308381/preview.mp4",
+    "preview": "assets/2120345620116308381/preview.webm",
+    "duration_s": 4,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-12T23:00:38+08:00",
+    "effect_zh": "golan：把 Jameson Hodge 的 Chimera 浏览器人声合成器移植到 p5.js / OpenProcessing，加 MediaPipe 面部捕捉，点头张嘴带动线框头部和口型，音高/气息/颤音可调",
+    "platform": "x",
+    "cindy_job": "cindy-jobs/2120345620116308381"
   },
   {
     "id": "2120342453807157720",
