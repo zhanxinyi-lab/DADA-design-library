@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>抛起停留的硬币</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #101114;
+    --ink: #f3efe4;
+    --muted: #b7b1a4;
+    --gold: #e4c27a;
+    --gold-deep: #8a5a22;
+    --shadow: rgba(0, 0, 0, 0.55);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    min-height: 100%;
+    background:
+      radial-gradient(520px 280px at 50% 42%, rgba(228, 194, 122, 0.08), transparent 70%),
+      var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  }
+  main {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    padding: 32px 20px 40px;
+  }
+  .stage {
+    position: relative;
+    width: min(420px, 100%);
+    height: 460px;
+    perspective: 900px;
+    touch-action: none;
+  }
+  .shadow {
+    position: absolute;
+    left: 50%;
+    bottom: 78px;
+    width: 168px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--shadow);
+    filter: blur(8px);
+    transform: translateX(-50%);
+    transform-origin: center;
+  }
+  .coin {
+    position: absolute;
+    left: 50%;
+    bottom: 86px;
+    width: 176px;
+    height: 176px;
+    margin-left: -88px;
+    transform-style: preserve-3d;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    transform-style: preserve-3d;
+  }
+  .coin:focus-visible {
+    outline: 3px solid #f3efe4;
+    outline-offset: 10px;
+    border-radius: 50%;
+  }
+  .face, .slab {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+  }
+  .face {
+    display: grid;
+    place-items: center;
+    backface-visibility: hidden;
+    background:
+      radial-gradient(circle at 36% 32%, #fff4d2 0%, var(--gold) 28%, #c48a3a 62%, var(--gold-deep) 100%);
+    box-shadow: inset 0 0 0 10px rgba(255, 236, 196, 0.35), inset 0 0 0 14px rgba(90, 52, 12, 0.45);
+  }
+  .face.front { transform: translateZ(8px); }
+  .face.back {
+    transform: rotateX(180deg) translateZ(8px);
+    background:
+      radial-gradient(circle at 40% 34%, #f7e7c4 0%, #d7a85a 36%, #9a6230 100%);
+  }
+  .mark {
+    width: 54px;
+    height: 54px;
+    border: 3px solid rgba(92, 48, 12, 0.72);
+    border-radius: 50%;
+    position: relative;
+  }
+  .mark::before, .mark::after {
+    content: "";
+    position: absolute;
+    background: rgba(92, 48, 12, 0.78);
+  }
+  .mark::before {
+    left: 50%;
+    top: 16%;
+    width: 3px;
+    height: 68%;
+    transform: translateX(-50%);
+  }
+  .mark::after {
+    top: 50%;
+    left: 16%;
+    height: 3px;
+    width: 68%;
+    transform: translateY(-50%);
+  }
+  .face.back .mark { border-radius: 8px; transform: rotate(0deg); }
+  .face.back .mark::before { width: 70%; height: 3px; left: 15%; top: 50%; transform: none; }
+  .face.back .mark::after { display: none; }
+  .slab {
+    background: linear-gradient(#f0d7a0, #7a4e18 46%, #e7c98a);
+    transform: translateZ(calc(var(--z) * 1px));
+  }
+  p {
+    margin: 0;
+    max-width: 36em;
+    text-align: center;
+    line-height: 1.55;
+    color: var(--muted);
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="stage">
+    <div class="shadow" id="shadow"></div>
+    <button class="coin" id="coin" type="button" aria-describedby="hint" aria-pressed="false">
+      <span class="sr">按住抛硬币</span>
+    </button>
+  </div>
+  <p id="hint">按住抛起。上升很快，最高点靠缓动多停一会儿，方便看清币面。</p>
+</main>
+<script>
+(function () {
+  var coin = document.getElementById("coin");
+  var shadow = document.getElementById("shadow");
+  var hint = document.getElementById("hint");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var holding = false;
+  var tossing = false;
+  var landOnBack = false;
+  var shownBack = false;
+  var raf = 0;
+
+  function addFace(className) {
+    var face = document.createElement("span");
+    face.className = "face " + className;
+    var mark = document.createElement("span");
+    mark.className = "mark";
+    face.appendChild(mark);
+    coin.appendChild(face);
+  }
+  addFace("front");
+  addFace("back");
+  for (var z = -7; z <= 7; z++) {
+    var slab = document.createElement("span");
+    slab.className = "slab";
+    slab.style.setProperty("--z", String(z));
+    coin.appendChild(slab);
+  }
+
+  function height01(u) {
+    var s = Math.abs(u * 2 - 1);
+    return 1 - Math.pow(s, 2.8);
+  }
+
+  function spinDeg(u, back) {
+    var hang = 360;
+    var end = back ? 540 : 720;
+    var a = 0.34;
+    var b = 0.66;
+    if (u < a) {
+      var t = u / a;
+      var e = t * t * (3 - 2 * t);
+      return e * hang;
+    }
+    if (u > b) {
+      var t2 = (u - b) / (1 - b);
+      var e2 = t2 * t2 * (3 - 2 * t2);
+      return hang + e2 * (end - hang);
+    }
+    return hang;
+  }
+
+  function pose(y, deg) {
+    coin.style.transform = "translateY(" + (-y * 210) + "px) rotateX(" + deg + "deg)";
+    shadow.style.transform = "translateX(-50%) scale(" + (1 - y * 0.46) + "," + (1 - y * 0.2) + ")";
+    shadow.style.opacity = String(0.62 - y * 0.4);
+  }
+
+  function rest() {
+    pose(0, shownBack ? 180 : 0);
+  }
+
+  function finishToss() {
+    tossing = false;
+    shownBack = landOnBack;
+    landOnBack = !landOnBack;
+    rest();
+    if (holding && !reduce.matches) startToss();
+  }
+
+  function frame(now) {
+    var u = Math.min(1, (now - frame.t0) / 1350);
+    pose(height01(u), spinDeg(u, landOnBack));
+    if (u < 1) raf = requestAnimationFrame(frame);
+    else finishToss();
+  }
+
+  function startToss() {
+    if (tossing || reduce.matches) return;
+    tossing = true;
+    frame.t0 = performance.now();
+    raf = requestAnimationFrame(frame);
+  }
+
+  function holdStart(event) {
+    if (event.button && event.button !== 0) return;
+    holding = true;
+    coin.setAttribute("aria-pressed", "true");
+    if (reduce.matches) {
+      shownBack = !shownBack;
+      rest();
+      return;
+    }
+    startToss();
+  }
+
+  function holdEnd() {
+    holding = false;
+    coin.setAttribute("aria-pressed", "false");
+  }
+
+  coin.addEventListener("pointerdown", function (event) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    coin.setPointerCapture(event.pointerId);
+    holdStart(event);
+  });
+  coin.addEventListener("pointerup", holdEnd);
+  coin.addEventListener("pointercancel", holdEnd);
+  coin.addEventListener("keydown", function (event) {
+    if (event.repeat) return;
+    if (event.key !== " " && event.key !== "Enter") return;
+    event.preventDefault();
+    holdStart(event);
+  });
+  coin.addEventListener("keyup", function (event) {
+    if (event.key !== " " && event.key !== "Enter") return;
+    holdEnd();
+  });
+  coin.addEventListener("blur", holdEnd);
+
+  reduce.addEventListener("change", function () {
+    cancelAnimationFrame(raf);
+    tossing = false;
+    holding = false;
+    coin.setAttribute("aria-pressed", "false");
+    rest();
+    hint.textContent = reduce.matches
+      ? "已减少动态：点按切换币面，不翻滚。"
+      : "按住抛起。上升很快，最高点靠缓动多停一会儿，方便看清币面。";
+  });
+  if (reduce.matches) {
+    hint.textContent = "已减少动态：点按切换币面，不翻滚。";
+  }
+  rest();
+})();
+</script>
+</body>
+</html>
