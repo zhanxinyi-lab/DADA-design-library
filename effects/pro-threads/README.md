@@ -3,8 +3,10 @@
 - 作者：Kubai087
 - 分类：网页实验
 - 状态：has_code
-- 许可证：MIT（Copyright (c) 2026 Kubai087，全文在 code/index.html 顶部注释）
+- 许可证：MIT（Copyright (c) 2026 Kubai087）。全文核对自上游提交 1f1e885e7b79c16914bd219e9ef790c65d47d543 的 LICENSE，并写在 code/index.html 顶部注释
 - 原文：https://github.com/kubai087/pro-threads
+- 已核对上游：https://github.com/kubai087/pro-threads/commit/1f1e885e7b79c16914bd219e9ef790c65d47d543
+- LICENSE 原文：https://github.com/kubai087/pro-threads/blob/1f1e885e7b79c16914bd219e9ef790c65d47d543/LICENSE
 - 本地 fork：https://github.com/zhanxinyi-lab/pro-threads
 - 素材 ID：pro-threads
 - 版本：1.0.0

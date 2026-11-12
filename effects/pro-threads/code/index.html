@@ -27,7 +27,14 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
-    The letter geometry and full-screen shader below are from kubai087/pro-threads.
+    The letter geometry and full-screen shader below are from kubai087/pro-threads
+    commit 1f1e885e7b79c16914bd219e9ef790c65d47d543.
+    The MIT text above is that commit's LICENSE file, verbatim:
+    https://github.com/kubai087/pro-threads/blob/1f1e885e7b79c16914bd219e9ef790c65d47d543/LICENSE
+    letters.js is inlined below with the export keywords removed.
+    shader.js VERT and FRAG are inlined with three template values folded in:
+    SHEET_TEXELS = 12, uRows[4], and 2000/1293 = 1.546790.
+    The nine palette hex lists match palettes.js at that same commit.
     This preview shell (page, controls, and draw loop) is not a copy of that app.
     No Apple artwork, wallpaper, or trademark asset is included.
   -->
@@ -315,6 +322,11 @@ let lightClock = 1.2;
 let fibreClock = 0.45;
 let gl = null;
 let u = null;
+let ready = false;
+let frameId = 0;
+let lastFrame = 0;
+let building = false;
+let rebuildAgain = false;
 
 function applyPalette(name) {
   PALETTES[name].forEach((hex, i) => { state[KEYS[i]] = hex; });
@@ -382,11 +394,38 @@ function relayout() {
   placeLetters();
 }
 
+function canDraw() {
+  return ready && gl && !gl.isContextLost();
+}
+
 function draw() {
-  if (!gl || gl.isContextLost()) return;
+  if (!canDraw()) return;
   gl.uniform1f(u.uTime, lightClock);
   gl.uniform1f(u.uFibreTime, fibreClock);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+function stopLoop() {
+  if (!frameId) return;
+  cancelAnimationFrame(frameId);
+  frameId = 0;
+}
+
+function startLoop() {
+  if (paused || frameId || !canDraw()) return;
+  lastFrame = 0;
+  frameId = requestAnimationFrame(tick);
+}
+
+function tick(now) {
+  frameId = 0;
+  if (paused || !canDraw()) return;
+  const dt = lastFrame ? Math.min(0.1, (now - lastFrame) / 1000) : 0;
+  lastFrame = now;
+  lightClock += dt * state.speed;
+  fibreClock += dt * state.fibrePace;
+  draw();
+  if (!paused && canDraw() && !frameId) frameId = requestAnimationFrame(tick);
 }
 
 function resize() {
@@ -406,10 +445,7 @@ function syncPause() {
   pauseBtn.textContent = paused ? '播放' : '暂停';
 }
 
-function boot() {
-  gl = canvas.getContext('webgl2', { antialias: false, premultipliedAlpha: false, alpha: false });
-  if (!gl) { showFallback('这个浏览器没有 WebGL 2，光丝字打不开。'); return; }
-  canvas.addEventListener('webglcontextlost', (event) => event.preventDefault());
+function mountGl() {
   const program = gl.createProgram();
   gl.attachShader(program, compile(gl.VERTEX_SHADER, VERT));
   gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAG));
@@ -436,21 +472,57 @@ function boot() {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.uniform1i(u.uSheetTex, 0);
-  applyPalette('XDR Blue');
   setUniforms();
   relayout();
-  resize();
-  let last = 0;
-  const tick = (now) => {
-    requestAnimationFrame(tick);
-    const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
-    last = now;
-    if (paused) return;
-    lightClock += dt * state.speed;
-    fibreClock += dt * state.fibrePace;
-    draw();
-  };
-  requestAnimationFrame(tick);
+}
+
+function buildResources() {
+  if (!gl || gl.isContextLost()) return;
+  if (building) { rebuildAgain = true; return; }
+  building = true;
+  ready = false;
+  try {
+    mountGl();
+    ready = true;
+    resize();
+    while (rebuildAgain) {
+      rebuildAgain = false;
+      if (!gl || gl.isContextLost()) { ready = false; return; }
+      ready = false;
+      mountGl();
+      ready = true;
+      resize();
+    }
+  } finally {
+    building = false;
+  }
+}
+
+function boot() {
+  gl = canvas.getContext('webgl2', { antialias: false, premultipliedAlpha: false, alpha: false });
+  if (!gl) { showFallback('这个浏览器没有 WebGL 2，光丝字打不开。'); return; }
+  // preventDefault keeps the context restorable. Every shader, buffer and
+  // texture is invalid after the loss, so contextrestored builds them again.
+  canvas.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+    ready = false;
+    stopLoop();
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    try {
+      buildResources();
+      if (!canDraw()) throw new Error('restore');
+      fallback.hidden = true;
+      if (!paused) startLoop();
+    } catch (error) {
+      ready = false;
+      stopLoop();
+      showFallback('光丝字在这台设备上没能启动。');
+    }
+  });
+  applyPalette('XDR Blue');
+  buildResources();
+  if (!paused) startLoop();
 }
 
 try { boot(); }
@@ -460,19 +532,30 @@ wordInput.addEventListener('input', () => {
   const next = [...wordInput.value.toUpperCase()].filter((ch) => /[A-Z0 ]/.test(ch)).slice(0, 10).join('');
   if (next !== wordInput.value) wordInput.value = next;
   state.text = next || ' ';
-  if (!gl) return;
+  if (!canDraw()) return;
   try { relayout(); draw(); } catch (error) { showFallback('光丝字在这台设备上没能启动。'); }
 });
 document.getElementById('palette').addEventListener('change', (event) => {
   applyPalette(event.target.value);
-  if (!gl) return;
+  if (!canDraw()) return;
   setUniforms();
   draw();
 });
-pauseBtn.addEventListener('click', () => { paused = !paused; syncPause(); });
+pauseBtn.addEventListener('click', () => {
+  paused = !paused;
+  syncPause();
+  if (paused) stopLoop();
+  else startLoop();
+});
 syncPause();
-motionQuery.addEventListener('change', () => { paused = motionQuery.matches; syncPause(); if (gl) draw(); });
-window.addEventListener('resize', () => { if (gl) resize(); });
+motionQuery.addEventListener('change', () => {
+  paused = motionQuery.matches;
+  syncPause();
+  if (paused) stopLoop();
+  else startLoop();
+  if (canDraw()) draw();
+});
+window.addEventListener('resize', () => { if (canDraw()) resize(); });
 window.addEventListener('keydown', (event) => {
   if (event.code !== 'Space' || event.target === wordInput || event.target.tagName === 'SELECT' || event.target.tagName === 'BUTTON') return;
   event.preventDefault();
