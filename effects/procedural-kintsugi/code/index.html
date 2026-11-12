@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>程序化金缮</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0b0908; color: #f3ecdf; font: 13px/1.4 "Segoe UI", sans-serif; }
+    .stage { position: relative; height: 100vh; height: 100dvh; overflow: hidden; background: #0b0908; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+    .bar {
+      position: fixed; z-index: 2; left: 12px; right: 12px; bottom: 12px;
+      display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end;
+      padding: 10px 12px; border: 1px solid rgba(243,236,223,.16); border-radius: 14px;
+      background: rgba(8,7,6,.78);
+    }
+    label { display: grid; gap: 4px; min-width: 92px; color: #cbbfaa; font-size: 11px; }
+    select, input[type="range"] { width: 100%; accent-color: #e0aa3e; }
+    select { color: #f3ecdf; background: transparent; border: 0; }
+    input[type="color"] { width: 100%; height: 28px; padding: 0; border: 0; background: transparent; }
+    button {
+      height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(224,170,62,.55);
+      background: transparent; color: #f3ecdf; cursor: pointer;
+    }
+    button[aria-pressed="true"] { background: #e0aa3e; color: #1a140c; border-color: #e0aa3e; }
+    .credit { margin-left: auto; max-width: 280px; color: #a89b88; font-size: 11px; }
+    .credit a { color: #e0aa3e; }
+    @media (max-width: 720px) {
+      .credit { margin-left: 0; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <canvas id="view" aria-label="程序化金缮陶碗，可拖动旋转"></canvas>
+  </div>
+  <form class="bar" id="controls">
+    <label>配色
+      <select name="preset" aria-label="配色">
+        <option value="bone">骨瓷 · 金</option>
+        <option value="celadon">青瓷 · 金</option>
+        <option value="ink">墨陶 · 金</option>
+        <option value="rose">骨瓷 · 赤金</option>
+      </select>
+    </label>
+    <label>陶色 <input name="ceramic" type="color" value="#e4d0bc" aria-label="陶色"></label>
+    <label>金 <input name="gold" type="color" value="#e0aa3e" aria-label="金色"></label>
+    <label>背景 <input name="bg" type="color" value="#0b0908" aria-label="背景色"></label>
+    <label>碎块 <span id="shards-out">8</span>
+      <input name="shards" type="range" min="5" max="12" step="1" value="8" aria-label="碎块数量">
+    </label>
+    <label>缝宽 <span id="gap-out">22</span>
+      <input name="gap" type="range" min="0" max="100" step="1" value="22" aria-label="缝宽">
+    </label>
+    <button type="button" id="split" aria-pressed="false">裂开</button>
+    <button type="button" id="pause" aria-pressed="false">暂停</button>
+    <p class="credit">手法来自 xar 的程序化金缮。几何和裂纹是另行生成的。<a href="https://x.com/XAFODIAN/status/2118192702689087802">原帖</a></p>
+  </form>
+  <script>
+    const PRESETS = {
+      bone: { ceramic: "#e4d0bc", gold: "#e0aa3e", bg: "#0b0908" },
+      celadon: { ceramic: "#b7c3b4", gold: "#d4ae55", bg: "#0c0e0c" },
+      ink: { ceramic: "#6a615a", gold: "#e6c36a", bg: "#070706" },
+      rose: { ceramic: "#ead4c6", gold: "#d9846a", bg: "#110c0b" }
+    };
+    const form = document.getElementById("controls");
+    const canvas = document.getElementById("view");
+    const stage = document.getElementById("stage");
+    const reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduced = reducedQuery.matches;
+    let paused = reduced;
+    let openTarget = 0;
+    let openAmt = 0;
+    let yaw = 0.55;
+    let pitch = 0.42;
+    let dragging = false;
+    let running = false;
+    let last = 0;
+    const gl = canvas.getContext("webgl", { alpha: true, antialias: true, premultipliedAlpha: false });
+    if (!gl) {
+      stage.insertAdjacentHTML("beforeend", "<p style='position:absolute;inset:auto 16px 88px 16px'>这个浏览器打不开 WebGL，金缮画不出来。</p>");
+    }
+
+    function hexToRgb(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+    }
+    function mixHex(hex, t) {
+      const c = hexToRgb(hex);
+      const v = c.map((x) => Math.round((x + (1 - x) * t) * 255));
+      return "#" + v.map((x) => x.toString(16).padStart(2, "0")).join("");
+    }
+    function paintBg() {
+      const bg = form.elements.bg.value;
+      const glow = mixHex(bg, 0.22);
+      stage.style.background = "radial-gradient(ellipse 48% 36% at 50% 62%, " + glow + " 0%, " + bg + " 72%)";
+      document.body.style.background = bg;
+    }
+    function showReadouts() {
+      document.getElementById("shards-out").textContent = form.elements.shards.value;
+      document.getElementById("gap-out").textContent = form.elements.gap.value;
+    }
+    function gapAmount() {
+      const base = 0.006 + Number(form.elements.gap.value) / 100 * 0.045;
+      const breath = (!reduced && !paused) ? (1 + Math.sin(last * 0.0008) * 0.07) : 1;
+      return base * (1 + openAmt * 2.1) * breath;
+    }
+
+    const vs = [
+      "attribute vec3 aPos;",
+      "attribute vec3 aN;",
+      "attribute vec3 aDisp;",
+      "attribute float aMat;",
+      "attribute float aExtra;",
+      "uniform mat4 uMvp;",
+      "uniform float uGap;",
+      "uniform float uScale;",
+      "varying vec3 vN;",
+      "varying vec3 vW;",
+      "varying float vMat;",
+      "void main(){",
+      "  vec3 w = aPos + aDisp * uGap;",
+      "  vW = w; vN = aN; vMat = aMat;",
+      "  gl_Position = uMvp * vec4(w, 1.0);",
+      "  gl_PointSize = aExtra * uScale;",
+      "}"
+    ].join("\n");
+    const fs = [
+      "precision mediump float;",
+      "varying vec3 vN; varying vec3 vW; varying float vMat;",
+      "uniform vec3 uCeramic; uniform vec3 uGold; uniform vec3 uEye; uniform float uPoints;",
+      "void main(){",
+      "  if (uPoints > 0.5) {",
+      "    vec2 pc = gl_PointCoord * 2.0 - 1.0;",
+      "    float d = dot(pc, pc);",
+      "    if (d > 1.0) discard;",
+      "    float a = smoothstep(1.0, 0.2, d);",
+      "    gl_FragColor = vec4(uGold * (0.85 + 0.5 * (1.0 - d)), a * 0.92);",
+      "    return;",
+      "  }",
+      "  if (vMat > 1.5) {",
+      "    float a = smoothstep(1.22, 0.12, length(vW.xz)) * 0.42;",
+      "    gl_FragColor = vec4(0.0, 0.0, 0.0, a);",
+      "    return;",
+      "  }",
+      "  vec3 N = normalize(vN);",
+      "  vec3 V = normalize(uEye - vW);",
+      "  vec3 L1 = normalize(vec3(-0.38, 0.88, 0.28));",
+      "  vec3 L2 = normalize(vec3(0.62, 0.22, 0.55));",
+      "  float w1 = clamp(dot(N, L1) * 0.58 + 0.42, 0.0, 1.0);",
+      "  float w2 = clamp(dot(N, L2) * 0.45 + 0.55, 0.0, 1.0);",
+      "  float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0);",
+      "  float grain = fract(sin(dot(vW, vec3(19.1, 73.4, 41.7))) * 43758.5453);",
+      "  float gold = step(0.5, vMat);",
+      "  vec3 albedo = mix(uCeramic * (0.92 + 0.1 * grain), uGold * (0.82 + 0.28 * grain), gold);",
+      "  vec3 H = normalize(L1 + V);",
+      "  float spec = pow(max(dot(N, H), 0.0), mix(18.0, 72.0, gold));",
+      "  vec3 col = albedo * (0.18 + w1 * 0.74 + w2 * 0.2);",
+      "  col += spec * mix(0.07, 0.9, gold) * vec3(1.0, 0.96, 0.88);",
+      "  col += rim * mix(vec3(0.07), albedo * 0.45, gold);",
+      "  gl_FragColor = vec4(col, 1.0);",
+      "}"
+    ].join("\n");
+
+    function compile(type, src) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) || "shader");
+      return s;
+    }
+    let program, attribs, uniforms, solidBuf, dustBuf, shadowBuf, solidCount = 0, dustCount = 0, shadowCount = 0;
+    if (gl) {
+      const prog = gl.createProgram();
+      gl.attachShader(prog, compile(gl.VERTEX_SHADER, vs));
+      gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog) || "link");
+      program = prog;
+      attribs = {};
+      ["aPos", "aN", "aDisp", "aMat", "aExtra"].forEach((name) => { attribs[name] = gl.getAttribLocation(prog, name); });
+      uniforms = {};
+      ["uMvp", "uGap", "uScale", "uCeramic", "uGold", "uEye", "uPoints"].forEach((name) => { uniforms[name] = gl.getUniformLocation(prog, name); });
+      solidBuf = gl.createBuffer();
+      dustBuf = gl.createBuffer();
+      shadowBuf = gl.createBuffer();
+      gl.enable(gl.DEPTH_TEST);
+      gl.enable(gl.CULL_FACE);
+      gl.clearColor(0, 0, 0, 0);
+    }
+
+    function rand(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function profile(t) {
+      const keys = [
+        [0, 0, 0.18], [0.12, 0.02, 0.23], [0.28, 0.08, 0.52], [0.46, 0.17, 0.78],
+        [0.64, 0.27, 0.94], [0.8, 0.36, 1.0], [1, 0.46, 1.03]
+      ];
+      let i = 0;
+      while (i < keys.length - 2 && t > keys[i + 1][0]) i++;
+      const a = keys[i], b = keys[i + 1];
+      const u = Math.min(1, Math.max(0, (t - a[0]) / (b[0] - a[0] || 1)));
+      const s = u * u * (3 - 2 * u);
+      return { y: a[1] + (b[1] - a[1]) * s, r: a[2] + (b[2] - a[2]) * s };
+    }
+    function build() {
+      if (!gl) return;
+      const SEGS = 80;
+      const RINGS = 34;
+      const shardN = Number(form.elements.shards.value);
+      const P = [];
+      const tris = [];
+      const add = (x, y, z) => { P.push(x, y, z); return P.length / 3 - 1; };
+      const addRing = (y, r) => {
+        const start = P.length / 3;
+        for (let j = 0; j < SEGS; j++) {
+          const a = (j / SEGS) * Math.PI * 2;
+          add(Math.cos(a) * r, y, Math.sin(a) * r);
+        }
+        return start;
+      };
+      const band = (a, b, mode) => {
+        for (let j = 0; j < SEGS; j++) {
+          const j2 = (j + 1) % SEGS;
+          tris.push([a + j, b + j, b + j2, mode]);
+          tris.push([a + j, b + j2, a + j2, mode]);
+        }
+      };
+      const outer = [];
+      for (let i = 0; i < RINGS; i++) outer.push(addRing(profile(i / (RINGS - 1)).y, profile(i / (RINGS - 1)).r));
+      for (let i = 0; i < RINGS - 1; i++) band(outer[i], outer[i + 1], "out");
+      const foot = outer[0];
+      const footY = profile(0).y;
+      const footC = add(0, footY, 0);
+      for (let j = 0; j < SEGS; j++) tris.push([footC, foot + j, foot + ((j + 1) % SEGS), "down"]);
+
+      const innerStart = 8;
+      const inner = [];
+      for (let i = innerStart; i < RINGS; i++) {
+        const t = i / (RINGS - 1);
+        const p = profile(t);
+        const prev = profile(Math.max(0, t - 0.04));
+        const next = profile(Math.min(1, t + 0.04));
+        let nr = -(next.y - prev.y);
+        let ny = next.r - prev.r;
+        if (nr > 0) { nr = -nr; ny = -ny; }
+        const len = Math.hypot(nr, ny) || 1;
+        inner.push(addRing(p.y + (ny / len) * 0.05, Math.max(0.05, p.r + (nr / len) * 0.05)));
+      }
+      for (let i = 0; i < inner.length - 1; i++) band(inner[i], inner[i + 1], "in");
+      const floor = inner[0];
+      const floorY = P[floor * 3 + 1];
+      const floorC = add(0, floorY, 0);
+      for (let j = 0; j < SEGS; j++) tris.push([floorC, floor + j, floor + ((j + 1) % SEGS), "up"]);
+      band(outer[RINGS - 1], inner[inner.length - 1], "up");
+
+      const at = (i) => [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]];
+      const N = new Float32Array(P.length);
+      const fixed = tris.map(([i0, i1, i2, mode]) => {
+        const a = at(i0), b = at(i1), c = at(i2);
+        let nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+        let ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+        let nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        const mid = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
+        const radial = nx * mid[0] + nz * mid[2];
+        const score = mode === "out" ? radial : mode === "in" ? -radial : mode === "down" ? -ny : ny;
+        if (score < 0) { const s = i1; i1 = i2; i2 = s; nx = -nx; ny = -ny; nz = -nz; }
+        N[i0 * 3] += nx; N[i0 * 3 + 1] += ny; N[i0 * 3 + 2] += nz;
+        N[i1 * 3] += nx; N[i1 * 3 + 1] += ny; N[i1 * 3 + 2] += nz;
+        N[i2 * 3] += nx; N[i2 * 3 + 1] += ny; N[i2 * 3 + 2] += nz;
+        return [i0, i1, i2];
+      });
+      for (let i = 0; i < N.length; i += 3) {
+        const len = Math.hypot(N[i], N[i + 1], N[i + 2]) || 1;
+        N[i] /= len; N[i + 1] /= len; N[i + 2] /= len;
+      }
+
+      const rng = rand(2048 + shardN * 97);
+      const seeds = [];
+      let guard = 0;
+      while (seeds.length < shardN && guard < 4000) {
+        guard++;
+        const ang = rng() * Math.PI * 2;
+        const rad = Math.sqrt(rng()) * 0.72;
+        const y = 0.05 + rng() * 0.38;
+        const s = [Math.cos(ang) * rad, y, Math.sin(ang) * rad];
+        const minD = seeds.length > shardN - 2 ? 0.12 : 0.24;
+        if (seeds.some((o) => (o[0] - s[0]) ** 2 + (o[1] - s[1]) ** 2 + (o[2] - s[2]) ** 2 < minD * minD)) continue;
+        seeds.push(s);
+      }
+      while (seeds.length < shardN) seeds.push([rng() - 0.5, 0.2, rng() - 0.5]);
+      const dirs = seeds.map((s) => {
+        const x = s[0], y = s[1] - 0.22, z = s[2];
+        const len = Math.hypot(x, y, z) || 1;
+        return [x / len, y / len, z / len];
+      });
+      const nearest = (x, y, z) => {
+        let best = 0, bd = Infinity;
+        for (let i = 0; i < seeds.length; i++) {
+          const d = (x - seeds[i][0]) ** 2 + (y - seeds[i][1]) ** 2 + (z - seeds[i][2]) ** 2;
+          if (d < bd) { bd = d; best = i; }
+        }
+        return best;
+      };
+      const shardOf = fixed.map(([i0, i1, i2]) => {
+        const a = at(i0), b = at(i1), c = at(i2);
+        return nearest((a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3);
+      });
+      const solid = [];
+      const pushVert = (arr, x, y, z, nx, ny, nz, dx, dy, dz, mat, extra) => {
+        arr.push(x, y, z, nx, ny, nz, dx, dy, dz, mat, extra);
+      };
+      fixed.forEach(([i0, i1, i2], ti) => {
+        const d = dirs[shardOf[ti]];
+        [i0, i1, i2].forEach((i) => {
+          pushVert(solid, P[i * 3], P[i * 3 + 1], P[i * 3 + 2], N[i * 3], N[i * 3 + 1], N[i * 3 + 2], d[0], d[1], d[2], 0, 0);
+        });
+      });
+      const edges = new Map();
+      fixed.forEach(([i0, i1, i2], ti) => {
+        [[i0, i1], [i1, i2], [i2, i0]].forEach(([a, b]) => {
+          const key = a < b ? a + "|" + b : b + "|" + a;
+          const e = edges.get(key) || { a, b, shards: [] };
+          e.shards.push(shardOf[ti]);
+          edges.set(key, e);
+        });
+      });
+      const dust = [];
+      edges.forEach((e) => {
+        const uniq = new Set(e.shards);
+        if (uniq.size < 2) return;
+        const a = at(e.a), b = at(e.b);
+        let nx = N[e.a * 3] + N[e.b * 3];
+        let ny = N[e.a * 3 + 1] + N[e.b * 3 + 1];
+        let nz = N[e.a * 3 + 2] + N[e.b * 3 + 2];
+        let nlen = Math.hypot(nx, ny, nz) || 1;
+        nx /= nlen; ny /= nlen; nz /= nlen;
+        let ex = b[0] - a[0], ey = b[1] - a[1], ez = b[2] - a[2];
+        const elen = Math.hypot(ex, ey, ez) || 1;
+        ex /= elen; ey /= elen; ez /= elen;
+        let lx = ny * ez - nz * ey, ly = nz * ex - nx * ez, lz = nx * ey - ny * ex;
+        const llen = Math.hypot(lx, ly, lz) || 1;
+        lx /= llen; ly /= llen; lz /= llen;
+        const lift = 0.005, base = 0.0032, widen = 0.78;
+        const corners = [-1, 1].map((s) => [0, 1].map((t) => {
+          const p = t ? b : a;
+          return [
+            p[0] + nx * lift + lx * base * s,
+            p[1] + ny * lift + ly * base * s,
+            p[2] + nz * lift + lz * base * s,
+            lx * widen * s, ly * widen * s, lz * widen * s
+          ];
+        }));
+        const aL = corners[0][0], aR = corners[1][0], bL = corners[0][1], bR = corners[1][1];
+        [aL, aR, bR, aL, bR, bL].forEach((p) => pushVert(solid, p[0], p[1], p[2], nx, ny, nz, p[3], p[4], p[5], 1, 0));
+        if (rng() < 0.55) {
+          const j = (rng() - 0.5) * 0.03;
+          const mx = (a[0] + b[0]) / 2 + lx * j + nx * 0.014;
+          const my = (a[1] + b[1]) / 2 + ly * j + ny * 0.014;
+          const mz = (a[2] + b[2]) / 2 + lz * j + nz * 0.014;
+          pushVert(dust, mx, my, mz, nx, ny, nz, 0, 0, 0, 1, 0.55 + rng() * 1.15);
+        }
+      });
+      const shadow = [];
+      const seg = 48;
+      const sc = [0, -0.012, 0];
+      for (let j = 0; j < seg; j++) {
+        const a0 = (j / seg) * Math.PI * 2;
+        const a1 = ((j + 1) / seg) * Math.PI * 2;
+        const ring = (a) => [Math.cos(a) * 1.18, -0.012, Math.sin(a) * 1.18];
+        [sc, ring(a0), ring(a1)].forEach((p) => pushVert(shadow, p[0], p[1], p[2], 0, 1, 0, 0, 0, 0, 2, 0));
+      }
+      const upload = (buf, arr) => {
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.STATIC_DRAW);
+      };
+      upload(solidBuf, solid);
+      upload(dustBuf, dust);
+      upload(shadowBuf, shadow);
+      solidCount = solid.length / 11;
+      dustCount = dust.length / 11;
+      shadowCount = shadow.length / 11;
+    }
+
+    const mvp = new Float32Array(16);
+    const view = new Float32Array(16);
+    const proj = new Float32Array(16);
+    function perspective(fovy, aspect, near, far) {
+      const f = 1 / Math.tan(fovy / 2);
+      const nf = 1 / (near - far);
+      proj.set([
+        f / aspect, 0, 0, 0,
+        0, f, 0, 0,
+        0, 0, (far + near) * nf, -1,
+        0, 0, 2 * far * near * nf, 0
+      ]);
+    }
+    function lookAt(eye, target) {
+      let fx = target[0] - eye[0], fy = target[1] - eye[1], fz = target[2] - eye[2];
+      let len = Math.hypot(fx, fy, fz) || 1;
+      fx /= len; fy /= len; fz /= len;
+      let sx = -fz, sy = 0, sz = fx;
+      len = Math.hypot(sx, sy, sz) || 1;
+      sx /= len; sy /= len; sz /= len;
+      const ux = sy * fz - sz * fy, uy = sz * fx - sx * fz, uz = sx * fy - sy * fx;
+      view.set([
+        sx, ux, -fx, 0,
+        sy, uy, -fy, 0,
+        sz, uz, -fz, 0,
+        -(sx * eye[0] + sy * eye[1] + sz * eye[2]),
+        -(ux * eye[0] + uy * eye[1] + uz * eye[2]),
+        fx * eye[0] + fy * eye[1] + fz * eye[2],
+        1
+      ]);
+    }
+    function mul(a, b, out) {
+      for (let c = 0; c < 4; c++) {
+        for (let r = 0; r < 4; r++) {
+          out[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+        }
+      }
+    }
+    function bindMesh(buf) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      const stride = 11 * 4;
+      const ptr = (name, size, offset) => {
+        gl.enableVertexAttribArray(attribs[name]);
+        gl.vertexAttribPointer(attribs[name], size, gl.FLOAT, false, stride, offset);
+      };
+      ptr("aPos", 3, 0);
+      ptr("aN", 3, 12);
+      ptr("aDisp", 3, 24);
+      ptr("aMat", 1, 36);
+      ptr("aExtra", 1, 40);
+    }
+    function resize() {
+      if (!gl) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+      const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    function render(now) {
+      if (!gl) return;
+      const dt = Math.min(0.05, last ? (now - last) / 1000 : 0);
+      last = now;
+      if (!reduced && !paused && !dragging) yaw += dt * 0.18;
+      openAmt += (openTarget - openAmt) * Math.min(1, dt * 2.4);
+      resize();
+      const aspect = canvas.width / Math.max(1, canvas.height);
+      const fovy = Math.PI / 5.2;
+      perspective(fovy, aspect, 0.08, 40);
+      const fill = aspect < 1 ? 0.86 : 0.62;
+      const dist = Math.max(3.2, 1.15 / (Math.tan(fovy / 2) * aspect * fill));
+      const cp = Math.cos(pitch), sp = Math.sin(pitch);
+      const eye = [Math.sin(yaw) * cp * dist, 0.2 + sp * dist, Math.cos(yaw) * cp * dist];
+      const target = [0, 0.2, 0];
+      lookAt(eye, target);
+      mul(proj, view, mvp);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.useProgram(program);
+      gl.uniformMatrix4fv(uniforms.uMvp, false, mvp);
+      gl.uniform1f(uniforms.uGap, gapAmount());
+      gl.uniform1f(uniforms.uScale, Math.max(1, canvas.height / 110));
+      gl.uniform3fv(uniforms.uCeramic, hexToRgb(form.elements.ceramic.value));
+      gl.uniform3fv(uniforms.uGold, hexToRgb(form.elements.gold.value));
+      gl.uniform3fv(uniforms.uEye, eye);
+      gl.disable(gl.BLEND);
+      gl.depthMask(true);
+      gl.uniform1f(uniforms.uPoints, 0);
+      bindMesh(solidBuf);
+      gl.drawArrays(gl.TRIANGLES, 0, solidCount);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      bindMesh(shadowBuf);
+      gl.drawArrays(gl.TRIANGLES, 0, shadowCount);
+      gl.uniform1f(uniforms.uPoints, 1);
+      bindMesh(dustBuf);
+      gl.drawArrays(gl.POINTS, 0, dustCount);
+      gl.depthMask(true);
+      const moving = (!reduced && !paused) || dragging || Math.abs(openTarget - openAmt) > 0.004;
+      if (moving) requestAnimationFrame(render);
+      else running = false;
+    }
+    function kick() {
+      if (!running) {
+        running = true;
+        requestAnimationFrame(render);
+      }
+    }
+
+    form.elements.preset.addEventListener("change", () => {
+      const p = PRESETS[form.elements.preset.value];
+      if (!p) return;
+      form.elements.ceramic.value = p.ceramic;
+      form.elements.gold.value = p.gold;
+      form.elements.bg.value = p.bg;
+      paintBg();
+      kick();
+    });
+    form.addEventListener("input", () => {
+      showReadouts();
+      paintBg();
+      if (document.activeElement === form.elements.shards) build();
+      kick();
+    });
+    document.getElementById("split").addEventListener("click", () => {
+      openTarget = openTarget > 0.5 ? 0 : 1;
+      const btn = document.getElementById("split");
+      btn.setAttribute("aria-pressed", openTarget > 0.5 ? "true" : "false");
+      btn.textContent = openTarget > 0.5 ? "合拢" : "裂开";
+      kick();
+    });
+    document.getElementById("pause").addEventListener("click", () => {
+      paused = !paused;
+      const btn = document.getElementById("pause");
+      btn.setAttribute("aria-pressed", paused ? "true" : "false");
+      btn.textContent = paused ? "继续" : "暂停";
+      kick();
+    });
+    reducedQuery.addEventListener("change", () => {
+      reduced = reducedQuery.matches;
+      if (reduced) paused = true;
+      kick();
+    });
+    canvas.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      canvas.setPointerCapture(e.pointerId);
+      canvas.dataset.x = e.clientX;
+      canvas.dataset.y = e.clientY;
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const x = Number(canvas.dataset.x), y = Number(canvas.dataset.y);
+      yaw += (e.clientX - x) * 0.008;
+      pitch = Math.min(1.15, Math.max(0.18, pitch + (e.clientY - y) * 0.005));
+      canvas.dataset.x = e.clientX;
+      canvas.dataset.y = e.clientY;
+      kick();
+    });
+    const endDrag = () => { dragging = false; kick(); };
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", endDrag);
+    window.addEventListener("resize", kick);
+    if (reduced) {
+      document.getElementById("pause").setAttribute("aria-pressed", "true");
+      document.getElementById("pause").textContent = "继续";
+    }
+    showReadouts();
+    paintBg();
+    build();
+    kick();
+  </script>
+</body>
+</html>
