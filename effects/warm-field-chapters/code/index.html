@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>暖场章节</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #252328;
+      --cream: #efe2cb;
+      --peach: #f1b496;
+      --coral: #ea6e76;
+      --red: #de3448;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body {
+      background: #111014;
+      color: var(--ink);
+      font-family: "Arial Black", "Microsoft YaHei", "PingFang SC", sans-serif;
+    }
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      height: 100svh;
+      overflow: hidden;
+      background: var(--ink);
+    }
+    .wash, .panel, .rail, .block, .word, .caption, .end {
+      position: absolute;
+    }
+    .wash { inset: 0; }
+    .panel {
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0;
+      overflow: hidden;
+    }
+    .rail { top: 0; right: 0; bottom: 0; width: 0; }
+    .block { display: none; }
+    .word {
+      margin: 0;
+      font-weight: 900;
+      line-height: .84;
+      letter-spacing: -.06em;
+      white-space: nowrap;
+      display: none;
+    }
+    .caption {
+      margin: 0;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-weight: 650;
+      font-size: clamp(.85rem, 1.6vw, 1.05rem);
+      letter-spacing: .14em;
+      display: none;
+    }
+    .end {
+      display: none;
+      left: 8%;
+      top: 18%;
+      width: min(46%, 28rem);
+      color: var(--ink);
+    }
+    .end p, .end ol { margin: 0; }
+    .kicker {
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-weight: 700;
+      letter-spacing: .22em;
+      font-size: .82rem;
+    }
+    .end ol {
+      margin-top: 1.1rem;
+      padding: 0;
+      list-style: none;
+      font-size: clamp(1.6rem, 4vw, 3rem);
+      line-height: 1.25;
+      font-weight: 900;
+    }
+    .end li + li { margin-top: .35rem; }
+    .next {
+      position: absolute;
+      right: 1rem;
+      bottom: 1rem;
+      z-index: 2;
+      border: 0;
+      background: var(--ink);
+      color: var(--cream);
+      font: 700 .95rem/1 "Segoe UI", "Microsoft YaHei", sans-serif;
+      padding: .7rem 1rem;
+      cursor: pointer;
+      display: none;
+    }
+    .next:focus-visible { outline: 3px solid var(--red); outline-offset: 3px; }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .next { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" id="stage">
+    <p class="sr" id="live">自拟章节开场。炭黑开场，暖色从左侧推入，随后硬切，大字停留。不使用原片文案。</p>
+    <div class="wash" id="wash"></div>
+    <div class="block" id="b0"></div>
+    <div class="block" id="b1"></div>
+    <div class="block" id="b2"></div>
+    <div class="block" id="b3"></div>
+    <div class="panel" id="panel">
+      <p class="word" id="panelWord"></p>
+      <p class="caption" id="panelCap"></p>
+    </div>
+    <div class="rail" id="rail"></div>
+    <p class="word" id="word"></p>
+    <p class="caption" id="caption"></p>
+    <section class="end" id="end">
+      <p class="kicker">章节</p>
+      <ol>
+        <li>版式先站定</li>
+        <li>色块再切开</li>
+        <li>大字负责停留</li>
+      </ol>
+    </section>
+    <button class="next" id="next" type="button">下一镜</button>
+  </main>
+  <script>
+    const INK = '#252328';
+    const CREAM = '#efe2cb';
+    const PEACH = '#f1b496';
+    const CORAL = '#ea6e76';
+    const RED = '#de3448';
+    const LOOP = 13.64;
+    const STILLS = [1.15, 3.15, 4.7, 5.85, 6.5, 7.1, 8.8, 12.2];
+
+    const wash = document.getElementById('wash');
+    const panel = document.getElementById('panel');
+    const panelWord = document.getElementById('panelWord');
+    const panelCap = document.getElementById('panelCap');
+    const rail = document.getElementById('rail');
+    const word = document.getElementById('word');
+    const caption = document.getElementById('caption');
+    const end = document.getElementById('end');
+    const live = document.getElementById('live');
+    const next = document.getElementById('next');
+    const blocks = [0, 1, 2, 3].map((i) => document.getElementById('b' + i));
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+    const ease = (u) => (u < .5 ? 2 * u * u : 1 - ((-2 * u + 2) ** 2) / 2);
+
+    function layout(t) {
+      const u = ((t % LOOP) + LOOP) % LOOP;
+      const s = {
+        wash: INK,
+        panelW: 0,
+        panel: CREAM,
+        inPanel: '',
+        inCap: '',
+        railW: 0,
+        rail: RED,
+        blocks: [],
+        word: '',
+        wordColor: INK,
+        wordSize: 'min(22vw, 20vh)',
+        wordTop: '36%',
+        wordLeft: '8%',
+        caption: '',
+        capColor: INK,
+        capTop: '72%',
+        capLeft: '8%',
+        end: false,
+        label: '炭黑开场',
+      };
+
+      if (u < 4.2) {
+        const stem = clamp01((u - 0.18) / 0.85);
+        s.blocks.push({ left: '36%', top: '16%', w: '2.6%', h: (6 + stem * 24) + '%', color: CREAM });
+        if (u > 1.0) {
+          const k = clamp01((u - 1.0) / 0.32);
+          s.blocks.push({ left: '29%', top: '24%', w: (k * 18) + '%', h: '7.5%', color: CORAL });
+          s.blocks.push({ left: '41%', top: '34%', w: (k * 10) + '%', h: '5%', color: CREAM });
+        }
+        s.label = '炭黑开场';
+      }
+
+      if (u >= 1.9 && u < 4.2) {
+        s.panelW = ease(clamp01((u - 1.9) / 2.15)) * 100;
+        if (s.panelW > 24) s.inPanel = '开场';
+        if (s.panelW > 48) s.inCap = '01   章节';
+        s.label = '暖色面板推入';
+      }
+
+      if (u >= 4.2 && u < 5.6) {
+        s.wash = CREAM;
+        s.railW = 9;
+        s.blocks.push({ left: '8%', top: '16%', w: '48%', h: '62%', color: PEACH });
+        s.word = '场域';
+        s.wordColor = RED;
+        s.wordSize = 'min(26vw, 22vh)';
+        s.caption = '色块铺开';
+        s.capColor = INK;
+        s.label = '暖色铺满';
+      }
+
+      if (u >= 5.6 && u < 6.2) {
+        s.wash = INK;
+        s.panelW = 64;
+        s.inPanel = '切开';
+        s.railW = 16;
+        s.rail = CORAL;
+        s.label = '左亮右暗';
+      }
+
+      if (u >= 6.2 && u < 6.9) {
+        s.wash = RED;
+        s.blocks.push({ left: '14%', top: '16%', w: '20%', h: '68%', color: INK });
+        s.word = '色块';
+        s.wordColor = CREAM;
+        s.wordLeft = '42%';
+        s.wordTop = '34%';
+        s.label = '红色硬切';
+      }
+
+      if (u >= 6.9 && u < 7.4) {
+        s.wash = PEACH;
+        s.railW = 14;
+        s.rail = INK;
+        s.word = '转场';
+        s.wordColor = INK;
+        s.wordSize = 'min(24vw, 20vh)';
+        s.label = '桃色硬切';
+      }
+
+      if (u >= 7.4 && u < 10.24) {
+        s.wash = CREAM;
+        s.blocks.push({ left: '0', top: '0', w: '16%', h: '100%', color: CORAL });
+        s.railW = 3.5;
+        s.word = 'FORM';
+        s.wordColor = INK;
+        s.wordLeft = '20%';
+        s.wordTop = '30%';
+        s.wordSize = 'min(20vw, 24vh)';
+        s.caption = '大字停留';
+        s.capLeft = '20%';
+        s.capColor = RED;
+        s.label = '大字停留';
+      }
+
+      if (u >= 10.24) {
+        s.wash = CREAM;
+        s.end = true;
+        s.blocks.push({ left: '62%', top: '16%', w: '26%', h: '22%', color: CORAL });
+        s.blocks.push({ left: '62%', top: '42%', w: '26%', h: '7%', color: RED });
+        s.blocks.push({ left: '62%', top: '54%', w: '12%', h: '24%', color: INK });
+        s.label = '结尾停留';
+      }
+      return s;
+    }
+
+    let lastLabel = '';
+    function paint(t) {
+      const s = layout(t);
+      wash.style.background = s.wash;
+      panel.style.width = s.panelW + '%';
+      panel.style.background = s.panel;
+      setText(panelWord, s.inPanel, { color: INK, left: '8%', top: '34%', fontSize: 'min(22vw, 20vh)' });
+      setText(panelCap, s.inCap, { color: INK, left: '8%', top: '68%', fontSize: '' });
+      rail.style.width = s.railW + '%';
+      rail.style.background = s.rail;
+      blocks.forEach((el, i) => {
+        const b = s.blocks[i];
+        if (!b) { el.style.display = 'none'; return; }
+        el.style.display = 'block';
+        el.style.left = b.left;
+        el.style.top = b.top;
+        el.style.width = b.w;
+        el.style.height = b.h;
+        el.style.background = b.color;
+      });
+      setText(word, s.word, {
+        color: s.wordColor, left: s.wordLeft, top: s.wordTop, fontSize: s.wordSize,
+      });
+      setText(caption, s.caption, { color: s.capColor, left: s.capLeft, top: s.capTop, fontSize: '' });
+      end.style.display = s.end ? 'block' : 'none';
+      if (s.label !== lastLabel) {
+        lastLabel = s.label;
+        live.textContent = s.label;
+      }
+    }
+
+    function setText(el, text, style) {
+      el.textContent = text;
+      el.style.display = text ? 'block' : 'none';
+      el.style.color = style.color;
+      el.style.left = style.left;
+      el.style.top = style.top;
+      if (style.fontSize) el.style.fontSize = style.fontSize;
+    }
+
+    if (reduce) {
+      let step = STILLS.length - 1;
+      const show = () => paint(STILLS[step]);
+      next.style.display = 'block';
+      next.addEventListener('click', () => {
+        step = (step + 1) % STILLS.length;
+        show();
+      });
+      show();
+    } else {
+      let start = performance.now();
+      let pausedAt = 0;
+      let raf = 0;
+      const tick = (now) => {
+        paint(pausedAt || (now - start) / 1000);
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          pausedAt = pausedAt || (performance.now() - start) / 1000;
+          cancelAnimationFrame(raf);
+        } else if (pausedAt) {
+          start = performance.now() - pausedAt * 1000;
+          pausedAt = 0;
+          raf = requestAnimationFrame(tick);
+        }
+      });
+    }
+  </script>
+</body>
+</html>
