@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>宣纸墨书 · 火龙踏色</title>
+  <style>
+    :root {
+      --desk: #1a1411;
+      --ink: #1c1916;
+      --hint: rgba(28, 25, 22, .72);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--desk);
+      color: var(--ink);
+      font-family: "Songti SC", "STSong", "SimSun", serif;
+    }
+    #stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      outline: none;
+      touch-action: none;
+    }
+    #stage:focus-visible {
+      outline: 2px solid #9c3418;
+      outline-offset: -6px;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .hint {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 14px;
+      z-index: 2;
+      margin: 0;
+      color: var(--hint);
+      font-size: 13px;
+      line-height: 1.5;
+      letter-spacing: .04em;
+      text-align: center;
+      pointer-events: none;
+      text-shadow: 0 1px 0 rgba(255, 248, 236, .45);
+    }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <main id="stage" tabindex="0" role="application" aria-label="宣纸上的火龙" aria-describedby="help">
+    <canvas id="view"></canvas>
+    <p class="hint" id="help">移动指针引导火龙，走过的墨会绽成水彩。停住并按住，或按住空格，火会烧穿纸面。方向键也能引导。</p>
+    <p class="sr" id="poem"></p>
+  </main>
+  <script>
+    const SCROLL = {
+      seal: "冷纸",
+      columns: ["松烟新磨", "冷纸成行", "踏过字脚", "字边开花"],
+      paper: "#efe4cf",
+      fiber: "rgba(92, 64, 36, 0.045)",
+      ink: "#1c1916",
+      sealColor: "#a62d24",
+      body: "#243044",
+      belly: "#3c4c5c",
+      mane: "#c4372a",
+      horn: "#d7c4a1",
+      fire: ["#fff1c4", "#ffb04a", "#e15a22"],
+      wash: ["#e07a3d", "#3d7ea6", "#c9a15b", "#6e9a62", "#c45b78"]
+    };
+
+    (() => {
+      const stage = document.getElementById("stage");
+      const view = document.getElementById("view");
+      const poem = document.getElementById("poem");
+      poem.textContent = SCROLL.columns.join("，") + "。印章：" + SCROLL.seal + "。";
+      const viewCtx = view.getContext("2d");
+      const paper = document.createElement("canvas");
+      const ink = document.createElement("canvas");
+      const sheet = document.createElement("canvas");
+      const inkFx = document.createElement("canvas");
+      const paperCtx = paper.getContext("2d");
+      const inkCtx = ink.getContext("2d");
+      const sheetCtx = sheet.getContext("2d");
+      const inkFxCtx = inkFx.getContext("2d");
+      const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+      const spine = Array.from({ length: 26 }, () => ({ x: 0, y: 0 }));
+      const blooms = [];
+      const burns = [];
+      const flames = [];
+      const ash = [];
+      const target = { x: 0, y: 0 };
+      let width = 0;
+      let height = 0;
+      let dpr = 1;
+      let reduced = motionQuery.matches;
+      let frameId = 0;
+      let lastTime = 0;
+      let pointerPressed = false;
+      let keyFire = false;
+      let placed = false;
+      let walkCarry = 0;
+      let footSide = 1;
+      let prevHead = { x: 0, y: 0 };
+      let holdStill = 0;
+      let burnClock = 0;
+      let washCursor = 0;
+      let running = false;
+
+      function rand(seed) {
+        let t = seed + 0x6d2b79f5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      }
+
+      function resize() {
+        const rect = stage.getBoundingClientRect();
+        width = Math.max(1, rect.width);
+        height = Math.max(1, rect.height);
+        dpr = Math.min(2, window.devicePixelRatio || 1);
+        for (const canvas of [view, paper, ink, sheet, inkFx]) {
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(height * dpr);
+        }
+        for (const ctx of [viewCtx, paperCtx, inkCtx, sheetCtx, inkFxCtx]) {
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        paintPaper();
+        paintInk();
+        if (!placed) {
+          const x = width * 0.22;
+          const y = height * 0.58;
+          target.x = x;
+          target.y = y;
+          for (let i = 0; i < spine.length; i += 1) {
+            spine[i].x = x - i * segment();
+            spine[i].y = y;
+          }
+          prevHead.x = x;
+          prevHead.y = y;
+        }
+        draw(0);
+      }
+
+      function segment() {
+        return Math.max(11, Math.min(width, height) * 0.016);
+      }
+
+      function paintPaper() {
+        paperCtx.clearRect(0, 0, width, height);
+        paperCtx.fillStyle = SCROLL.paper;
+        paperCtx.fillRect(0, 0, width, height);
+        for (let i = 0; i < 1800; i += 1) {
+          const n = rand(i + 11);
+          const m = rand(i + 911);
+          paperCtx.fillStyle = SCROLL.fiber;
+          paperCtx.fillRect(n * width, m * height, 0.6 + rand(i) * 2.2, 0.4 + rand(i + 3) * 0.8);
+        }
+        paperCtx.strokeStyle = "rgba(120, 86, 48, 0.05)";
+        paperCtx.lineWidth = 1;
+        for (let i = 0; i < 7; i += 1) {
+          const y = height * (0.12 + i * 0.12);
+          paperCtx.beginPath();
+          paperCtx.moveTo(0, y);
+          paperCtx.bezierCurveTo(width * 0.3, y + 6, width * 0.7, y - 5, width, y + 2);
+          paperCtx.stroke();
+        }
+        const shade = paperCtx.createLinearGradient(0, 0, 0, height);
+        shade.addColorStop(0, "rgba(90, 58, 28, 0.05)");
+        shade.addColorStop(0.5, "rgba(255, 248, 236, 0)");
+        shade.addColorStop(1, "rgba(70, 42, 24, 0.08)");
+        paperCtx.fillStyle = shade;
+        paperCtx.fillRect(0, 0, width, height);
+      }
+
+      function paintInk() {
+        inkCtx.clearRect(0, 0, width, height);
+        const columns = SCROLL.columns;
+        const fontSize = Math.max(22, Math.min(42, width / 18, height / 16));
+        const gap = fontSize * 1.15;
+        const blockWidth = columns.length * gap;
+        const startX = width * 0.72 - blockWidth / 2;
+        const startY = height * 0.16;
+        inkCtx.fillStyle = SCROLL.ink;
+        inkCtx.textAlign = "center";
+        inkCtx.textBaseline = "top";
+        inkCtx.font = fontSize + "px Songti SC, STSong, SimSun, serif";
+        columns.forEach((column, index) => {
+          const x = startX + (columns.length - 1 - index) * gap;
+          for (let i = 0; i < column.length; i += 1) {
+            const y = startY + i * fontSize * 1.18;
+            inkCtx.save();
+            inkCtx.translate(x, y);
+            inkCtx.rotate((rand(index * 20 + i) - 0.5) * 0.06);
+            inkCtx.globalAlpha = 0.78 + rand(index * 7 + i) * 0.22;
+            inkCtx.fillText(column[i], 0, 0);
+            inkCtx.restore();
+          }
+        });
+        const sealSize = fontSize * 1.7;
+        const sealX = startX + gap * 0.2;
+        const sealY = startY + SCROLL.columns[0].length * fontSize * 1.18 + fontSize * 0.8;
+        inkCtx.save();
+        inkCtx.translate(sealX, sealY);
+        inkCtx.rotate(-0.08);
+        inkCtx.fillStyle = SCROLL.sealColor;
+        inkCtx.globalAlpha = 0.88;
+        inkCtx.fillRect(0, 0, sealSize, sealSize);
+        inkCtx.strokeStyle = "rgba(255, 236, 220, 0.35)";
+        inkCtx.lineWidth = 2;
+        inkCtx.strokeRect(4, 4, sealSize - 8, sealSize - 8);
+        inkCtx.fillStyle = "#f6efe4";
+        inkCtx.globalAlpha = 0.95;
+        inkCtx.font = (sealSize * 0.34) + "px Songti SC, STSong, SimSun, serif";
+        inkCtx.textAlign = "center";
+        inkCtx.textBaseline = "middle";
+        inkCtx.fillText(SCROLL.seal[0] || "冷", sealSize / 2, sealSize * 0.36);
+        inkCtx.fillText(SCROLL.seal[1] || "纸", sealSize / 2, sealSize * 0.68);
+        inkCtx.restore();
+      }
+
+      function pointTarget(event) {
+        const rect = stage.getBoundingClientRect();
+        target.x = Math.min(width - 24, Math.max(24, event.clientX - rect.left));
+        target.y = Math.min(height - 24, Math.max(24, event.clientY - rect.top));
+        placed = true;
+      }
+
+      function heading() {
+        const a = spine[0];
+        const b = spine[Math.min(4, spine.length - 1)];
+        let x = a.x - b.x;
+        let y = a.y - b.y;
+        const m = Math.hypot(x, y) || 1;
+        return { x: x / m, y: y / m };
+      }
+
+      function normals() {
+        return spine.map((point, index) => {
+          const prev = spine[Math.max(0, index - 1)];
+          const next = spine[Math.min(spine.length - 1, index + 1)];
+          let x = next.x - prev.x;
+          let y = next.y - prev.y;
+          const m = Math.hypot(x, y) || 1;
+          return { x: -y / m, y: x / m };
+        });
+      }
+
+      function addBloom(x, y, scale) {
+        blooms.push({
+          x: x,
+          y: y,
+          start: 16,
+          end: (reduced ? 74 : 68) * scale,
+          age: reduced ? 999 : 0,
+          color: SCROLL.wash[washCursor % SCROLL.wash.length]
+        });
+        washCursor += 1;
+        if (blooms.length > 110) blooms.shift();
+      }
+
+      function addBurn(x, y) {
+        const near = burns.find((burn) => Math.hypot(burn.x - x, burn.y - y) < 28);
+        if (near) {
+          near.r = Math.min(near.r + 7, 78);
+          return;
+        }
+        burns.push({ x: x, y: y, r: 28 });
+        if (burns.length > 36) burns.shift();
+      }
+
+      function stepDragon(dt) {
+        const head = spine[0];
+        const follow = reduced ? 1 : 1 - Math.pow(0.012, dt / 16);
+        head.x += (target.x - head.x) * follow;
+        head.y += (target.y - head.y) * follow;
+        const seg = segment();
+        for (let i = 1; i < spine.length; i += 1) {
+          const prev = spine[i - 1];
+          const cur = spine[i];
+          let dx = cur.x - prev.x;
+          let dy = cur.y - prev.y;
+          const dist = Math.hypot(dx, dy) || 0.001;
+          cur.x = prev.x + (dx / dist) * seg;
+          cur.y = prev.y + (dy / dist) * seg;
+        }
+        const moved = Math.hypot(head.x - prevHead.x, head.y - prevHead.y);
+        const speed = moved / Math.max(dt, 1) * 16;
+        if (moved > 0.35) {
+          walkCarry += moved;
+          const stride = Math.max(22, seg * 1.5);
+          if (walkCarry >= stride) {
+            walkCarry = 0;
+            footSide *= -1;
+            const norms = normals();
+            const hip = spine[8];
+            const n = norms[8];
+            addBloom(head.x, head.y, 1.15);
+            addBloom(hip.x + n.x * footSide * 18, hip.y + n.y * footSide * 18, 1);
+          }
+        }
+        const holding = pointerPressed || keyFire;
+        if (holding && speed < 1.15) holdStill += dt;
+        else holdStill = 0;
+        if (holdStill > 120) {
+          burnClock += dt;
+          const face = heading();
+          const mouthX = head.x + face.x * 36;
+          const mouthY = head.y + face.y * 28;
+          if (!reduced && flames.length < 70) {
+            for (let i = 0; i < 2; i += 1) {
+              const spread = (Math.random() - 0.5) * 0.55;
+              const px = face.x * Math.cos(spread) - face.y * Math.sin(spread);
+              const py = face.x * Math.sin(spread) + face.y * Math.cos(spread);
+              const power = 180 + Math.random() * 160;
+              flames.push({
+                x: mouthX,
+                y: mouthY,
+                vx: px * power,
+                vy: py * power,
+                life: 0,
+                max: 420 + Math.random() * 180,
+                size: 7 + Math.random() * 8
+              });
+            }
+          }
+          if (burnClock > (reduced ? 160 : 70)) {
+            burnClock = 0;
+            addBurn(mouthX + face.x * 52, mouthY + face.y * 40);
+            if (ash.length < 40) {
+              ash.push({
+                x: mouthX + face.x * 40,
+                y: mouthY + face.y * 30,
+                vx: (Math.random() - 0.5) * 18,
+                vy: -20 - Math.random() * 24,
+                life: 0
+              });
+            }
+          }
+        }
+        prevHead.x = head.x;
+        prevHead.y = head.y;
+      }
+
+      function updateFx(dt) {
+        for (const bloom of blooms) bloom.age += dt;
+        for (let i = flames.length - 1; i >= 0; i -= 1) {
+          const flame = flames[i];
+          flame.life += dt;
+          flame.x += flame.vx * dt / 1000;
+          flame.y += flame.vy * dt / 1000;
+          flame.vy += 18 * dt / 1000;
+          if (flame.life > flame.max) flames.splice(i, 1);
+        }
+        for (let i = ash.length - 1; i >= 0; i -= 1) {
+          const bit = ash[i];
+          bit.life += dt;
+          bit.x += bit.vx * dt / 1000;
+          bit.y += bit.vy * dt / 1000;
+          if (bit.life > 900) ash.splice(i, 1);
+        }
+      }
+
+      function drawBloomMask(ctx, erase) {
+        for (const bloom of blooms) {
+          const t = reduced ? 1 : Math.min(1, bloom.age / 520);
+          const radius = bloom.start + (bloom.end - bloom.start) * t;
+          const alpha = erase ? 0.95 * t : 0.72 * t;
+          const fill = ctx.createRadialGradient(bloom.x, bloom.y, radius * 0.1, bloom.x, bloom.y, radius);
+          if (erase) {
+            fill.addColorStop(0, "rgba(0,0,0," + alpha + ")");
+            fill.addColorStop(1, "rgba(0,0,0,0)");
+          } else {
+            fill.addColorStop(0, hexAlpha(bloom.color, alpha));
+            fill.addColorStop(0.55, hexAlpha(bloom.color, alpha * 0.45));
+            fill.addColorStop(1, hexAlpha(bloom.color, 0));
+          }
+          ctx.fillStyle = fill;
+          ctx.beginPath();
+          ctx.arc(bloom.x, bloom.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function hexAlpha(hex, alpha) {
+        const value = hex.replace("#", "");
+        const r = parseInt(value.slice(0, 2), 16);
+        const g = parseInt(value.slice(2, 4), 16);
+        const b = parseInt(value.slice(4, 6), 16);
+        return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+      }
+
+      function drawSheet() {
+        inkFxCtx.clearRect(0, 0, width, height);
+        inkFxCtx.drawImage(ink, 0, 0, ink.width / dpr, ink.height / dpr);
+        inkFxCtx.globalCompositeOperation = "destination-out";
+        drawBloomMask(inkFxCtx, true);
+        inkFxCtx.globalCompositeOperation = "source-over";
+
+        sheetCtx.clearRect(0, 0, width, height);
+        sheetCtx.drawImage(paper, 0, 0, paper.width / dpr, paper.height / dpr);
+        drawBloomMask(sheetCtx, false);
+        sheetCtx.drawImage(inkFx, 0, 0, inkFx.width / dpr, inkFx.height / dpr);
+        for (const burn of burns) {
+          sheetCtx.fillStyle = "rgba(42, 24, 16, 0.78)";
+          sheetCtx.beginPath();
+          sheetCtx.arc(burn.x, burn.y, burn.r, 0, Math.PI * 2);
+          sheetCtx.fill();
+          sheetCtx.strokeStyle = "rgba(28, 16, 12, 0.9)";
+          sheetCtx.lineWidth = 3;
+          sheetCtx.beginPath();
+          sheetCtx.arc(burn.x, burn.y, burn.r * 0.92, 0.2, 1.4);
+          sheetCtx.stroke();
+        }
+        sheetCtx.globalCompositeOperation = "destination-out";
+        for (const burn of burns) {
+          sheetCtx.fillStyle = "#000";
+          sheetCtx.beginPath();
+          sheetCtx.arc(burn.x, burn.y, burn.r * 0.68, 0, Math.PI * 2);
+          sheetCtx.fill();
+        }
+        sheetCtx.globalCompositeOperation = "source-over";
+      }
+
+      function drawLeg(ctx, joint, normal, side, phase, reach) {
+        const hipX = joint.x + normal.x * side * 8;
+        const hipY = joint.y + normal.y * side * 8;
+        const lift = Math.sin(phase * Math.PI * 2);
+        const footX = hipX + normal.x * side * 20 + lift * reach;
+        const footY = hipY + normal.y * side * 18 + 16 - Math.max(0, lift) * 10;
+        const kneeX = (hipX + footX) / 2 + normal.x * side * 8;
+        const kneeY = (hipY + footY) / 2 - 8;
+        ctx.strokeStyle = SCROLL.body;
+        ctx.lineWidth = 3.2;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(hipX, hipY);
+        ctx.lineTo(kneeX, kneeY);
+        ctx.lineTo(footX, footY);
+        ctx.stroke();
+        ctx.lineWidth = 1.4;
+        for (let toe = -1; toe <= 1; toe += 1) {
+          ctx.beginPath();
+          ctx.moveTo(footX, footY);
+          ctx.lineTo(footX + normal.x * side * 7 + toe * 3, footY + 6);
+          ctx.stroke();
+        }
+      }
+
+      function drawDragon(ctx) {
+        const norms = normals();
+        const face = heading();
+        const head = spine[0];
+        ctx.save();
+        ctx.translate(head.x - face.x * 10, head.y + 16);
+        ctx.scale(1, 0.32);
+        ctx.fillStyle = "rgba(48, 32, 20, 0.16)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 86, 28, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        const phase = walkCarry / 34;
+        drawLeg(ctx, spine[7], norms[7], -1, phase, 7);
+        drawLeg(ctx, spine[14], norms[14], -1, phase + 0.5, 6);
+
+        ctx.beginPath();
+        for (let i = 0; i < spine.length; i += 1) {
+          const widthAt = i === 0 ? 15 : Math.max(2.2, 13 * (1 - i / (spine.length - 1)));
+          const x = spine[i].x + norms[i].x * widthAt;
+          const y = spine[i].y + norms[i].y * widthAt;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        for (let i = spine.length - 1; i >= 0; i -= 1) {
+          const widthAt = i === 0 ? 15 : Math.max(2.2, 13 * (1 - i / (spine.length - 1)));
+          ctx.lineTo(spine[i].x - norms[i].x * widthAt, spine[i].y - norms[i].y * widthAt);
+        }
+        ctx.closePath();
+        ctx.fillStyle = SCROLL.body;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(10, 12, 16, 0.45)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.strokeStyle = SCROLL.belly;
+        ctx.globalAlpha = 0.85;
+        for (let i = 3; i < spine.length - 2; i += 2) {
+          ctx.beginPath();
+          ctx.arc(spine[i].x - norms[i].x * 2, spine[i].y - norms[i].y * 2, 4.5, 0.2, 2.4);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
+        drawLeg(ctx, spine[7], norms[7], 1, phase + 0.35, 7);
+        drawLeg(ctx, spine[14], norms[14], 1, phase + 0.85, 6);
+
+        ctx.strokeStyle = SCROLL.mane;
+        ctx.lineWidth = 2.4;
+        for (let i = 1; i < 8; i += 1) {
+          const base = spine[i];
+          const n = norms[i];
+          ctx.beginPath();
+          ctx.moveTo(base.x, base.y);
+          ctx.quadraticCurveTo(
+            base.x + n.x * 10 - face.x * 8,
+            base.y + n.y * 10 - face.y * 8,
+            base.x + n.x * 18 - face.x * 4,
+            base.y + n.y * 18 - face.y * 4
+          );
+          ctx.stroke();
+        }
+
+        ctx.save();
+        ctx.translate(head.x, head.y);
+        ctx.rotate(Math.atan2(face.y, face.x));
+        ctx.fillStyle = SCROLL.body;
+        ctx.beginPath();
+        ctx.ellipse(8, 0, 24, 13, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(24, -6);
+        ctx.lineTo(40, -2);
+        ctx.lineTo(40, 5);
+        ctx.lineTo(22, 8);
+        ctx.fill();
+        ctx.fillStyle = SCROLL.horn;
+        ctx.beginPath();
+        ctx.moveTo(2, -10);
+        ctx.quadraticCurveTo(-8, -28, -16, -20);
+        ctx.quadraticCurveTo(-6, -16, 4, -8);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(6, -8);
+        ctx.quadraticCurveTo(2, -24, -8, -18);
+        ctx.quadraticCurveTo(0, -12, 8, -6);
+        ctx.fill();
+        ctx.strokeStyle = SCROLL.horn;
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(28, -4);
+        ctx.quadraticCurveTo(48, -16, 58, -6);
+        ctx.moveTo(28, 3);
+        ctx.quadraticCurveTo(50, 14, 60, 5);
+        ctx.stroke();
+        ctx.fillStyle = "#f4efe4";
+        ctx.beginPath();
+        ctx.ellipse(16, -4, 3.3, 2.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a120e";
+        ctx.beginPath();
+        ctx.ellipse(17, -4, 1.1, 2.1, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (holdStill > 120) {
+          ctx.fillStyle = SCROLL.fire[1];
+          ctx.globalAlpha = 0.9;
+          ctx.beginPath();
+          ctx.ellipse(38, 4, 6, 3.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        ctx.restore();
+      }
+
+      function drawFire(ctx) {
+        for (const flame of flames) {
+          const t = 1 - flame.life / flame.max;
+          ctx.fillStyle = SCROLL.fire[flame.life < flame.max * 0.35 ? 0 : flame.life < flame.max * 0.7 ? 1 : 2];
+          ctx.globalAlpha = Math.max(0, t) * 0.8;
+          ctx.beginPath();
+          ctx.arc(flame.x, flame.y, flame.size * (0.45 + t), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "rgba(68, 60, 54, 0.7)";
+        for (const bit of ash) {
+          ctx.globalAlpha = 1 - bit.life / 900;
+          ctx.fillRect(bit.x, bit.y, 2.2, 2.2);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function draw() {
+        drawSheet();
+        viewCtx.clearRect(0, 0, width, height);
+        viewCtx.drawImage(sheet, 0, 0, sheet.width / dpr, sheet.height / dpr);
+        drawDragon(viewCtx);
+        drawFire(viewCtx);
+      }
+
+      function settled() {
+        const head = spine[0];
+        const near = Math.hypot(head.x - target.x, head.y - target.y) < 0.8;
+        const liveBloom = !reduced && blooms.some((bloom) => bloom.age < 700);
+        return near && !pointerPressed && !keyFire && flames.length === 0 && ash.length === 0 && !liveBloom;
+      }
+
+      function frame(now) {
+        const dt = Math.min(34, now - lastTime || 16);
+        lastTime = now;
+        stepDragon(dt);
+        updateFx(dt);
+        draw();
+        if (settled()) {
+          running = false;
+          frameId = 0;
+          return;
+        }
+        frameId = requestAnimationFrame(frame);
+      }
+
+      function start() {
+        if (running) return;
+        running = true;
+        lastTime = 0;
+        frameId = requestAnimationFrame(frame);
+      }
+
+      stage.addEventListener("pointerdown", (event) => {
+        stage.focus({ preventScroll: true });
+        if (stage.setPointerCapture) stage.setPointerCapture(event.pointerId);
+        pointerPressed = true;
+        pointTarget(event);
+        start();
+      });
+      stage.addEventListener("pointermove", (event) => {
+        if (event.pointerType === "touch" && !pointerPressed) return;
+        pointTarget(event);
+        start();
+      });
+      function release(event) {
+        pointerPressed = false;
+        if (event.pointerId !== undefined && stage.hasPointerCapture && stage.hasPointerCapture(event.pointerId)) {
+          stage.releasePointerCapture(event.pointerId);
+        }
+        start();
+      }
+      stage.addEventListener("pointerup", release);
+      stage.addEventListener("pointercancel", release);
+      stage.addEventListener("lostpointercapture", () => {
+        pointerPressed = false;
+      });
+      stage.addEventListener("keydown", (event) => {
+        const step = 28;
+        let used = true;
+        if (event.key === "ArrowLeft") target.x -= step;
+        else if (event.key === "ArrowRight") target.x += step;
+        else if (event.key === "ArrowUp") target.y -= step;
+        else if (event.key === "ArrowDown") target.y += step;
+        else if (event.key === " " || event.key === "Enter") keyFire = true;
+        else used = false;
+        if (!used) return;
+        event.preventDefault();
+        target.x = Math.min(width - 24, Math.max(24, target.x));
+        target.y = Math.min(height - 24, Math.max(24, target.y));
+        placed = true;
+        start();
+      });
+      stage.addEventListener("keyup", (event) => {
+        if (event.key === " " || event.key === "Enter") {
+          keyFire = false;
+          start();
+        }
+      });
+      stage.addEventListener("blur", () => {
+        keyFire = false;
+        pointerPressed = false;
+      });
+      motionQuery.addEventListener("change", () => {
+        reduced = motionQuery.matches;
+        start();
+      });
+      window.addEventListener("resize", resize);
+      resize();
+    })();
+  </script>
+</body>
+</html>
