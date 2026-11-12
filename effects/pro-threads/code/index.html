@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>光丝字</title>
+  <!--
+    MIT License
+
+    Copyright (c) 2026 Kubai087
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+    The letter geometry and full-screen shader below are from kubai087/pro-threads
+    commit 1f1e885e7b79c16914bd219e9ef790c65d47d543.
+    The MIT text above is that commit's LICENSE file, verbatim:
+    https://github.com/kubai087/pro-threads/blob/1f1e885e7b79c16914bd219e9ef790c65d47d543/LICENSE
+    letters.js is inlined below with the export keywords removed.
+    shader.js VERT and FRAG are inlined with three template values folded in:
+    SHEET_TEXELS = 12, uRows[4], and 2000/1293 = 1.546790.
+    The nine palette hex lists match palettes.js at that same commit.
+    This preview shell (page, controls, and draw loop) is not a copy of that app.
+    No Apple artwork, wallpaper, or trademark asset is included.
+  -->
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; background: #000; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .bar {
+      position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 2;
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      max-width: 720px; margin: 0 auto; padding: 8px;
+      border: 1px solid rgba(255,255,255,.38); border-radius: 10px;
+      background: rgba(0,0,0,.72); color: #f4f7fb;
+      font: 14px/1.3 ui-sans-serif, system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .bar label { display: flex; gap: 6px; align-items: center; }
+    .name { letter-spacing: .12em; color: #d5deea; }
+    input, select, button {
+      font: inherit; color: #f4f7fb; background: #12161c;
+      border: 1px solid rgba(255,255,255,.45); border-radius: 6px; padding: 6px 8px;
+    }
+    input { width: 8.5em; text-transform: uppercase; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #ffad66; outline-offset: 2px; }
+    #fallback {
+      position: fixed; inset: 0; display: grid; place-items: center; padding: 24px;
+      background: radial-gradient(circle at 50% 40%, #243044, #07080b 62%);
+      color: #f4f7fb; text-align: center;
+    }
+    #fallback[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <canvas id="wall" aria-label="由光丝织成的字母"></canvas>
+  <p id="fallback" hidden>这个浏览器没有 WebGL 2，光丝字打不开。</p>
+  <div class="bar">
+    <span class="name">光丝字</span>
+    <label>文字 <input id="word" value="PRO" maxlength="10" autocomplete="off" spellcheck="false" aria-label="最多十个字母"></label>
+    <label>配色
+      <select id="palette" aria-label="配色">
+        <option value="XDR Blue">冷蓝</option>
+        <option value="Graphite">石墨</option>
+        <option value="Ember">余烬</option>
+        <option value="Chroma">彩光</option>
+        <option value="Violet">紫罗兰</option>
+        <option value="Ocean">海洋</option>
+        <option value="Aurora">极光</option>
+        <option value="Rose Gold">玫瑰金</option>
+        <option value="Paper">纸色</option>
+      </select>
+    </label>
+    <button type="button" id="pause" aria-pressed="false">暂停</button>
+  </div>
+  <script>
+/*
+ * The letters: each is a few sheets of threads, and pack() lays rows of
+ * them out for the shader. Shapes are measured off the original, 2000 x
+ * 1293, in its pixels; every letter keeps its cell, 657 x 1293.
+ */
+
+const ASPECT = 2000 / 1293;
+const PX = 1 / 1293;
+const CELL = 657 * PX;
+
+const SLIT = 6.5 * PX;              // half the slit's width
+const S = SLIT / CELL;              // the same, as a fraction of the cell
+const SWEEP_R = 32 * PX;            // a sweep's corner on its outer side
+const DOME = 80 * PX;               // a dome's big outer corner
+const FOOT = 56 * PX;               // a foot's wide corner by the slit
+const FOOT_TIP = 44 * PX;           // how far a foot's outer side flares out
+const WEDGE = 110 * PX;             // how deep a wedge cuts in from the outer side
+
+const MAX_LETTERS = 10;      // in a typed word
+const MAX_CELLS = 32;        // across all rows
+const MAX_ROWS = 4;
+const MAX_SHEETS = 4;
+const MAX_FIBRES = 4;               // coloured threads per letter
+const SHEET_TEXELS = MAX_SHEETS * 3;
+const TEXELS = SHEET_TEXELS + MAX_FIBRES * 3;
+const ALPHABET = ['ABCDEFGHI', 'JKLMNOPQR', 'STUVWXYZ'];
+
+// How an end bends a sheet: the sideways travel at its left and right
+// edges, and how tall the bend is. An edge is inner when it runs along a
+// slit and outer when it is the letter's own side.
+//   arch   inner edges lean over the slit, outer corners round off
+//   dome   the same with a much bigger outer corner
+//   taper  the same again, drawn in far enough to point the letter
+//   sweep  the sheet leans toward its slit, flaring into a tip there
+//   wedge  a sweep whose outer side also cuts deep in toward the tip, so
+//          two of them meeting make a < (K's arms)
+//   foot   the sheet leans away from its slit: a wide round corner by the
+//          slit, and the outer side flaring out into a thin tip that
+//          runs on under the next letter (R's leg)
+//   round  both corners round off
+//   flat   no bend
+function bend(mode, innerL, innerR, shape) {
+  const R = shape.corner * PX;
+  const ARCH = shape.arch * PX;
+  const TIP = shape.tip * PX;
+  if (mode === 'arch') return { d: [innerL ? -ARCH : R, innerR ? ARCH : -R], h: 48 * PX };
+  if (mode === 'dome') return { d: [innerL ? -ARCH : DOME, innerR ? ARCH : -DOME], h: 120 * PX };
+  if (mode === 'taper') return { d: [innerL ? -ARCH : 2 * DOME, innerR ? ARCH : -2 * DOME], h: 330 * PX };
+  if (mode === 'sweep' && innerL && !innerR) return { d: [-TIP, -SWEEP_R], h: 46 * PX };
+  if (mode === 'sweep' && innerR && !innerL) return { d: [SWEEP_R, TIP], h: 46 * PX };
+  if (mode === 'wedge' && innerL && !innerR) return { d: [-TIP, -WEDGE], h: 220 * PX };
+  if (mode === 'wedge' && innerR && !innerL) return { d: [WEDGE, TIP], h: 220 * PX };
+  if (mode === 'foot' && innerL && !innerR) return { d: [FOOT, FOOT_TIP], h: 42 * PX };
+  if (mode === 'foot' && innerR && !innerL) return { d: [-FOOT_TIP, -FOOT], h: 42 * PX };
+  if (mode === 'flat') return { d: [0, 0], h: 1 };
+  return { d: [R, -R], h: 36 * PX };
+}
+
+// A letter is a list of sheets [columns, top, bottom, top end, bottom
+// end, options]. Columns are L or R (the halves either side of a slit
+// down the middle), F (the full width) or [from, to] as fractions of the
+// cell, slits included. A sheet starting at the letter's left edge
+// without spanning it is dim, like the original's left halves; the rest
+// are lit (`lit` says otherwise). `restart` starts the light again at
+// the sheet's top and `glow` warms it where it ends.
+//
+// P, R and O are measured off the original, down to its few coloured
+// threads. Each is one glowing fibre, sampled along its length: blue-white
+// or sky blue above, then white-hot, cream, yellow, amber, orange and red
+// where it warms, fading out where it ends. An accent is [across the
+// cell, top, bottom, how blue it is above, where it starts and stops
+// warming (none: 2), and whether it cools back to white after warming
+// instead of ending, as on R]. Other letters get a few of their own,
+// picked from the letter.
+const T = 2 / 1293;
+const B = 1291 / 1293;
+const stem = ['L', T, B, 'arch', 'sweep'];
+const third = [[0, 1 / 3 - S], [1 / 3 + S, 2 / 3 - S], [2 / 3 + S, 1]];
+const again = { restart: true };
+const glow = { glow: true };
+const both = { restart: true, glow: true };
+const LETTERS = {
+  A: [['L', T, 0.6, 'arch', 'sweep'], ['R', T, 0.6, 'arch', 'sweep'], [[0, 0.36], 0.6, B, 'round', 'round', again], [[0.64, 1], 0.6, B, 'round', 'round', again]],
+  B: [stem, ['R', T, 0.47, 'arch', 'sweep'], ['R', 0.53, B, 'sweep', 'sweep', both]],
+  C: [stem, ['R', T, 0.3, 'arch', 'sweep', glow], ['R', 0.7, B, 'sweep', 'sweep', both]],
+  D: [stem, ['R', T, B, 'dome', 'dome', glow]],
+  E: [stem, ['R', T, 0.28, 'arch', 'sweep', glow], ['R', 0.42, 0.58, 'sweep', 'sweep', both], ['R', 0.72, B, 'sweep', 'sweep', both]],
+  F: [stem, ['R', T, 0.28, 'arch', 'sweep', glow], ['R', 0.42, 0.58, 'sweep', 'sweep', both]],
+  G: [stem, ['R', T, 0.28, 'arch', 'sweep', glow], ['R', 0.48, B, 'sweep', 'sweep', both]],
+  H: [['L', T, 0.5, 'round', 'sweep'], ['R', T, 0.5, 'round', 'sweep'], ['L', 0.5, B, 'sweep', 'round', again], ['R', 0.5, B, 'sweep', 'round', again]],
+  I: [[[0.24, 0.76], T, B, 'round', 'round']],
+  J: [['R', T, B, 'round', 'sweep', glow], ['L', 0.62, B, 'round', 'sweep', { restart: true, lit: true }]],
+  K: [['L', T, B, 'round', 'sweep'], ['R', T, 0.5, 'round', 'wedge'], ['R', 0.5, B, 'wedge', 'foot', both]],
+  L: [stem, ['R', 0.72, B, 'sweep', 'sweep', both]],
+  M: [[third[0], T, B, 'arch', 'round'], [third[1], T, B, 'arch', 'round'], [third[2], T, B, 'arch', 'round']],
+  N: [['L', T, B, 'arch', 'round'], ['R', T, B, 'arch', 'round', glow]],
+  O: [stem, ['R', T, B, 'arch', 'sweep', glow]],
+  P: [stem, ['R', T, 968 / 1293, 'arch', 'sweep', glow]],
+  Q: [stem, ['R', T, 0.8, 'arch', 'sweep'], ['R', 0.8, B, 'sweep', 'foot', both]],
+  R: [stem, ['R', T, 645 / 1293, 'arch', 'sweep'], ['R', 645 / 1293, B, 'sweep', 'foot', both]],
+  S: [['L', T, 0.52, 'arch', 'sweep'], ['R', T, 0.32, 'arch', 'sweep', glow], ['R', 0.4, B, 'sweep', 'sweep', both], ['L', 0.6, B, 'sweep', 'sweep', again]],
+  T: [['F', T, 0.27, 'round', 'round'], [[0.3, 0.7], 0.31, B, 'round', 'round', again]],
+  U: [['L', T, B, 'round', 'arch'], ['R', T, B, 'round', 'arch', glow]],
+  V: [['L', T, B, 'round', 'taper'], ['R', T, B, 'round', 'taper', glow]],
+  W: [[third[0], T, B, 'round', 'arch'], [third[1], T, B, 'round', 'arch'], [third[2], T, B, 'round', 'arch', glow]],
+  X: [['L', T, 0.5, 'round', 'wedge'], ['R', T, 0.5, 'round', 'wedge'], ['L', 0.5, B, 'wedge', 'round', again], ['R', 0.5, B, 'wedge', 'round', again]],
+  Y: [['L', T, 0.5, 'round', 'sweep'], ['R', T, 0.5, 'round', 'sweep'], [[0.28, 0.72], 0.5, B, 'round', 'round', again]],
+  Z: [['R', T, 0.52, 'arch', 'sweep'], ['L', T, 0.32, 'arch', 'sweep'], ['L', 0.4, B, 'sweep', 'sweep', again], ['R', 0.6, B, 'sweep', 'sweep', both]],
+  0: [['L', T, B, 'arch', 'arch'], ['R', T, B, 'arch', 'arch', glow]],
+};
+const ACCENTS = {
+  P: [[0.067, 0.04, 0.96, 1, 0.62, 0.93, 0], [0.941, 0.08, 0.66, 0, 0.3, 0.61, 0]],
+  R: [[0.848, 0.04, 0.99, 0.2, 0.56, 0.84, 1]],
+  O: [
+    [0.157, 0.05, 0.97, 0.8, 0.52, 0.93, 0], [0.6, 0.05, 0.88, 0.1, 0.47, 0.83, 0],
+    [0.956, 0.06, 0.99, 0.9, 0.62, 0.95, 0], [0.93, 0.12, 0.56, 1, 2, 2, 0],
+  ],
+};
+const FALLBACK = LETTERS.O;
+
+// A small seeded generator, so a letter's own accents stay put between visits.
+function seeded(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function accentsFor(ch) {
+  if (ACCENTS[ch]) return ACCENTS[ch];
+  const rand = seeded(ch.codePointAt(0) * 2654435761);
+  return Array.from({ length: 2 }, () => {
+    const top = 0.03 + rand() * 0.25;
+    const bottom = Math.min(0.98, top + 0.5 + rand() * 0.4);
+    const from = top + (bottom - top) * (0.35 + rand() * 0.3);
+    return [0.05 + rand() * 0.9, top, bottom, rand(), from, from + (bottom - from) * (0.75 + rand() * 0.25), rand() < 0.2 ? 1 : 0];
+  });
+}
+
+// Packs rows of letters for the shader, each row centred under the
+// widest. Everything goes in one texture, a row of texels per letter, in
+// the letter row's own frame (a letter tall). Three texels per sheet:
+//   0: left edge, right edge, top, bottom
+//   1: sideways travel at the top (left edge, right edge), then at the bottom
+//   2: how tall the bend is at the top and bottom, flags (1 lit, 2 light
+//      starts again, 4 glows warm where it ends)
+// then three per coloured thread: [x, top, bottom, how blue], [warms
+// from, to, cools again] and [the letter's left and right edges, a seed].
+// An unused sheet or thread starts at x = 1000. Rows are [shift across,
+// first letter, letter count]. `shape` sizes the corners, arches and tips
+// and the gaps between letters and rows, in the original's pixels.
+function pack(lines, shape) {
+  const gap = shape.gap * PX;
+  const rowsOf = lines.slice(0, MAX_ROWS).map((line) => [...line.toUpperCase()]);
+  const data = new Float32Array(MAX_CELLS * TEXELS * 4).fill(0);
+  const rows = new Float32Array(MAX_ROWS * 4);
+  const widthOf = (n) => n * CELL + Math.max(0, n - 1) * gap;
+  const width = Math.max(...rowsOf.map((r) => widthOf(r.length)));
+  const columns = { L: [0, 0.5 - S], R: [0.5 + S, 1], F: [0, 1] };
+  let cell = 0;
+  rowsOf.forEach((chars, row) => {
+    rows.set([(width - widthOf(chars.length)) / 2, cell, chars.length, 0], row * 4);
+    chars.forEach((ch, i) => {
+      if (cell >= MAX_CELLS) return;
+      const x0 = i * (CELL + gap);
+      const at = cell++;
+      const texel = (k) => (at * TEXELS + k) * 4;
+      for (let k = 0; k < MAX_SHEETS; k++) data[texel(k * 3)] = 1e3;
+      for (let k = 0; k < MAX_FIBRES; k++) data[texel(SHEET_TEXELS + k * 3)] = 1e3;
+      if (ch === ' ') return;
+      (LETTERS[ch] || FALLBACK).slice(0, MAX_SHEETS).forEach(([cols, top, bottom, topEnd, bottomEnd, opt = {}], k) => {
+        const [a, b] = typeof cols === 'string' ? columns[cols] : cols;
+        const innerL = a > 0.001;
+        const innerR = b < 0.999;
+        const t = bend(topEnd, innerL, innerR, shape);
+        const e = bend(bottomEnd, innerL, innerR, shape);
+        const lit = opt.lit ?? (innerL || !innerR);
+        const flags = (lit ? 1 : 0) + (opt.restart ? 2 : 0) + (opt.glow ? 4 : 0);
+        data.set([
+          x0 + a * CELL, x0 + b * CELL, top, bottom,
+          ...t.d, ...e.d,
+          t.h, e.h, flags, 0,
+        ], texel(k * 3));
+      });
+      accentsFor(ch).slice(0, MAX_FIBRES).forEach(([ax, top, bottom, blue, from, to, cools], k) => {
+        data.set([
+          x0 + ax * CELL, top, bottom, blue,
+          from, to, cools, 0,
+          x0, x0 + CELL, at * 7.3 + k * 1.91, 0,
+        ], texel(SHEET_TEXELS + k * 3));
+      });
+    });
+  });
+  const rowPitch = 1 + shape.rowGap;
+  const height = rowsOf.length + (rowsOf.length - 1) * shape.rowGap;
+  return { data, rows, nRows: rowsOf.length, width, height, rowPitch };
+}
+
+const VERT = "#version 300 es\n  in vec2 aPos;\n  uniform vec4 uTile;         // the part of the stage drawn: offset, size\n  out vec2 vUv;\n  void main() {\n    vUv = uTile.xy + vec2(aPos.x * 0.5 + 0.5, 0.5 - aPos.y * 0.5) * uTile.zw;\n    gl_Position = vec4(aPos, 0.0, 1.0);\n  }";
+const FRAG = "#version 300 es\n  precision highp float;\n  const int SHEET_TEXELS = 12;\n  uniform highp sampler2D uSheetTex;\n  uniform vec4 uRows[4];\n  uniform int uRowCount;\n  uniform float uRowPitch;\n  uniform float uAspect;      // the stage, width over height\n  uniform vec4 uFrame;        // where the letters sit on it: offset, scale across and down\n  uniform float uCell;\n  uniform float uGap;\n  uniform vec2 uPx;           // one pixel, in the letters' frame: across, down\n  uniform float uTime;        // the light's clock\n  uniform float uFibreTime;   // the coloured threads' clock\n  uniform float uDensity;\n  uniform float uWarm;\n  uniform float uGain;\n  uniform vec4 uShape;        // how far the light falls (dim, lit), the floors it settles to\n  uniform vec2 uEnd;          // how far and how strongly it rises above an end\n  uniform vec4 uFall;         // how sharply it falls (dim, lit), reach below a seam, long threads\n  uniform vec4 uMotion;       // breathing, swell, thread texture, rim\n  uniform float uSparkle;     // the scattered coloured threads\n  uniform vec3 uRamp[5];      // black through navy and steel blue to silver white\n  uniform vec3 uGlow;         // where the light ends\n  uniform vec3 uFibreCool;    // a coloured fibre above where it warms\n  uniform vec3 uFibreWarm[3]; // and as it warms: light, mid, deep\n  uniform vec3 uBg;\n  in vec2 vUv;\n  out vec4 outColor;\n\n  float hash(float n) { return fract(sin(n * 12.9898) * 43758.5453); }\n  float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\n\n  // Smooth 1D and 2D value noise.\n  float vn(float x) {\n    float i = floor(x);\n    float f = fract(x);\n    f = f * f * (3.0 - 2.0 * f);\n    return mix(hash(i), hash(i + 1.0), f);\n  }\n  float vn2(vec2 p) {\n    vec2 i = floor(p);\n    vec2 f = fract(p);\n    f = f * f * (3.0 - 2.0 * f);\n    return mix(mix(hash2(i), hash2(i + vec2(1.0, 0.0)), f.x),\n               mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0, 1.0)), f.x), f.y);\n  }\n\n  vec3 ramp(float v) {\n    // Highlights roll off softly instead of clipping, so threads stay\n    // apart even where the light is brightest.\n    v = max(v, 0.0);\n    if (v > 0.7) v = 0.7 + 0.3 * (1.0 - exp(-(v - 0.7) / 0.3));\n    if (v \u003c 0.25) return mix(uRamp[0], uRamp[1], v / 0.25);\n    if (v \u003c 0.5) return mix(uRamp[1], uRamp[2], (v - 0.25) / 0.25);\n    if (v \u003c 0.75) return mix(uRamp[2], uRamp[3], (v - 0.5) / 0.25);\n    return mix(uRamp[3], uRamp[4], (v - 0.75) / 0.25);\n  }\n\n  // 1 at the end (t = 0), 0 once t reaches 1. A thread offset by it runs\n  // straight, then turns to lie flat along the end. Unlike a quarter\n  // circle, which starts bending all at once, it eases into the turn (its\n  // curvature grows from nothing), so corners read soft, as in the\n  // original.\n  float bendAt(float t) {\n    float s = 1.0 - clamp(t, 0.0, 1.0);\n    return 1.0 - sqrt(max(0.0, 1.0 - pow(s, 2.6)));\n  }\n\n  // The thread through (x, y) on a sheet: psi = left + (x - left - off) / scale.\n  vec2 thread(vec4 a, vec4 b, vec4 c, float x, float y) {\n    float bt = bendAt((y - a.z) / c.x);\n    float bb = bendAt((a.w - y) / c.y);\n    float off = b.x * bt + b.z * bb;\n    float scale = 1.0 + ((b.y - b.x) * bt + (b.w - b.z) * bb) / (a.y - a.x);\n    return vec2(a.x + (x - a.x - off) / scale, scale);\n  }\n\n  // One thread's brightness at u: its own level, with a soft edge where it\n  // meets the next, as fine strands of light do.\n  float strand(float at) {\n    float id = floor(at);\n    float h0 = hash(id * 1.37 + 3.1);\n    float h1 = hash((id + 1.0) * 1.37 + 3.1);\n    return mix(h0 * h0, h1 * h1, smoothstep(0.62, 1.0, fract(at)));\n  }\n\n  // A fibre warming up: white-hot, then the palette's light, mid and deep\n  // warm colours, darkening at the very end. With the original's colours\n  // (cream, amber, red) it runs as sampled off it: cream, yellow, amber,\n  // orange, red, dark red.\n  vec3 warmth(float s) {\n    s = clamp(s, 0.0, 1.0);\n    if (s \u003c 0.18) return mix(vec3(0.98, 0.98, 0.95), uFibreWarm[0], s / 0.18);\n    if (s \u003c 0.5) return mix(uFibreWarm[0], uFibreWarm[1], (s - 0.18) / 0.32);\n    if (s \u003c 0.85) return mix(uFibreWarm[1], uFibreWarm[2], (s - 0.5) / 0.35);\n    return mix(uFibreWarm[2], uFibreWarm[2] * 0.66, (s - 0.85) / 0.15);\n  }\n\n  // The colour of thread psi on sheet a ([left, right] x [top, bottom]).\n  // dpsi: how much psi one pixel covers. steep: how flat the thread lies\n  // here (its run across per unit down). edge: how far the pixel is from\n  // the sheet's nearer side.\n  vec3 shade(float psi, float dpsi, float steep, float edge, vec4 a, int flags, float y, float cap, int letter) {\n    float side = (flags & 1) != 0 ? 1.0 : 0.0;\n    bool restart = (flags & 2) != 0;\n    float warmEnd = (flags & 4) != 0 ? 1.0 : 0.0;\n    float down = restart ? y - a.z : y;\n    float up = max(0.0, a.w - y);\n\n    // Threads: discrete fine threads, each with its own brightness and\n    // reach, over softer layers. Each thread is averaged over the pixel it\n    // covers, so threads stay crisp without aliasing.\n    //\n    // Where the threads turn to lie flat, each one overlaps more of its\n    // neighbours, like translucent strands laid over each other, so their\n    // stripes melt into one smooth sheen and the layers add up brighter.\n    // overlap runs 0 for an upright thread to 1 for a flat one.\n    float k = 880.0 * uDensity / 1.546790;\n    float u = psi * k;\n    float du = max(dpsi * k, 1e-4);\n    float fineU = u * 1.15;\n    float fdu = du * 1.15;\n    float thread = 0.0;\n    float threadReach = 0.0;\n    for (int i = 0; i \u003c 4; i++) {\n      float at = fineU + fdu * (float(i) - 1.5) / 4.0;\n      thread += strand(at);\n      threadReach += pow(hash(floor(at) * 0.71 + 8.3), 4.0);\n    }\n    thread *= 0.25;\n    threadReach *= 0.25;\n    float overlap = 1.0 - inversesqrt(1.0 + steep * steep);\n    // Past a few threads per pixel (or where they overlap), only their\n    // average is left: 1/3 for the threads, 1/5 for their reach.\n    float blend = max(smoothstep(1.5, 5.0, fdu), 0.55 * smoothstep(0.5, 1.0, overlap));\n    thread = mix(thread, 1.0 / 3.0, blend);\n    threadReach = mix(threadReach, 0.2, blend);\n    // Weighted like the original: the fine threads are fairly gentle, and\n    // most of the variation comes in broader bands of a few dozen pixels.\n    float fine = mix(vn(u * 0.33 + 13.0), 0.5, smoothstep(2.0, 8.0, du) * 0.7 + 0.3 * blend);\n    float s = 0.26 + 0.3 * thread + 0.16 * fine + 0.2 * vn(u * 0.12 + 7.0) + 0.2 * vn(u * 0.05 + 29.0);\n    s = 0.64 + (s - 0.64) * uMotion.z;\n\n    // Light falls from where each run starts and settles to a floor: a dim\n    // one on the left of a slit, a mid one on the right, where the slab\n    // also catches light again above where it ends. The curves are fitted\n    // to the original; each thread varies around them a little, and its\n    // reach breathes slowly so the light slides up and down.\n    float time = uTime;\n    float run = down + up;\n    float own = vn(u * 0.9 + 17.0);\n    float breathe = 1.0 + uMotion.x * 0.52 * (vn2(vec2(u * 0.04, time * 0.22)) - 0.5);\n    // A soft swell of light rolling across the word, left to right.\n    float swell = 1.0 + 0.12 * uMotion.y * sin(psi * 4.0 - time * 0.7);\n    // A run whose light starts again partway down (below a seam) fades\n    // faster than one hanging from the top edge.\n    float again = restart ? uFall.z : 1.0;\n    // A few threads carry their light much further down than the rest.\n    float reachTop = mix(uShape.x, uShape.y, side) * again * mix(0.8, 1.2, own) * (1.0 + uFall.w * threadReach) * breathe * swell;\n    float floorLight = mix(uShape.z, uShape.w, side);\n    float fall = exp(-pow(down / reachTop, mix(uFall.x, uFall.y, side)));\n    float reachEnd = uEnd.x * run * mix(0.8, 1.2, vn(u * 0.7 + 41.0)) * (2.0 - breathe);\n    float rise = side * uEnd.y * exp(-pow(up / reachEnd, 1.3));\n    // Where the threads turn over the top they catch the most light.\n    float light = (floorLight + (1.0 - floorLight) * fall + rise) * (1.0 + 0.3 * cap + 0.15 * overlap);\n\n    // Bands of light drifting along each thread, up on some, down on others.\n    float dir = vn(u * 0.07 + 21.0) > 0.5 ? 1.0 : -1.0;\n    float pace = mix(0.25, 1.0, vn(u * 0.11 + 5.0));\n    float bands = vn2(vec2(u * 0.5, down * 4.0 - time * pace * dir));\n    float flow = 0.74 + 0.52 * bands;\n\n    // A fine bright rim along both sides of the sheet, a couple of pixels\n    // wide however the side runs, so it follows the corners too.\n    float rim = exp(-max(0.0, edge) / 0.0015) * uMotion.w;\n\n    float v = (s * light * flow + rim * mix(0.45, 0.8, side) * (0.35 + light)) * uGain;\n    vec3 col = ramp(v);\n\n    // Scattered warm and blue threads, strongest low on the slabs. Each\n    // takes its turn: every so often one fades out and another lights up,\n    // so the colour wanders across the word.\n    float ftime = uFibreTime;\n    float group = floor(u * 0.25);\n    float turn = ftime * 0.08 + hash(group * 3.1 + 5.0);\n    float pick = hash(group + 91.0 + floor(turn) * 13.7);\n    float shown = sin(3.14159 * fract(turn));\n    float line = smoothstep(0.2, 0.0, abs(fract(u * 0.25) - 0.5)) * shown * uSparkle;\n    float low = smoothstep(0.15, 0.55, down) * (0.4 + 0.8 * bands);\n    if (pick > 1.0 - 0.004 * uWarm) {\n      col = mix(col, warmth(0.3 + 0.6 * smoothstep(0.3, 0.9, down)), line * low * 0.4);\n    } else if (pick \u003c 0.01) {\n      col = mix(col, mix(uFibreCool, vec3(1.0), 0.25), line * low * 0.45);\n    }\n\n    // The letter's own coloured threads: single glowing fibres, a couple of\n    // pixels wide with a faint halo, lying along the thread they sit on.\n    // Above where it warms each is blue-white or sky blue, then it runs\n    // white-hot through cream, yellow, amber and orange to red and fades\n    // out (or, if it cools again, back to white). Each lives for a while,\n    // its colours sliding slowly down, then fades and lights up on another\n    // thread of the letter. The first time round it sits where the\n    // original has it, fully lit.\n    // Squeezed across, a fibre gives up only part of its width.\n    float squeeze = sqrt(uPx.x / uPx.y);\n    for (int i = 0; i \u003c 4; i++) {\n      vec4 ac = texelFetch(uSheetTex, ivec2(SHEET_TEXELS + i * 3, letter), 0);\n      if (ac.x > 100.0) break;\n      vec4 heat = texelFetch(uSheetTex, ivec2(SHEET_TEXELS + i * 3 + 1, letter), 0);\n      vec4 home = texelFetch(uSheetTex, ivec2(SHEET_TEXELS + i * 3 + 2, letter), 0);\n      float life = ftime * (0.05 + 0.04 * hash(home.z * 7.1)) + 0.2 + 0.55 * hash(home.z * 3.3);\n      float lap = floor(life);\n      float age = fract(life);\n      if (lap > 0.5) {\n        float seed = home.z + lap * 1.7;\n        ac.x = mix(home.x + 0.03, home.y - 0.03, hash(seed));\n        if (abs(psi - ac.x) > 0.008 * squeeze) continue;\n        ac.y = mix(0.03, 0.28, hash(seed + 2.9));\n        ac.z = min(0.98, ac.y + mix(0.5, 0.9, hash(seed + 4.3)));\n        ac.w = hash(seed + 6.1);\n        heat.x = mix(ac.y, ac.z, mix(0.35, 0.65, hash(seed + 8.7)));\n        heat.y = mix(heat.x, ac.z, mix(0.75, 1.0, hash(seed + 9.9)));\n        heat.z = hash(seed + 11.3) \u003c 0.2 ? 1.0 : 0.0;\n        if (hash(seed + 13.1) \u003c 0.2) heat.xy = vec2(2.0);\n      }\n      float d = abs(psi - ac.x) / squeeze;\n      if (d > 0.008) continue;\n      float fade = smoothstep(0.0, 0.18, age) * smoothstep(1.0, 0.8, age);\n      // Its colours slide down while it lives.\n      float yy = y - (age - 0.5) * 0.08;\n      bool warms = heat.x \u003c 1.5;\n      bool cools = heat.z > 0.5;\n      // Where the fibre is lit: in from its top, out at its bottom, or just\n      // past its red end when it ends there.\n      float stop = warms && !cools ? heat.y + 0.03 : ac.z;\n      float lit = smoothstep(ac.y, ac.y + 0.06, yy) * smoothstep(stop, stop - 0.07, yy) * fade * uSparkle;\n      if (lit \u003c= 0.0) continue;\n      // Its colour along its length.\n      float t = warms ? (yy - heat.x) / max(0.01, heat.y - heat.x) : -1.0;\n      if (cools) t = t \u003c 0.3 ? t / 0.3 * 0.55 : 0.55 * (1.0 - (t - 0.3) / 0.7);\n      float sky = ac.w * smoothstep(ac.y, ac.y + 0.18, yy) * (warms ? smoothstep(heat.x, heat.x - 0.14, yy) : 1.0);\n      vec3 fibre = mix(mix(uFibreCool, vec3(1.0), 0.85), uFibreCool, sky * 0.85);\n      if (t > 0.0) fibre = mix(vec3(0.98, 0.98, 0.95), warmth(t), mix(0.55, 1.0, uWarm));\n      float core = 1.0 - smoothstep(0.0007, 0.0021, d);\n      float halo = exp(-d / 0.0035) * (1.0 - core);\n      col = mix(col, fibre, core * lit) + fibre * halo * lit * 0.3;\n    }\n\n    // Where the light ends it turns warm: a glowing band, cream above it.\n    // The band sits right on the edge, where the surface turns away from\n    // the light, so it replaces the threads rather than adding.\n    float end = exp(-up / 0.0035);\n    col = mix(col, col * vec3(1.06, 1.0, 0.9), warmEnd * exp(-up / 0.05) * uWarm);\n    col = mix(col, uGlow, clamp(end * 1.3, 0.0, 1.0) * warmEnd * mix(0.4, 1.0, uWarm) * smoothstep(0.05, 0.2, down));\n    return col;\n  }\n\n  float luma(vec3 c) { return dot(c, vec3(0.3, 0.6, 0.1)); }\n\n  // Adds a letter's sheets at (x, y), and covered keeps how much of the\n  // pixel they fill.\n  void addLetter(int letter, float x, float y, inout vec3 col, inout float covered) {\n    for (int k = 0; k \u003c 4; k++) {\n      vec4 a = texelFetch(uSheetTex, ivec2(k * 3, letter), 0);\n      if (a.x > 100.0) break;\n      if (y \u003c a.z - uPx.y || y > a.w + uPx.y) continue;\n      vec4 b = texelFetch(uSheetTex, ivec2(k * 3 + 1, letter), 0);\n      vec4 c = texelFetch(uSheetTex, ivec2(k * 3 + 2, letter), 0);\n\n      // The thread here, and how fast psi changes across and down, so\n      // edges are smoothed over one pixel whichever way they run. grad is\n      // per pixel, so the sides stay one pixel soft when the letters are\n      // stretched.\n      vec2 t = thread(a, b, c, x, y);\n      float psi = t.x;\n      float dx = 1.0 / t.y;\n      float dy = (thread(a, b, c, x, y + uPx.y).x - psi) / uPx.y;\n      float grad = length(vec2(dx * uPx.x, dy * uPx.y));\n      float cover = smoothstep(-1.0, 1.0, (psi - a.x) / grad)\n        * smoothstep(-1.0, 1.0, (a.y - psi) / grad)\n        * smoothstep(-uPx.y, uPx.y, y - a.z)\n        * smoothstep(-uPx.y, uPx.y, a.w - y);\n      if (cover \u003c= 0.0) continue;\n\n      float cap = a.z \u003c 0.01 ? exp(-(y - a.z) / 0.02) : 0.0;\n      float edge = min(psi - a.x, a.y - psi) / grad * sqrt(uPx.x * uPx.y);\n      vec3 sheet = shade(psi, abs(dx) * uPx.x + abs(dy) * uPx.y, abs(dy / dx), edge, a, int(c.z + 0.5), y, cap, letter) * cover;\n      // Where sheets cross (over a slit, under a tip) they show through\n      // each other like translucent strands, so both sets of threads and\n      // both edges stay visible. The closer their brightness, the more\n      // evenly they mix; a bright tip over a dark sheet stays bright.\n      float near = min(luma(col), luma(sheet)) / max(max(luma(col), luma(sheet)), 1e-4);\n      col = mix(max(col, sheet), (col + sheet) * 0.5, covered * cover * near);\n      covered = max(covered, cover);\n    }\n  }\n\n  void main() {\n    // Into the letters' own frame, where a letter is one unit tall.\n    float x = (vUv.x * uAspect - uFrame.x) / uFrame.z;\n    float y = (vUv.y - uFrame.y) / uFrame.w;\n    outColor = vec4(uBg, 1.0);\n\n    // Which row, and which letter in it.\n    int row = int(floor(y / uRowPitch));\n    if (row \u003c 0 || row >= uRowCount) return;\n    vec4 line = uRows[row];\n    y -= float(row) * uRowPitch;\n    x -= line.x;\n    float pitch = uCell + uGap;\n    int slot = int(floor((x + uGap * 0.5) / pitch));\n    if (slot \u003c 0 || float(slot) >= line.z) return;\n    int letter = int(line.y) + slot;\n\n    // This letter, and its neighbour when the pixel is near a side, since\n    // a foot's tip runs on under the next letter.\n    vec3 col = vec3(0.0);\n    float covered = 0.0;\n    float left = x - float(slot) * pitch;\n    for (int n = -1; n \u003c= 1; n++) {\n      int s = slot + n;\n      if (s \u003c 0 || float(s) >= line.z) continue;\n      if (n == -1 && left > 0.06) continue;\n      if (n == 1 && left \u003c uCell - 0.06) continue;\n      addLetter(int(line.y) + s, x, y, col, covered);\n    }\n    outColor = vec4(col + uBg * (1.0 - covered), 1.0);\n  }";
+
+const PALETTES = {
+  'XDR Blue': ['#1a1d24', '#475e7a', '#a3b8d1', '#e6ebf2', '#ffad66', '#000000', '#38a3eb', '#fff2ad', '#f5ba29', '#db3317'],
+  Graphite: ['#1b1b1d', '#4b4b51', '#a7a7ae', '#ececef', '#ffb57a', '#000000', '#9db6cf', '#fff0c8', '#ffb347', '#e0533a'],
+  Ember: ['#2b0c06', '#c2361a', '#ff9a42', '#fff0cf', '#ffe08a', '#040100', '#ffd36b', '#fff6c9', '#ffb22e', '#ff3b6b'],
+  Chroma: ['#120c2c', '#6d3df0', '#ff6fb6', '#ffe2b8', '#ffb36b', '#020106', '#62d6ff', '#fff1d6', '#ffa94a', '#ff3d8b'],
+  Violet: ['#170b33', '#6231e0', '#c890ff', '#fcecff', '#ff9ad6', '#020005', '#7fdcff', '#ffe9f7', '#ff7ac8', '#ff4f6e'],
+  Ocean: ['#06123a', '#1f55e6', '#4fd0ff', '#ebfbff', '#8ef3ff', '#000207', '#b0fbff', '#f2fffb', '#7df0d6', '#7a5cff'],
+  Aurora: ['#04211f', '#0c8a78', '#57e6c6', '#ecfff9', '#c6ff8f', '#000303', '#9ff6ff', '#fbffe0', '#c8f56a', '#ff7cc4'],
+  'Rose Gold': ['#2a1210', '#b0584a', '#f6b29b', '#fff3ec', '#ffd2a3', '#030101', '#ffe0cf', '#fff1dc', '#ffb16b', '#e0466e'],
+  Paper: ['#2a2e36', '#6b7a8f', '#bfc8d4', '#fbfcfd', '#ff9c5a', '#e9e6df', '#3f86d6', '#ffe6a3', '#f2a023', '#d6331c'],
+};
+const KEYS = ['shadow', 'steel', 'silver', 'highlight', 'glow', 'background', 'fibreCool', 'warmLight', 'warmMid', 'warmDeep'];
+
+const canvas = document.getElementById('wall');
+const fallback = document.getElementById('fallback');
+const wordInput = document.getElementById('word');
+const pauseBtn = document.getElementById('pause');
+const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+const state = {
+  text: 'PRO', width: 16, height: 9, speed: 1.6, fibrePace: 1.4,
+  gain: 1.5, density: 1, texture: 1, rim: 1, reach: 1, breathe: 1.5, swell: 2,
+  floorDim: 0.2, floorLit: 0.52, warm: 0.6, sparkle: 1, corner: 28, arch: 40, tip: 66,
+};
+let paused = motionQuery.matches;
+let layout = null;
+let lightClock = 1.2;
+let fibreClock = 0.45;
+let gl = null;
+let u = null;
+let ready = false;
+let frameId = 0;
+let lastFrame = 0;
+let building = false;
+let rebuildAgain = false;
+
+function applyPalette(name) {
+  PALETTES[name].forEach((hex, i) => { state[KEYS[i]] = hex; });
+  document.body.style.background = state.background;
+}
+
+function showFallback(message) {
+  fallback.hidden = false;
+  fallback.textContent = message;
+}
+
+function rgb(hex) {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+}
+
+function compile(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    throw new Error(gl.getShaderInfoLog(shader) || 'shader');
+  }
+  return shader;
+}
+
+function placeLetters() {
+  const aspect = state.width / state.height;
+  const fit = Math.min(1, aspect / layout.width, 1 / layout.height);
+  const pixels = Math.max(1, canvas.height);
+  gl.uniform1f(u.uAspect, aspect);
+  gl.uniform4f(u.uFrame, (aspect - layout.width * fit) / 2, (1 - layout.height * fit) / 2, fit, fit);
+  gl.uniform2f(u.uPx, 1 / (pixels * fit), 1 / (pixels * fit));
+}
+
+function setUniforms() {
+  gl.uniform1f(u.uDensity, state.density);
+  gl.uniform1f(u.uWarm, state.warm);
+  gl.uniform1f(u.uGain, state.gain);
+  gl.uniform1f(u.uSparkle, state.sparkle);
+  gl.uniform4f(u.uMotion, state.breathe, state.swell, state.texture, state.rim);
+  gl.uniform4f(u.uShape, 0.285 * state.reach, 0.144 * state.reach, state.floorDim, state.floorLit);
+  gl.uniform2f(u.uEnd, 0.152, 0.35);
+  gl.uniform4f(u.uFall, 1.3, 1.17, 0.84, 0.69);
+  gl.uniform4f(u.uTile, 0, 0, 1, 1);
+  const shadow = rgb(state.shadow);
+  gl.uniform3fv(u.uRamp, [
+    ...shadow.map((c) => c * 0.16), ...shadow, ...rgb(state.steel), ...rgb(state.silver), ...rgb(state.highlight),
+  ]);
+  gl.uniform3fv(u.uGlow, rgb(state.glow));
+  gl.uniform3fv(u.uFibreCool, rgb(state.fibreCool));
+  gl.uniform3fv(u.uFibreWarm, [...rgb(state.warmLight), ...rgb(state.warmMid), ...rgb(state.warmDeep)]);
+  gl.uniform3fv(u.uBg, rgb(state.background));
+}
+
+function relayout() {
+  const shape = { corner: state.corner, arch: state.arch, tip: state.tip, gap: 15, rowGap: 0 };
+  layout = pack([state.text || ' '], shape);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, TEXELS, MAX_CELLS, 0, gl.RGBA, gl.FLOAT, layout.data);
+  if (gl.getError() !== gl.NO_ERROR) throw new Error('float texture');
+  gl.uniform4fv(u.uRows, layout.rows);
+  gl.uniform1i(u.uRowCount, layout.nRows);
+  gl.uniform1f(u.uRowPitch, layout.rowPitch);
+  gl.uniform1f(u.uCell, CELL);
+  gl.uniform1f(u.uGap, shape.gap / 1293);
+  placeLetters();
+}
+
+function canDraw() {
+  return ready && gl && !gl.isContextLost();
+}
+
+function draw() {
+  if (!canDraw()) return;
+  gl.uniform1f(u.uTime, lightClock);
+  gl.uniform1f(u.uFibreTime, fibreClock);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+function stopLoop() {
+  if (!frameId) return;
+  cancelAnimationFrame(frameId);
+  frameId = 0;
+}
+
+function startLoop() {
+  if (paused || frameId || !canDraw()) return;
+  lastFrame = 0;
+  frameId = requestAnimationFrame(tick);
+}
+
+function tick(now) {
+  frameId = 0;
+  if (paused || !canDraw()) return;
+  const dt = lastFrame ? Math.min(0.1, (now - lastFrame) / 1000) : 0;
+  lastFrame = now;
+  lightClock += dt * state.speed;
+  fibreClock += dt * state.fibrePace;
+  draw();
+  if (!paused && canDraw() && !frameId) frameId = requestAnimationFrame(tick);
+}
+
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  state.width = Math.max(1, rect.width);
+  state.height = Math.max(1, rect.height);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  if (layout) placeLetters();
+  draw();
+}
+
+function syncPause() {
+  pauseBtn.setAttribute('aria-pressed', String(paused));
+  pauseBtn.textContent = paused ? '播放' : '暂停';
+}
+
+function mountGl() {
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl.VERTEX_SHADER, VERT));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAG));
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) || 'link');
+  gl.useProgram(program);
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(program, 'aPos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+  u = {};
+  const count = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < count; i++) {
+    const name = gl.getActiveUniform(program, i).name.replace(/\[0\]$/, '');
+    u[name] = gl.getUniformLocation(program, name);
+  }
+  const tex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(u.uSheetTex, 0);
+  setUniforms();
+  relayout();
+}
+
+function buildResources() {
+  if (!gl || gl.isContextLost()) return;
+  if (building) { rebuildAgain = true; return; }
+  building = true;
+  ready = false;
+  try {
+    mountGl();
+    ready = true;
+    resize();
+    while (rebuildAgain) {
+      rebuildAgain = false;
+      if (!gl || gl.isContextLost()) { ready = false; return; }
+      ready = false;
+      mountGl();
+      ready = true;
+      resize();
+    }
+  } finally {
+    building = false;
+  }
+}
+
+function boot() {
+  gl = canvas.getContext('webgl2', { antialias: false, premultipliedAlpha: false, alpha: false });
+  if (!gl) { showFallback('这个浏览器没有 WebGL 2，光丝字打不开。'); return; }
+  // preventDefault keeps the context restorable. Every shader, buffer and
+  // texture is invalid after the loss, so contextrestored builds them again.
+  canvas.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+    ready = false;
+    stopLoop();
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    try {
+      buildResources();
+      if (!canDraw()) throw new Error('restore');
+      fallback.hidden = true;
+      if (!paused) startLoop();
+    } catch (error) {
+      ready = false;
+      stopLoop();
+      showFallback('光丝字在这台设备上没能启动。');
+    }
+  });
+  applyPalette('XDR Blue');
+  buildResources();
+  if (!paused) startLoop();
+}
+
+try { boot(); }
+catch (error) { showFallback('光丝字在这台设备上没能启动。'); }
+
+wordInput.addEventListener('input', () => {
+  const next = [...wordInput.value.toUpperCase()].filter((ch) => /[A-Z0 ]/.test(ch)).slice(0, 10).join('');
+  if (next !== wordInput.value) wordInput.value = next;
+  state.text = next || ' ';
+  if (!canDraw()) return;
+  try { relayout(); draw(); } catch (error) { showFallback('光丝字在这台设备上没能启动。'); }
+});
+document.getElementById('palette').addEventListener('change', (event) => {
+  applyPalette(event.target.value);
+  if (!canDraw()) return;
+  setUniforms();
+  draw();
+});
+pauseBtn.addEventListener('click', () => {
+  paused = !paused;
+  syncPause();
+  if (paused) stopLoop();
+  else startLoop();
+});
+syncPause();
+motionQuery.addEventListener('change', () => {
+  paused = motionQuery.matches;
+  syncPause();
+  if (paused) stopLoop();
+  else startLoop();
+  if (canDraw()) draw();
+});
+window.addEventListener('resize', () => { if (canDraw()) resize(); });
+window.addEventListener('keydown', (event) => {
+  if (event.code !== 'Space' || event.target === wordInput || event.target.tagName === 'SELECT' || event.target.tagName === 'BUTTON') return;
+  event.preventDefault();
+  pauseBtn.click();
+});
+  </script>
+</body>
+</html>
