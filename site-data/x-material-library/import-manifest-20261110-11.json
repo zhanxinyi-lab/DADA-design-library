@@ -1,17 +1,34 @@
 {
-  "batch": "2026-11-10/11",
+  "batch": "2026-11-10/12",
   "siteUrl": "https://x-material-library.workers.xd-sites.com",
   "siteCode": "rjqagsc0hcqp",
   "basePath": "/s/rjqagsc0hcqp/",
   "liveBaselineItems": 187,
-  "addedItems": 44,
+  "addedItems": 45,
   "packageCounts": {
     "2026-11-10": 24,
-    "2026-11-11": 20
+    "2026-11-11": 20,
+    "2026-11-12": 1
   },
-  "resultingItems": 231,
-  "uniqueIds": 231,
+  "resultingItems": 232,
+  "uniqueIds": 232,
   "existingRecordsChanged": 0,
+  "followUpBookmarks": [
+    {
+      "id": "2120533831136751633",
+      "url": "https://x.com/x6sense/status/2120533831136751633?a=XI7oXi9H_dt7OhrLLGM&s=20",
+      "author": "x6sense",
+      "createdAt": "2026-11-11T15:07:17.000Z",
+      "addedAt": "2026-11-12T18:42:02+08:00",
+      "media": {
+        "images": 2,
+        "videos": 2,
+        "copiedLocally": false
+      },
+      "licenseStatus": "not_verified"
+    }
+  ],
+  "followUpBookmarkCount": 1,
   "newAssetDirectories": 43,
   "newAssetFiles": 156,
   "newAssetBytes": 28719241,
