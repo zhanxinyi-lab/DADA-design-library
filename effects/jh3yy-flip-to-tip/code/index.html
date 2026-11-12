@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>抛起停留的硬币</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #000;
+    --blue: #2b5bd5;
+    --blue-edge: #8eb0ff;
+    --gold: #d7b06a;
+    --gold-deep: #8a5a22;
+    --ink: #c8c2b6;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); }
+  body {
+    min-height: 100%;
+    color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  }
+  .stage {
+    position: relative;
+    width: min(100vw, 100vh);
+    height: min(100vw, 100vh);
+    margin: 0 auto;
+    background: var(--bg);
+    perspective: 760px;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .control {
+    position: absolute;
+    left: 50.6%;
+    top: 61.1%;
+    width: 18.9%;
+    height: 8.9%;
+    transform: translate(-50%, -50%);
+    border: 0;
+    border-radius: 999px;
+    padding: 0;
+    background:
+      radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.28), transparent 46%),
+      var(--blue);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22), 0 10px 22px rgba(0, 0, 0, 0.45);
+    cursor: pointer;
+    z-index: 2;
+  }
+  .control:focus-visible {
+    outline: 3px solid #f4efe4;
+    outline-offset: 4px;
+  }
+  .home {
+    position: absolute;
+    left: 27%;
+    top: 50%;
+    width: 34%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 2px solid rgba(244, 239, 228, 0.92);
+    box-shadow: inset 0 0 0 3px rgba(18, 42, 120, 0.35);
+    pointer-events: none;
+  }
+  .coin {
+    position: absolute;
+    left: 45.3%;
+    top: 59%;
+    width: 7.9%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    transform-style: preserve-3d;
+    opacity: 0;
+    visibility: hidden;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .face, .rim {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+  }
+  .face {
+    backface-visibility: hidden;
+    box-shadow: inset 0 0 0 2px rgba(255, 236, 196, 0.45), inset 0 0 0 5px rgba(92, 54, 16, 0.55);
+  }
+  .face.front {
+    background: radial-gradient(circle at 36% 32%, #fff1cc 0%, var(--gold) 34%, #c48a3a 66%, var(--gold-deep) 100%);
+    transform: translateZ(3px);
+  }
+  .face.front::before, .face.back::before {
+    content: "";
+    position: absolute;
+    inset: 14%;
+    border-radius: 50%;
+    background: repeating-conic-gradient(from -8deg, rgba(92, 54, 16, 0.88) 0 9deg, transparent 9deg 40deg);
+    -webkit-mask: radial-gradient(circle, transparent 0 58%, #000 59% 78%, transparent 79%);
+    mask: radial-gradient(circle, transparent 0 58%, #000 59% 78%, transparent 79%);
+  }
+  .face.front::after {
+    content: "";
+    position: absolute;
+    left: 38%;
+    right: 38%;
+    top: 30%;
+    height: 22%;
+    border-radius: 0 0 40px 40px;
+    border: 2px solid rgba(92, 54, 16, 0.8);
+    border-top: 0;
+  }
+  .face.back {
+    background: radial-gradient(circle at 40% 36%, #f0d7a4, #b9843c 58%, #6d4316);
+    transform: rotateX(180deg) translateZ(3px);
+  }
+  .face.back::after {
+    content: "";
+    position: absolute;
+    inset: 28%;
+    border-radius: 50%;
+    border: 2px solid rgba(92, 54, 16, 0.75);
+    border-left-color: transparent;
+    border-bottom-color: transparent;
+    transform: rotate(20deg);
+  }
+  .rim {
+    top: 42%;
+    height: 16%;
+    border-radius: 0;
+    background: linear-gradient(#f3e0b4, #7a4e18 52%, #e7c98a);
+    transform: rotateX(90deg);
+  }
+  .shadow {
+    position: absolute;
+    left: 45.3%;
+    top: 64%;
+    width: 9%;
+    height: 2.2%;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    filter: blur(3px);
+    transform: translateX(-50%);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+  p {
+    position: absolute;
+    left: 50%;
+    top: 78%;
+    width: min(28em, 86%);
+    transform: translateX(-50%);
+    margin: 0;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #8d887e;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="shadow" id="shadow"></div>
+  <button class="control" id="control" type="button" aria-describedby="hint" aria-pressed="false">
+    <span class="home" aria-hidden="true"></span>
+    <span class="sr">按住，金币会离开这个按钮</span>
+  </button>
+  <div class="coin" id="coin" aria-hidden="true">
+    <span class="face front"></span>
+    <span class="face back"></span>
+    <span class="rim"></span>
+  </div>
+  <p id="hint">按住蓝色按钮。金币从按钮离开，到顶部把正面留正，再落回去收起。</p>
+</div>
+<script>
+(function () {
+  var control = document.getElementById("control");
+  var coin = document.getElementById("coin");
+  var shadow = document.getElementById("shadow");
+  var hint = document.getElementById("hint");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var held = false;
+  var shown = false;
+  var phase = "rest";
+  var phaseAt = 0;
+  var raf = 0;
+  var HOME_X = 45.3;
+  var HOME_Y = 59.4;
+  var APEX_Y = 11;
+  var LOW_SIZE = 7.9;
+  var APEX_SCALE = 1.55;
+  var EMERGE = 280;
+  var MIN_DWELL = 450;
+  var MAX_DWELL = 1700;
+  var RISE = 340;
+  var HANG = 500;
+  var FALL = 400;
+  var HIDE = 220;
+  var REST_HINT = "按住蓝色按钮。金币从按钮离开，到顶部把正面留正，再落回去收起。";
+  var STILL_HINT = "已减少动态：点按在按钮上显示或收起币面，不飞起。";
+
+  function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+  function easeIn(t) { return t * t * t; }
+  function clamp01(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }
+
+  function paint(x, y, size, rot, alpha, shadowAlpha) {
+    var visible = alpha > 0.02;
+    coin.style.left = x + "%";
+    coin.style.top = y + "%";
+    coin.style.width = size + "%";
+    coin.style.opacity = String(alpha);
+    coin.style.visibility = visible ? "visible" : "hidden";
+    coin.style.transform = "translate(-50%, -50%) rotateX(" + rot + "deg)";
+    shadow.style.left = x + "%";
+    shadow.style.top = (y + size * 0.55) + "%";
+    shadow.style.width = (size * 0.9) + "%";
+    shadow.style.opacity = String(shadowAlpha);
+    shadow.style.transform = "translateX(-50%)";
+  }
+
+  function hideCoin() {
+    paint(HOME_X, HOME_Y, LOW_SIZE, 0, 0, 0);
+  }
+
+  function setPhase(next) {
+    phase = next;
+    phaseAt = performance.now();
+  }
+
+  function finish() {
+    phase = "rest";
+    hideCoin();
+    if (reduce.matches) return;
+    if (held) setPhase("emerge");
+  }
+
+  function frame(now) {
+    var elapsed = now - phaseAt;
+    if (phase === "emerge") {
+      var u = clamp01(elapsed / EMERGE);
+      var e = easeOut(u);
+      paint(HOME_X, HOME_Y, LOW_SIZE * e, 0, e, 0.35 * e);
+      if (u >= 1) setPhase("dwell");
+    } else if (phase === "dwell") {
+      paint(HOME_X, HOME_Y, LOW_SIZE, 0, 1, 0.35);
+      var dwell = now - phaseAt;
+      if (dwell >= MAX_DWELL || (!held && dwell >= MIN_DWELL)) setPhase("rise");
+    } else if (phase === "rise") {
+      var ur = clamp01(elapsed / RISE);
+      var ye = easeOut(ur);
+      var y = HOME_Y + (APEX_Y - HOME_Y) * ye;
+      var scale = 1 + (APEX_SCALE - 1) * ye;
+      paint(HOME_X, y, LOW_SIZE * scale, ye * 360, 1, 0.35 * (1 - ye * 0.7));
+      if (ur >= 1) setPhase("hang");
+    } else if (phase === "hang") {
+      paint(HOME_X, APEX_Y, LOW_SIZE * APEX_SCALE, 360, 1, 0.1);
+      if (elapsed >= HANG) setPhase("fall");
+    } else if (phase === "fall") {
+      var uf = clamp01(elapsed / FALL);
+      var ye2 = easeIn(uf);
+      var y2 = APEX_Y + (HOME_Y - APEX_Y) * ye2;
+      var scale2 = APEX_SCALE + (0.85 - APEX_SCALE) * ye2;
+      paint(HOME_X, y2, LOW_SIZE * scale2, 360, 1, 0.1 + ye2 * 0.25);
+      if (uf >= 1) setPhase("hide");
+    } else if (phase === "hide") {
+      var uh = clamp01(elapsed / HIDE);
+      paint(HOME_X, HOME_Y, LOW_SIZE * 0.85 * (1 - uh), 360, 1 - uh, 0.35 * (1 - uh));
+      if (uh >= 1) finish();
+    }
+    if (phase !== "rest") raf = requestAnimationFrame(frame);
+  }
+
+  function kick() {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(frame);
+  }
+
+  function showStill() {
+    shown = !shown;
+    if (shown) paint(HOME_X, HOME_Y, LOW_SIZE, 0, 1, 0.35);
+    else hideCoin();
+    control.setAttribute("aria-pressed", shown ? "true" : "false");
+  }
+
+  function press(event) {
+    if (event.button && event.button !== 0) return;
+    held = true;
+    control.setAttribute("aria-pressed", "true");
+    if (reduce.matches) {
+      showStill();
+      held = false;
+      return;
+    }
+    if (phase === "rest") {
+      setPhase("emerge");
+      kick();
+    }
+  }
+
+  function release() {
+    held = false;
+    if (!reduce.matches) control.setAttribute("aria-pressed", "false");
+  }
+
+  control.addEventListener("pointerdown", function (event) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    control.setPointerCapture(event.pointerId);
+    press(event);
+  });
+  control.addEventListener("pointerup", release);
+  control.addEventListener("pointercancel", release);
+  control.addEventListener("keydown", function (event) {
+    if (event.repeat) return;
+    if (event.key !== " " && event.key !== "Enter") return;
+    event.preventDefault();
+    press(event);
+  });
+  control.addEventListener("keyup", function (event) {
+    if (event.key !== " " && event.key !== "Enter") return;
+    release();
+  });
+  control.addEventListener("blur", release);
+
+  reduce.addEventListener("change", function () {
+    cancelAnimationFrame(raf);
+    phase = "rest";
+    held = false;
+    shown = false;
+    hideCoin();
+    control.setAttribute("aria-pressed", "false");
+    hint.textContent = reduce.matches ? STILL_HINT : REST_HINT;
+  });
+  if (reduce.matches) hint.textContent = STILL_HINT;
+  hideCoin();
+})();
+</script>
+</body>
+</html>
