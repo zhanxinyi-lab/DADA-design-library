@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>聚焦软环与提示内指标芯片</title>
+  <style>
+    :root {
+      --page: #f4f4f5;
+      --ink: #18181b;
+      --muted: #71717a;
+      --field: #ffffff;
+      --line: #e4e4e7;
+      --chip: #f4f4f5;
+      --chip-ink: #27272a;
+      --ring: #e5e5fb;
+      --ring-edge: #d9d8f7;
+      --pick: #ffffff;
+      --pick-on: #ececf8;
+    }
+    :root[data-theme="dark"] {
+      --page: #141416;
+      --ink: #f4f4f5;
+      --muted: #a1a1aa;
+      --field: #09090b;
+      --line: #2a2a2e;
+      --chip: #1c1c22;
+      --chip-ink: #e4e4e7;
+      --ring: #23253f;
+      --ring-edge: #2a2c4f;
+      --pick: #18181b;
+      --pick-on: #23253f;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--page);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+    }
+    .stage {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 28px 16px 36px;
+    }
+    .top {
+      width: min(720px, 100%);
+      display: flex;
+      justify-content: flex-end;
+    }
+    .theme {
+      border: 1px solid var(--line);
+      background: var(--pick);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .composer {
+      width: min(720px, 100%);
+      min-height: 128px;
+      background: var(--field);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 16px 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 0 0 0 transparent;
+      transition: box-shadow .18s ease, border-color .18s ease;
+    }
+    .composer:focus-within {
+      border-color: var(--ring-edge);
+      box-shadow: 0 0 0 14px var(--ring);
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      padding: 4px 6px 4px 10px;
+      border-radius: 999px;
+      background: var(--chip);
+      color: var(--chip-ink);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+    }
+    .chip[hidden] { display: none; }
+    .chip b { font-weight: 600; }
+    .chip button {
+      width: 22px;
+      height: 22px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      cursor: pointer;
+    }
+    .chip button:hover,
+    .chip button:focus-visible { background: var(--line); color: var(--ink); }
+    input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-size: 16px;
+      padding: 6px 0;
+    }
+    input::placeholder { color: var(--muted); }
+    .picks {
+      width: min(720px, 100%);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .picks button {
+      border: 1px solid var(--line);
+      background: var(--pick);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .picks button[aria-pressed="true"] {
+      background: var(--pick-on);
+      border-color: var(--ring-edge);
+    }
+    .hint {
+      width: min(720px, 100%);
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .composer { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="top">
+      <button class="theme" type="button" id="theme">深色</button>
+    </div>
+    <form class="composer" id="composer">
+      <div class="row">
+        <span class="chip" id="chip">
+          <b id="chip-name">monthly_revenue</b>
+          <button type="button" id="remove" aria-label="移除指标">×</button>
+        </span>
+        <input id="prompt" type="text" autocomplete="off" placeholder="写下要看的变化" aria-label="提示">
+      </div>
+    </form>
+    <div class="picks" role="group" aria-label="选择指标">
+      <button type="button" data-metric="monthly_revenue" aria-pressed="true">monthly_revenue</button>
+      <button type="button" data-metric="new_customers" aria-pressed="false">new_customers</button>
+      <button type="button" data-metric="active_users" aria-pressed="false">active_users</button>
+    </div>
+    <p class="hint">聚焦时出现软环。换一个指标，芯片留在提示里；点空白处，软环消失。</p>
+  </main>
+  <script>
+    const root = document.documentElement;
+    const composer = document.getElementById('composer');
+    const prompt = document.getElementById('prompt');
+    const chip = document.getElementById('chip');
+    const chipName = document.getElementById('chip-name');
+    const picks = [...document.querySelectorAll('.picks button')];
+    const themeBtn = document.getElementById('theme');
+
+    function setMetric(name) {
+      chip.hidden = !name;
+      chipName.textContent = name || '';
+      for (const button of picks) button.setAttribute('aria-pressed', button.dataset.metric === name ? 'true' : 'false');
+      prompt.focus();
+    }
+
+    composer.addEventListener('submit', (event) => event.preventDefault());
+    document.getElementById('remove').addEventListener('click', () => setMetric(''));
+    for (const button of picks) {
+      button.addEventListener('click', () => setMetric(button.dataset.metric));
+    }
+    themeBtn.addEventListener('click', () => {
+      const dark = root.getAttribute('data-theme') !== 'dark';
+      root.setAttribute('data-theme', dark ? 'dark' : 'light');
+      themeBtn.textContent = dark ? '浅色' : '深色';
+    });
+    prompt.focus();
+  </script>
+</body>
+</html>
