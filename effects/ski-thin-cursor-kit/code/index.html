@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>细线光标组件</title>
+  <style>
+    :root {
+      --paper: #f7f6f3;
+      --ink: #141414;
+      --line: 1.25px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    body {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+    .stage {
+      width: min(100vw, calc(100dvh * 900 / 720));
+      aspect-ratio: 900 / 720;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      position: relative;
+      background: var(--paper);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .stage { cursor: none; }
+    }
+    .cell {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      place-items: center;
+    }
+    #mark { width: min(78%, 440px); height: auto; overflow: visible; }
+    .letter .outline,
+    .letter .bar {
+      fill: none;
+      stroke: var(--ink);
+      stroke-width: var(--line);
+      stroke-linejoin: round;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+    }
+    .letter.on .outline { fill: var(--ink); stroke: var(--ink); }
+    .letter.on .bar { stroke: var(--paper); stroke-width: 9px; }
+    #ring { width: min(46%, 220px); height: auto; }
+    #ring circle {
+      fill: none;
+      stroke: var(--ink);
+      stroke-width: var(--line);
+      vector-effect: non-scaling-stroke;
+    }
+    .btn-wrap { position: relative; display: grid; place-items: center; }
+    .tick {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border: 0 solid var(--ink);
+      pointer-events: none;
+    }
+    .tick.nw { top: -9px; left: -9px; border-top-width: var(--line); border-left-width: var(--line); }
+    .tick.ne { top: -9px; right: -9px; border-top-width: var(--line); border-right-width: var(--line); }
+    .tick.sw { bottom: -9px; left: -9px; border-bottom-width: var(--line); border-left-width: var(--line); }
+    .tick.se { bottom: -9px; right: -9px; border-bottom-width: var(--line); border-right-width: var(--line); }
+    #clickme {
+      appearance: none;
+      margin: 0;
+      border: var(--line) solid var(--ink);
+      border-radius: 16px;
+      background: transparent;
+      color: transparent;
+      -webkit-text-stroke: 1px var(--ink);
+      font: 500 22px/1 "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      letter-spacing: 0.01em;
+      padding: 18px 36px;
+      cursor: inherit;
+    }
+    #clickme.hot,
+    #clickme:active {
+      background: var(--ink);
+      color: var(--paper);
+      -webkit-text-stroke: 0;
+    }
+    #clickme:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 6px;
+    }
+    #dots { width: min(72%, 280px); height: auto; overflow: visible; }
+    #dots circle { fill: var(--ink); }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+    .overlay line {
+      stroke: var(--ink);
+      stroke-width: 1.15;
+      stroke-linecap: round;
+    }
+    .cursor {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      margin: -3.5px 0 0 -3.5px;
+      border-radius: 50%;
+      background: var(--ink);
+      pointer-events: none;
+      opacity: 0;
+    }
+    .cursor.show { opacity: 1; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <p class="sr-only">四个细线组件同时跟着光标：最近的字母填实，圆连到边缘，按钮靠近后填黑，近处的点变大并连线。未操作时会自己走一遍；减少动态效果时停在静止画面。</p>
+  <main class="stage" id="stage">
+    <section class="cell" aria-label="细线字标 DADA">
+      <svg id="mark" viewBox="0 0 526 160" role="img" aria-label="DADA">
+        <g class="letter" transform="translate(0 0)">
+          <path class="outline" d="M22 16 H68 C122 16 122 144 68 144 H22 Z"/>
+        </g>
+        <g class="letter" transform="translate(140 0)">
+          <path class="outline" d="M18 144 L56 16 L94 144 Z"/>
+          <path class="bar" d="M34 96 H78"/>
+        </g>
+        <g class="letter" transform="translate(268 0)">
+          <path class="outline" d="M22 16 H68 C122 16 122 144 68 144 H22 Z"/>
+        </g>
+        <g class="letter" transform="translate(408 0)">
+          <path class="outline" d="M18 144 L56 16 L94 144 Z"/>
+          <path class="bar" d="M34 96 H78"/>
+        </g>
+      </svg>
+    </section>
+    <section class="cell" aria-label="细线圆">
+      <svg id="ring" viewBox="0 0 200 200" aria-hidden="true">
+        <circle cx="100" cy="100" r="72"/>
+      </svg>
+    </section>
+    <section class="cell" aria-label="细线按钮">
+      <div class="btn-wrap" id="btn-wrap">
+        <span class="tick nw"></span>
+        <span class="tick ne"></span>
+        <span class="tick sw"></span>
+        <span class="tick se"></span>
+        <button id="clickme" type="button">Click Me</button>
+      </div>
+    </section>
+    <section class="cell" aria-label="细线点阵">
+      <svg id="dots" viewBox="0 0 240 160" aria-hidden="true"></svg>
+    </section>
+    <svg class="overlay" id="links" aria-hidden="true"></svg>
+    <div class="cursor" id="cursor"></div>
+  </main>
+  <p id="live" class="sr-only" role="status" aria-live="polite"></p>
+  <script>
+    const stage = document.getElementById('stage');
+    const links = document.getElementById('links');
+    const cursorEl = document.getElementById('cursor');
+    const letters = [...document.querySelectorAll('#mark .letter')];
+    const ring = document.getElementById('ring');
+    const button = document.getElementById('clickme');
+    const dotsSvg = document.getElementById('dots');
+    const live = document.getElementById('live');
+    const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+    let reduced = motionQuery.matches;
+    motionQuery.addEventListener('change', () => { reduced = motionQuery.matches; });
+
+    const dotModel = [];
+    for (let row = 0; row < 5; row++) {
+      for (let col = 0; col < 7; col++) {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', 18 + col * 34);
+        circle.setAttribute('cy', 16 + row * 32);
+        circle.setAttribute('r', 2.2);
+        dotsSvg.appendChild(circle);
+        dotModel.push({ x: 18 + col * 34, y: 16 + row * 32, el: circle });
+      }
+    }
+
+    const lineMark = line();
+    const lineRing = line();
+    const lineButton = line();
+    const dotLines = dotModel.map(() => line());
+
+    function line() {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      node.setAttribute('visibility', 'hidden');
+      links.appendChild(node);
+      return node;
+    }
+
+    let pointer = null;
+    let userDriving = false;
+    let shown = { x: 0, y: 0, ready: false };
+    let demoTime = 0;
+    let last = 0;
+
+    stage.addEventListener('pointermove', (event) => {
+      userDriving = true;
+      pointer = localPoint(event.clientX, event.clientY);
+    });
+    stage.addEventListener('pointerdown', (event) => {
+      userDriving = true;
+      pointer = localPoint(event.clientX, event.clientY);
+    });
+    stage.addEventListener('pointerleave', () => { userDriving = false; });
+    button.addEventListener('click', () => { live.textContent = '已点击 Click Me'; });
+
+    function localPoint(clientX, clientY) {
+      const rect = stage.getBoundingClientRect();
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function stageSize() {
+      const rect = stage.getBoundingClientRect();
+      return { w: rect.width, h: rect.height };
+    }
+
+    function mapSvg(svg, x, y) {
+      const box = svg.getBoundingClientRect();
+      const origin = stage.getBoundingClientRect();
+      const vb = svg.viewBox.baseVal;
+      const scale = Math.min(box.width / vb.width, box.height / vb.height);
+      const ox = box.left + (box.width - vb.width * scale) / 2;
+      const oy = box.top + (box.height - vb.height * scale) / 2;
+      return {
+        x: ox - origin.left + (x - vb.x) * scale,
+        y: oy - origin.top + (y - vb.y) * scale,
+        scale
+      };
+    }
+
+    function relRect(node) {
+      const box = node.getBoundingClientRect();
+      const origin = stage.getBoundingClientRect();
+      return { x: box.left - origin.left, y: box.top - origin.top, w: box.width, h: box.height };
+    }
+
+    function closestOnRect(px, py, rect) {
+      const right = rect.x + rect.w;
+      const bottom = rect.y + rect.h;
+      const inside = px > rect.x && px < right && py > rect.y && py < bottom;
+      if (inside) {
+        const edges = [
+          { d: px - rect.x, x: rect.x, y: py },
+          { d: right - px, x: right, y: py },
+          { d: py - rect.y, x: px, y: rect.y },
+          { d: bottom - py, x: px, y: bottom }
+        ];
+        edges.sort((a, b) => a.d - b.d);
+        return { x: edges[0].x, y: edges[0].y, d: edges[0].d };
+      }
+      const x = Math.min(Math.max(px, rect.x), right);
+      const y = Math.min(Math.max(py, rect.y), bottom);
+      return { x, y, d: Math.hypot(px - x, py - y) };
+    }
+
+    function closestOnRoundRect(px, py, rect, radius) {
+      const r = Math.max(0, Math.min(radius, rect.w / 2, rect.h / 2));
+      const ix = rect.x + r;
+      const iy = rect.y + r;
+      const iw = rect.w - r * 2;
+      const ih = rect.h - r * 2;
+      const cx = Math.min(Math.max(px, ix), ix + iw);
+      const cy = Math.min(Math.max(py, iy), iy + ih);
+      const corner = (px < ix || px > ix + iw) && (py < iy || py > iy + ih);
+      if (corner) {
+        const dx = px - cx;
+        const dy = py - cy;
+        const dist = Math.hypot(dx, dy) || 1;
+        return {
+          x: cx + dx / dist * r,
+          y: cy + dy / dist * r,
+          d: Math.abs(dist - r)
+        };
+      }
+      return closestOnRect(px, py, rect);
+    }
+
+    function setLine(node, x1, y1, x2, y2, visible) {
+      if (!visible) {
+        node.setAttribute('visibility', 'hidden');
+        return;
+      }
+      node.setAttribute('visibility', 'visible');
+      node.setAttribute('x1', x1);
+      node.setAttribute('y1', y1);
+      node.setAttribute('x2', x2);
+      node.setAttribute('y2', y2);
+    }
+
+    function demoPoint(width, height, time) {
+      const stops = [
+        [0.30, 0.42],
+        [0.72, 0.34],
+        [0.34, 0.70],
+        [0.70, 0.66]
+      ];
+      const span = 1.15;
+      const travel = (time / 1000) / span;
+      if (!Number.isFinite(travel)) return { x: width * stops[0][0], y: height * stops[0][1] };
+      const count = stops.length;
+      const index = ((Math.floor(travel) % count) + count) % count;
+      const next = (index + 1) % count;
+      const t = travel - Math.floor(travel);
+      const ease = t * t * (3 - 2 * t);
+      return {
+        x: (stops[index][0] + (stops[next][0] - stops[index][0]) * ease) * width,
+        y: (stops[index][1] + (stops[next][1] - stops[index][1]) * ease) * height
+      };
+    }
+
+    function frame(now) {
+      if (!last) last = now;
+      const dt = Math.max(0, Math.min(48, now - last));
+      last = now;
+      const { w, h } = stageSize();
+      links.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      if (!userDriving && !reduced) {
+        demoTime += dt;
+        pointer = demoPoint(w, h, demoTime);
+      }
+      if (!userDriving && reduced) pointer = null;
+
+      const active = pointer && w > 0 && h > 0;
+      if (active) {
+        if (!shown.ready || reduced) {
+          shown = { x: pointer.x, y: pointer.y, ready: true };
+        } else {
+          shown.x += (pointer.x - shown.x) * 0.38;
+          shown.y += (pointer.y - shown.y) * 0.38;
+        }
+        cursorEl.style.left = shown.x + 'px';
+        cursorEl.style.top = shown.y + 'px';
+        cursorEl.classList.add('show');
+      } else {
+        shown.ready = false;
+        cursorEl.classList.remove('show');
+      }
+
+      const aim = shown.ready ? shown : null;
+      letters.forEach((letter) => letter.classList.remove('on'));
+      if (aim) {
+        let nearest = null;
+        letters.forEach((letter) => {
+          const hit = closestOnRect(aim.x, aim.y, relRect(letter));
+          if (!nearest || hit.d < nearest.d) nearest = { letter, hit };
+        });
+        if (nearest && nearest.hit.d < 120) nearest.letter.classList.add('on');
+        setLine(lineMark, aim.x, aim.y, nearest.hit.x, nearest.hit.y, nearest.hit.d > 8);
+      } else {
+        setLine(lineMark, 0, 0, 0, 0, false);
+      }
+
+      const center = mapSvg(ring, 100, 100);
+      const radius = 72 * center.scale;
+      if (aim && radius > 0) {
+        const dx = aim.x - center.x;
+        const dy = aim.y - center.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const rimX = center.x + dx / dist * radius;
+        const rimY = center.y + dy / dist * radius;
+        setLine(lineRing, aim.x, aim.y, rimX, rimY, Math.abs(dist - radius) > 8);
+      } else {
+        setLine(lineRing, 0, 0, 0, 0, false);
+      }
+
+      const buttonRect = relRect(button);
+      const radiusPx = parseFloat(getComputedStyle(button).borderTopLeftRadius) || 0;
+      if (aim) {
+        const hit = closestOnRoundRect(aim.x, aim.y, buttonRect, radiusPx);
+        const inside = aim.x >= buttonRect.x && aim.x <= buttonRect.x + buttonRect.w
+          && aim.y >= buttonRect.y && aim.y <= buttonRect.y + buttonRect.h;
+        button.classList.toggle('hot', inside || hit.d < 48);
+        setLine(lineButton, aim.x, aim.y, hit.x, hit.y, hit.d > 8);
+      } else {
+        button.classList.remove('hot');
+        setLine(lineButton, 0, 0, 0, 0, false);
+      }
+
+      const reach = Math.min(w, h) * 0.22;
+      dotModel.forEach((dot, index) => {
+        const at = mapSvg(dotsSvg, dot.x, dot.y);
+        let scale = 1;
+        let visible = false;
+        if (aim) {
+          const dist = Math.hypot(aim.x - at.x, aim.y - at.y);
+          if (dist < reach) {
+            const closeness = 1 - dist / reach;
+            scale = 1 + closeness * 1.8;
+            visible = dist > 8;
+            setLine(dotLines[index], aim.x, aim.y, at.x, at.y, visible);
+          } else {
+            setLine(dotLines[index], 0, 0, 0, 0, false);
+          }
+        } else {
+          setLine(dotLines[index], 0, 0, 0, 0, false);
+        }
+        dot.el.setAttribute('r', (2.15 * scale).toFixed(2));
+      });
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
