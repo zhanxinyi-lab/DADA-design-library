@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>甩动卡片</title>
+<style>
+html,body{margin:0;height:100%;background:#161616;overflow:hidden}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas:active{cursor:grabbing}
+.hint{position:fixed;left:16px;right:16px;bottom:14px;margin:0;color:#a3a3a3;font:13px/1.4 ui-sans-serif,system-ui,"Segoe UI",sans-serif}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="可以甩动的卡片。甩得越快，卡片拱得越厉害。"></canvas>
+<p class="hint">按住一张卡片再甩出去。甩得越快，它沿甩出的方向拱得越厉害。</p>
+<script>
+/* 对照公开视频的独立实现。原帖没有源码。
+   能核对到的只有：近黑底上的浅色圆角卡片、拖拽抛掷、
+   速度越快卡片沿抛出方向拱起得越明显，停下后恢复平直。 */
+const canvas = document.getElementById("c");
+const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const gl = canvas.getContext("webgl", { alpha: false, antialias: true, premultipliedAlpha: false });
+
+const PHRASES = [
+  { lines: ["fling it."], big: true },
+  { lines: ["the cards bend", "based on how fast", "you throw them."], big: false }
+];
+const DESIGN = [
+  { p: 0, x: 390, y: 250, w: 250, h: 148, r: -7 },
+  { p: 1, x: 730, y: 230, w: 300, h: 156, r: 5 },
+  { p: 0, x: 250, y: 450, w: 210, h: 128, r: 4 },
+  { p: 1, x: 560, y: 470, w: 310, h: 156, r: -3 },
+  { p: 0, x: 900, y: 440, w: 220, h: 136, r: 8 },
+  { p: 1, x: 360, y: 640, w: 280, h: 146, r: -5 },
+  { p: 0, x: 730, y: 650, w: 230, h: 132, r: 3 }
+];
+const STAGE_W = 1100, STAGE_H = 780;
+const COLS = 22, ROWS = 14;
+
+if (!gl) {
+  const g = canvas.getContext("2d");
+  const paint = () => {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.max(1, w * dpr); canvas.height = Math.max(1, h * dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = "#161616"; g.fillRect(0, 0, w, h);
+    g.fillStyle = "#f1efe9"; g.font = "16px sans-serif"; g.fillText("这个浏览器打不开 WebGL。", 24, 40);
+  };
+  paint();
+  window.addEventListener("resize", paint);
+} else {
+  const vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, `
+    attribute vec2 a_pos;
+    attribute vec2 a_uv;
+    attribute vec3 a_nrm;
+    uniform vec2 u_res;
+    varying vec2 v_uv;
+    varying vec3 v_nrm;
+    void main() {
+      vec2 clip = vec2(a_pos.x / u_res.x * 2.0 - 1.0, 1.0 - a_pos.y / u_res.y * 2.0);
+      gl_Position = vec4(clip, 0.0, 1.0);
+      v_uv = a_uv;
+      v_nrm = a_nrm;
+    }`);
+  gl.compileShader(vs);
+  const fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, `
+    precision mediump float;
+    varying vec2 v_uv;
+    varying vec3 v_nrm;
+    uniform sampler2D u_tex;
+    uniform vec2 u_size;
+    uniform vec3 u_light;
+    uniform float u_mode;
+    uniform float u_alpha;
+    void main() {
+      if (u_mode > 0.5) {
+        vec2 q = (v_uv - 0.5) * 2.0;
+        float e = dot(q, q);
+        if (e > 1.0) discard;
+        gl_FragColor = vec4(0.0, 0.0, 0.0, (1.0 - e) * u_alpha);
+        return;
+      }
+      vec2 p = (v_uv - 0.5) * u_size;
+      float rad = min(u_size.x, u_size.y) * 0.16;
+      vec2 box = u_size * 0.5 - rad;
+      vec2 q = abs(p) - box;
+      float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - rad;
+      if (d > 0.4) discard;
+      vec3 n = normalize(v_nrm);
+      float ndl = clamp(dot(n, normalize(u_light)), 0.0, 1.0);
+      vec3 tex = texture2D(u_tex, v_uv).rgb;
+      float rim = smoothstep(-3.0, 0.4, d);
+      vec3 col = tex * (0.64 + 0.5 * ndl);
+      col = min(col, vec3(1.0)) * mix(1.0, 0.8, rim);
+      gl_FragColor = vec4(col, 1.0);
+    }`);
+  gl.compileShader(fs);
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.bindAttribLocation(prog, 0, "a_pos");
+  gl.bindAttribLocation(prog, 1, "a_uv");
+  gl.bindAttribLocation(prog, 2, "a_nrm");
+  gl.linkProgram(prog);
+  const ok = gl.getShaderParameter(vs, gl.COMPILE_STATUS) && gl.getShaderParameter(fs, gl.COMPILE_STATUS) && gl.getProgramParameter(prog, gl.LINK_STATUS);
+  if (!ok) {
+    const g = document.createElement("p");
+    g.textContent = "着色器没能编译。";
+    g.style.cssText = "position:fixed;left:16px;top:16px;color:#fff;font:14px sans-serif";
+    document.body.appendChild(g);
+  }
+  gl.useProgram(prog);
+  const uRes = gl.getUniformLocation(prog, "u_res");
+  const uTex = gl.getUniformLocation(prog, "u_tex");
+  const uSize = gl.getUniformLocation(prog, "u_size");
+  const uLight = gl.getUniformLocation(prog, "u_light");
+  const uMode = gl.getUniformLocation(prog, "u_mode");
+  const uAlpha = gl.getUniformLocation(prog, "u_alpha");
+  gl.uniform1i(uTex, 0);
+  gl.uniform3f(uLight, 0.28, -0.62, 0.74);
+
+  function makeTexture(phrase) {
+    const c = document.createElement("canvas");
+    c.width = 640; c.height = 360;
+    const g = c.getContext("2d");
+    g.fillStyle = "#f1efe9";
+    g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = "#1c1c1c";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    const size = phrase.big ? 92 : 48;
+    g.font = "600 " + size + "px ui-sans-serif, system-ui, Segoe UI, sans-serif";
+    const lines = phrase.lines;
+    const gap = size * 1.15;
+    const top = c.height / 2 - gap * (lines.length - 1) / 2;
+    lines.forEach((line, i) => g.fillText(line, c.width / 2, top + i * gap));
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return tex;
+  }
+  const textures = PHRASES.map(makeTexture);
+
+  const cards = DESIGN.map((d, i) => ({
+    phrase: d.p, dx: d.x, dy: d.y, dw: d.w, dh: d.h,
+    x: 0, y: 0, w: d.w, h: d.h, rot: d.r * Math.PI / 180,
+    vx: 0, vy: 0, amp: 0, dirx: 1, diry: 0, z: i
+  }));
+
+  const vertCount = (COLS + 1) * (ROWS + 1);
+  const pos = new Float32Array(vertCount * 2);
+  const uv = new Float32Array(vertCount * 2);
+  const nrm = new Float32Array(vertCount * 3);
+  for (let j = 0; j <= ROWS; j++) {
+    for (let i = 0; i <= COLS; i++) {
+      const k = j * (COLS + 1) + i;
+      uv[k * 2] = i / COLS;
+      uv[k * 2 + 1] = 1 - j / ROWS;
+    }
+  }
+  const indices = [];
+  for (let j = 0; j < ROWS; j++) {
+    for (let i = 0; i < COLS; i++) {
+      const a = j * (COLS + 1) + i;
+      indices.push(a, a + 1, a + COLS + 1, a + 1, a + COLS + 2, a + COLS + 1);
+    }
+  }
+  const indexBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuf);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+
+  const posBuf = gl.createBuffer();
+  const uvBuf = gl.createBuffer();
+  const nrmBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, uv, gl.STATIC_DRAW);
+
+  function resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(1, canvas.clientWidth);
+    const h = Math.max(1, canvas.clientHeight);
+    const bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw; canvas.height = bh;
+    }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  function layout() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const s = Math.min(w / STAGE_W, h / STAGE_H);
+    const ox = (w - STAGE_W * s) / 2, oy = (h - STAGE_H * s) / 2;
+    for (const c of cards) {
+      c.x = ox + c.dx * s;
+      c.y = oy + c.dy * s;
+      c.w = c.dw * s;
+      c.h = c.dh * s;
+      c.vx = 0; c.vy = 0; c.amp = 0;
+    }
+    return s;
+  }
+
+  let laid = false;
+  let scale = 1;
+  function ensure() {
+    resize();
+    if (!laid && canvas.clientWidth > 2) {
+      scale = layout();
+      laid = true;
+    }
+  }
+
+  function fillCard(card) {
+    const cos = Math.cos(card.rot), sin = Math.sin(card.rot);
+    const sp = Math.hypot(card.vx, card.vy);
+    if (sp > 40) {
+      const tx = card.vx / sp, ty = card.vy / sp;
+      card.dirx += (tx - card.dirx) * 0.35;
+      card.diry += (ty - card.diry) * 0.35;
+      const dl = Math.hypot(card.dirx, card.diry) || 1;
+      card.dirx /= dl; card.diry /= dl;
+    }
+    const lvx = card.dirx * cos + card.diry * sin;
+    const lvy = -card.dirx * sin + card.diry * cos;
+    const half = Math.max(12, card.w * 0.5 * Math.abs(lvx) + card.h * 0.5 * Math.abs(lvy));
+    const focus = 820;
+    let n = 0;
+    for (let j = 0; j <= ROWS; j++) {
+      for (let i = 0; i <= COLS; i++) {
+        const lx = (i / COLS - 0.5) * card.w;
+        const ly = (j / ROWS - 0.5) * card.h;
+        const along = lx * lvx + ly * lvy;
+        const u = along / half;
+        const z = card.amp * (1 - u * u);
+        const dz = card.amp * (-2 * u) / half;
+        const dzlx = dz * lvx, dzly = dz * lvy;
+        const pk = focus / (focus - z);
+        const wx = card.x + (lx * cos - ly * sin) * pk;
+        const wy = card.y + (lx * sin + ly * cos) * pk;
+        pos[n * 2] = wx;
+        pos[n * 2 + 1] = wy;
+        nrm[n * 3] = sin * dzly - cos * dzlx;
+        nrm[n * 3 + 1] = -(cos * dzly + sin * dzlx);
+        nrm[n * 3 + 2] = 1;
+        n++;
+      }
+    }
+  }
+
+  function bindMesh(positions, uvData, normals) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
+    if (uvData) gl.bufferData(gl.ARRAY_BUFFER, uvData, gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, nrmBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, normals, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 0, 0);
+  }
+
+  const shadowPos = new Float32Array(8);
+  const shadowUv = new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]);
+  const shadowNrm = new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
+
+  function drawShadow(card) {
+    const padX = card.w * 0.62, padY = card.h * 0.58;
+    const x = card.x + card.w * 0.04, y = card.y + card.h * 0.08;
+    const x0 = x - padX, y0 = y - padY, x1 = x + padX, y1 = y + padY;
+    shadowPos.set([x0, y0, x1, y0, x0, y1, x1, y1]);
+    bindMesh(shadowPos, shadowUv, shadowNrm);
+    gl.uniform1f(uMode, 1);
+    gl.uniform1f(uAlpha, 0.34);
+    gl.uniform2f(uSize, card.w, card.h);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  function drawCard(card) {
+    fillCard(card);
+    bindMesh(pos, null, nrm);
+    gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, uv, gl.STATIC_DRAW);
+    gl.uniform1f(uMode, 0);
+    gl.uniform1f(uAlpha, 1);
+    gl.uniform2f(uSize, card.w, card.h);
+    gl.bindTexture(gl.TEXTURE_2D, textures[card.phrase]);
+    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+  }
+
+  function hit(card, x, y) {
+    const cos = Math.cos(card.rot), sin = Math.sin(card.rot);
+    const dx = x - card.x, dy = y - card.y;
+    const lx = dx * cos + dy * sin;
+    const ly = -dx * sin + dy * cos;
+    const rad = Math.min(card.w, card.h) * 0.16;
+    const ax = Math.abs(lx) - card.w / 2 + rad;
+    const ay = Math.abs(ly) - card.h / 2 + rad;
+    const ox = Math.max(ax, 0), oy = Math.max(ay, 0);
+    const d = Math.hypot(ox, oy) + Math.min(Math.max(ax, ay), 0) - rad;
+    return d <= 0;
+  }
+
+  let grab = null;
+  let user = false;
+  let demoAt = reduced ? Infinity : 2.55;
+  let clock = 0;
+  let last = performance.now();
+
+  function pointerPos(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  canvas.addEventListener("pointerdown", (e) => {
+    ensure();
+    user = true;
+    canvas.setPointerCapture(e.pointerId);
+    const p = pointerPos(e);
+    const order = cards.slice().sort((a, b) => a.z - b.z);
+    let found = null;
+    for (let i = order.length - 1; i >= 0; i--) if (hit(order[i], p.x, p.y)) { found = order[i]; break; }
+    if (!found) { grab = null; return; }
+    const top = Math.max(...cards.map((c) => c.z)) + 1;
+    found.z = top;
+    grab = { card: found, ox: p.x - found.x, oy: p.y - found.y };
+    found.vx = 0; found.vy = 0;
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!grab) return;
+    const p = pointerPos(e);
+    const now = performance.now();
+    const dt = Math.min(0.05, Math.max(0.008, (now - (grab.t || now)) / 1000));
+    const nx = p.x - grab.ox, ny = p.y - grab.oy;
+    grab.card.vx = Math.max(-2400, Math.min(2400, (nx - grab.card.x) / dt));
+    grab.card.vy = Math.max(-2400, Math.min(2400, (ny - grab.card.y) / dt));
+    grab.card.x = nx; grab.card.y = ny;
+    grab.t = now;
+  });
+  function release() { grab = null; }
+  canvas.addEventListener("pointerup", release);
+  canvas.addEventListener("pointercancel", release);
+
+  function step(dt) {
+    clock += dt;
+    if (!user && clock >= demoAt && clock - dt < demoAt) {
+      const c = cards[0];
+      c.z = Math.max(...cards.map((k) => k.z)) + 1;
+      c.vx = 900 * scale;
+      c.vy = 160 * scale;
+    }
+    for (const c of cards) {
+      const held = grab && grab.card === c;
+      if (!held) {
+        c.x += c.vx * dt;
+        c.y += c.vy * dt;
+        const damp = Math.exp(-1.15 * dt);
+        c.vx *= damp; c.vy *= damp;
+        const m = 24;
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        if (c.x < m) { c.x = m; c.vx = Math.abs(c.vx) * 0.35; }
+        if (c.x > w - m) { c.x = w - m; c.vx = -Math.abs(c.vx) * 0.35; }
+        if (c.y < m) { c.y = m; c.vy = Math.abs(c.vy) * 0.35; }
+        if (c.y > h - m) { c.y = h - m; c.vy = -Math.abs(c.vy) * 0.35; }
+        if (Math.hypot(c.vx, c.vy) < 12) { c.vx = 0; c.vy = 0; }
+      }
+      const sp = Math.hypot(c.vx, c.vy);
+      const x = Math.min(1, sp / (760 * Math.max(scale, 0.45)));
+      const target = reduced ? 0 : (x * x * (3 - 2 * x)) * Math.min(c.w, c.h) * 0.72;
+      c.amp += (target - c.amp) * (1 - Math.exp(-10 * dt));
+    }
+  }
+
+  function frame(now) {
+    const dt = Math.min(0.034, Math.max(0, (now - last) / 1000));
+    last = now;
+    ensure();
+    if (laid) step(dt);
+    gl.uniform2f(uRes, canvas.clientWidth || 1, canvas.clientHeight || 1);
+    gl.clearColor(0.086, 0.086, 0.086, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    const order = cards.slice().sort((a, b) => a.z - b.z);
+    for (const c of order) drawShadow(c);
+    for (const c of order) drawCard(c);
+    requestAnimationFrame(frame);
+  }
+  window.addEventListener("resize", () => { if (!user) { laid = false; } else resize(); });
+  requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>
