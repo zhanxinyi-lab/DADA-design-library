@@ -365,6 +365,11 @@
         addBox(mesh, [c[0] + 0.35, y + 0.62, c[1] + 0.55], [0.16, 0.16, 0.04], 0.4, [1, 0.86, 0.45], 1);
       });
 
+      return mesh.array();
+    }
+
+    function buildNightDisc() {
+      const mesh = new Mesh();
       for (let i = 0; i < 14; i++) {
         const a0 = (i / 14) * Math.PI * 2;
         const a1 = ((i + 1) / 14) * Math.PI * 2;
@@ -585,15 +590,18 @@
         'uniform vec3 uSun;',
         'uniform float uNight;',
         'varying vec3 vCol;',
+        'varying float vFade;',
         'void main() {',
         '  vec3 n = normalize(aNrm);',
         '  float ndl = max(dot(n, normalize(uLight)), 0.0);',
         '  float shade = 0.58 + 0.42 * ndl;',
         '  vec3 lit = aCol * mix(uAmbient, uSun, shade);',
         '  vec3 color = lit;',
-        '  if (aUnlit > 1.5) color = aCol * uNight;',
+        '  float fade = 1.0;',
+        '  if (aUnlit > 1.5) { color = aCol; fade = uNight; }',
         '  else if (aUnlit > 0.5) color = aCol;',
         '  vCol = clamp(color, 0.0, 1.0);',
+        '  vFade = fade;',
         '  gl_Position = uMvp * vec4(aPos, 1.0);',
         '}'
       ].join('\n');
@@ -602,16 +610,23 @@
         'uniform vec3 uTop;',
         'uniform vec3 uBot;',
         'varying vec3 vCol;',
+        'varying float vFade;',
         'void main() {',
         '  vCol = mix(uBot, uTop, aPos.y * 0.5 + 0.5);',
+        '  vFade = 1.0;',
         '  gl_Position = vec4(aPos, 0.999, 1.0);',
         '}'
       ].join('\n');
       const fsSource = [
         'precision mediump float;',
         'varying vec3 vCol;',
+        'varying float vFade;',
         'uniform float uAlpha;',
-        'void main() { gl_FragColor = vec4(vCol, uAlpha); }'
+        'void main() {',
+        '  float a = uAlpha * vFade;',
+        '  if (a < 0.004) discard;',
+        '  gl_FragColor = vec4(vCol, a);',
+        '}'
       ].join('\n');
 
       function compile(type, source) {
@@ -657,6 +672,9 @@
         const solidBuf = gl.createBuffer();
         const waterBuf = gl.createBuffer();
         const skyBuf = gl.createBuffer();
+        const nightBuf = gl.createBuffer();
+        const nightData = buildNightDisc();
+        const nightCount = nightData.length / 10;
         gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
 
@@ -664,6 +682,8 @@
         let staticCount = staticData.length / 10;
         gl.bindBuffer(gl.ARRAY_BUFFER, staticBuf);
         gl.bufferData(gl.ARRAY_BUFFER, staticData, gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, nightBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, nightData, gl.STATIC_DRAW);
 
         function bindMesh(buf, data, drawProg, attrib) {
           gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -796,6 +816,8 @@
           gl.enable(gl.BLEND);
           gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
           gl.depthMask(false);
+          bindMesh(nightBuf, null, prog, loc);
+          gl.drawArrays(gl.TRIANGLES, 0, nightCount);
           gl.uniform1f(loc.alpha, 0.94);
           waterCount = bindMesh(waterBuf, dyn.water, prog, loc);
           gl.drawArrays(gl.TRIANGLES, 0, waterCount);
@@ -827,13 +849,22 @@
 
         let last = 0;
         let raf = 0;
+        function schedule() {
+          if (raf) return;
+          raf = requestAnimationFrame(loop);
+        }
+        function stopLoop() {
+          if (raf) cancelAnimationFrame(raf);
+          raf = 0;
+        }
         function loop(now) {
+          raf = 0;
           const sec = now * 0.001;
           const dt = last ? Math.min(0.033, sec - last) : 0.016;
           last = sec;
           if (!reduced.on) step(dt);
           draw();
-          if (!reduced.on) raf = requestAnimationFrame(loop);
+          if (!reduced.on) schedule();
         }
 
         waveBtn.addEventListener('click', () => {
@@ -893,16 +924,15 @@
         motionQuery.addEventListener('change', () => {
           reduced.on = motionQuery.matches;
           if (reduced.on) {
-            if (raf) cancelAnimationFrame(raf);
-            raf = 0;
+            stopLoop();
             draw();
-          } else if (!raf) {
-            last = 0;
-            raf = requestAnimationFrame(loop);
+          } else {
+            if (!raf) last = 0;
+            schedule();
           }
         });
         refreshLabels();
-        raf = requestAnimationFrame(loop);
+        schedule();
       }
     }
   </script>
