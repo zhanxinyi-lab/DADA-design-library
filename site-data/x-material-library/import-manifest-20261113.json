@@ -1,0 +1,234 @@
+{
+  "batch": "2026-11-13",
+  "sourcePackage": "x-material-library-newitems-20261113.zip",
+  "sourceZipBytes": 4179730,
+  "sourceZipMd5": "30336f1153bc177aa9a411ba4068de2a",
+  "mergeMode": "data-only additive merge into current canonical repository snapshot; not a full-site build",
+  "originalPackageItems": 8,
+  "newUniqueItems": 8,
+  "updatedExistingItems": 0,
+  "resultingItems": 145,
+  "uniqueIds": 145,
+  "preservedPreviousSnapshotItems": 137,
+  "approvedDeletionList": {
+    "count": 114,
+    "allStillAbsent": true
+  },
+  "packageAssets": {
+    "directories": 8,
+    "files": 34,
+    "totalBytes": 4499405,
+    "ids": [
+      "2120805352417472527",
+      "2120873281226146285",
+      "2120884210991050818",
+      "2120984619621269553",
+      "2120896116711727557",
+      "2120882122441498894",
+      "2120933642084012214",
+      "2121034261356810750"
+    ],
+    "sha256": [
+      {
+        "path": "assets/2120805352417472527/img1.jpg",
+        "bytes": 29085,
+        "sha256": "d1cb0ef8ec358a5f98d70cf01294242aa6ac95a7b5e22b4aa6108e6e675fd633"
+      },
+      {
+        "path": "assets/2120805352417472527/poster0.jpg",
+        "bytes": 30494,
+        "sha256": "3d836fb2a631b1ef6c1cf7bcecd6a0047962547e7c6029879808f32f52378183"
+      },
+      {
+        "path": "assets/2120805352417472527/preview.mp4",
+        "bytes": 304118,
+        "sha256": "3b8c4a5ada49aa10bb83b913cac42f9a3a8b78bcc507ace6e2d3ab6c2e733b8b"
+      },
+      {
+        "path": "assets/2120805352417472527/preview.webm",
+        "bytes": 214881,
+        "sha256": "517bc660af140cd280d58b0c855b8722ff5b83bfa7a85070cfdb899f990fa58f"
+      },
+      {
+        "path": "assets/2120873281226146285/img1.jpg",
+        "bytes": 111578,
+        "sha256": "bda122474d3b2de377a1b788be9cd273f8aa1e1263e2d7abe7f1f8aacac34d34"
+      },
+      {
+        "path": "assets/2120873281226146285/poster0.jpg",
+        "bytes": 119123,
+        "sha256": "702b82a338b2e1d34703416e4091f676008a1ef828cfe4cac7bf5b05bbfc1db0"
+      },
+      {
+        "path": "assets/2120873281226146285/preview.mp4",
+        "bytes": 299074,
+        "sha256": "1148298f3524d937a96815c70371c462c38123edf7c0711b304b0eefb847a94d"
+      },
+      {
+        "path": "assets/2120873281226146285/preview.webm",
+        "bytes": 264021,
+        "sha256": "b780ddb17bf9a1930a23f4ea7d558b37ddaf8b50e8a8402829e1564f45f9abff"
+      },
+      {
+        "path": "assets/2120882122441498894/img1.jpg",
+        "bytes": 165940,
+        "sha256": "66d3f65ab9aa1cb7a9a55cd7a14800f5bacc8cd71616acc01828f599c19a3ba0"
+      },
+      {
+        "path": "assets/2120882122441498894/img2.jpg",
+        "bytes": 151304,
+        "sha256": "65c9cb6ffea6c9394d67f4fc607ee06425bddae16bc220cc23371b7fc14bf6d2"
+      },
+      {
+        "path": "assets/2120882122441498894/img3.jpg",
+        "bytes": 55714,
+        "sha256": "5968e41d92df523e0c3f320fb724b4bdf13d16219fb656f6687be96237f0498b"
+      },
+      {
+        "path": "assets/2120882122441498894/poster0.jpg",
+        "bytes": 48629,
+        "sha256": "f10203719b918d7ca514b8fbcf45204b20a91705220514cc4d511442bf6da5dc"
+      },
+      {
+        "path": "assets/2120882122441498894/preview.mp4",
+        "bytes": 171543,
+        "sha256": "6322652e57657ce7982e83c06ef4cd92b5f01eb2986d06afa64f4619c00a5785"
+      },
+      {
+        "path": "assets/2120882122441498894/preview.webm",
+        "bytes": 84802,
+        "sha256": "0e8af3a151a599358b26f2c289f362d1f72ff87fb84204d4d5fee3737cb4ad42"
+      },
+      {
+        "path": "assets/2120884210991050818/img1.jpg",
+        "bytes": 55380,
+        "sha256": "3ed50ef79dcbd1f8a38abcbb9b3e869feeecbea652dc9d20289f3d950b219f18"
+      },
+      {
+        "path": "assets/2120884210991050818/poster0.jpg",
+        "bytes": 57019,
+        "sha256": "407e635a2eb9a8972fe9d5e670500b64fa5ce31b7cd8f6bdf67e63978865d6b8"
+      },
+      {
+        "path": "assets/2120884210991050818/preview.mp4",
+        "bytes": 169149,
+        "sha256": "7b1402fa5bea5364d19b6d0352ca0d6a30652f0b572758eaa2db21f2421b5af0"
+      },
+      {
+        "path": "assets/2120884210991050818/preview.webm",
+        "bytes": 77040,
+        "sha256": "4f1cdc7ea85d9582c399440e5318bd39461e59ff25c0918cbf72a415cd1bc5a8"
+      },
+      {
+        "path": "assets/2120896116711727557/img1.jpg",
+        "bytes": 36640,
+        "sha256": "ddd36a6ed2be1197879f1030c95ac39aa93358acf7b0e52b4ff201175c39aafa"
+      },
+      {
+        "path": "assets/2120896116711727557/poster0.jpg",
+        "bytes": 58410,
+        "sha256": "d06da47665913249b8b4b222af650f1bf3cfafc7460973462473d3c466187758"
+      },
+      {
+        "path": "assets/2120896116711727557/preview.mp4",
+        "bytes": 212425,
+        "sha256": "85ec224a107814c88e898dd6e43f53ee6264677c45c02bd224e2e6556f16ac74"
+      },
+      {
+        "path": "assets/2120896116711727557/preview.webm",
+        "bytes": 85378,
+        "sha256": "20898d085e8f8243bf90f60970ee0b1ab169ad14b10957e34e1fac381a064ca2"
+      },
+      {
+        "path": "assets/2120933642084012214/img1.jpg",
+        "bytes": 61940,
+        "sha256": "08fc1f73f62a3b26c8bd5ffa4f285e7e2b75ffbf41bd049488b0aaecd6c11245"
+      },
+      {
+        "path": "assets/2120933642084012214/poster0.jpg",
+        "bytes": 77632,
+        "sha256": "3339fe9bdd14eda512af58db5cd62b7a08d7e567abbd346550909967aebdcd7d"
+      },
+      {
+        "path": "assets/2120933642084012214/preview.mp4",
+        "bytes": 129380,
+        "sha256": "39699a59e4fe5ea4179a841208d43d4ee05d34a765347a0badbc6d95ee31ebdc"
+      },
+      {
+        "path": "assets/2120933642084012214/preview.webm",
+        "bytes": 88375,
+        "sha256": "692a6437d54e8373de833581e99ae1a70f7b4c83c72080178cc1c1b143217831"
+      },
+      {
+        "path": "assets/2120984619621269553/img1.jpg",
+        "bytes": 51964,
+        "sha256": "ae70fb20043b17211a399736dd0ac93e27b19022781209d7689aeaabf351274e"
+      },
+      {
+        "path": "assets/2120984619621269553/poster0.jpg",
+        "bytes": 52019,
+        "sha256": "2322dd1c57143d1819df23a4cbd5f3e1cd316c2653ae163bf36004f8ece0ee73"
+      },
+      {
+        "path": "assets/2120984619621269553/preview.mp4",
+        "bytes": 352951,
+        "sha256": "6d6bfb49c1d9f0b4bdbc9566be30deafd70b1d11f976e6c5c4bb288dff49ab93"
+      },
+      {
+        "path": "assets/2120984619621269553/preview.webm",
+        "bytes": 310216,
+        "sha256": "be2b00020aacd99a15ea61e0465be27f62a34a10bf8333fe55412455d24c29f5"
+      },
+      {
+        "path": "assets/2121034261356810750/img1.jpg",
+        "bytes": 96380,
+        "sha256": "401132618c62ad71d68361ae2a7d0e9495f0caed6b41b97b14f4e4d4b92ae602"
+      },
+      {
+        "path": "assets/2121034261356810750/poster0.jpg",
+        "bytes": 39616,
+        "sha256": "3f5ccbe63c79041b999f240d7b1f757dd7c956a9c82715b5fb1a46c6944e0a4a"
+      },
+      {
+        "path": "assets/2121034261356810750/preview.mp4",
+        "bytes": 278100,
+        "sha256": "d1248a08afe94aa5979146c561952021589f49a133c688be3c50f1173ea4f9fc"
+      },
+      {
+        "path": "assets/2121034261356810750/preview.webm",
+        "bytes": 159085,
+        "sha256": "ecd97f8c1b792e90f13a3842454487b44795e8abd37511977ee2503cfa6a3218"
+      }
+    ]
+  },
+  "categories": {
+    "品牌 · 网页交互": 8
+  },
+  "codeStatus": {
+    "pending_cindy": 8
+  },
+  "licenseStatus": {
+    "not_verified": 8,
+    "note": "Source/license ownership was not verified; no permission was inferred."
+  },
+  "sourceValidation": {
+    "primaryXPosts": 8,
+    "statusIdsMatchItemIds": true,
+    "authorsMatchStatusPath": true,
+    "duplicateIds": 0,
+    "duplicateSourceUrls": 0,
+    "duplicateMediaHashesAgainstExisting": 0,
+    "postersVisuallyChecked": true
+  },
+  "mediaReferenceCleanup": {
+    "checkedPackageIds": 8,
+    "removedMissingOptionalReferences": 16,
+    "removedByKey": {
+      "gif_local": 8,
+      "full_video_local": 8
+    },
+    "missingRequiredLocalReferencesAfterCleanup": 0
+  },
+  "itemsFileOrder": "created_at descending; stable sort preserves existing ordering for ties and package order for incoming tied records",
+  "siteScope": "site-data/x-material-library/ only; no site UI/layout/behavior/basePath/effect-code changes; publish a complete site tree separately after merge"
+}
