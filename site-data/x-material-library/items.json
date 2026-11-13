@@ -1,5 +1,338 @@
 [
   {
+    "id": "2121034261356810750",
+    "url": "https://x.com/jh3yy/status/2121034261356810750",
+    "author": "jh3yy",
+    "author_name": "jhey ʕ•ᴥ•ʔ",
+    "created_at": "2026-11-13T00:15:49.000Z",
+    "lang": "en",
+    "text": "unlimited tokens? 🎟️\n\nhold to fire\ngun is customisable 🧑‍🍳",
+    "sources": [
+      "hotscan-1000",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "交互彩蛋",
+      "光标",
+      "落地页"
+    ],
+    "metrics": {
+      "bookmark_count": 181,
+      "impression_count": 15877,
+      "like_count": 428,
+      "quote_count": 0,
+      "reply_count": 16,
+      "repost_count": 6
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2121034261356810750/poster0.jpg",
+      "assets/2121034261356810750/img1.jpg"
+    ],
+    "poster": "assets/2121034261356810750/poster0.jpg",
+    "video": "assets/2121034261356810750/preview.mp4",
+    "preview": "assets/2121034261356810750/preview.webm",
+    "duration_s": 28,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-13T23:02:00+08:00",
+    "effect_zh": "jh3yy 的落地页小彩蛋：按住鼠标，一把印着「craft」的 3D 撒钱枪跟着光标转向、狂喷印着「ONE TOKEN」的绿色钞票，钞票带透视翻转飘满整屏，枪的贴纸和颜色还能在面板里自定义。",
+    "platform": "x",
+    "title": "Unlimited tokens 撒钱枪彩蛋",
+    "cindy_job": "cindy-jobs/2121034261356810750"
+  },
+  {
+    "id": "2120984619621269553",
+    "url": "https://x.com/jh3yy/status/2120984619621269553",
+    "author": "jh3yy",
+    "author_name": "jhey ʕ•ᴥ•ʔ",
+    "created_at": "2026-11-12T20:58:33.000Z",
+    "lang": "en",
+    "text": "make it pop: 002",
+    "sources": [
+      "brief",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "文字动效",
+      "镭射",
+      "悬停",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 65,
+      "impression_count": 5851,
+      "like_count": 227,
+      "quote_count": 0,
+      "reply_count": 6,
+      "repost_count": 11
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120984619621269553/poster0.jpg",
+      "assets/2120984619621269553/img1.jpg"
+    ],
+    "poster": "assets/2120984619621269553/poster0.jpg",
+    "video": "assets/2120984619621269553/preview.mp4",
+    "preview": "assets/2120984619621269553/preview.webm",
+    "duration_s": 18,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-13T23:02:00+08:00",
+    "effect_zh": "jh3yy 的 make it pop 002：「pop」三个字母里是一层流动的彩虹镭射渐变，鼠标靠近时颜色会跟着搅动。很小的标题效果，给落地页标题加惊喜感时很好用。",
+    "platform": "x",
+    "title": "make it pop 002 流动镭射字",
+    "cindy_job": "cindy-jobs/2120984619621269553"
+  },
+  {
+    "id": "2120933642084012214",
+    "url": "https://x.com/jh3yy/status/2120933642084012214",
+    "author": "jh3yy",
+    "author_name": "jhey ʕ•ᴥ•ʔ",
+    "created_at": "2026-11-12T17:35:59.000Z",
+    "lang": "en",
+    "text": "editions scrapbook: spoke highlight reveal\n\nneat little design to draw attention to a surface ✨",
+    "sources": [
+      "hotscan-0400",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "目录切换",
+      "高亮",
+      "卡片",
+      "微交互"
+    ],
+    "metrics": {
+      "bookmark_count": 75,
+      "impression_count": 4895,
+      "like_count": 114,
+      "quote_count": 0,
+      "reply_count": 6,
+      "repost_count": 2
+    },
+    "links": [
+      "https://twitter.com/jh3yy/status/2115512108632707418"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120933642084012214/poster0.jpg",
+      "assets/2120933642084012214/img1.jpg"
+    ],
+    "poster": "assets/2120933642084012214/poster0.jpg",
+    "video": "assets/2120933642084012214/preview.mp4",
+    "preview": "assets/2120933642084012214/preview.webm",
+    "duration_s": 19,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-13T23:02:00+08:00",
+    "effect_zh": "jh3yy 的 spoke highlight reveal：切换左侧目录时，卡片边框会射出一圈细「辐条」线汇聚到标题小圆点，像聚光一样把视线引到当前区块。",
+    "platform": "x",
+    "title": "辐条高亮揭示",
+    "cindy_job": "cindy-jobs/2120933642084012214"
+  },
+  {
+    "id": "2120896116711727557",
+    "url": "https://x.com/MengTo/status/2120896116711727557",
+    "author": "MengTo",
+    "author_name": "Meng To",
+    "created_at": "2026-11-12T15:06:53.000Z",
+    "lang": "en",
+    "text": "I made this scroll-world landing page with HeyGen Video 1.\n\nThe whole hero is one 30-second take at 2K: floor plan, model, house, inside, sky. Scroll and it plays in reverse.\n\nFull workflow, prompts and the free template below.",
+    "sources": [
+      "hotscan-0400",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "滚动驱动",
+      "落地页",
+      "Hero"
+    ],
+    "metrics": {
+      "bookmark_count": 160,
+      "impression_count": 13148,
+      "like_count": 149,
+      "quote_count": 2,
+      "reply_count": 57,
+      "repost_count": 14
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120896116711727557/poster0.jpg",
+      "assets/2120896116711727557/img1.jpg"
+    ],
+    "poster": "assets/2120896116711727557/poster0.jpg",
+    "video": "assets/2120896116711727557/preview.mp4",
+    "preview": "assets/2120896116711727557/preview.webm",
+    "duration_s": 67,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-13T23:02:00+08:00",
+    "effect_zh": "MengTo 把一段 30 秒一镜到底的 2K 视频做成北欧建筑工作室落地页 Hero：往下滚动即播放，往回滚就倒放，后面还有大字滚动、作品区和联系区。",
+    "platform": "x",
+    "title": "滚动驱动视频落地页 Hero",
+    "cindy_job": "cindy-jobs/2120896116711727557"
+  },
+  {
+    "id": "2120884210991050818",
+    "url": "https://x.com/BThreeAgency/status/2120884210991050818",
+    "author": "BThreeAgency",
+    "author_name": "Ritu",
+    "created_at": "2026-11-12T14:19:34.000Z",
+    "lang": "en",
+    "text": "App design is all about seamless transition.",
+    "sources": [
+      "brief",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "App动效",
+      "转场",
+      "3D角色",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 347,
+      "impression_count": 17669,
+      "like_count": 539,
+      "quote_count": 4,
+      "reply_count": 33,
+      "repost_count": 29
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120884210991050818/poster0.jpg",
+      "assets/2120884210991050818/img1.jpg"
+    ],
+    "poster": "assets/2120884210991050818/poster0.jpg",
+    "video": "assets/2120884210991050818/preview.mp4",
+    "preview": "assets/2120884210991050818/preview.webm",
+    "duration_s": 10,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-13T23:02:00+08:00",
+    "effect_zh": "BThreeAgency 的心情打卡 App：选择 OKAY / GOOD / GREAT / LOW 时，戴眼镜的 3D 小人会换颜色、换表情，大字和背景一起平滑过渡，最后落到「Noted, gently」确认页。",
+    "platform": "x",
+    "title": "心情打卡 App 情绪变脸",
+    "cindy_job": "cindy-jobs/2120884210991050818"
+  },
+  {
+    "id": "2120882122441498894",
+    "url": "https://x.com/AdelineAstraOS/status/2120882122441498894",
+    "author": "AdelineAstraOS",
+    "author_name": "Adeline | AstraOS",
+    "created_at": "2026-11-12T14:11:16.000Z",
+    "lang": "en",
+    "text": "Brand identity, UI and motion\n\nI know you don't usually feel inspired by the testimonial section, but we can be creative with it too!\n\nAlso, please, let's take care of our footers now, okay? 🪷",
+    "sources": [
+      "hotscan-0400",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "光标交互",
+      "打字机",
+      "网格",
+      "网页动效"
+    ],
+    "metrics": {
+      "bookmark_count": 74,
+      "impression_count": 3289,
+      "like_count": 147,
+      "quote_count": 0,
+      "reply_count": 14,
+      "repost_count": 4
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120882122441498894/poster0.jpg",
+      "assets/2120882122441498894/img1.jpg",
+      "assets/2120882122441498894/img2.jpg",
+      "assets/2120882122441498894/img3.jpg"
+    ],
+    "poster": "assets/2120882122441498894/poster0.jpg",
+    "video": "assets/2120882122441498894/preview.mp4",
+    "preview": "assets/2120882122441498894/preview.webm",
+    "duration_s": 8,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-13T23:02:00+08:00",
+    "effect_zh": "AdelineAstraOS 为 Utexo 做的网站动效：深色背景上铺满透视方格「隧道」，橙色像素方块跟着鼠标点亮周围格子，评价卡片引言像打字机一样逐字敲出，并配像素风图标和页脚卡片。",
+    "platform": "x",
+    "title": "Utexo 网格光标与打字评价区",
+    "cindy_job": "cindy-jobs/2120882122441498894"
+  },
+  {
+    "id": "2120873281226146285",
+    "url": "https://x.com/Navedux/status/2120873281226146285",
+    "author": "Navedux",
+    "author_name": "Naved",
+    "created_at": "2026-11-12T13:36:08.000Z",
+    "lang": "en",
+    "text": "coming soon to",
+    "sources": [
+      "brief",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "WebGL",
+      "鼠标跟随",
+      "首屏",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 35,
+      "impression_count": 1697,
+      "like_count": 86,
+      "quote_count": 0,
+      "reply_count": 6,
+      "repost_count": 5
+    },
+    "links": [
+      "https://illos.dev"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120873281226146285/poster0.jpg",
+      "assets/2120873281226146285/img1.jpg"
+    ],
+    "poster": "assets/2120873281226146285/poster0.jpg",
+    "video": "assets/2120873281226146285/preview.mp4",
+    "preview": "assets/2120873281226146285/preview.webm",
+    "duration_s": 12,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-13T23:02:00+08:00",
+    "effect_zh": "Navedux 用蓝色点阵和细线组成一只 WebGL 眼睛，瞳孔和眼睑会跟着光标「TARGET」移动、拉伸，旁边带着扫描界面式小标签。即将上线到 illos.dev。",
+    "platform": "x",
+    "title": "点阵眼睛跟随鼠标",
+    "cindy_job": "cindy-jobs/2120873281226146285"
+  },
+  {
     "id": "2120809570344050705",
     "url": "https://x.com/mxvdl/status/2120809570344050705",
     "author": "mxvdl",
@@ -44,6 +377,55 @@
     "effect_zh": "mxvdl：three.js 轻量笔刷 shader 巴黎街景拆解，草图→3D 网格→笔触 shader→特效，鱼眼街景、半调投影、颠球小人，每帧浏览器实时手绘",
     "platform": "x",
     "cindy_job": "cindy-jobs/2120809570344050705"
+  },
+  {
+    "id": "2120805352417472527",
+    "url": "https://x.com/awwwards/status/2120805352417472527",
+    "author": "awwwards",
+    "author_name": "awwwards.",
+    "created_at": "2026-11-12T09:06:13.000Z",
+    "lang": "en",
+    "text": "Today’s #SOTD goes to AUGE Experience for \"AUGE Experience\".\n\n\n\nAn award-winning digital experience studio partnering with ambitious brands to create distinctive experiences through design, technology, and creative experimentation.\n\nCongratulations!",
+    "sources": [
+      "brief",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "WebGL",
+      "官网",
+      "悬停",
+      "design-brief"
+    ],
+    "metrics": {
+      "bookmark_count": 60,
+      "impression_count": 5297,
+      "like_count": 127,
+      "quote_count": 0,
+      "reply_count": 1,
+      "repost_count": 7
+    },
+    "links": [
+      "https://www.awwwards.com/sites/auge-experience"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2120805352417472527/poster0.jpg",
+      "assets/2120805352417472527/img1.jpg"
+    ],
+    "poster": "assets/2120805352417472527/poster0.jpg",
+    "video": "assets/2120805352417472527/preview.mp4",
+    "preview": "assets/2120805352417472527/preview.webm",
+    "duration_s": 6,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-13T23:02:00+08:00",
+    "effect_zh": "Awwwards 今日 SOTD：AUGE Experience 工作室官网首页是一列客户名单，鼠标划过时作品视频浮出并贴在会弯曲、拉伸的 WebGL 画面上，黑白底色跟着切换。",
+    "platform": "x",
+    "title": "AUGE Experience 官网（悬停 WebGL）",
+    "cindy_job": "cindy-jobs/2120805352417472527"
   },
   {
     "id": "2120752319243723236",
