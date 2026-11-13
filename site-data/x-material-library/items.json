@@ -6084,7 +6084,7 @@
     "source_label": "DADA 效果代码目录"
   },
   {
-    "id": "effect-pro-threads",
+    "id": "pro-threads",
     "url": "https://github.com/zhanxinyi-lab/DADA-design-library/tree/main/effects/pro-threads",
     "author": "Kubai087",
     "author_name": "Kubai087",
@@ -6149,7 +6149,7 @@
     "source_label": "DADA 效果代码目录"
   },
   {
-    "id": "effect-voice-orbs",
+    "id": "voice-orbs",
     "url": "https://github.com/zhanxinyi-lab/DADA-design-library/tree/main/effects/voice-orbs",
     "author": "amunozdev",
     "author_name": "Alexis Munoz",
