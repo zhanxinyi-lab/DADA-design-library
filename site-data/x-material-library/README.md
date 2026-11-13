@@ -6,7 +6,8 @@
 
 - 当前清单由 131 条保留素材记录和 6 条仅代码预览记录组成，共 137 条、137 个唯一 ID；PR #85 按批准名单删除的 114 个素材 ID 仍全部缺席，未恢复原记录或其媒体。
 - 62 个现有 `effects/<slug>/code/index.html` 均有且仅有一个代码状态记录映射：56 条映射到保留素材记录；其余 6 条为代码专用预览记录，其中 4 条使用 `effect-<slug>` 合成 ID，`pro-threads` 和 `voice-orbs` 沿用各自效果 README 中已有的素材 ID。它们均标记为 `code_only_preview`，不恢复被删除条目的来源 ID 或素材数据。
-- 根因：此前 14 个代码状态记录的 `code` 字段指向不存在于 canonical 清单下的 `assets/<id>/code/index.html`；实现实际位于 `effects/<slug>/code/`。现在所有 62 条均直接映射到对应的 `effects/<slug>/code/index.html`，与站点 iframe 对 `code` 字段的读取方式一致。
+- 预览路径根因：原有 14 条代码状态记录仍指向 `assets/<id>/code/index.html` 旧路径。当前线上这些 URL 返回 HTTP 200，但它们是 staging 中的旧副本，并非仓库 canonical 输出；例如 `sonia-aurora-loader` 线上旧副本 SHA-256 为 `8f1778995c1dc9c9c5cd572e99b2188f21afd9d7fd7ac28d4841a945c04d7c83`，仓库 `effects/sonia-aurora-loader/code/index.html` 为 `a7a1c4eb17dd8fe1c414ab0f9b7a012fe25cb67129767c839d86ab005442620d`。canonical 实现位于 `effects/<slug>/code/`；该效果树当前尚未发布，线上 `/effects/` canonical 路径中的 `sonia-aurora-loader`、`pro-threads`、`voice-orbs`、`light-progress-bar`、`jh3yy-flip-to-tip` 页面返回 404。此 PR 将 62 条代码状态记录的 `code` 值统一改为对应 `effects/<slug>/code/index.html`（iframe 直接读取该字段）；此次仅修正元数据，不组装或部署 staging，需由后续完整站点树发布使这些预览上线。
+- 线上 `items.js` 返回 131 条；某个浏览器 UI 显示 129 条，是 `index.html` 按本地 `localStorage` 的 `dada-library-edits` / `store.hidden` 隐藏了其中两条。未读取或修改该浏览器存储，具体 ID 未核验；这不改变 canonical 清单的记录数。
 - `items.js` 与 `items.json` 保持语义一致；没有改动站点 UI、布局、功能、basePath `/s/rjqagsc0hcqp/` 或任何效果实现文件。
 - 62 个预览目录共 63 个代码文件（`voice-orbs` 含一个附加文件）。部署组装时，这些文件会加入现有 456 文件站点 staging；在替换旧代码路径副本、清理未引用资源之前为 519 个文件。本次不修改部署 staging。
 - 历史导入 manifest 继续记录导入当时的事实，不代表当前 canonical 清单；下文的 11/10–11/12 数量是当时批次的历史快照。
