@@ -25,7 +25,7 @@
     .face { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 700; }
     .mark { width: 14px; height: 14px; border-radius: 50%; background: var(--swatch); }
     .detail { min-height: 0; overflow: hidden; }
-    .detail p { margin: 0 0 16px; color: #5e584f; }
+    .detail .copy { display: block; margin: 0 0 16px; color: #5e584f; }
     .swatch { height: 92px; margin: 0 0 14px; border-radius: 16px; background: linear-gradient(160deg, var(--swatch), #1d1a16 78%); }
     .pill:focus-visible { outline: 2px solid #1d1a16; outline-offset: 4px; }
     @media (prefers-reduced-motion: reduce) {
@@ -37,15 +37,15 @@
   <div class="row" id="pills">
     <button class="pill" type="button" style="--swatch:#d36b45" aria-expanded="false">
       <span class="face">北向<span class="mark"></span></span>
-      <span class="detail"><span class="swatch"></span><p>同一张胶囊向下展开。这里只有色块和两句说明，没有外部图片。</p></span>
+      <span class="detail" aria-hidden="true" inert><span class="swatch"></span><span class="copy">同一张胶囊向下展开。这里只有色块和两句说明，没有外部图片。</span></span>
     </button>
     <button class="pill" type="button" style="--swatch:#3f6f62" aria-expanded="false">
       <span class="face">折页<span class="mark"></span></span>
-      <span class="detail"><span class="swatch"></span><p>细指针移出后收回。触控和键盘会把展开态钉住，直到再次关闭。</p></span>
+      <span class="detail" aria-hidden="true" inert><span class="swatch"></span><span class="copy">细指针移出后收回。触控和键盘会把展开态钉住，直到再次关闭。</span></span>
     </button>
     <button class="pill" type="button" style="--swatch:#d2a24c" aria-expanded="false">
       <span class="face">暖点<span class="mark"></span></span>
-      <span class="detail"><span class="swatch"></span><p>按 Escape 或点空白即可退出，焦点仍留在刚才的胶囊上。</p></span>
+      <span class="detail" aria-hidden="true" inert><span class="swatch"></span><span class="copy">按 Escape 或点空白即可退出，焦点仍留在刚才的胶囊上。</span></span>
     </button>
   </div>
   <script>
@@ -55,8 +55,12 @@
     function setOpen(target) {
       for (const pill of pills) {
         const on = pill === target;
+        const detail = pill.querySelector(".detail");
         pill.classList.toggle("is-open", on);
         pill.setAttribute("aria-expanded", on ? "true" : "false");
+        detail.setAttribute("aria-hidden", on ? "false" : "true");
+        if (on) detail.removeAttribute("inert");
+        else detail.setAttribute("inert", "");
       }
     }
     for (const pill of pills) {

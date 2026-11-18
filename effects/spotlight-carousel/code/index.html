@@ -35,7 +35,7 @@
   </style>
 </head>
 <body>
-  <div class="row" id="row" aria-label="焦点卡片">
+  <div class="row" id="row" role="region" aria-roledescription="轮播" aria-label="焦点卡片">
     <button class="card is-on" type="button" style="--paper:#e7d7c3;--ink:#8c4b32" aria-current="true"><span class="crop"></span><p class="title">静场</p></button>
     <button class="card" type="button" style="--paper:#d7e0dc;--ink:#24584d"><span class="crop"></span><p class="title">折线</p></button>
     <button class="card" type="button" style="--paper:#ead7d2;--ink:#7a3144"><span class="crop"></span><p class="title">暖边</p></button>
@@ -59,31 +59,45 @@
       });
       if (moveFocus) cards[index].focus();
     }
-    cards.forEach((card, i) => card.addEventListener("click", () => {
-      if (suppressClick) { suppressClick = false; return; }
-      setIndex(i);
-    }));
     const row = document.querySelector("#row");
     row.addEventListener("pointerdown", (event) => {
       if (event.button) return;
-      suppressClick = false;
-      drag = { x: event.clientX, index, moved: false, id: event.pointerId };
+      drag = {
+        x: event.clientX,
+        id: event.pointerId,
+        card: event.target.closest(".card")
+      };
       row.setPointerCapture(event.pointerId);
     });
-    row.addEventListener("pointermove", (event) => {
-      if (!drag || event.pointerId !== drag.id) return;
-      if (Math.abs(event.clientX - drag.x) > 10) drag.moved = true;
-    });
-    function finish(event) {
+    row.addEventListener("pointerup", (event) => {
       if (!drag || event.pointerId !== drag.id) return;
       const dx = event.clientX - drag.x;
-      const moved = drag.moved;
+      const tapCard = drag.card;
       drag = null;
-      suppressClick = moved;
-      if (moved && Math.abs(dx) > 36) setIndex(index + (dx < 0 ? 1 : -1));
-    }
-    row.addEventListener("pointerup", finish);
-    row.addEventListener("pointercancel", () => { drag = null; });
+      if (Math.abs(dx) > 36) {
+        suppressClick = true;
+        setTimeout(() => { suppressClick = false; }, 40);
+        setIndex(index + (dx < 0 ? 1 : -1));
+        return;
+      }
+      suppressClick = false;
+      if (tapCard) setIndex(cards.indexOf(tapCard));
+    });
+    row.addEventListener("pointercancel", (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      drag = null;
+      suppressClick = false;
+    });
+    row.addEventListener("click", (event) => {
+      if (suppressClick) {
+        suppressClick = false;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      const card = event.target.closest(".card");
+      if (card) setIndex(cards.indexOf(card));
+    });
     row.addEventListener("keydown", (event) => {
       if (event.key === "ArrowRight") { event.preventDefault(); setIndex(index + 1, true); }
       if (event.key === "ArrowLeft") { event.preventDefault(); setIndex(index - 1, true); }
