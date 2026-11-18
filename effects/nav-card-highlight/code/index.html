@@ -9,36 +9,85 @@
     html, body { margin: 0; height: 100%; }
     body {
       display: grid; place-items: center; background: #f7f4ee; color: #1d1a16;
-      font: 16px/1.4 "Segoe UI", "PingFang SC", sans-serif;
+      font: 16px/1.45 "Segoe UI", "PingFang SC", sans-serif;
     }
-    nav { position: relative; display: grid; gap: 8px; width: min(280px, calc(100% - 32px)); padding: 10px; }
+    nav {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.78fr);
+      grid-template-areas:
+        "overview craft"
+        "material craft"
+        "delivery delivery";
+      gap: 12px;
+      width: min(640px, calc(100% - 32px));
+      padding: 12px;
+    }
     .hl {
-      position: absolute; left: 0; top: 0; border-radius: 14px; pointer-events: none;
-      background: rgba(29, 26, 22, .08); box-shadow: inset 0 0 0 2px #1d1a16;
+      position: absolute; z-index: 0; left: 0; top: 0; border: 0; border-radius: 18px;
+      pointer-events: none; background: rgba(62, 122, 104, .18); box-shadow: none;
       transition: transform .28s ease, width .28s ease, height .28s ease;
     }
     button {
-      position: relative; border: 0; border-radius: 14px; background: transparent; color: #1d1a16;
-      text-align: left; padding: 14px 16px; font: inherit; cursor: pointer;
+      position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start;
+      gap: 6px; border: 0; border-radius: 18px; background: transparent; color: #1d1a16;
+      text-align: left; padding: 16px 18px; font: inherit; cursor: pointer;
     }
-    button[aria-current="true"] { font-weight: 700; }
+    .overview { grid-area: overview; min-height: 148px; }
+    .craft { grid-area: craft; min-height: 100%; }
+    .material { grid-area: material; min-height: 188px; }
+    .delivery { grid-area: delivery; min-height: 104px; }
+    .index { color: #3f3832; font-size: 12px; letter-spacing: .08em; }
+    .title { font-size: 22px; line-height: 1.2; font-weight: 650; }
+    button[aria-current="true"] .title { font-weight: 800; }
+    .copy { color: #2a251f; font-size: 14px; }
+    .more {
+      margin-top: auto; color: #13483a; font-size: 14px; font-weight: 700;
+      opacity: 0; transform: translateY(6px);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+    button.is-preview .more { opacity: 1; transform: none; }
     button:focus-visible { outline: 2px solid #1d1a16; outline-offset: 3px; }
-    @media (prefers-reduced-motion: reduce) { .hl { transition: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .hl, .more { transition: none; }
+    }
   </style>
 </head>
 <body>
   <nav id="nav" aria-label="章节">
     <span class="hl" id="hl"></span>
-    <button type="button" aria-current="true">总览</button>
-    <button type="button" aria-current="false">材料</button>
-    <button type="button" aria-current="false">工艺</button>
-    <button type="button" aria-current="false">交付</button>
+    <button type="button" class="card overview" aria-current="true">
+      <span class="index">01</span>
+      <span class="title">总览</span>
+      <span class="copy">这一季的材料、工序和交付放在同一张地图上。</span>
+      <span class="more">打开季度目录 →</span>
+    </button>
+    <button type="button" class="card craft">
+      <span class="index">02</span>
+      <span class="title">工艺</span>
+      <span class="copy">从样品到成品的工序按顺序摊开，方便对照每一步的停留时间。</span>
+      <span class="more">阅读工序说明 →</span>
+    </button>
+    <button type="button" class="card material">
+      <span class="index">03</span>
+      <span class="title">材料</span>
+      <span class="copy">布样、五金和染料按批次归在一起，避免同名样品混用。</span>
+      <span class="more">查看样品清单 →</span>
+    </button>
+    <button type="button" class="card delivery">
+      <span class="index">04</span>
+      <span class="title">交付</span>
+      <span class="copy">节点、份数和签收写在同一行。</span>
+      <span class="more">核对交付节点 →</span>
+    </button>
   </nav>
   <script>
     const nav = document.querySelector("#nav");
     const hl = document.querySelector("#hl");
     const items = [...nav.querySelectorAll("button")];
     const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
+    let pointerItem = null;
+
     function move(item) {
       const navBox = nav.getBoundingClientRect();
       const box = item.getBoundingClientRect();
@@ -46,22 +95,58 @@
       hl.style.height = box.height + "px";
       hl.style.transform = "translate(" + (box.left - navBox.left) + "px," + (box.top - navBox.top) + "px)";
     }
-    function select(item) {
-      for (const entry of items) entry.setAttribute("aria-current", entry === item ? "true" : "false");
-      move(item);
+    function current() {
+      return items.find((item) => item.getAttribute("aria-current") === "true") || items[0];
     }
-    function current() { return items.find((item) => item.getAttribute("aria-current") === "true") || items[0]; }
+    function preview() {
+      if (pointerItem) return pointerItem;
+      const active = document.activeElement;
+      if (items.includes(active) && active.matches(":focus-visible")) return active;
+      return null;
+    }
+    function sync() {
+      const shown = preview();
+      move(shown || current());
+      for (const entry of items) entry.classList.toggle("is-preview", entry === shown);
+    }
+    function select(item) {
+      for (const entry of items) {
+        if (entry === item) entry.setAttribute("aria-current", "true");
+        else entry.removeAttribute("aria-current");
+      }
+      sync();
+    }
     for (const item of items) {
       item.addEventListener("click", () => select(item));
-      item.addEventListener("focus", () => select(item));
+      item.addEventListener("focus", () => {
+        if (item.matches(":focus-visible")) pointerItem = null;
+        sync();
+        requestAnimationFrame(sync);
+      });
       if (!fine) continue;
       item.addEventListener("pointerenter", (event) => {
-        if (event.pointerType !== "touch") move(item);
+        if (event.pointerType === "touch") return;
+        pointerItem = item;
+        sync();
       });
     }
-    nav.addEventListener("pointerleave", () => move(current()));
-    move(items[0]);
-    window.addEventListener("resize", () => move(current()));
+    nav.addEventListener("keydown", (event) => {
+      if (event.key === "Tab") pointerItem = null;
+    });
+    nav.addEventListener("pointerleave", (event) => {
+      if (event.pointerType === "touch") return;
+      pointerItem = null;
+      sync();
+    });
+    nav.addEventListener("focusout", (event) => {
+      if (nav.contains(event.relatedTarget)) return;
+      sync();
+    });
+    hl.style.transition = "none";
+    sync();
+    void hl.offsetWidth;
+    hl.style.transition = "";
+    window.addEventListener("resize", () => sync());
   </script>
 </body>
 </html>
