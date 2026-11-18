@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>焦点卡片轮播</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: grid; align-content: center; gap: 18px; padding: 28px 16px;
+      background: #171512; color: #f6f1e8;
+      font: 16px/1.4 "Segoe UI", "PingFang SC", sans-serif;
+    }
+    .row { display: flex; gap: 12px; width: min(980px, 100%); margin: 0 auto; touch-action: pan-y; }
+    .card {
+      flex: 0.72 1 0; min-width: 0; height: 280px; padding: 16px; border: 0; border-radius: 22px;
+      background: var(--paper); color: #1d1a16; text-align: left; cursor: pointer; overflow: hidden;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      transition: flex-grow .35s ease;
+    }
+    .card.is-on { flex-grow: 2.4; }
+    .crop { flex: 1; border-radius: 14px; margin-bottom: 12px; background: linear-gradient(180deg, var(--ink), transparent 70%), var(--paper); }
+    .title { margin: 0; font-size: 22px; opacity: 0; transform: translateY(8px); transition: opacity .25s ease, transform .25s ease; }
+    .card.is-on .title { opacity: 1; transform: none; }
+    .card:focus-visible, .controls button:focus-visible { outline: 2px solid #f6f1e8; outline-offset: 4px; }
+    .controls { display: flex; justify-content: center; gap: 10px; }
+    .controls button {
+      border: 1px solid #f6f1e8; border-radius: 999px; background: transparent; color: inherit;
+      padding: 8px 14px; cursor: pointer;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card, .title { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="row" id="row" aria-label="焦点卡片">
+    <button class="card is-on" type="button" style="--paper:#e7d7c3;--ink:#8c4b32" aria-current="true"><span class="crop"></span><p class="title">静场</p></button>
+    <button class="card" type="button" style="--paper:#d7e0dc;--ink:#24584d"><span class="crop"></span><p class="title">折线</p></button>
+    <button class="card" type="button" style="--paper:#ead7d2;--ink:#7a3144"><span class="crop"></span><p class="title">暖边</p></button>
+    <button class="card" type="button" style="--paper:#ddd8ea;--ink:#3d3a72"><span class="crop"></span><p class="title">留白</p></button>
+  </div>
+  <div class="controls">
+    <button type="button" id="prev">上一张</button>
+    <button type="button" id="next">下一张</button>
+  </div>
+  <script>
+    const cards = [...document.querySelectorAll(".card")];
+    let index = 0;
+    let drag = null;
+    let suppressClick = false;
+    function setIndex(next, moveFocus) {
+      index = (next + cards.length) % cards.length;
+      cards.forEach((card, i) => {
+        const on = i === index;
+        card.classList.toggle("is-on", on);
+        card.setAttribute("aria-current", on ? "true" : "false");
+      });
+      if (moveFocus) cards[index].focus();
+    }
+    cards.forEach((card, i) => card.addEventListener("click", () => {
+      if (suppressClick) { suppressClick = false; return; }
+      setIndex(i);
+    }));
+    const row = document.querySelector("#row");
+    row.addEventListener("pointerdown", (event) => {
+      if (event.button) return;
+      suppressClick = false;
+      drag = { x: event.clientX, index, moved: false, id: event.pointerId };
+      row.setPointerCapture(event.pointerId);
+    });
+    row.addEventListener("pointermove", (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      if (Math.abs(event.clientX - drag.x) > 10) drag.moved = true;
+    });
+    function finish(event) {
+      if (!drag || event.pointerId !== drag.id) return;
+      const dx = event.clientX - drag.x;
+      const moved = drag.moved;
+      drag = null;
+      suppressClick = moved;
+      if (moved && Math.abs(dx) > 36) setIndex(index + (dx < 0 ? 1 : -1));
+    }
+    row.addEventListener("pointerup", finish);
+    row.addEventListener("pointercancel", () => { drag = null; });
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight") { event.preventDefault(); setIndex(index + 1, true); }
+      if (event.key === "ArrowLeft") { event.preventDefault(); setIndex(index - 1, true); }
+    });
+    document.querySelector("#prev").addEventListener("click", () => setIndex(index - 1));
+    document.querySelector("#next").addEventListener("click", () => setIndex(index + 1));
+  </script>
+</body>
+</html>

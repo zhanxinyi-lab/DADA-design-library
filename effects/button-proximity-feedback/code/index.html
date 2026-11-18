@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>按钮接近反馈</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: grid; place-items: center; background: #f4efe6; color: #201c18;
+      font: 16px/1.4 "Segoe UI", "PingFang SC", sans-serif;
+    }
+    .wrap { --near: 0; position: relative; display: grid; place-items: center; width: 240px; height: 160px; }
+    .ring {
+      position: absolute; width: 168px; height: 72px; border-radius: 999px;
+      border: 1px solid #201c18; opacity: calc(var(--near) * .85);
+      transform: scale(calc(.86 + var(--near) * .18)); pointer-events: none;
+    }
+    .cta {
+      position: relative; border: 0; border-radius: 999px; padding: 16px 28px;
+      background: #201c18; color: #f4efe6; font: inherit; font-weight: 700; cursor: pointer;
+      transition: background .2s linear, color .2s linear, transform .12s linear;
+    }
+    .cta:hover, .cta:focus-visible { background: #f4efe6; color: #201c18; box-shadow: inset 0 0 0 1.5px #201c18; }
+    .cta:focus-visible { outline: 2px solid #201c18; outline-offset: 5px; }
+    .cta:active { transform: translateY(1px); }
+    .status { position: absolute; left: 16px; right: 16px; bottom: 16px; margin: 0; text-align: center; color: #6d665c; }
+    @media (pointer: coarse) { .ring { display: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .ring { display: none; }
+      .cta { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <span class="ring"></span>
+    <button class="cta" type="button" id="cta">预约看样</button>
+  </div>
+  <p class="status" id="status" role="status"></p>
+  <script>
+    const button = document.querySelector("#cta");
+    const wrap = document.querySelector(".wrap");
+    const status = document.querySelector("#status");
+    const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (fine && !reduce) {
+      window.addEventListener("pointermove", (event) => {
+        const rect = button.getBoundingClientRect();
+        const distance = Math.hypot(event.clientX - (rect.left + rect.width / 2), event.clientY - (rect.top + rect.height / 2));
+        wrap.style.setProperty("--near", Math.max(0, 1 - distance / 180).toFixed(3));
+      });
+    }
+    button.addEventListener("click", () => { status.textContent = "已记录一次点击。"; });
+  </script>
+</body>
+</html>

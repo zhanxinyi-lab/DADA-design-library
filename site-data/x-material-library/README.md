@@ -4,7 +4,7 @@
 
 ## 当前 canonical 快照（2026-11-13）
 
-- 当前清单包含 131 条保留素材记录、6 条仅代码预览记录，以及 2026-11-13 包新增的 8 条待复刻记录，共 145 条、145 个唯一 ID；PR #85 批准删除的 114 个素材 ID 仍全部缺席。
+- 当前清单包含 131 条保留素材记录、10 条仅代码预览记录，以及 2026-11-13 包新增的 8 条待复刻记录，共 149 条、149 个唯一 ID。其中 4 条代码预览是 2026-11-18 追加的原创交互：`effect-morph-pill-card`、`effect-spotlight-carousel`、`effect-button-proximity-feedback`、`effect-nav-card-highlight`。锚点弹出菜单沿用已有 `jh3yy-anchor-popover`，没有新建副本。PR #85 批准删除的 114 个素材 ID 仍全部缺席。
 - 62 个现有 `effects/<slug>/code/index.html` 均有且仅有一个代码状态记录映射：56 条映射到保留素材记录；其余 6 条为代码专用预览记录，其中 4 条使用 `effect-<slug>` 合成 ID，`pro-threads` 和 `voice-orbs` 沿用各自效果 README 中已有的素材 ID。它们均标记为 `code_only_preview`，不恢复被删除条目的来源 ID 或素材数据。
 - PR #86 已将 62 条代码预览映射到 canonical `effects/<slug>/code/index.html`；站点数据 PR 不复制代码实现，部署仍须使用完整静态站点树并另行验证。
 - 历史浏览器显示 129 条对应 PR #86 之前的 131 条线上基线及本地隐藏状态；未读取或修改浏览器本地存储，不把该历史数字当作当前清单数。

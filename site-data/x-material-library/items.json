@@ -6562,4 +6562,145 @@
     "code_only_preview": true,
     "source_label": "DADA 效果代码目录"
   }
+,
+  {
+    "id": "effect-morph-pill-card",
+    "url": "https://github.com/zhanxinyi-lab/DADA-design-library/tree/main/effects/morph-pill-card",
+    "author": "DADA",
+    "author_name": "DADA 原创",
+    "text": "原创胶囊原地展开：细指针悬停展开，触控、点击和键盘可以钉住，Escape 或点空白收回。",
+    "sources": [
+      "dada"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "代码预览",
+      "交互"
+    ],
+    "metrics": {},
+    "links": [],
+    "code_links": [
+      "https://github.com/zhanxinyi-lab/DADA-design-library/tree/main/effects/morph-pill-card"
+    ],
+    "images": [],
+    "poster": null,
+    "video": null,
+    "preview": null,
+    "duration_s": null,
+    "has_animation": true,
+    "code_status": "ai_recreated",
+    "code": "effects/morph-pill-card/code/index.html",
+    "code_src": "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>胶囊原地展开</title>\n  <style>\n    :root { color-scheme: light; }\n    * { box-sizing: border-box; }\n    html, body { margin: 0; height: 100%; }\n    body {\n      display: grid; place-items: center; padding: 32px 16px;\n      background: #f3efe7; color: #1d1a16;\n      font: 16px/1.45 \"Segoe UI\", \"PingFang SC\", sans-serif;\n    }\n    .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: center; width: min(920px, 100%); }\n    .pill {\n      width: min(220px, 100%); padding: 0; border: 1px solid #1d1a16; border-radius: 999px;\n      background: #fffdf8; color: inherit; text-align: left; cursor: pointer; overflow: hidden;\n      display: grid; grid-template-rows: auto 0fr;\n      transition: grid-template-rows .42s cubic-bezier(.2,.8,.2,1), width .42s cubic-bezier(.2,.8,.2,1), border-radius .42s;\n    }\n    .pill.is-open { width: min(320px, 100%); border-radius: 28px; grid-template-rows: auto 1fr; }\n    .face, .detail { padding: 0 18px; }\n    .face { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 700; }\n    .mark { width: 14px; height: 14px; border-radius: 50%; background: var(--swatch); }\n    .detail { min-height: 0; overflow: hidden; }\n    .detail p { margin: 0 0 16px; color: #5e584f; }\n    .swatch { height: 92px; margin: 0 0 14px; border-radius: 16px; background: linear-gradient(160deg, var(--swatch), #1d1a16 78%); }\n    .pill:focus-visible { outline: 2px solid #1d1a16; outline-offset: 4px; }\n    @media (prefers-reduced-motion: reduce) {\n      .pill { transition: none; }\n    }\n  </style>\n</head>\n<body>\n  <div class=\"row\" id=\"pills\">\n    <button class=\"pill\" type=\"button\" style=\"--swatch:#d36b45\" aria-expanded=\"false\">\n      <span class=\"face\">北向<span class=\"mark\"></span></span>\n      <span class=\"detail\"><span class=\"swatch\"></span><p>同一张胶囊向下展开。这里只有色块和两句说明，没有外部图片。</p></span>\n    </button>\n    <button class=\"pill\" type=\"button\" style=\"--swatch:#3f6f62\" aria-expanded=\"false\">\n      <span class=\"face\">折页<span class=\"mark\"></span></span>\n      <span class=\"detail\"><span class=\"swatch\"></span><p>细指针移出后收回。触控和键盘会把展开态钉住，直到再次关闭。</p></span>\n    </button>\n    <button class=\"pill\" type=\"button\" style=\"--swatch:#d2a24c\" aria-expanded=\"false\">\n      <span class=\"face\">暖点<span class=\"mark\"></span></span>\n      <span class=\"detail\"><span class=\"swatch\"></span><p>按 Escape 或点空白即可退出，焦点仍留在刚才的胶囊上。</p></span>\n    </button>\n  </div>\n  <script>\n    const pills = [...document.querySelectorAll(\".pill\")];\n    const fine = matchMedia(\"(hover: hover) and (pointer: fine)\").matches;\n    let pinned = null;\n    function setOpen(target) {\n      for (const pill of pills) {\n        const on = pill === target;\n        pill.classList.toggle(\"is-open\", on);\n        pill.setAttribute(\"aria-expanded\", on ? \"true\" : \"false\");\n      }\n    }\n    for (const pill of pills) {\n      pill.addEventListener(\"click\", () => {\n        pinned = pinned === pill ? null : pill;\n        setOpen(pinned);\n      });\n      if (!fine) continue;\n      pill.addEventListener(\"pointerenter\", (event) => {\n        if (event.pointerType === \"touch\" || pinned) return;\n        setOpen(pill);\n      });\n      pill.addEventListener(\"pointerleave\", (event) => {\n        if (event.pointerType === \"touch\" || pinned) return;\n        setOpen(null);\n      });\n    }\n    document.addEventListener(\"pointerdown\", (event) => {\n      if (event.target.closest(\".pill\")) return;\n      pinned = null;\n      setOpen(null);\n    });\n    document.addEventListener(\"keydown\", (event) => {\n      if (event.key !== \"Escape\") return;\n      pinned = null;\n      setOpen(null);\n    });\n  </script>\n</body>\n</html>\n",
+    "platform": "github",
+    "library_name": "胶囊原地展开",
+    "code_note": "原创交互预览。参考来源的许可未核验，没有复制参考代码、媒体或独特视觉资产。",
+    "record_type": "code_only_preview",
+    "code_only_preview": true,
+    "source_label": "DADA 效果代码目录"
+  },
+  {
+    "id": "effect-spotlight-carousel",
+    "url": "https://github.com/zhanxinyi-lab/DADA-design-library/tree/main/effects/spotlight-carousel",
+    "author": "DADA",
+    "author_name": "DADA 原创",
+    "text": "原创焦点轮播：拖动或滑动切换，当前卡变宽并显示标题，方向键和前后按钮可用。",
+    "sources": [
+      "dada"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "代码预览",
+      "交互"
+    ],
+    "metrics": {},
+    "links": [],
+    "code_links": [
+      "https://github.com/zhanxinyi-lab/DADA-design-library/tree/main/effects/spotlight-carousel"
+    ],
+    "images": [],
+    "poster": null,
+    "video": null,
+    "preview": null,
+    "duration_s": null,
+    "has_animation": true,
+    "code_status": "ai_recreated",
+    "code": "effects/spotlight-carousel/code/index.html",
+    "code_src": "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>焦点卡片轮播</title>\n  <style>\n    * { box-sizing: border-box; }\n    html, body { margin: 0; height: 100%; }\n    body {\n      display: grid; align-content: center; gap: 18px; padding: 28px 16px;\n      background: #171512; color: #f6f1e8;\n      font: 16px/1.4 \"Segoe UI\", \"PingFang SC\", sans-serif;\n    }\n    .row { display: flex; gap: 12px; width: min(980px, 100%); margin: 0 auto; touch-action: pan-y; }\n    .card {\n      flex: 0.72 1 0; min-width: 0; height: 280px; padding: 16px; border: 0; border-radius: 22px;\n      background: var(--paper); color: #1d1a16; text-align: left; cursor: pointer; overflow: hidden;\n      display: flex; flex-direction: column; justify-content: flex-end;\n      transition: flex-grow .35s ease;\n    }\n    .card.is-on { flex-grow: 2.4; }\n    .crop { flex: 1; border-radius: 14px; margin-bottom: 12px; background: linear-gradient(180deg, var(--ink), transparent 70%), var(--paper); }\n    .title { margin: 0; font-size: 22px; opacity: 0; transform: translateY(8px); transition: opacity .25s ease, transform .25s ease; }\n    .card.is-on .title { opacity: 1; transform: none; }\n    .card:focus-visible, .controls button:focus-visible { outline: 2px solid #f6f1e8; outline-offset: 4px; }\n    .controls { display: flex; justify-content: center; gap: 10px; }\n    .controls button {\n      border: 1px solid #f6f1e8; border-radius: 999px; background: transparent; color: inherit;\n      padding: 8px 14px; cursor: pointer;\n    }\n    @media (prefers-reduced-motion: reduce) {\n      .card, .title { transition: none; }\n    }\n  </style>\n</head>\n<body>\n  <div class=\"row\" id=\"row\" aria-label=\"焦点卡片\">\n    <button class=\"card is-on\" type=\"button\" style=\"--paper:#e7d7c3;--ink:#8c4b32\" aria-current=\"true\"><span class=\"crop\"></span><p class=\"title\">静场</p></button>\n    <button class=\"card\" type=\"button\" style=\"--paper:#d7e0dc;--ink:#24584d\"><span class=\"crop\"></span><p class=\"title\">折线</p></button>\n    <button class=\"card\" type=\"button\" style=\"--paper:#ead7d2;--ink:#7a3144\"><span class=\"crop\"></span><p class=\"title\">暖边</p></button>\n    <button class=\"card\" type=\"button\" style=\"--paper:#ddd8ea;--ink:#3d3a72\"><span class=\"crop\"></span><p class=\"title\">留白</p></button>\n  </div>\n  <div class=\"controls\">\n    <button type=\"button\" id=\"prev\">上一张</button>\n    <button type=\"button\" id=\"next\">下一张</button>\n  </div>\n  <script>\n    const cards = [...document.querySelectorAll(\".card\")];\n    let index = 0;\n    let drag = null;\n    let suppressClick = false;\n    function setIndex(next, moveFocus) {\n      index = (next + cards.length) % cards.length;\n      cards.forEach((card, i) => {\n        const on = i === index;\n        card.classList.toggle(\"is-on\", on);\n        card.setAttribute(\"aria-current\", on ? \"true\" : \"false\");\n      });\n      if (moveFocus) cards[index].focus();\n    }\n    cards.forEach((card, i) => card.addEventListener(\"click\", () => {\n      if (suppressClick) { suppressClick = false; return; }\n      setIndex(i);\n    }));\n    const row = document.querySelector(\"#row\");\n    row.addEventListener(\"pointerdown\", (event) => {\n      if (event.button) return;\n      suppressClick = false;\n      drag = { x: event.clientX, index, moved: false, id: event.pointerId };\n      row.setPointerCapture(event.pointerId);\n    });\n    row.addEventListener(\"pointermove\", (event) => {\n      if (!drag || event.pointerId !== drag.id) return;\n      if (Math.abs(event.clientX - drag.x) > 10) drag.moved = true;\n    });\n    function finish(event) {\n      if (!drag || event.pointerId !== drag.id) return;\n      const dx = event.clientX - drag.x;\n      const moved = drag.moved;\n      drag = null;\n      suppressClick = moved;\n      if (moved && Math.abs(dx) > 36) setIndex(index + (dx < 0 ? 1 : -1));\n    }\n    row.addEventListener(\"pointerup\", finish);\n    row.addEventListener(\"pointercancel\", () => { drag = null; });\n    row.addEventListener(\"keydown\", (event) => {\n      if (event.key === \"ArrowRight\") { event.preventDefault(); setIndex(index + 1, true); }\n      if (event.key === \"ArrowLeft\") { event.preventDefault(); setIndex(index - 1, true); }\n    });\n    document.querySelector(\"#prev\").addEventListener(\"click\", () => setIndex(index - 1));\n    document.querySelector(\"#next\").addEventListener(\"click\", () => setIndex(index + 1));\n  </script>\n</body>\n</html>\n",
+    "platform": "github",
+    "library_name": "焦点卡片轮播",
+    "code_note": "原创交互预览。参考来源的许可未核验，没有复制参考代码、媒体或独特视觉资产。",
+    "record_type": "code_only_preview",
+    "code_only_preview": true,
+    "source_label": "DADA 效果代码目录"
+  },
+  {
+    "id": "effect-button-proximity-feedback",
+    "url": "https://github.com/zhanxinyi-lab/DADA-design-library/tree/main/effects/button-proximity-feedback",
+    "author": "DADA",
+    "author_name": "DADA 原创",
+    "text": "原创按钮接近反馈：细指针靠近时出现环，悬停、焦点和按下改变按钮；粗指针只有按下态。",
+    "sources": [
+      "dada"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "代码预览",
+      "交互"
+    ],
+    "metrics": {},
+    "links": [],
+    "code_links": [
+      "https://github.com/zhanxinyi-lab/DADA-design-library/tree/main/effects/button-proximity-feedback"
+    ],
+    "images": [],
+    "poster": null,
+    "video": null,
+    "preview": null,
+    "duration_s": null,
+    "has_animation": true,
+    "code_status": "ai_recreated",
+    "code": "effects/button-proximity-feedback/code/index.html",
+    "code_src": "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>按钮接近反馈</title>\n  <style>\n    * { box-sizing: border-box; }\n    html, body { margin: 0; height: 100%; }\n    body {\n      display: grid; place-items: center; background: #f4efe6; color: #201c18;\n      font: 16px/1.4 \"Segoe UI\", \"PingFang SC\", sans-serif;\n    }\n    .wrap { --near: 0; position: relative; display: grid; place-items: center; width: 240px; height: 160px; }\n    .ring {\n      position: absolute; width: 168px; height: 72px; border-radius: 999px;\n      border: 1px solid #201c18; opacity: calc(var(--near) * .85);\n      transform: scale(calc(.86 + var(--near) * .18)); pointer-events: none;\n    }\n    .cta {\n      position: relative; border: 0; border-radius: 999px; padding: 16px 28px;\n      background: #201c18; color: #f4efe6; font: inherit; font-weight: 700; cursor: pointer;\n      transition: background .2s linear, color .2s linear, transform .12s linear;\n    }\n    .cta:hover, .cta:focus-visible { background: #f4efe6; color: #201c18; box-shadow: inset 0 0 0 1.5px #201c18; }\n    .cta:focus-visible { outline: 2px solid #201c18; outline-offset: 5px; }\n    .cta:active { transform: translateY(1px); }\n    .status { position: absolute; left: 16px; right: 16px; bottom: 16px; margin: 0; text-align: center; color: #6d665c; }\n    @media (pointer: coarse) { .ring { display: none; } }\n    @media (prefers-reduced-motion: reduce) {\n      .ring { display: none; }\n      .cta { transition: none; }\n    }\n  </style>\n</head>\n<body>\n  <div class=\"wrap\">\n    <span class=\"ring\"></span>\n    <button class=\"cta\" type=\"button\" id=\"cta\">预约看样</button>\n  </div>\n  <p class=\"status\" id=\"status\" role=\"status\"></p>\n  <script>\n    const button = document.querySelector(\"#cta\");\n    const wrap = document.querySelector(\".wrap\");\n    const status = document.querySelector(\"#status\");\n    const fine = matchMedia(\"(hover: hover) and (pointer: fine)\").matches;\n    const reduce = matchMedia(\"(prefers-reduced-motion: reduce)\").matches;\n    if (fine && !reduce) {\n      window.addEventListener(\"pointermove\", (event) => {\n        const rect = button.getBoundingClientRect();\n        const distance = Math.hypot(event.clientX - (rect.left + rect.width / 2), event.clientY - (rect.top + rect.height / 2));\n        wrap.style.setProperty(\"--near\", Math.max(0, 1 - distance / 180).toFixed(3));\n      });\n    }\n    button.addEventListener(\"click\", () => { status.textContent = \"已记录一次点击。\"; });\n  </script>\n</body>\n</html>\n",
+    "platform": "github",
+    "library_name": "按钮接近反馈",
+    "code_note": "原创交互预览。参考来源的许可未核验，没有复制参考代码、媒体或独特视觉资产。",
+    "record_type": "code_only_preview",
+    "code_only_preview": true,
+    "source_label": "DADA 效果代码目录"
+  },
+  {
+    "id": "effect-nav-card-highlight",
+    "url": "https://github.com/zhanxinyi-lab/DADA-design-library/tree/main/effects/nav-card-highlight",
+    "author": "DADA",
+    "author_name": "DADA 原创",
+    "text": "原创导航共享高亮：同一块高亮跟随悬停或键盘焦点，触控点选后保持当前项。",
+    "sources": [
+      "dada"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "代码预览",
+      "交互"
+    ],
+    "metrics": {},
+    "links": [],
+    "code_links": [
+      "https://github.com/zhanxinyi-lab/DADA-design-library/tree/main/effects/nav-card-highlight"
+    ],
+    "images": [],
+    "poster": null,
+    "video": null,
+    "preview": null,
+    "duration_s": null,
+    "has_animation": true,
+    "code_status": "ai_recreated",
+    "code": "effects/nav-card-highlight/code/index.html",
+    "code_src": "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>导航共享高亮</title>\n  <style>\n    * { box-sizing: border-box; }\n    html, body { margin: 0; height: 100%; }\n    body {\n      display: grid; place-items: center; background: #f7f4ee; color: #1d1a16;\n      font: 16px/1.4 \"Segoe UI\", \"PingFang SC\", sans-serif;\n    }\n    nav { position: relative; display: grid; gap: 8px; width: min(280px, calc(100% - 32px)); padding: 10px; }\n    .hl {\n      position: absolute; left: 0; top: 0; border-radius: 14px; background: #1d1a16;\n      transition: transform .28s ease, width .28s ease, height .28s ease;\n    }\n    button {\n      position: relative; border: 0; border-radius: 14px; background: transparent; color: #1d1a16;\n      text-align: left; padding: 14px 16px; font: inherit; cursor: pointer;\n    }\n    button.is-hot { color: #f7f4ee; }\n    button:focus-visible { outline: 2px solid #1d1a16; outline-offset: 3px; }\n    @media (prefers-reduced-motion: reduce) { .hl { transition: none; } }\n  </style>\n</head>\n<body>\n  <nav id=\"nav\" aria-label=\"章节\">\n    <span class=\"hl\" id=\"hl\"></span>\n    <button type=\"button\" aria-current=\"true\">总览</button>\n    <button type=\"button\" aria-current=\"false\">材料</button>\n    <button type=\"button\" aria-current=\"false\">工艺</button>\n    <button type=\"button\" aria-current=\"false\">交付</button>\n  </nav>\n  <script>\n    const nav = document.querySelector(\"#nav\");\n    const hl = document.querySelector(\"#hl\");\n    const items = [...nav.querySelectorAll(\"button\")];\n    const fine = matchMedia(\"(hover: hover) and (pointer: fine)\").matches;\n    function move(item) {\n      const navBox = nav.getBoundingClientRect();\n      const box = item.getBoundingClientRect();\n      hl.style.width = box.width + \"px\";\n      hl.style.height = box.height + \"px\";\n      hl.style.transform = \"translate(\" + (box.left - navBox.left) + \"px,\" + (box.top - navBox.top) + \"px)\";\n      for (const entry of items) entry.classList.toggle(\"is-hot\", entry === item);\n    }\n    function select(item) {\n      for (const entry of items) entry.setAttribute(\"aria-current\", entry === item ? \"true\" : \"false\");\n      move(item);\n    }\n    function current() { return items.find((item) => item.getAttribute(\"aria-current\") === \"true\") || items[0]; }\n    for (const item of items) {\n      item.addEventListener(\"click\", () => select(item));\n      item.addEventListener(\"focus\", () => select(item));\n      if (!fine) continue;\n      item.addEventListener(\"pointerenter\", (event) => {\n        if (event.pointerType !== \"touch\") move(item);\n      });\n    }\n    nav.addEventListener(\"pointerleave\", () => move(current()));\n    move(items[0]);\n    window.addEventListener(\"resize\", () => move(current()));\n  </script>\n</body>\n</html>\n",
+    "platform": "github",
+    "library_name": "导航共享高亮",
+    "code_note": "原创交互预览。参考来源的许可未核验，没有复制参考代码、媒体或独特视觉资产。",
+    "record_type": "code_only_preview",
+    "code_only_preview": true,
+    "source_label": "DADA 效果代码目录"
+  }
 ]
