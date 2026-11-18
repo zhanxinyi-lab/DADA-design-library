@@ -15,18 +15,18 @@
     }
     .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: center; width: min(920px, 100%); }
     .pill {
-      width: min(220px, 100%); padding: 0; border: 1px solid #1d1a16; border-radius: 999px;
+      width: max-content; max-width: 100%; padding: 0; border: 1px solid #1d1a16; border-radius: 999px;
       background: #fffdf8; color: inherit; text-align: left; cursor: pointer; overflow: hidden;
-      display: grid; grid-template-rows: auto 0fr;
-      transition: grid-template-rows .42s cubic-bezier(.2,.8,.2,1), width .42s cubic-bezier(.2,.8,.2,1), border-radius .42s;
+      display: flex; flex-direction: column;
+      transition: width .42s cubic-bezier(.2,.8,.2,1), border-radius .42s;
     }
-    .pill.is-open { width: min(320px, 100%); border-radius: 28px; grid-template-rows: auto 1fr; }
-    .face, .detail { padding: 0 18px; }
-    .face { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 700; }
-    .mark { width: 14px; height: 14px; border-radius: 50%; background: var(--swatch); }
-    .detail { min-height: 0; overflow: hidden; }
-    .detail .copy { display: block; margin: 0 0 16px; color: #5e584f; }
-    .swatch { height: 92px; margin: 0 0 14px; border-radius: 16px; background: linear-gradient(160deg, var(--swatch), #1d1a16 78%); }
+    .pill.is-open { width: min(460px, 100%); border-radius: 22px; }
+    .face { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 14px 0 6px; font-weight: 700; }
+    .mark { width: 32px; height: 32px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff6, transparent 42%), var(--swatch); flex: none; }
+    .detail { display: none; }
+    .pill.is-open .detail { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; padding: 0 14px 14px; }
+    .detail .copy { display: block; margin: 0; color: #5e584f; font-size: 14px; font-weight: 500; }
+    .swatch { height: 112px; border-radius: 16px; background: linear-gradient(160deg, var(--swatch), #1d1a16 78%); }
     .pill:focus-visible { outline: 2px solid #1d1a16; outline-offset: 4px; }
     @media (prefers-reduced-motion: reduce) {
       .pill { transition: none; }
