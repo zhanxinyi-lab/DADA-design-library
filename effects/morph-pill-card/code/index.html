@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>胶囊原地展开</title>
   <style>
-    :root { color-scheme: light; }
+    :root { color-scheme: dark; }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; }
     body {
@@ -14,56 +14,66 @@
       font: 16px/1.45 "Segoe UI", "PingFang SC", sans-serif;
     }
     .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: center; width: min(920px, 100%); }
+    .slot { position: relative; height: 44px; flex: none; }
     .pill {
-      width: max-content; max-width: 100%; padding: 0; border: 0; border-radius: 999px;
-      background: #f7f4ee; color: #1c1916; text-align: left; cursor: pointer; overflow: hidden;
-      display: grid; grid-template-rows: auto 0fr;
-      transition: width .5s cubic-bezier(.16,1.15,.32,1), border-radius .5s cubic-bezier(.16,1.15,.32,1), grid-template-rows .5s cubic-bezier(.16,1.15,.32,1);
+      position: absolute; top: 0; left: 0; z-index: 1;
+      width: max-content; max-width: min(460px, calc(100vw - 32px));
+      padding: 6px 14px 6px 6px; border: 0; border-radius: 999px;
+      background: #f7f4ee; color: #1c1916; font: inherit; text-align: left; cursor: pointer;
+      display: grid; grid-template-columns: 32px auto; column-gap: 8px; align-items: center;
+      transition: width .5s cubic-bezier(.16,1.15,.32,1), border-radius .5s cubic-bezier(.16,1.15,.32,1), padding .5s cubic-bezier(.16,1.15,.32,1);
     }
-    .pill.is-open { width: min(460px, 100%); border-radius: 22px; grid-template-rows: auto 1fr; }
-    .face { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 14px 0 6px; font-weight: 700; }
-    .mark { width: 32px; height: 32px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff6, transparent 42%), var(--swatch); flex: none; }
-    .detail { min-height: 0; overflow: hidden; }
-    .inner { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; padding: 0 14px 14px; min-height: 0; }
-    .copy { display: grid; align-content: center; gap: 4px; margin: 0; color: #5c564e; font-size: 13px; font-weight: 500; }
-    .copy b { color: #1c1916; font-size: 16px; }
-    .meta { color: #8a8378; font-size: 12px; }
+    .pill.is-open {
+      z-index: 2; width: min(460px, calc(100vw - 32px)); border-radius: 22px;
+      grid-template-columns: 128px minmax(0, 1fr); padding: 14px; align-items: start;
+    }
+    .mark {
+      width: 32px; height: 32px; border-radius: 50%; grid-column: 1; grid-row: 1;
+      background: radial-gradient(circle at 35% 30%, #fff6, transparent 42%), var(--swatch);
+      transition: width .5s cubic-bezier(.16,1.15,.32,1), height .5s cubic-bezier(.16,1.15,.32,1), border-radius .5s cubic-bezier(.16,1.15,.32,1);
+    }
+    .pill.is-open .mark { width: 128px; height: 112px; border-radius: 16px; grid-row: 1 / span 2; }
+    .name { grid-column: 2; grid-row: 1; font-weight: 700; }
+    .detail { grid-column: 2; grid-row: 2; width: 0; height: 0; min-width: 0; overflow: hidden; }
+    .pill.is-open .detail { width: auto; height: auto; }
+    .copy { display: grid; align-content: start; gap: 4px; margin: 0; color: #5e584f; font-size: 13px; font-weight: 500; }
+    .meta { color: #5e584f; font-size: 13px; }
     .more { color: #1c1916; font-weight: 700; }
-    .swatch { height: 112px; border-radius: 16px; background: linear-gradient(165deg, var(--swatch), #241f1b 80%); }
     .pill:focus-visible { outline: 2px solid #f4f1ea; outline-offset: 4px; }
     @media (prefers-reduced-motion: reduce) {
-      .pill { transition: none; }
+      .pill, .mark, .detail { transition: none; }
     }
   </style>
 </head>
 <body>
   <div class="row" id="pills">
-    <button class="pill" type="button" style="--swatch:#d36b45" aria-expanded="false">
-      <span class="face"><span class="mark"></span>北向</span>
-      <span class="detail" aria-hidden="true" inert><span class="inner"><span class="swatch"></span><span class="copy"><b>北向</b><span class="meta">示意图形 · 无原图</span><span>同一张表面从胶囊长成卡片。</span><span class="more">展开说明</span></span></span></span>
-    </button>
-    <button class="pill" type="button" style="--swatch:#3f6f62" aria-expanded="false">
-      <span class="face"><span class="mark"></span>折页</span>
-      <span class="detail" aria-hidden="true" inert><span class="inner"><span class="swatch"></span><span class="copy"><b>折页</b><span class="meta">悬停展开 · 移出收回</span><span>点一下可以钉住，再点或按 Escape 关闭。</span><span class="more">展开说明</span></span></span></span>
-    </button>
-    <button class="pill" type="button" style="--swatch:#d2a24c" aria-expanded="false">
-      <span class="face"><span class="mark"></span>暖点</span>
-      <span class="detail" aria-hidden="true" inert><span class="inner"><span class="swatch"></span><span class="copy"><b>暖点</b><span class="meta">其余胶囊保持收起</span><span>键盘焦点环在深色背景上可见。</span><span class="more">展开说明</span></span></span></span>
-    </button>
+    <span class="slot"><button class="pill" type="button" style="--swatch:#d36b45" aria-expanded="false" aria-labelledby="n1">
+      <span class="mark"></span><span class="name" id="n1">北向</span>
+      <span class="detail" aria-hidden="true" inert><span class="copy"><span class="meta">示意图形 · 无原图</span><span>同一张表面从胶囊长成卡片。</span><span class="more">展开说明</span></span></span>
+    </button></span>
+    <span class="slot"><button class="pill" type="button" style="--swatch:#3f6f62" aria-expanded="false" aria-labelledby="n2">
+      <span class="mark"></span><span class="name" id="n2">折页</span>
+      <span class="detail" aria-hidden="true" inert><span class="copy"><span class="meta">悬停展开 · 移出收回</span><span>点一下可以钉住，再点或按 Escape 关闭。</span><span class="more">展开说明</span></span></span>
+    </button></span>
+    <span class="slot"><button class="pill" type="button" style="--swatch:#d2a24c" aria-expanded="false" aria-labelledby="n3">
+      <span class="mark"></span><span class="name" id="n3">暖点</span>
+      <span class="detail" aria-hidden="true" inert><span class="copy"><span class="meta">其余胶囊保持收起</span><span>键盘焦点环在深色背景上可见。</span><span class="more">展开说明</span></span></span>
+    </button></span>
   </div>
   <script>
+    const row = document.querySelector("#pills");
     const pills = [...document.querySelectorAll(".pill")];
     const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
     let pinned = null;
     function measure() {
       for (const pill of pills) {
-        const detail = pill.querySelector(".detail");
+        const slot = pill.parentElement;
         const open = pill.classList.contains("is-open");
-        detail.style.display = "none";
         pill.style.width = "max-content";
-        pill.dataset.closed = pill.offsetWidth + "px";
-        detail.style.display = "";
-        pill.style.width = open ? "min(460px, 100%)" : pill.dataset.closed;
+        const closed = pill.querySelector(".name").offsetWidth + 32 + 8 + 20;
+        slot.style.width = closed + "px";
+        pill.dataset.closed = closed + "px";
+        pill.style.width = open ? "min(460px, calc(100vw - 32px))" : closed + "px";
       }
     }
     function setOpen(target) {
@@ -71,7 +81,7 @@
         const on = pill === target;
         const detail = pill.querySelector(".detail");
         pill.classList.toggle("is-open", on);
-        pill.style.width = on ? "min(460px, 100%)" : pill.dataset.closed;
+        pill.style.width = on ? "min(460px, calc(100vw - 32px))" : pill.dataset.closed;
         pill.setAttribute("aria-expanded", on ? "true" : "false");
         detail.setAttribute("aria-hidden", on ? "false" : "true");
         if (on) detail.removeAttribute("inert");
@@ -85,13 +95,16 @@
         pinned = pinned === pill ? null : pill;
         setOpen(pinned);
       });
-      if (!fine) continue;
-      pill.addEventListener("pointerenter", (event) => {
+    }
+    if (fine) {
+      row.addEventListener("pointerover", (event) => {
         if (event.pointerType === "touch" || pinned) return;
-        setOpen(pill);
+        const pill = event.target.closest(".pill");
+        if (pill) setOpen(pill);
       });
-      pill.addEventListener("pointerleave", (event) => {
+      row.addEventListener("pointerleave", (event) => {
         if (event.pointerType === "touch" || pinned) return;
+        if (row.contains(event.relatedTarget)) return;
         setOpen(null);
       });
     }
