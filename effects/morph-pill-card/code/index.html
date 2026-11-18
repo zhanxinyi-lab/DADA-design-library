@@ -26,15 +26,16 @@
       transition: width .5s cubic-bezier(.16,1.15,.32,1), border-radius .5s cubic-bezier(.16,1.15,.32,1), padding .5s cubic-bezier(.16,1.15,.32,1);
     }
     .pill.is-open {
-      top: auto; bottom: 0; z-index: 1; width: min(460px, calc(100vw - 32px)); height: 140px; overflow: hidden; border-radius: 22px;
-      grid-template-columns: 128px minmax(0, 1fr); padding: 14px; align-items: start;
+      top: auto; bottom: 0; z-index: 1; width: min(460px, calc(100vw - 32px)); height: 176px; overflow: hidden; border-radius: 22px;
+      grid-template-columns: 128px minmax(0, 1fr); padding: 14px 14px 52px; align-items: start;
     }
+    .pill.is-closing { pointer-events: none; }
     .mark {
       width: 32px; height: 32px; border-radius: 50%; grid-column: 1; grid-row: 1;
       background: radial-gradient(circle at 35% 30%, #fff6, transparent 42%), var(--swatch);
       transition: width .5s cubic-bezier(.16,1.15,.32,1), height .5s cubic-bezier(.16,1.15,.32,1), border-radius .5s cubic-bezier(.16,1.15,.32,1);
     }
-    .pill.is-open .mark { width: 128px; height: 112px; border-radius: 16px; grid-row: 1 / span 2; }
+    .pill.is-open .mark { width: 128px; height: 96px; border-radius: 16px; grid-row: 1 / span 2; }
     .name { grid-column: 2; grid-row: 1; font-weight: 700; }
     .detail { grid-column: 2; grid-row: 2; width: 0; height: 0; min-width: 0; overflow: hidden; }
     .pill.is-open .detail { width: auto; height: auto; }
@@ -84,6 +85,7 @@
         const wasOpen = pill.classList.contains("is-open");
         const detail = pill.querySelector(".detail");
         pill.classList.toggle("is-open", on);
+        pill.classList.toggle("is-closing", wasOpen && !on && !matchMedia("(prefers-reduced-motion: reduce)").matches);
         pill.style.width = on ? "min(460px, calc(100vw - 32px))" : pill.dataset.closed;
         pill.setAttribute("aria-expanded", on ? "true" : "false");
         detail.setAttribute("aria-hidden", on ? "false" : "true");
@@ -95,6 +97,7 @@
       }
     }
     function settle(pill) {
+      pill.classList.remove("is-closing");
       if (!pill.classList.contains("is-open")) pill.parentElement.classList.add("is-hot");
     }
     measure();
@@ -105,7 +108,7 @@
         setOpen(pinned);
       });
       pill.addEventListener("transitionend", (event) => {
-        if (event.propertyName !== "width") return;
+        if (event.target !== pill || event.propertyName !== "width") return;
         settle(pill);
       });
     }
