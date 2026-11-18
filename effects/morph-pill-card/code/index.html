@@ -10,24 +10,25 @@
     html, body { margin: 0; height: 100%; }
     body {
       display: grid; place-items: center; padding: 32px 16px;
-      background: #f3efe7; color: #1d1a16;
+      background: #141311; color: #f4f1ea;
       font: 16px/1.45 "Segoe UI", "PingFang SC", sans-serif;
     }
-    .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: center; width: min(920px, 100%); }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: center; width: min(920px, 100%); }
     .pill {
-      width: max-content; max-width: 100%; padding: 0; border: 1px solid #1d1a16; border-radius: 999px;
-      background: #fffdf8; color: inherit; text-align: left; cursor: pointer; overflow: hidden;
-      display: flex; flex-direction: column;
-      transition: width .42s cubic-bezier(.2,.8,.2,1), border-radius .42s;
+      width: max-content; max-width: 100%; padding: 0; border: 0; border-radius: 999px;
+      background: #f7f4ee; color: #1c1916; text-align: left; cursor: pointer; overflow: hidden;
+      display: grid; grid-template-rows: auto 0fr;
+      transition: width .45s cubic-bezier(.2,.85,.2,1), border-radius .45s cubic-bezier(.2,.85,.2,1), grid-template-rows .45s cubic-bezier(.2,.85,.2,1);
     }
-    .pill.is-open { width: min(460px, 100%); border-radius: 22px; }
+    .pill.is-open { width: min(460px, 100%); border-radius: 22px; grid-template-rows: auto 1fr; }
     .face { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 14px 0 6px; font-weight: 700; }
     .mark { width: 32px; height: 32px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff6, transparent 42%), var(--swatch); flex: none; }
-    .detail { display: none; }
-    .pill.is-open .detail { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; padding: 0 14px 14px; }
-    .detail .copy { display: block; margin: 0; color: #5e584f; font-size: 14px; font-weight: 500; }
-    .swatch { height: 112px; border-radius: 16px; background: linear-gradient(160deg, var(--swatch), #1d1a16 78%); }
-    .pill:focus-visible { outline: 2px solid #1d1a16; outline-offset: 4px; }
+    .detail { min-height: 0; overflow: hidden; }
+    .inner { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; padding: 0 14px 14px; min-height: 0; }
+    .copy { display: grid; align-content: center; gap: 4px; margin: 0; color: #5c564e; font-size: 14px; font-weight: 500; }
+    .copy b { color: #1c1916; font-size: 16px; }
+    .swatch { height: 112px; border-radius: 16px; background: linear-gradient(165deg, var(--swatch), #241f1b 80%); }
+    .pill:focus-visible { outline: 2px solid #f4f1ea; outline-offset: 4px; }
     @media (prefers-reduced-motion: reduce) {
       .pill { transition: none; }
     }
@@ -36,33 +37,47 @@
 <body>
   <div class="row" id="pills">
     <button class="pill" type="button" style="--swatch:#d36b45" aria-expanded="false">
-      <span class="face">北向<span class="mark"></span></span>
-      <span class="detail" aria-hidden="true" inert><span class="swatch"></span><span class="copy">同一张胶囊向下展开。这里只有色块和两句说明，没有外部图片。</span></span>
+      <span class="face"><span class="mark"></span>北向</span>
+      <span class="detail" aria-hidden="true" inert><span class="inner"><span class="swatch"></span><span class="copy"><b>北向</b><span>同一张表面展开。色块是原创图形，不是原图。</span></span></span></span>
     </button>
     <button class="pill" type="button" style="--swatch:#3f6f62" aria-expanded="false">
-      <span class="face">折页<span class="mark"></span></span>
-      <span class="detail" aria-hidden="true" inert><span class="swatch"></span><span class="copy">细指针移出后收回。触控和键盘会把展开态钉住，直到再次关闭。</span></span>
+      <span class="face"><span class="mark"></span>折页</span>
+      <span class="detail" aria-hidden="true" inert><span class="inner"><span class="swatch"></span><span class="copy"><b>折页</b><span>细指针移出后收回。点一下可以钉住，再点或按 Escape 关闭。</span></span></span></span>
     </button>
     <button class="pill" type="button" style="--swatch:#d2a24c" aria-expanded="false">
-      <span class="face">暖点<span class="mark"></span></span>
-      <span class="detail" aria-hidden="true" inert><span class="swatch"></span><span class="copy">按 Escape 或点空白即可退出，焦点仍留在刚才的胶囊上。</span></span>
+      <span class="face"><span class="mark"></span>暖点</span>
+      <span class="detail" aria-hidden="true" inert><span class="inner"><span class="swatch"></span><span class="copy"><b>暖点</b><span>旁边的胶囊保持收起。键盘焦点环在深色背景上可见。</span></span></span></span>
     </button>
   </div>
   <script>
     const pills = [...document.querySelectorAll(".pill")];
     const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
     let pinned = null;
+    function measure() {
+      for (const pill of pills) {
+        const detail = pill.querySelector(".detail");
+        const open = pill.classList.contains("is-open");
+        detail.style.display = "none";
+        pill.style.width = "max-content";
+        pill.dataset.closed = pill.offsetWidth + "px";
+        detail.style.display = "";
+        pill.style.width = open ? "min(460px, 100%)" : pill.dataset.closed;
+      }
+    }
     function setOpen(target) {
       for (const pill of pills) {
         const on = pill === target;
         const detail = pill.querySelector(".detail");
         pill.classList.toggle("is-open", on);
+        pill.style.width = on ? "min(460px, 100%)" : pill.dataset.closed;
         pill.setAttribute("aria-expanded", on ? "true" : "false");
         detail.setAttribute("aria-hidden", on ? "false" : "true");
         if (on) detail.removeAttribute("inert");
         else detail.setAttribute("inert", "");
       }
     }
+    measure();
+    window.addEventListener("resize", measure);
     for (const pill of pills) {
       pill.addEventListener("click", () => {
         pinned = pinned === pill ? null : pill;
