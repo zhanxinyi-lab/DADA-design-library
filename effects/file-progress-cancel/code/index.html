@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>文件整理进度</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: grid; place-items: center; padding: 24px;
+      background: #f3efe6; color: #241f1b;
+      font: 16px/1.4 "Segoe UI", "PingFang SC", sans-serif;
+    }
+    .panel { width: min(420px, 100%); display: grid; gap: 12px; }
+    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    li {
+      display: grid; grid-template-columns: 36px 1fr; gap: 10px; align-items: center;
+      padding: 8px; border-radius: 12px; background: #fffdf8;
+    }
+    .swatch { width: 36px; height: 36px; border-radius: 8px; background: var(--swatch); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    button {
+      border: 0; border-radius: 999px; padding: 10px 14px; background: #241f1b; color: #f3efe6;
+      font: inherit; cursor: pointer;
+    }
+    button:focus-visible { outline: 2px solid #241f1b; outline-offset: 3px; }
+    button[disabled] { opacity: .45; cursor: default; }
+    .track { height: 8px; border-radius: 999px; background: #ddd4c6; overflow: hidden; }
+    .bar { height: 100%; width: 0; background: #3f6f62; transform-origin: left center; }
+    .phase { min-height: 1.4em; margin: 0; display: flex; align-items: center; gap: 8px; }
+    .spin {
+      width: 14px; height: 14px; border-radius: 50%; border: 2px solid #241f1b; border-right-color: transparent;
+      animation: turn 0.8s linear infinite;
+    }
+    @keyframes turn { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .spin { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <section class="panel" aria-label="文件整理">
+    <ul id="files"></ul>
+    <div class="actions">
+      <button type="button" id="more">再放一份</button>
+      <button type="button" id="dup">做一份副本</button>
+      <button type="button" id="go">开始整理</button>
+      <button type="button" id="cancel" hidden>取消</button>
+    </div>
+    <div class="track" aria-hidden="true"><div class="bar" id="bar"></div></div>
+    <p class="phase" id="phase" role="status"></p>
+  </section>
+  <script>
+    const files = document.querySelector("#files");
+    const more = document.querySelector("#more");
+    const dup = document.querySelector("#dup");
+    const go = document.querySelector("#go");
+    const cancel = document.querySelector("#cancel");
+    const bar = document.querySelector("#bar");
+    const phase = document.querySelector("#phase");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+    const seeds = [
+      ["北窗草图", "#d36b45"],
+      ["台阶草图", "#3f6f62"],
+      ["灯罩草图", "#d2a24c"]
+    ];
+    let items = seeds.map(([name, swatch]) => ({ name, swatch }));
+    let selected = 0;
+    let timer = 0;
+    let mode = "idle";
+
+    function render() {
+      files.replaceChildren(...items.map((item, index) => {
+        const row = document.createElement("li");
+        const swatch = document.createElement("span");
+        const name = document.createElement("span");
+        swatch.className = "swatch";
+        swatch.style.setProperty("--swatch", item.swatch);
+        name.textContent = item.name;
+        row.append(swatch, name);
+        row.setAttribute("aria-current", index === selected ? "true" : "false");
+        row.addEventListener("click", () => { selected = index; render(); });
+        return row;
+      }));
+    }
+    function setPhase(text, spinning) {
+      phase.replaceChildren();
+      if (spinning) {
+        const spin = document.createElement("span");
+        spin.className = "spin";
+        spin.setAttribute("aria-hidden", "true");
+        phase.append(spin);
+      }
+      phase.append(document.createTextNode(text));
+    }
+    function idle() {
+      mode = "idle";
+      clearInterval(timer);
+      bar.style.width = "0";
+      cancel.hidden = true;
+      more.disabled = false;
+      dup.disabled = false;
+      go.disabled = false;
+      setPhase(items.length + " 份待整理", false);
+      render();
+    }
+    function run() {
+      mode = "work";
+      more.disabled = true;
+      dup.disabled = true;
+      go.disabled = true;
+      cancel.hidden = false;
+      const count = items.length;
+      const steps = [
+        ["正在整理 " + count + " 份", false],
+        ["正在做预览", false],
+        ["正在送出", true]
+      ];
+      let index = 0;
+      const paint = () => {
+        const [text, spinning] = steps[Math.min(index, steps.length - 1)];
+        setPhase(text, spinning);
+        bar.style.width = (index < 2 ? (index + 1) * 40 : 80) + "%";
+      };
+      paint();
+      if (reduce.matches) return;
+      timer = setInterval(() => {
+        index = Math.min(index + 1, steps.length - 1);
+        paint();
+        if (index === steps.length - 1) clearInterval(timer);
+      }, 700);
+    }
+    more.addEventListener("click", () => {
+      if (mode !== "idle") return;
+      items.push({ name: "补充草图 " + items.length, swatch: "#8c5a3c" });
+      selected = items.length - 1;
+      idle();
+    });
+    dup.addEventListener("click", () => {
+      if (mode !== "idle") return;
+      const source = items[selected];
+      items.splice(selected + 1, 0, { name: source.name + " 副本", swatch: source.swatch });
+      selected += 1;
+      idle();
+    });
+    go.addEventListener("click", run);
+    cancel.addEventListener("click", idle);
+    idle();
+  </script>
+</body>
+</html>
