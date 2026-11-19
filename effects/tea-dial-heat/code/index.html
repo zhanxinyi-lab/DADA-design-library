@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tea dial</title>
+  <style>
+    :root {
+      --paper: #c5c8ce;
+      --ink: #f6f3ec;
+      --caption: #6d7278;
+      --hot: #ff5564;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background:
+        radial-gradient(120% 80% at 50% 30%, #d7dbe0, #b7bcc3 72%);
+      color: var(--ink);
+      font: 14px/1.3 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    }
+    .device {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 28px 16px 32px;
+    }
+    .readout {
+      width: min(100%, 360px);
+      display: grid;
+      grid-template-columns: 1.35fr .9fr .62fr;
+      gap: 8px;
+      padding: 14px 16px 11px;
+      border-radius: 18px;
+      background: linear-gradient(#949aa1, #7e848b);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 18px rgba(50,60,70,.16);
+    }
+    .readout b {
+      display: block;
+      font-size: clamp(16px, 4.6vw, 24px);
+      letter-spacing: .06em;
+      font-weight: 760;
+      text-shadow: 0 0 10px rgba(255,255,255,.45);
+    }
+    .readout span {
+      display: block;
+      margin-top: 6px;
+      font: 10px/1 system-ui, sans-serif;
+      letter-spacing: .16em;
+      color: #d5d8dc;
+    }
+    .face {
+      width: min(100%, 460px);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "green green"
+        "dial oolong"
+        "black black";
+      align-items: center;
+      justify-items: center;
+      column-gap: 8px;
+    }
+    .mark {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      color: var(--caption);
+      font: 12px/1 system-ui, sans-serif;
+      letter-spacing: .08em;
+    }
+    .mark i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: transparent;
+      box-shadow: inset 0 0 0 1px rgba(70,74,80,.35);
+    }
+    .mark.on { color: #3c4248; }
+    .mark.on i {
+      background: var(--hot);
+      box-shadow: 0 0 8px rgba(255,80,100,.85);
+    }
+    .mark-80 { grid-area: green; }
+    .mark-90 { grid-area: oolong; justify-self: start; }
+    .mark-100 { grid-area: black; justify-self: end; margin-top: 4px; }
+    .dial {
+      --size: min(292px, 68vw);
+      grid-area: dial;
+      position: relative;
+      width: var(--size);
+      height: var(--size);
+      border: 0;
+      padding: 0;
+      border-radius: 50%;
+      background: transparent;
+      touch-action: none;
+      user-select: none;
+      cursor: grab;
+    }
+    .dial:active { cursor: grabbing; }
+    .dial:focus { outline: none; }
+    .dial:focus-visible { outline: 2px solid var(--hot); outline-offset: 8px; }
+    .ticks, .needle, .tick { position: absolute; inset: 0; }
+    .tick, .needle { transform-origin: 50% 50%; }
+    .tick b, .needle b {
+      position: absolute;
+      left: 50%;
+      background: rgba(255,255,255,.78);
+    }
+    .tick b {
+      top: 5%;
+      width: 2px;
+      height: 6%;
+      margin-left: -1px;
+    }
+    .tick.major b { top: 3.5%; height: 8%; }
+    .tick.preset b { top: 2.5%; width: 3px; height: 10%; margin-left: -1.5px; background: #fff; }
+    .ring {
+      position: absolute;
+      inset: 11%;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 32% 28%, #fff 0%, #e4e7eb 16%, #a8aeb5 40%, #f5f6f7 56%, #8b929a 76%, #d5d8dc 100%);
+      box-shadow: 0 16px 28px rgba(60,70,80,.28), inset 0 1px 0 rgba(255,255,255,.8);
+    }
+    .needle { z-index: 2; }
+    .needle b {
+      top: 12%;
+      width: 4px;
+      height: 12%;
+      margin-left: -2px;
+      border-radius: 2px;
+      background: var(--hot);
+      box-shadow: 0 0 8px rgba(255,70,90,.8);
+    }
+    .hub {
+      position: absolute;
+      inset: 27%;
+      z-index: 3;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 32%, #8b9197, #555b62 74%);
+      box-shadow: inset 0 10px 18px rgba(0,0,0,.28);
+      pointer-events: none;
+      text-align: center;
+    }
+    .hub b {
+      font-size: clamp(36px, 11vw, 60px);
+      line-height: .85;
+      letter-spacing: .02em;
+      text-shadow: 0 0 12px rgba(255,255,255,.5);
+    }
+    .hub span {
+      margin-top: 6px;
+      font-size: clamp(13px, 3.4vw, 18px);
+      letter-spacing: .16em;
+    }
+    .heat {
+      width: 74px;
+      height: 74px;
+      border: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #fff, #d7dbdf 46%, #c0c4c9);
+      color: #8d9298;
+      letter-spacing: .16em;
+      font: 700 12px/1 system-ui, sans-serif;
+      box-shadow: 0 10px 18px rgba(70,80,90,.22), inset 0 1px 0 #fff;
+      cursor: pointer;
+    }
+    .heat[aria-pressed="true"] {
+      color: #fff;
+      background: radial-gradient(circle at 35% 30%, #ffd5d8, #ff5a66 55%, #e23b4d);
+      box-shadow: 0 0 22px rgba(255,70,90,.55), inset 0 1px 0 rgba(255,255,255,.4);
+    }
+    .heat:focus { outline: none; }
+    .heat:focus-visible { outline: 2px solid #3c4248; outline-offset: 4px; }
+    .live {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 380px) {
+      .face {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "green"
+          "dial"
+          "oolong"
+          "black";
+        row-gap: 8px;
+      }
+      .mark-90, .mark-100 { justify-self: center; }
+    }
+    @media (max-height: 720px) {
+      .device { gap: 10px; padding: 16px; }
+      .dial { --size: min(220px, 62vw); }
+      .heat { width: 64px; height: 64px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .heat, .needle, .mark i { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="device">
+    <section class="readout" aria-label="Tea dial status">
+      <div><b>TEA DIAL</b><span>SUBJECT</span></div>
+      <div><b id="water-read">21°C</b><span>WATER</span></div>
+      <div><b>D02</b><span>REF.</span></div>
+    </section>
+    <div class="face">
+      <p class="mark mark-80 on" id="mark-80"><i></i>GREEN 80°</p>
+      <div
+        id="dial"
+        class="dial"
+        role="slider"
+        tabindex="0"
+        aria-label="Tea temperature"
+        aria-valuemin="63"
+        aria-valuemax="100"
+        aria-valuenow="80"
+        aria-valuetext="80 degrees, green"
+      >
+        <div class="ticks" id="ticks" aria-hidden="true"></div>
+        <div class="ring" aria-hidden="true"></div>
+        <div class="needle" id="needle" aria-hidden="true"><b></b></div>
+        <div class="hub" aria-hidden="true">
+          <b id="hub-temp">80°</b>
+          <span id="hub-mode">GREEN</span>
+        </div>
+      </div>
+      <p class="mark mark-90" id="mark-90"><i></i>OOLONG 90°</p>
+      <p class="mark mark-100" id="mark-100"><i></i>BLACK 100°</p>
+    </div>
+    <button type="button" class="heat" id="heat" aria-pressed="false">HEAT</button>
+    <p class="live" id="live" aria-live="polite"></p>
+  </main>
+  <script>
+    const MIN_T = 63;
+    const MAX_T = 100;
+    const DEG_PER_C = 6.7;
+    const RISE_PER_SEC = 10;
+    const PRESETS = [
+      { temp: 80, name: "GREEN" },
+      { temp: 90, name: "OOLONG" },
+      { temp: 100, name: "BLACK" }
+    ];
+
+    const dial = document.getElementById("dial");
+    const needle = document.getElementById("needle");
+    const hubTemp = document.getElementById("hub-temp");
+    const hubMode = document.getElementById("hub-mode");
+    const waterRead = document.getElementById("water-read");
+    const heatBtn = document.getElementById("heat");
+    const live = document.getElementById("live");
+    const marks = {
+      80: document.getElementById("mark-80"),
+      90: document.getElementById("mark-90"),
+      100: document.getElementById("mark-100")
+    };
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    let target = 80;
+    let water = 21;
+    let heating = false;
+    let last = 0;
+    let raf = 0;
+
+    function angleOf(temp) {
+      return (temp - 80) * DEG_PER_C;
+    }
+
+    function nearest(temp) {
+      return PRESETS.reduce((best, preset) => {
+        const distance = Math.abs(preset.temp - temp);
+        const bestDistance = Math.abs(best.temp - temp);
+        if (distance < bestDistance || (distance === bestDistance && preset.temp < best.temp)) return preset;
+        return best;
+      });
+    }
+
+    function render() {
+      const shown = heating ? Math.round(water) : Math.round(target);
+      const mode = heating ? "HEAT" : nearest(target).name;
+      hubTemp.textContent = shown + "°";
+      hubMode.textContent = mode;
+      waterRead.textContent = Math.round(water) + "°C";
+      needle.style.transform = "rotate(" + angleOf(target) + "deg)";
+      dial.setAttribute("aria-valuenow", String(Math.round(target)));
+      dial.setAttribute("aria-valuetext", Math.round(target) + " degrees, " + nearest(target).name.toLowerCase());
+      heatBtn.setAttribute("aria-pressed", heating ? "true" : "false");
+      PRESETS.forEach((preset) => {
+        marks[preset.temp].classList.toggle("on", Math.round(target) === preset.temp);
+      });
+      dial.dataset.target = String(Math.round(target));
+      dial.dataset.water = String(Math.round(water));
+      dial.dataset.heating = heating ? "1" : "0";
+      dial.dataset.mode = mode;
+    }
+
+    function stopLoop() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      last = 0;
+    }
+
+    function setTarget(next) {
+      target = Math.min(MAX_T, Math.max(MIN_T, Math.round(next)));
+      if (heating && target <= water) {
+        heating = false;
+        stopLoop();
+      }
+      render();
+    }
+
+    function pointerTemp(event) {
+      const rect = dial.getBoundingClientRect();
+      const x = event.clientX - (rect.left + rect.width / 2);
+      const y = event.clientY - (rect.top + rect.height / 2);
+      const deg = Math.atan2(x, -y) * 180 / Math.PI;
+      const clamped = Math.min(angleOf(MAX_T), Math.max(angleOf(MIN_T), deg));
+      return 80 + clamped / DEG_PER_C;
+    }
+
+    function finishHeat() {
+      heating = false;
+      water = target;
+      stopLoop();
+      render();
+      live.textContent = "Water reached " + Math.round(water) + " degrees.";
+    }
+
+    function tick(now) {
+      if (!heating) return;
+      if (!last) last = now;
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      water = Math.min(target, water + dt * RISE_PER_SEC);
+      if (water >= target - 0.05) finishHeat();
+      else {
+        render();
+        raf = requestAnimationFrame(tick);
+      }
+    }
+
+    function startHeat() {
+      if (target <= Math.round(water)) return;
+      if (reduce.matches) {
+        finishHeat();
+        return;
+      }
+      if (heating) return;
+      heating = true;
+      last = 0;
+      render();
+      live.textContent = "Heating water.";
+      raf = requestAnimationFrame(tick);
+    }
+
+    dial.addEventListener("pointerdown", (event) => {
+      dial.setPointerCapture(event.pointerId);
+      setTarget(pointerTemp(event));
+    });
+    dial.addEventListener("pointermove", (event) => {
+      if (!dial.hasPointerCapture(event.pointerId)) return;
+      setTarget(pointerTemp(event));
+    });
+    dial.addEventListener("keydown", (event) => {
+      const fine = event.shiftKey ? 5 : 1;
+      if (event.key === "ArrowRight" || event.key === "ArrowUp") setTarget(target + fine);
+      else if (event.key === "ArrowLeft" || event.key === "ArrowDown") setTarget(target - fine);
+      else if (event.key === "PageUp") setTarget(target + 5);
+      else if (event.key === "PageDown") setTarget(target - 5);
+      else if (event.key === "Home") setTarget(MIN_T);
+      else if (event.key === "End") setTarget(MAX_T);
+      else return;
+      event.preventDefault();
+    });
+    heatBtn.addEventListener("click", startHeat);
+    reduce.addEventListener("change", () => {
+      if (reduce.matches && heating) finishHeat();
+    });
+
+    const ticks = document.getElementById("ticks");
+    for (let temp = MIN_T; temp <= MAX_T; temp += 1) {
+      const mark = document.createElement("i");
+      mark.className = temp === 80 || temp === 90 || temp === 100 ? "tick preset" : (temp % 5 === 0 ? "tick major" : "tick");
+      mark.style.transform = "rotate(" + angleOf(temp) + "deg)";
+      mark.appendChild(document.createElement("b"));
+      ticks.appendChild(mark);
+    }
+    render();
+  </script>
+</body>
+</html>
