@@ -59,6 +59,7 @@
     <div class="row">
       <span id="detail">北窗说明.pdf 和另外 2 份</span>
       <button type="button" id="go" class="solid">开始上传</button>
+      <button type="button" id="next" hidden>下一段</button>
     </div>
     <button type="button" class="drop" id="drop" hidden>
       <div>
@@ -74,6 +75,7 @@
     const meta = document.querySelector("#meta");
     const detail = document.querySelector("#detail");
     const go = document.querySelector("#go");
+    const next = document.querySelector("#next");
     const files = document.querySelector("#files");
     const fileButtons = [...document.querySelectorAll(".file")];
     const track = document.querySelector("#track");
@@ -105,6 +107,8 @@
       title.textContent = "3 份已备好";
       meta.textContent = "4.8 MB";
       detail.textContent = "北窗说明.pdf 和另外 2 份";
+      next.hidden = true;
+      focusIfHidden(next, go);
       go.hidden = false;
       go.textContent = "开始上传";
       go.className = "solid";
@@ -131,7 +135,7 @@
       bar.classList.remove("is-preview");
       setProgress(40, "正在上传 3 份，40%，尚未完成");
       say("正在上传，尚未完成");
-      if (reduce.matches) return;
+      if (reduce.matches) { next.hidden = false; return; }
       timer = setTimeout(processing, 900);
     }
 
@@ -145,13 +149,16 @@
       bar.classList.add("is-preview");
       setProgress(72, "正在做预览，72%，尚未完成");
       say("正在做预览，尚未完成");
-      if (reduce.matches) return;
+      if (reduce.matches) { next.hidden = false; return; }
+      next.hidden = true;
       timer = setTimeout(more, 900);
     }
 
     function more() {
       if (mode !== "processing") return;
       mode = "more";
+      focusIfHidden(next, go);
+      next.hidden = true;
       title.textContent = "还可以再传";
       meta.textContent = "";
       detail.textContent = "";
@@ -206,6 +213,11 @@
       });
     }
 
+    next.addEventListener("click", () => {
+      if (!reduce.matches) return;
+      if (mode === "upload-3") processing();
+      else if (mode === "processing") more();
+    });
     go.addEventListener("click", () => {
       if (mode === "ready") uploadThree();
       else if (mode === "more") armDrop();

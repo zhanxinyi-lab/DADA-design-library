@@ -5,7 +5,7 @@
 - 状态：ai_recreated
 - 原文：https://x.com/kabarza_/status/2122330529622307025
 - 素材 ID：effect-file-progress-cancel
-- 版本：1.1.2
+- 版本：1.1.3
 
 ## 复刻说明
 
