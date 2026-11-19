@@ -3,134 +3,442 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Motion controls</title>
+  <title>Motion design lab</title>
   <style>
     :root {
-      --bg: #101114;
-      --panel: #191b21;
-      --line: #ffffff1f;
-      --ink: #f4f0e8;
-      --muted: #9b968d;
-      --track: #2a2d35;
-      --accent: #f4f0e8;
+      --paper: #f3efe6;
+      --ink: #161616;
+      --muted: #8d867c;
+      --orange: #e36a3c;
+      --line: #e4ddd2;
+      --card: #14161c;
+      --card-2: #1c1f27;
+      --blue: #2f6fed;
+      --stage: #e7e5e1;
     }
     * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
+    html, body { margin: 0; height: 100%; }
     body {
-      background: var(--bg);
+      background: var(--paper);
       color: var(--ink);
       font: 14px/1.4 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
     }
-    .app {
-      min-height: 100%;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
-      grid-template-rows: minmax(280px, 1fr) auto;
+    .page {
+      width: min(820px, 100%);
+      margin: 0 auto;
+      padding: 22px 16px 28px;
     }
-    .stage {
-      position: relative;
-      overflow: hidden;
+    .top {
+      display: grid;
+      grid-template-columns: 52px 1fr 52px;
+      gap: 10px;
+      align-items: start;
+    }
+    .mark, .sun {
+      width: 48px;
+      height: 48px;
+      border: 1px solid #ddd6cb;
+      background: #fff;
       display: grid;
       place-items: center;
-      min-height: 280px;
-    }
-    .rig { position: relative; display: grid; justify-items: center; }
-    .word {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      margin: 0;
       font-weight: 800;
-      letter-spacing: 0;
+    }
+    .mark small, .sun small {
+      display: block;
+      font-size: 8px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      color: var(--muted);
+    }
+    .sun i {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--orange);
+      box-shadow: 0 -7px 0 -5px var(--orange), 0 7px 0 -5px var(--orange), -7px 0 0 -5px var(--orange), 7px 0 0 -5px var(--orange);
+    }
+    h1 {
+      margin: 0;
+      text-align: center;
+      font-size: clamp(28px, 5vw, 42px);
+      line-height: .92;
+      letter-spacing: -.03em;
+    }
+    h1 span { display: block; color: var(--orange); }
+    .kicker, .sub {
+      margin: 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .sub { color: #d9a08a; letter-spacing: .08em; margin-top: 6px; }
+    .prompt {
+      margin: 16px 0 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      min-height: 42px;
+      padding: 10px 12px;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 13px;
+    }
+    .window {
+      background: #fff;
+      border: 1px solid #ece7df;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px #00000010;
+      overflow: hidden;
+    }
+    .bar, .transport, .loop {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      font-size: 11px;
+      letter-spacing: .08em;
+      color: var(--muted);
+    }
+    .bar strong, .clock { color: var(--orange); font-weight: 700; }
+    .clock { margin-left: auto; }
+    .stage {
+      position: relative;
+      height: 280px;
+      margin: 0 10px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--stage);
+    }
+    .stage[data-tone="dark"] { background: #101114; color: #fff; }
+    .dots {
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(#c5c1bb 1px, transparent 1px);
+      background-size: 14px 14px;
+      opacity: .7;
+    }
+    .stage[data-tone="dark"] .dots { background-image: radial-gradient(#2a2e38 1px, transparent 1px); }
+    .layer { position: absolute; inset: 0; }
+    .layer[hidden] { display: none; }
+    .ball, .ghost {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      margin: -11px 0 0 -11px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+    .ghost { background: transparent; border: 1.5px solid #8eb0f5; }
+    .note {
+      position: absolute;
+      font-family: "Segoe Script", "Comic Sans MS", cursive;
+      font-size: 18px;
+    }
+    .note.blue { color: var(--blue); }
+    .note.red { color: #e23b4a; }
+    .headline {
+      position: absolute;
+      inset: 18px 16px auto;
+      margin: 0;
+      font-family: Impact, "Arial Black", sans-serif;
+      font-weight: 800;
+      letter-spacing: -.03em;
       line-height: .86;
-      font-family: Impact, "Arial Black", "Segoe UI", sans-serif;
+      font-size: clamp(42px, 8vw, 68px);
     }
-    .ant {
+    .headline b { display: block; }
+    .rule {
       position: absolute;
-      right: calc(100% + 10px);
-      top: 46%;
-      height: 2px;
-      background: #f4f0e8cc;
-      transform-origin: right center;
+      left: 6%;
+      top: 152px;
+      height: 4px;
+      width: 36%;
+      margin: 0;
+      background: var(--blue);
+      border-radius: 4px;
     }
-    .ant::before {
-      content: "";
+    .dotmark {
       position: absolute;
-      left: -1px;
-      top: -4px;
-      border: 5px solid transparent;
-      border-right-color: #f4f0e8cc;
+      left: 44%;
+      top: 146px;
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      border-radius: 50%;
+      background: var(--blue);
     }
-    .tail { position: absolute; left: 50%; top: calc(100% + 6px); width: 0; height: 0; }
-    .tail i {
+    .ghost-type {
+      position: absolute;
+      inset: 18px 16px auto;
+      color: #9aa0a6;
+      filter: blur(6px);
+      opacity: .8;
+    }
+    .stretch, .snap {
+      position: absolute;
+      left: 0; right: 0; top: 42%;
+      margin: 0;
+      text-align: center;
+      font-family: Impact, "Arial Black", sans-serif;
+      font-size: clamp(64px, 14vw, 104px);
+      line-height: .8;
+      letter-spacing: -.04em;
+    }
+    .stretch { color: var(--blue); }
+    .snap { color: #e23b4a; }
+    .gridlines {
+      position: absolute;
+      inset: 10% 8%;
+      border: 1px solid #e23b4a55;
+      background:
+        linear-gradient(#e23b4a33 1px, transparent 1px) 0 0 / 100% 25%,
+        linear-gradient(90deg, #e23b4a33 1px, transparent 1px) 0 0 / 20% 100%;
+    }
+    svg.chart { position: absolute; inset: 16px 18px 78px; width: calc(100% - 36px); height: 150px; }
+    .squares { position: absolute; left: 18px; right: 18px; bottom: 58px; height: 36px; }
+    .squares i, .mover {
+      position: absolute;
+      bottom: 0;
+      width: 28px;
+      height: 28px;
+      border: 1.5px solid #e23b4a;
+      border-radius: 4px;
+    }
+    .mover { bottom: 62px; background: #111; border-color: #111; }
+    .follow i {
       position: absolute;
       width: 7px;
       height: 7px;
       margin: -3px 0 0 -3px;
       border-radius: 50%;
-      background: #f4f0e8;
     }
-    .transport {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 18px 18px;
-      border-top: 1px solid var(--line);
+    .dial { position: absolute; inset: 0; display: grid; place-items: center; }
+    .ring {
+      position: absolute;
+      border: 1px solid #ffffff33;
+      border-radius: 50%;
     }
-    button, input { font: inherit; color: inherit; }
-    button {
+    .hub {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 24px #2f6fed88;
+    }
+    .pct {
+      position: absolute;
+      bottom: 54px;
+      width: 100%;
+      text-align: center;
+      font-weight: 700;
+    }
+    .gem {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: var(--blue);
+      transform: rotate(45deg);
+    }
+    .final {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+    }
+    .final p {
+      margin: 0;
+      font-family: Impact, "Arial Black", sans-serif;
+      font-size: clamp(28px, 6vw, 46px);
+      line-height: .86;
+      letter-spacing: -.03em;
+    }
+    .final p span { display: inline-block; }
+    .final .big { font-size: clamp(48px, 10vw, 78px); }
+    .rail {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      height: 18px;
+    }
+    .rail .line, .scrub {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 100%;
+      height: 2px;
+      background: #b9b4ac;
+      border: 0;
+    }
+    .stage[data-tone="dark"] .rail .line { background: #3a3f4a; }
+    .playhead {
+      position: absolute;
+      top: -4px;
+      width: 10px;
+      height: 10px;
+      margin-left: -5px;
+      background: #111;
+      transform: rotate(45deg);
+    }
+    .stage[data-tone="dark"] .playhead { background: #d7d7d7; }
+    .ticks { position: absolute; left: 0; right: 0; top: 8px; height: 8px; }
+    .ticks i {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      margin-left: -3px;
+      background: #c5bfb6;
+      transform: rotate(45deg);
+    }
+    .mini-label {
+      position: absolute;
+      left: 8px;
+      bottom: 28px;
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: lowercase;
+      color: #8a847c;
+    }
+    .bot-wrap { position: relative; height: 118px; }
+    .bot {
+      position: absolute;
+      top: 18px;
+      width: 86px;
+      height: 62px;
+      margin-left: -43px;
+    }
+    .bot .head, .bot .body { background: #e07a3a; margin: 0 auto; }
+    .bot .head { width: 46px; height: 24px; position: relative; }
+    .bot .head:before, .bot .head:after {
+      content: "";
+      position: absolute;
+      top: 8px;
+      width: 7px;
+      height: 7px;
+      background: #1b1b1b;
+    }
+    .bot .head:before { left: 9px; }
+    .bot .head:after { right: 9px; }
+    .bot .body { width: 58px; height: 18px; margin-top: 2px; }
+    .bot .feet { display: flex; justify-content: center; gap: 14px; }
+    .bot .feet i { width: 12px; height: 8px; background: #f4f4f4; display: block; }
+    .aim { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: -28px;
+      background: var(--card);
+      color: #f4f1ea;
+      border-radius: 10px;
+      padding: 28px 10px 10px;
+    }
+    .controls h2 {
+      grid-column: 1 / -1;
+      margin: 0;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: .16em;
+      color: #9aa0aa;
+      font-weight: 650;
+    }
+    .card {
+      text-align: left;
+      min-height: 92px;
+      border: 1px solid #2a2e38;
+      background: var(--card-2);
+      color: inherit;
+      border-radius: 8px;
+      padding: 8px;
+      cursor: pointer;
+    }
+    .card[aria-pressed="true"] { border-color: var(--orange); box-shadow: inset 0 0 0 1px var(--orange); }
+    .card:focus-visible, button:focus-visible, input:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+    .card b { display: block; font-size: 13px; letter-spacing: .04em; }
+    .card small { color: #9aa0aa; font-size: 11px; }
+    .swatch { height: 22px; margin-top: 8px; position: relative; }
+    .s-spacing {
+      background:
+        radial-gradient(circle at 18% 50%, #e07a3a 3px, transparent 4px),
+        radial-gradient(circle at 40% 50%, #e07a3a 3px, transparent 4px),
+        radial-gradient(circle at 62% 50%, #e07a3a 3px, transparent 4px),
+        radial-gradient(circle at 84% 50%, #e07a3a 3px, transparent 4px);
+    }
+    .s-typography:before { content: "A a"; font-family: Impact, "Arial Black", sans-serif; font-size: 18px; letter-spacing: .12em; }
+    .s-blur { height: 12px; margin-top: 12px; border-radius: 8px; background: linear-gradient(90deg, #3a2a22, #e07a3a); }
+    .s-easing:before {
+      content: "";
+      position: absolute;
+      left: 4px;
+      right: 8px;
+      bottom: 4px;
+      height: 14px;
+      border-bottom: 1.5px solid #f4f1ea;
+      border-right: 1.5px solid #f4f1ea;
+      border-radius: 0 0 18px 0;
+    }
+    .s-follow:before {
+      content: "";
+      position: absolute;
+      left: 6px;
+      right: 10px;
+      top: 8px;
+      height: 12px;
+      border-top: 1.5px dotted #f4f1ea;
+      border-radius: 16px 16px 0 0;
+    }
+    .s-anticipation { width: 16px; height: 16px; margin-left: auto; border-radius: 4px; background: #e07a3a; }
+    .lower {
+      display: grid;
+      grid-template-columns: 1.1fr 1.3fr .9fr;
+      gap: 8px;
+      margin-top: 8px;
+      background: var(--card);
+      color: #d9d4cc;
+      border-radius: 10px;
+      padding: 12px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 11px;
+    }
+    .lower h3 { margin: 0 0 6px; font-size: 10px; letter-spacing: .12em; color: #9aa0aa; }
+    .lower p { margin: 0 0 3px; }
+    .lower pre { margin: 0; white-space: pre-wrap; }
+    .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+    .thumbs i {
+      display: grid;
+      place-items: center;
+      height: 42px;
+      background: #eceae6;
+      color: #111;
+      font-family: Impact, "Arial Black", sans-serif;
+      font-style: normal;
+      font-size: 9px;
+      text-align: center;
+    }
+    .meta { margin-top: 6px; color: #9aa0aa; letter-spacing: .08em; }
+    .loop { padding-left: 0; padding-right: 0; }
+    .loop b { color: var(--ink); letter-spacing: .12em; }
+    .loop .track { flex: 1; height: 3px; background: #e5dfd6; position: relative; }
+    .loop .track span { position: absolute; left: 0; top: 0; bottom: 0; background: #d8d2c8; }
+    .transport { padding: 0; }
+    button.play {
       min-width: 76px;
       min-height: 44px;
       border-radius: 999px;
       border: 1px solid var(--line);
-      background: #262830;
+      background: #fff;
       cursor: pointer;
     }
-    button:focus-visible, input:focus-visible {
-      outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-    .clock, .dur {
-      min-width: 3.2em;
-      font-variant-numeric: tabular-nums;
+    input[type="range"] { accent-color: var(--ink); min-height: 28px; flex: 1; }
+    .time { min-width: 7.2em; font-variant-numeric: tabular-nums; color: var(--muted); }
+    .fine {
+      margin: 8px 0 0;
       color: var(--muted);
-    }
-    .dur { text-align: right; }
-    input[type="range"] {
-      width: 100%;
-      accent-color: var(--accent);
-      min-height: 28px;
-    }
-    .scrub { flex: 1; }
-    .panel {
-      grid-column: 2;
-      grid-row: 1 / span 2;
-      margin: 0;
-      padding: 22px 18px;
-      background: var(--panel);
-      border-left: 1px solid var(--line);
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .panel h2 {
-      margin: 0 0 4px;
       font-size: 12px;
-      font-weight: 650;
-      letter-spacing: .14em;
-      text-transform: uppercase;
-      color: var(--muted);
     }
-    .ctrl { display: grid; gap: 4px; }
-    .ctrl span, .ctrl output {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 13px;
-    }
-    .ctrl output { color: var(--muted); font-variant-numeric: tabular-nums; }
-    .head { display: flex; justify-content: space-between; align-items: baseline; }
-    svg { width: 100%; height: 46px; display: block; }
     .sr {
       position: absolute;
       width: 1px;
@@ -143,259 +451,398 @@
       border: 0;
     }
     @media (max-width: 720px) {
-      .app { grid-template-columns: 1fr; grid-template-rows: 46vh auto auto; }
-      .panel { grid-column: 1; grid-row: 3; border-left: 0; border-top: 1px solid var(--line); }
-      .transport { grid-row: 2; }
+      .controls, .lower { grid-template-columns: 1fr; }
+      .stage { height: 220px; }
+      .headline { font-size: 40px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      * { scroll-behavior: auto !important; transition: none !important; }
+      * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
     }
   </style>
 </head>
 <body>
-  <main class="app">
-    <section class="stage" id="stage" aria-label="MOTION 舞台。这是可见控制台的前端演示，不会调用 Remotion、GSAP 或 Claude。">
-      <div class="rig" id="rig">
-        <i class="ant" id="ant" aria-hidden="true"></i>
-        <p class="word" id="word" aria-hidden="true"></p>
-        <div class="tail" id="tail" aria-hidden="true"></div>
+  <main class="page">
+    <p class="kicker">对照原帖视频的可见界面</p>
+    <div class="top">
+      <div class="mark" aria-hidden="true">AI<small>mark</small></div>
+      <div>
+        <h1>OPUS 5.5 / YOUR F*CKING <span>MOTION DESIGN LAB</span></h1>
+        <p class="sub">Claude Code + Remotion + GSAP / six editable controls</p>
       </div>
-    </section>
-    <form class="panel" id="panel">
-      <h2>controls</h2>
-      <label class="ctrl">
-        <span class="head">spacing <output id="spacing-val" for="spacing">24</output></span>
-        <input id="spacing" type="range" min="0" max="80" step="1" value="24" aria-valuetext="24">
-      </label>
-      <label class="ctrl">
-        <span class="head">typography <output id="type-val" for="typography">16</output></span>
-        <input id="typography" type="range" min="0" max="64" step="1" value="16" aria-valuetext="16">
-      </label>
-      <label class="ctrl">
-        <span class="head">motion blur <output id="blur-val" for="blur">0.4</output></span>
-        <input id="blur" type="range" min="0" max="20" step="1" value="4" aria-valuetext="0.4">
-      </label>
-      <label class="ctrl">
-        <span class="head">easing <output id="ease-val" for="easing">ease-out</output></span>
-        <input id="easing" type="range" min="0" max="4" step="1" value="2" aria-valuetext="ease-out">
-        <svg id="curve" viewBox="0 -8 100 48" aria-hidden="true">
-          <path id="curve-path" d="" fill="none" stroke="#f4f0e8" stroke-width="1.6"></path>
-        </svg>
-      </label>
-      <label class="ctrl">
-        <span class="head">follow-through <output id="follow-val" for="follow">3f</output></span>
-        <input id="follow" type="range" min="0" max="12" step="1" value="3" aria-valuetext="3 frames">
-      </label>
-      <label class="ctrl">
-        <span class="head">anticipation <output id="ant-val" for="anticipation">2f</output></span>
-        <input id="anticipation" type="range" min="0" max="12" step="1" value="2" aria-valuetext="2 frames">
-      </label>
-    </form>
-    <div class="transport">
-      <button type="button" id="play" aria-pressed="true">Pause</button>
-      <span class="clock" id="clock">0.0s</span>
-      <input class="scrub" id="scrub" type="range" min="0" max="71" step="1" value="0" aria-label="时间轴" aria-valuemin="0" aria-valuemax="71" aria-valuenow="0" aria-valuetext="0.0秒，共2.4秒">
-      <span class="dur">2.4s</span>
+      <div class="sun" aria-hidden="true"><i></i><small>mark</small></div>
     </div>
+    <div class="prompt" id="prompt" aria-live="polite"></div>
+    <section class="window" aria-labelledby="scene-name">
+      <div class="bar">
+        <span>● ● ●</span>
+        <span>MOTION LAB / PREVIEW</span>
+        <strong id="scene-name">SPACING</strong>
+        <span class="clock" id="clock">00.0s / 15.0s</span>
+      </div>
+      <div class="stage" id="stage" data-tone="light">
+        <div class="dots"></div>
+        <div class="layer" id="layer-spacing">
+          <i class="ghost" id="g0"></i><i class="ghost" id="g1"></i><i class="ghost" id="g2"></i><i class="ghost" id="g3"></i>
+          <i class="ball" id="ball"></i>
+          <span class="note blue" id="slow" style="left:18%; top:18%;">slow in, slow out</span>
+          <span class="note red" id="squash" style="left:48%; top:62%;">squash!</span>
+        </div>
+        <div class="layer" id="layer-type" hidden>
+          <p class="headline" id="move">I MAKE THINGS<b>MOVE.</b></p>
+          <div class="rule"></div>
+          <div class="dotmark"></div>
+        </div>
+        <div class="layer" id="layer-blur" hidden>
+          <p class="headline ghost-type" id="blur-ghost">I MAKE THINGS<b>MOVE.</b></p>
+          <p class="headline" id="blur-main">I MAKE THINGS<b>MOVE.</b></p>
+          <span class="note blue" id="stagger" style="right:8%; top:28%;">stagger: 45ms</span>
+          <span class="note blue" id="overlap" style="right:12%; top:68%;">overlap</span>
+        </div>
+        <div class="layer" id="layer-stretch" hidden>
+          <p class="stretch" id="stretch">STRETCH</p>
+          <span class="note blue" style="right:12%; bottom:64px;">elastic</span>
+        </div>
+        <div class="layer" id="layer-snap" hidden>
+          <div class="gridlines"></div>
+          <p class="snap">SNAP</p>
+          <span class="note blue" style="left:58%; top:64%;">no ease. on purpose.</span>
+        </div>
+        <div class="layer" id="layer-ease" hidden>
+          <svg class="chart" viewBox="0 0 100 60" aria-hidden="true">
+            <path id="ease-linear" d="M4 54 L92 8" fill="none" stroke="#e23b4a" stroke-width="1.4"></path>
+            <path id="ease-curve" d="M4 54 C 28 54 40 10 92 8" fill="none" stroke="#2f6fed" stroke-width="1.6"></path>
+          </svg>
+          <span class="note red" id="ease-note" style="left:48%; top:22%;">linear = robotic</span>
+          <div class="squares" id="squares"></div>
+          <i class="mover" id="mover"></i>
+        </div>
+        <div class="layer" id="layer-follow" hidden>
+          <div class="follow" id="follow"></div>
+          <span class="note blue" style="right:14%; top:58%;">follow-through</span>
+        </div>
+        <div class="layer" id="layer-anti" hidden>
+          <div class="dial" id="dial">
+            <i class="ring" style="width:210px;height:210px"></i>
+            <i class="ring" style="width:150px;height:150px"></i>
+            <i class="ring" style="width:92px;height:92px"></i>
+            <i class="hub"></i>
+          </div>
+          <div class="pct" id="pct">14%</div>
+          <span class="note" style="right:12%; bottom:36px; color:#9aa0aa;">anticipation</span>
+        </div>
+        <div class="layer" id="layer-final" hidden>
+          <div class="final">
+            <div>
+              <p id="line-a">MOTION DESIGNER</p>
+              <p class="big" id="line-b">CLAUDE.</p>
+              <span class="note blue" id="hello">open to new projects</span>
+            </div>
+          </div>
+        </div>
+        <span class="mini-label" id="mini-label">spacing</span>
+        <span class="timecode" id="tc" style="position:absolute; right:12px; top:10px; font-variant-numeric:tabular-nums; font-size:12px;">00:00:00:00</span>
+        <div class="rail" aria-hidden="true">
+          <div class="line"></div>
+          <div class="ticks" id="ticks"></div>
+          <i class="playhead" id="playhead"></i>
+        </div>
+      </div>
+      <p class="sr" id="live" aria-live="polite"></p>
+    </section>
+    <div class="bot-wrap" id="aim-host">
+      <svg class="aim" aria-hidden="true"><line id="aim" x1="0" y1="0" x2="0" y2="0" stroke="#c9b8ae" stroke-width="1"></line></svg>
+      <div class="bot" id="bot" aria-hidden="true">
+        <div class="head"></div>
+        <div class="body"></div>
+        <div class="feet"><i></i><i></i></div>
+      </div>
+    </div>
+    <div class="controls" id="cards">
+      <h2>LIVE / SIX EDITABLE CONTROLS</h2>
+    </div>
+    <div class="lower">
+      <section>
+        <h3>DIRECTING PROMPT</h3>
+        <div id="prompt-lines"></div>
+        <p>EDIT ONE CONTROL / PREVIEW AGAIN</p>
+      </section>
+      <section>
+        <h3>FRAME-DRIVEN CODE</h3>
+        <pre id="code"></pre>
+      </section>
+      <section>
+        <h3>PREVIEW / DELIVERY</h3>
+        <div class="thumbs" aria-hidden="true"><i>MOVE</i><i>ease</i><i>CLAUDE</i></div>
+        <p class="meta">H.264 / AAC / FULL REEL<br>画面文字，不会真的渲染</p>
+      </section>
+    </div>
+    <div class="loop">
+      <b>THE LOOP</b>
+      <span>BUILD &gt; RENDER &gt; SCRUB &gt; TUNE &gt; REPEAT</span>
+      <div class="track" aria-hidden="true"><span id="loop-bar"></span></div>
+    </div>
+    <div class="transport">
+      <button class="play" type="button" id="play" aria-pressed="true">Pause</button>
+      <span class="time" id="readout">0.0s</span>
+      <input id="scrub" type="range" min="0" max="150" step="1" value="0" aria-label="时间轴" aria-valuemin="0" aria-valuemax="150" aria-valuenow="0" aria-valuetext="0.0秒，共15秒">
+      <span class="time">15.0s</span>
+    </div>
+    <p class="fine">这是对照原视频画的前端。不连接 Claude、Remotion 或 GSAP，不能生成、渲染或对帧。</p>
+    <p class="sr">空格播放或暂停。左右方向键移动时间。数字键 1 到 6 跳到六张控制卡。减少动态效果时，播放键改为逐步前进。</p>
   </main>
-  <p class="sr" id="live" aria-live="polite"></p>
   <script>
-    const FPS = 30;
-    const LOOP = 72;
-    const MOVE = 18;
-    const HOLD = 46;
-    const EASES = ['linear', 'ease-in', 'ease-out', 'in-out', 'back'];
-    const easeFn = {
-      linear: (k) => k,
-      'ease-in': (k) => k * k * k,
-      'ease-out': (k) => 1 - Math.pow(1 - k, 3),
-      'in-out': (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2),
-      back: (k) => {
-        const c1 = 1.70158;
-        const c3 = c1 + 1;
-        return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2);
+    const DURATION = 15;
+    const beats = [
+      { from: 0, to: 2.2, mode: "spacing", card: "spacing", label: "SPACING", mini: "spacing" },
+      { from: 2.2, to: 3.6, mode: "type", card: "typography", label: "TYPOGRAPHY", mini: "type" },
+      { from: 3.6, to: 4.6, mode: "blur", card: "blur", label: "MOTION BLUR", mini: "blur" },
+      { from: 4.6, to: 5.5, mode: "stretch", card: "typography", label: "TYPOGRAPHY", mini: "type" },
+      { from: 5.5, to: 6.2, mode: "snap", card: "typography", label: "TYPOGRAPHY", mini: "type" },
+      { from: 6.2, to: 7.3, mode: "linear", card: "easing", label: "EASING", mini: "easing" },
+      { from: 7.3, to: 8.6, mode: "ease", card: "easing", label: "EASING", mini: "easing" },
+      { from: 8.6, to: 11.2, mode: "follow", card: "follow", label: "FOLLOW-THROUGH", mini: "follow-through" },
+      { from: 11.2, to: 13.2, mode: "anti", card: "anticipation", label: "ANTICIPATION", mini: "anticipation" },
+      { from: 13.2, to: 15.01, mode: "final", card: "", label: "FINAL DELIVERY", mini: "hello" }
+    ];
+    const cards = [
+      ["spacing", "01", "SPACING", "Distance between poses", 0],
+      ["typography", "02", "TYPOGRAPHY", "Scale / tracking / line breaks", 2.2],
+      ["blur", "03", "MOTION BLUR", "Exposure during fast movement", 3.6],
+      ["easing", "04", "EASING", "Acceleration and deceleration", 6.2],
+      ["follow", "05", "FOLLOW-THROUGH", "Secondary parts settle later", 8.6],
+      ["anticipation", "06", "ANTICIPATION", "Prepare before the main move", 11.2]
+    ];
+    const copy = {
+      spacing: {
+        lines: ["> define the key poses", "> control travel distance", "> inspect the spacing", "> keep the edit in code"],
+        code: "const frame = useCurrentFrame();\nconst x = interpolate(\n  frame, [0,60], [0,600]\n);\n// spacing controls the travel"
+      },
+      typography: {
+        lines: ["> make the title readable", "> set scale and tracking", "> choose the line breaks", "> hold the final word"],
+        code: "const delay = index * 3;\nconst y = spring({\n  frame: frame - delay, fps\n});\n// keep the title readable"
+      },
+      blur: {
+        lines: ["> tune the exposure", "> inspect the fast frames", "> keep the shape legible", "> preview the motion blur"],
+        code: "const samples = 8;\nconst shutterAngle = 180;\n// sample neighboring moments\n// combine their exposure\n// inspect the fast frames"
+      },
+      easing: {
+        lines: ["> shape the speed curve", "> soften the arrival", "> tune the acceleration", "> inspect the landing"],
+        code: "timeline.to(selector(\".dot\"), {\n  x: 600, duration: 1,\n  ease: \"power3.inOut\",\n});"
+      },
+      follow: {
+        lines: ["> move the body first", "> let the tail follow", "> delay the secondary part", "> tune the final settle"],
+        code: "const lag = 6;\nconst tailFrame = frame - lag;\nconst tail = spring({\n  frame: tailFrame, fps\n});"
+      },
+      anticipation: {
+        lines: ["> prepare the main action", "> add a short pullback", "> release the movement", "> hold the final pose"],
+        code: "const scaleY = interpolate(\n  frame, [0,6,12], [1,.8,1]\n);\n// prepare, release, settle\n// keep the final pose clear"
+      },
+      final: {
+        lines: ["> preview the whole reel", "> inspect type and pacing", "> check the sound sync", "> render the final MP4"],
+        code: "npx remotion render MotionLab\nffprobe -v error output.mp4\n// inspect the output stream\n// review the final frames\n// deliver the finished reel"
       }
     };
 
-    const stage = document.getElementById('stage');
-    const rig = document.getElementById('rig');
-    const word = document.getElementById('word');
-    const ant = document.getElementById('ant');
-    const tail = document.getElementById('tail');
-    const playBtn = document.getElementById('play');
-    const scrub = document.getElementById('scrub');
-    const clock = document.getElementById('clock');
-    const live = document.getElementById('live');
-    const curve = document.getElementById('curve-path');
-    const motion = matchMedia('(prefers-reduced-motion: reduce)');
-    const dots = Array.from({ length: 5 }, () => {
-      const dot = document.createElement('i');
-      tail.appendChild(dot);
-      return dot;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const stage = document.getElementById("stage");
+    const layers = {};
+    ["spacing", "type", "blur", "stretch", "snap", "ease", "follow", "anti", "final"].forEach((name) => {
+      layers[name] = document.getElementById("layer-" + (name === "linear" ? "ease" : name));
     });
-    word.replaceChildren(...'MOTION'.split('').map((ch) => {
-      const span = document.createElement('span');
-      span.textContent = ch;
-      return span;
-    }));
+    layers.linear = layers.ease;
+    const cardHost = document.getElementById("cards");
+    cards.forEach((card) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "card";
+      button.id = "card-" + card[0];
+      button.dataset.jump = String(card[4]);
+      button.setAttribute("aria-pressed", "false");
+      button.innerHTML = "<small>" + card[1] + "</small><b>" + card[2] + "</b><small>" + card[3] + "</small><div class='swatch s-" + card[0] + "' aria-hidden='true'></div>";
+      button.addEventListener("click", () => { pause(); seek(card[4]); });
+      cardHost.appendChild(button);
+    });
+    const squares = document.getElementById("squares");
+    for (let i = 0; i < 7; i += 1) {
+      const mark = document.createElement("i");
+      mark.style.left = (8 + i * 11) + "%";
+      squares.appendChild(mark);
+    }
+    const follow = document.getElementById("follow");
+    const specks = [];
+    for (let i = 0; i < 32; i += 1) {
+      const speck = document.createElement("i");
+      follow.appendChild(speck);
+      specks.push(speck);
+    }
+    const ticks = document.getElementById("ticks");
+    for (let i = 0; i < 6; i += 1) {
+      const tick = document.createElement("i");
+      tick.style.left = (8 + i * 16) + "%";
+      ticks.appendChild(tick);
+    }
+    ["line-a", "line-b"].forEach((id) => {
+      const node = document.getElementById(id);
+      node.innerHTML = node.textContent.split("").map((ch) => "<span>" + (ch === " " ? "&nbsp;" : ch) + "</span>").join("");
+    });
 
-    let frame = 0;
-    let playing = !motion.matches;
+    const playButton = document.getElementById("play");
+    const scrub = document.getElementById("scrub");
+    let time = 0;
+    let playing = !reduce;
     let last = 0;
-    let acc = 0;
+    if (reduce) playButton.textContent = "Step";
 
-    function params() {
-      return {
-        spacing: Number(document.getElementById('spacing').value),
-        type: Number(document.getElementById('typography').value),
-        blur: Number(document.getElementById('blur').value) / 10,
-        ease: EASES[Number(document.getElementById('easing').value)] || 'ease-out',
-        follow: Number(document.getElementById('follow').value),
-        ant: Number(document.getElementById('anticipation').value)
-      };
+    function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+    function beatAt(value) {
+      return beats.find((beat) => value >= beat.from && value < beat.to) || beats[beats.length - 1];
     }
-
-    function wrap(f) {
-      return ((f % LOOP) + LOOP) % LOOP;
+    function local(beat, value) { return clamp((value - beat.from) / (beat.to - beat.from), 0, 1); }
+    function place(node, x, y, scale) {
+      node.style.left = x + "%";
+      node.style.top = y + "%";
+      node.style.transform = "scale(" + (scale || 1) + ")";
     }
-
-    function pose(f, p) {
-      const at = wrap(f);
-      const room = Math.max(90, stage.clientWidth * 0.4);
-      const travel = (p.spacing / 80) * room;
-      const back = Math.min(room * 0.22, p.ant * 8);
-      let x = 0;
-      if (at < p.ant) {
-        const k = p.ant ? at / p.ant : 0;
-        x = -back * Math.sin(k * Math.PI);
-      } else if (at < p.ant + MOVE) {
-        const k = (at - p.ant) / MOVE;
-        x = travel * easeFn[p.ease](clamp01(k));
-      } else if (at < HOLD) {
-        x = travel;
-      } else if (at < HOLD + MOVE) {
-        const k = (at - HOLD) / MOVE;
-        x = travel * (1 - easeFn[p.ease](clamp01(k)));
-      }
-      return { x, travel };
-    }
-
-    function clamp01(k) {
-      return Math.min(1, Math.max(0, k));
-    }
-
-    function paintCurve(name) {
-      const fn = easeFn[name];
-      let d = '';
-      for (let i = 0; i <= 28; i++) {
-        const k = i / 28;
-        const x = 2 + k * 96;
-        const y = 34 - fn(k) * 30;
-        d += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
-      }
-      curve.setAttribute('d', d.trim());
-    }
-
-    function syncReadouts(p) {
-      document.getElementById('spacing-val').textContent = String(p.spacing);
-      document.getElementById('type-val').textContent = String(p.type);
-      document.getElementById('blur-val').textContent = p.blur.toFixed(1);
-      document.getElementById('ease-val').textContent = p.ease;
-      document.getElementById('follow-val').textContent = p.follow + 'f';
-      document.getElementById('ant-val').textContent = p.ant + 'f';
-      document.getElementById('spacing').setAttribute('aria-valuetext', String(p.spacing));
-      document.getElementById('typography').setAttribute('aria-valuetext', String(p.type));
-      document.getElementById('blur').setAttribute('aria-valuetext', p.blur.toFixed(1));
-      document.getElementById('easing').setAttribute('aria-valuetext', p.ease);
-      document.getElementById('follow').setAttribute('aria-valuetext', p.follow + ' frames');
-      document.getElementById('anticipation').setAttribute('aria-valuetext', p.ant + ' frames');
-      paintCurve(p.ease);
-    }
-
-    function render(at) {
-      frame = wrap(at);
-      const p = params();
-      syncReadouts(p);
-      const now = pose(frame, p);
-      const prev = pose(frame - 1, p);
-      const size = 40 + p.type * 2.15;
-      const open = now.travel ? Math.min(1, Math.abs(now.x) / now.travel) : 0;
-      const gap = 2 + p.spacing * 0.35 * (0.35 + 0.65 * open);
-      const vel = Math.abs(now.x - prev.x);
-      const blur = motion.matches ? 0 : Math.min(16, p.blur * vel * 0.45);
-      rig.style.transform = 'translateX(' + now.x.toFixed(2) + 'px)';
-      word.style.fontSize = size.toFixed(1) + 'px';
-      word.style.gap = gap.toFixed(1) + 'px';
-      word.style.maxWidth = p.type >= 40 ? (size * 3.05).toFixed(1) + 'px' : 'none';
-      word.style.filter = blur > 0.25 ? 'blur(' + blur.toFixed(2) + 'px)' : 'none';
-      ant.style.width = (p.ant ? 10 + p.ant * 7 : 0) + 'px';
-      ant.style.opacity = p.ant ? '0.85' : '0';
-      dots.forEach((dot, i) => {
-        const old = pose(frame - p.follow * (i + 1), p);
-        const dx = old.x - now.x - i * 11;
-        dot.style.transform = 'translate(' + dx.toFixed(1) + 'px, ' + (10 + i * 3) + 'px)';
-        dot.style.opacity = p.follow ? String(Math.max(0.12, 0.72 - i * 0.12)) : '0';
+    function show(mode) {
+      Object.keys(layers).forEach((name) => {
+        if (name === "linear") return;
+        layers[name].hidden = name !== mode && !(mode === "linear" && name === "ease");
       });
-      const label = (frame / FPS).toFixed(1) + 's';
-      clock.textContent = label;
-      scrub.value = String(frame);
-      scrub.setAttribute('aria-valuenow', String(frame));
-      scrub.setAttribute('aria-valuetext', label + '，共2.4秒');
-      playBtn.textContent = motion.matches ? 'Step' : (playing ? 'Pause' : 'Play');
-      playBtn.setAttribute('aria-pressed', playing ? 'true' : 'false');
-      playBtn.setAttribute('aria-label', motion.matches ? '前进 6 帧' : (playing ? '暂停' : '播放'));
+      if (mode === "linear" || mode === "ease") layers.ease.hidden = false;
     }
-
-    function tick(now) {
-      if (!last) last = now;
-      const dt = Math.min(50, now - last);
-      last = now;
-      if (playing && !motion.matches) {
-        acc += dt;
-        const step = 1000 / FPS;
-        while (acc >= step) {
-          acc -= step;
-          frame += 1;
-        }
-        render(frame);
+    function paint(beat, p) {
+      if (beat.mode === "spacing") {
+        const ghosts = [0.18, 0.12, 0.07, 0.03];
+        ghosts.forEach((lag, index) => {
+          const u = clamp(p - lag, 0, 1);
+          place(document.getElementById("g" + index), 14 + u * 68, 72 - Math.sin(u * Math.PI) * 46, 1);
+        });
+        const squash = p > 0.86 ? 1.35 : 1;
+        place(document.getElementById("ball"), 14 + p * 68, 70 - Math.sin(p * Math.PI) * 48, squash);
+        document.getElementById("slow").style.opacity = p > 0.15 ? 1 : 0;
+        document.getElementById("squash").style.opacity = p > 0.72 ? 1 : 0;
+      } else if (beat.mode === "blur") {
+        document.getElementById("blur-ghost").style.transform = "translate(" + ((1 - p) * 18) + "px, 4px)";
+        document.getElementById("stagger").style.opacity = p > 0.25 ? 1 : 0;
+        document.getElementById("overlap").style.opacity = p > 0.45 ? 1 : 0;
+      } else if (beat.mode === "stretch") {
+        const stretch = 1.35 - Math.sin(p * Math.PI) * 0.28;
+        document.getElementById("stretch").style.transform = "scaleX(" + stretch + ")";
+      } else if (beat.mode === "linear" || beat.mode === "ease") {
+        document.getElementById("ease-curve").style.opacity = beat.mode === "ease" ? 1 : 0.25;
+        document.getElementById("ease-note").textContent = beat.mode === "ease" ? "ease in-out" : "linear = robotic";
+        document.getElementById("ease-note").style.color = beat.mode === "ease" ? "#2f6fed" : "#e23b4a";
+        const x = beat.mode === "linear" ? p : p * p * (3 - 2 * p);
+        document.getElementById("mover").style.left = (6 + x * 78) + "%";
+      } else if (beat.mode === "follow") {
+        specks.forEach((speck, index) => {
+          const lag = (index / specks.length) * 0.42;
+          const u = clamp(p * 1.15 - lag, 0, 1);
+          speck.style.left = (16 + u * 64) + "%";
+          speck.style.top = (74 - Math.sin(u * Math.PI) * 52) + "%";
+          speck.style.background = index % 3 === 0 ? "#7eb6ff" : index % 3 === 1 ? "#ff5d73" : "#b9a6ff";
+          speck.style.opacity = String(0.25 + u * 0.75);
+        });
+      } else if (beat.mode === "anti") {
+        document.getElementById("pct").textContent = Math.round(8 + p * 74) + "%";
+        document.getElementById("dial").style.transform = "rotate(" + (p * 40 - 12) + "deg)";
+      } else if (beat.mode === "final") {
+        document.querySelectorAll("#line-a span, #line-b span").forEach((letter, index) => {
+          const delay = index * 0.03;
+          const u = clamp((p - delay) / 0.55, 0, 1);
+          letter.style.transform = "translateY(" + ((1 - u) * 18) + "px)";
+          letter.style.opacity = String(0.25 + u * 0.75);
+        });
+        document.getElementById("hello").style.opacity = p > 0.62 ? 1 : 0;
       }
+    }
+    function render(value) {
+      time = clamp(value, 0, DURATION);
+      const beat = beatAt(time);
+      const mode = beat.mode === "linear" ? "ease" : beat.mode;
+      show(mode);
+      stage.dataset.tone = (beat.mode === "stretch" || beat.mode === "snap" || beat.mode === "follow" || beat.mode === "anti") ? "dark" : "light";
+      document.getElementById("scene-name").textContent = beat.label;
+      document.getElementById("mini-label").textContent = beat.mini;
+      document.getElementById("clock").textContent = time.toFixed(1) + "s / 15.0s";
+      document.getElementById("readout").textContent = time.toFixed(1) + "s";
+      const frame = Math.floor((time % 1) * 24);
+      const sec = Math.floor(time);
+      document.getElementById("tc").textContent = "00:00:" + String(sec).padStart(2, "0") + ":" + String(frame).padStart(2, "0");
+      document.getElementById("playhead").style.left = (time / DURATION * 100) + "%";
+      document.getElementById("loop-bar").style.width = (time / DURATION * 100) + "%";
+      const full = ">_ build a motion lab. expose six controls. keep every scene editable.";
+      const count = time >= 1.6 ? full.length : Math.floor(time / 1.6 * full.length);
+      document.getElementById("prompt").textContent = full.slice(0, count) + (time < 1.6 ? "|" : "");
+      const key = beat.card || "final";
+      const block = copy[key];
+      document.getElementById("prompt-lines").innerHTML = block.lines.map((line) => "<p>" + line + "</p>").join("");
+      document.getElementById("code").textContent = block.code;
+      cards.forEach((card) => {
+        document.getElementById("card-" + card[0]).setAttribute("aria-pressed", card[0] === beat.card ? "true" : "false");
+      });
+      const step = String(Math.round(time * 10));
+      scrub.value = step;
+      scrub.setAttribute("aria-valuenow", step);
+      scrub.setAttribute("aria-valuetext", time.toFixed(1) + "秒，共15秒");
+      document.getElementById("bot").style.left = (18 + (time / DURATION) * 64) + "%";
+      document.getElementById("live").textContent = beat.label + "，" + time.toFixed(1) + "秒";
+      paint(beat, local(beat, time));
+      aim(beat.card);
+    }
+    function aim(cardId) {
+      const line = document.getElementById("aim");
+      if (!cardId) { line.setAttribute("stroke", "transparent"); return; }
+      const host = document.getElementById("aim-host").getBoundingClientRect();
+      const bot = document.getElementById("bot").getBoundingClientRect();
+      const card = document.getElementById("card-" + cardId).getBoundingClientRect();
+      line.setAttribute("stroke", "#c9b8ae");
+      line.setAttribute("x1", bot.left + bot.width / 2 - host.left);
+      line.setAttribute("y1", bot.top + 8 - host.top);
+      line.setAttribute("x2", card.left + card.width / 2 - host.left);
+      line.setAttribute("y2", card.top - host.top);
+    }
+    function seek(value) { render(value); }
+    function pause() {
+      playing = false;
+      playButton.textContent = reduce ? "Step" : "Play";
+      playButton.setAttribute("aria-pressed", "false");
+    }
+    function play() {
+      if (reduce) { seek((time + 0.5) % DURATION); return; }
+      playing = true;
+      last = performance.now();
+      playButton.textContent = "Pause";
+      playButton.setAttribute("aria-pressed", "true");
       requestAnimationFrame(tick);
     }
-
-    document.getElementById('panel').addEventListener('input', () => render(frame));
-    document.getElementById('panel').addEventListener('submit', (e) => e.preventDefault());
-    scrub.addEventListener('input', () => {
-      playing = false;
-      acc = 0;
-      render(Number(scrub.value));
+    function tick(now) {
+      if (!playing) return;
+      const delta = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      seek(time + delta >= DURATION ? 0 : time + delta);
+      requestAnimationFrame(tick);
+    }
+    playButton.addEventListener("click", () => { if (playing) pause(); else play(); });
+    scrub.addEventListener("input", () => { pause(); seek(Number(scrub.value) / 10); });
+    window.addEventListener("keydown", (event) => {
+      const tag = event.target && event.target.tagName;
+      if (tag === "INPUT" || tag === "BUTTON") return;
+      if (event.key === " ") { event.preventDefault(); if (playing) pause(); else play(); }
+      else if (event.key === "ArrowRight") { event.preventDefault(); pause(); seek(time + 0.1); }
+      else if (event.key === "ArrowLeft") { event.preventDefault(); pause(); seek(time - 0.1); }
+      else if (/^[1-6]$/.test(event.key)) { pause(); seek(cards[Number(event.key) - 1][4]); }
     });
-    playBtn.addEventListener('click', () => {
-      if (motion.matches) {
-        render(frame + 6);
-        live.textContent = '停在 ' + clock.textContent;
-        return;
-      }
-      playing = !playing;
-      acc = 0;
-      render(frame);
-    });
-    addEventListener('keydown', (e) => {
-      if (e.code !== 'Space') return;
-      const tag = document.activeElement && document.activeElement.tagName;
-      if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-      e.preventDefault();
-      playBtn.click();
-    });
-    motion.addEventListener('change', () => {
-      playing = false;
-      acc = 0;
-      render(frame);
-      live.textContent = motion.matches ? '已减少动态，可用 Step 或时间轴逐帧查看。' : '可以播放。';
-    });
-
-    render(0);
-    if (motion.matches) live.textContent = '已减少动态，可用 Step 或时间轴逐帧查看。';
-    requestAnimationFrame(tick);
+    window.addEventListener("resize", () => aim(beatAt(time).card));
+    const queryTime = Number(new URLSearchParams(location.hash.replace(/^#/, "")).get("t"));
+    const hasQuery = Number.isFinite(queryTime);
+    if (hasQuery) playing = false;
+    render(hasQuery ? clamp(queryTime, 0, DURATION) : 0);
+    if (playing) { last = performance.now(); requestAnimationFrame(tick); }
+    else {
+      playButton.textContent = reduce ? "Step" : "Play";
+      playButton.setAttribute("aria-pressed", "false");
+    }
   </script>
 </body>
 </html>
