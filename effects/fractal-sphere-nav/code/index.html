@@ -104,6 +104,14 @@
     let paused = false;
     let last = performance.now();
     let layout = null;
+    const ballN = new Float32Array(64);
+    let ballCount = 0;
+    let boxL = 0, boxT = 0, boxR = 0, boxB = 0;
+    let blobImage = null;
+    let blobKey = '';
+    let shownLead = -1;
+    let fieldF = 0, fieldW = 0;
+    let toneR = 0, toneG = 0, toneB = 0;
 
     function cadd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
     function cmul(a, b) { return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }; }
@@ -198,9 +206,13 @@
       pack.height = canvas.height;
       const R = Math.min(w * 0.36, h * 0.34);
       layout = { w, h, dpr, cx: w * 0.5, cy: h * 0.57, R };
-      const side = Math.round(Math.min(380, Math.max(180, R * 2.2)));
-      blob.width = side;
-      blob.height = side;
+      const side = Math.round(Math.min(168, Math.max(96, R * 1.05)));
+      if (blob.width !== side) {
+        blob.width = side;
+        blob.height = side;
+        blobImage = null;
+      }
+      blobKey = '';
       drawPack();
       placeButtons();
     }
@@ -284,35 +296,69 @@
       return x * x * (3 - 2 * x);
     }
 
-    function ballsFor(i, scale, now) {
-      const p = projectCenter(i, layout);
-      const wob = reduced ? 0 : Math.sin(now / 680 + i) * 0.035;
-      const out = [];
-      for (const s of shapes[i]) {
-        const rad = p.r * s.s * scale;
-        if (rad < 2) continue;
-        out.push({
-          x: p.x + (s.x + wob) * p.r,
-          y: p.y + (s.y + Math.cos(now / 900 + s.x) * (reduced ? 0 : 0.03)) * p.r,
-          r2: rad * rad,
-          warm: i === 1
-        });
-      }
-      return out;
+    function blobStamp(now) {
+      const phase = reduced ? 0 : (now / 160) | 0;
+      return layout.w + 'x' + layout.h + 'x' + blob.width + ':' +
+        ((weight[0] * 24 + 0.5) | 0) + ',' +
+        ((weight[1] * 24 + 0.5) | 0) + ',' +
+        ((weight[2] * 24 + 0.5) | 0) + ':' + phase;
     }
 
-    function sample(balls, x, y) {
+    function leadIndex() {
+      let lead = 0;
+      if (weight[1] > weight[lead]) lead = 1;
+      if (weight[2] > weight[lead]) lead = 2;
+      return lead;
+    }
+
+    function fillBalls(phase, originX, originY, map) {
+      ballCount = 0;
+      boxL = 1e9;
+      boxT = 1e9;
+      boxR = -1e9;
+      boxB = -1e9;
+      for (let i = 0; i < 3; i++) {
+        const scale = smooth((weight[i] - 0.05) / 0.9);
+        if (scale < 0.03) continue;
+        const p = projectCenter(i, layout);
+        const wob = reduced ? 0 : Math.sin(phase / 680 + i) * 0.035;
+        const wobY = reduced ? 0 : Math.cos(phase / 900 + i) * 0.03;
+        const shape = shapes[i];
+        for (let k = 0; k < shape.length; k++) {
+          const sh = shape[k];
+          const rad = p.r * sh.s * scale;
+          if (rad < 2 || ballCount >= 16) continue;
+          const x = (p.x + (sh.x + wob) * p.r - originX) * map;
+          const y = (p.y + (sh.y + wobY) * p.r - originY) * map;
+          const reach = rad * map + 8;
+          const o = ballCount * 4;
+          ballN[o] = x;
+          ballN[o + 1] = y;
+          ballN[o + 2] = rad * rad * map * map;
+          ballN[o + 3] = i === 1 ? 1 : 0;
+          ballCount++;
+          if (x - reach < boxL) boxL = x - reach;
+          if (y - reach < boxT) boxT = y - reach;
+          if (x + reach > boxR) boxR = x + reach;
+          if (y + reach > boxB) boxB = y + reach;
+        }
+      }
+    }
+
+    function field(x, y) {
       let cool = 0, warm = 0;
-      for (let i = 0; i < balls.length; i++) {
-        const b = balls[i];
-        const dx = x - b.x, dy = y - b.y;
-        const t = 1 - (dx * dx + dy * dy) / b.r2;
+      for (let i = 0; i < ballCount; i++) {
+        const o = i * 4;
+        const dx = x - ballN[o];
+        const dy = y - ballN[o + 1];
+        const t = 1 - (dx * dx + dy * dy) / ballN[o + 2];
         if (t <= 0) continue;
         const v = t * t;
-        if (b.warm) warm += v;
+        if (ballN[o + 3]) warm += v;
         else cool += v;
       }
-      return { f: cool + warm, warm };
+      fieldF = cool + warm;
+      fieldW = warm;
     }
 
     function band(f) {
@@ -322,79 +368,93 @@
       return t * t * (3 - 2 * t);
     }
 
-    function mix(a, b, t) { return a + (b - a) * t; }
-
     function tone(warm, u) {
-      const edge = warm ? [214, 42, 158] : [255, 64, 150];
-      const mid = warm ? [255, 132, 58] : [78, 232, 208];
-      const core = warm ? [255, 236, 196] : [232, 255, 248];
-      if (u < 0.5) {
-        const t = u / 0.5;
-        return [mix(edge[0], mid[0], t), mix(edge[1], mid[1], t), mix(edge[2], mid[2], t)];
-      }
-      const t = (u - 0.5) / 0.5;
-      return [mix(mid[0], core[0], t), mix(mid[1], core[1], t), mix(mid[2], core[2], t)];
+      const edge0 = warm ? 214 : 255, edge1 = warm ? 42 : 64, edge2 = warm ? 158 : 150;
+      const mid0 = warm ? 255 : 78, mid1 = warm ? 132 : 232, mid2 = warm ? 58 : 208;
+      const core0 = warm ? 255 : 232, core1 = warm ? 236 : 255, core2 = warm ? 196 : 248;
+      const t = u < 0.5 ? u / 0.5 : (u - 0.5) / 0.5;
+      const a0 = u < 0.5 ? edge0 : mid0, b0 = u < 0.5 ? mid0 : core0;
+      const a1 = u < 0.5 ? edge1 : mid1, b1 = u < 0.5 ? mid1 : core1;
+      const a2 = u < 0.5 ? edge2 : mid2, b2 = u < 0.5 ? mid2 : core2;
+      toneR = a0 + (b0 - a0) * t;
+      toneG = a1 + (b1 - a1) * t;
+      toneB = a2 + (b2 - a2) * t;
     }
 
-    function drawBlob(now) {
+    function rasterize(phase) {
       const { cx, cy, R } = layout;
       const span = R * 2.35;
       const bw = blob.width;
       const map = bw / span;
       const originX = cx - span / 2;
       const originY = cy - span / 2;
-      const balls = [];
-      for (let i = 0; i < 3; i++) {
-        const s = smooth((weight[i] - 0.05) / 0.9);
-        if (s < 0.03) continue;
-        for (const b of ballsFor(i, s, now)) {
-          balls.push({
-            x: (b.x - originX) * map,
-            y: (b.y - originY) * map,
-            r2: b.r2 * map * map,
-            warm: b.warm
-          });
+      if (!blobImage || blobImage.width !== bw) blobImage = bctx.createImageData(bw, bw);
+      const data = blobImage.data;
+      data.fill(0);
+      fillBalls(phase, originX, originY, map);
+      if (ballCount) {
+        const x0 = Math.max(0, boxL | 0);
+        const y0 = Math.max(0, boxT | 0);
+        const x1 = Math.min(bw - 1, boxR | 0);
+        const y1 = Math.min(bw - 1, boxB | 0);
+        for (let y = y0; y <= y1; y++) {
+          for (let x = x0; x <= x1; x++) {
+            field(x, y);
+            if (fieldF < 0.16) continue;
+            const f0 = fieldF;
+            const w0 = fieldW;
+            field(x + 3.1, y - 0.8);
+            const fR = fieldF;
+            field(x - 3.4, y + 0.9);
+            const fB = fieldF;
+            const aC = band(f0);
+            const aR = band(fR);
+            const aB = band(fB);
+            const a = aC > aR ? (aC > aB ? aC : aB) : (aR > aB ? aR : aB);
+            if (a < 0.02) continue;
+            const u = f0 <= 0.28 ? 0 : Math.min(1, (f0 - 0.28) / 1.35);
+            tone(0, u);
+            const cr = toneR, cg = toneG, cb = toneB;
+            tone(1, u);
+            const warmMix = w0 / f0;
+            let r = cr + (toneR - cr) * warmMix;
+            let g = cg + (toneG - cg) * warmMix;
+            let bch = cb + (toneB - cb) * warmMix;
+            const grit = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+            const n = (grit - Math.floor(grit) - 0.5) * 42 * aC;
+            r += n + (aR > aC ? (aR - aC) * 150 : 0);
+            g += n * 0.3;
+            bch += -n * 0.15 + (aB > aC ? (aB - aC) * 140 : 0);
+            if (r < 0) r = 0; else if (r > 255) r = 255;
+            if (g < 0) g = 0; else if (g > 255) g = 255;
+            if (bch < 0) bch = 0; else if (bch > 255) bch = 255;
+            const o = (y * bw + x) * 4;
+            data[o] = r;
+            data[o + 1] = g;
+            data[o + 2] = bch;
+            data[o + 3] = (a * 235 + 0.5) | 0;
+          }
         }
       }
-      const img = bctx.createImageData(bw, bw);
-      const data = img.data;
-      const tick = reduced ? 0 : Math.floor(now / 90);
-      for (let y = 0; y < bw; y++) {
-        for (let x = 0; x < bw; x++) {
-          const c0 = sample(balls, x, y);
-          if (c0.f < 0.16) continue;
-          const cR = sample(balls, x + 3.1, y - 0.8);
-          const cB = sample(balls, x - 3.4, y + 0.9);
-          const aC = band(c0.f);
-          const a = Math.max(aC, band(cR.f), band(cB.f));
-          if (a < 0.02) continue;
-          const u = Math.max(0, Math.min(1, (c0.f - 0.28) / 1.35));
-          const warmMix = c0.warm / c0.f;
-          const cool = tone(false, u);
-          const hot = tone(true, u);
-          let r = mix(cool[0], hot[0], warmMix);
-          let g = mix(cool[1], hot[1], warmMix);
-          let b = mix(cool[2], hot[2], warmMix);
-          const grit = (Math.sin(x * 12.9898 + y * 78.233 + tick) * 43758.5453);
-          const n = (grit - Math.floor(grit) - 0.5) * 42 * aC;
-          r = Math.max(0, Math.min(255, r + n + Math.max(0, band(cR.f) - aC) * 150));
-          g = Math.max(0, Math.min(255, g + n * 0.3));
-          b = Math.max(0, Math.min(255, b - n * 0.15 + Math.max(0, band(cB.f) - aC) * 140));
-          const o = (y * bw + x) * 4;
-          data[o] = r;
-          data[o + 1] = g;
-          data[o + 2] = b;
-          data[o + 3] = Math.round(a * 235);
-        }
+      bctx.putImageData(blobImage, 0, 0);
+    }
+
+    function drawBlob(now) {
+      const { cx, cy, R } = layout;
+      const span = R * 2.35;
+      const phase = reduced ? 0 : ((now / 160) | 0) * 160;
+      const key = blobStamp(now);
+      if (key !== blobKey) {
+        rasterize(phase);
+        blobKey = key;
       }
-      bctx.putImageData(img, 0, 0);
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, R * 1.08, 0, Math.PI * 2);
       ctx.clip();
       ctx.imageSmoothingEnabled = true;
-      ctx.filter = 'blur(0.6px)';
-      ctx.drawImage(blob, originX, originY, span, span);
+      ctx.filter = 'blur(1px)';
+      ctx.drawImage(blob, cx - span / 2, cy - span / 2, span, span);
       ctx.filter = 'none';
       ctx.restore();
     }
@@ -450,9 +510,11 @@
       ctx.drawImage(pack, 0, 0, w, h);
       drawBlob(now);
       drawLabels();
-      let lead = 0;
-      for (let i = 1; i < 3; i++) if (weight[i] > weight[lead]) lead = i;
-      buttons.forEach((btn, i) => btn.setAttribute('aria-pressed', i === lead ? 'true' : 'false'));
+      const lead = leadIndex();
+      if (lead !== shownLead) {
+        shownLead = lead;
+        buttons.forEach((btn, i) => btn.setAttribute('aria-pressed', i === lead ? 'true' : 'false'));
+      }
     }
 
     function frame(now) {
@@ -470,7 +532,7 @@
           }
         } else arrivedAt = 0;
       }
-      paint(now);
+      if (blobStamp(now) !== blobKey || leadIndex() !== shownLead) paint(now);
       if (!reduced) requestAnimationFrame(frame);
     }
 
