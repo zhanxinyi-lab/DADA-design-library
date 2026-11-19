@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>悬停时装</title>
+  <style>
+    :root {
+      --paper: #efeae3;
+      --ink: #1b1916;
+      --line: rgba(27, 25, 22, 0.14);
+    }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; }
+    body {
+      min-height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font: 15px/1.4 "Iowan Old Style", Palatino, "Songti SC", "Noto Serif SC", serif;
+    }
+    .page {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 22px;
+      width: min(760px, 100%);
+      margin: 0 auto;
+      padding: 28px 22px 36px;
+    }
+    header { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+    .kicker { letter-spacing: 0.18em; font-size: 12px; }
+    .hint { font-size: 13px; opacity: 0.72; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .tile {
+      position: relative;
+      display: block;
+      width: 100%;
+      aspect-ratio: 4 / 5;
+      padding: 0;
+      border: 0;
+      overflow: hidden;
+      background: #d9d2c8;
+      color: inherit;
+      cursor: pointer;
+      text-align: left;
+    }
+    .tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    .art, .card { position: absolute; }
+    .art { inset: -20px; }
+    .card { inset: 0; }
+    .shape { position: absolute; display: block; font-style: normal; }
+    .card {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 6px;
+      padding: 8%;
+      clip-path: polygon(0% 0%, 0% 0%, 0% 100%, 0% 100%);
+    }
+    .index { font-size: 12px; letter-spacing: 0.14em; }
+    .name { font-size: clamp(20px, 3vw, 32px); font-weight: 500; }
+    .note { font-size: 12px; letter-spacing: 0.04em; opacity: 0.75; }
+    .a0 { background: #e7d7c4; }
+    .a0 .shape-a { width: 58%; height: 72%; left: 18%; top: 14%; background: #f7f1e8; border-radius: 80px 80px 18px 18px; }
+    .a0 .shape-b { width: 8%; height: 100%; left: 62%; top: 0; background: #8d3b2d; }
+    .a1 { background: #243024; }
+    .a1 .shape-a { width: 140%; height: 18%; left: -20%; top: 22%; background: #c5b48a; transform: rotate(-18deg); }
+    .a1 .shape-b { width: 140%; height: 10%; left: -10%; top: 58%; background: #efe7d4; transform: rotate(-18deg); }
+    .a2 { background: #f3efe6; }
+    .a2 .shape-a { width: 100%; height: 16%; left: 0; top: 18%; background: #1b1916; }
+    .a2 .shape-b { width: 100%; height: 7%; left: 0; top: 48%; background: #8d3b2d; }
+    .a2 .shape-c { width: 100%; height: 22%; left: 0; top: 70%; background: #d7c7a4; }
+    .a3 { background: #d8c3a5; }
+    .a3 .shape-a { width: 46%; height: 64%; right: 10%; top: 18%; background: #1e3348; }
+    .a3 .shape-b { width: 28%; height: 28%; left: 12%; bottom: 14%; border: 8px solid #f4efe6; }
+    .a4 { background: #f6f3ee; }
+    .a4 .shape-a { width: 70%; height: 70%; left: -18%; bottom: -16%; background: #6e2e2a; border-radius: 50%; }
+    .a4 .shape-b { width: 42%; height: 42%; right: -8%; top: -6%; background: #1b1916; border-radius: 50%; }
+    .a5 { background: #ece7df; }
+    .a5 .shape-a { inset: 12%; border: 1px solid rgba(27, 25, 22, 0.45); }
+    .a5 .shape-b { width: 34%; height: 48%; left: 33%; top: 26%; background: #16324f; }
+    .c0 { background: #f7f3ec; color: #1b1916; }
+    .c1 { background: #3f4a32; color: #f3efe4; }
+    .c2 { background: #f4f5f2; color: #1b1916; }
+    .c3 { background: #16324f; color: #f4efe6; }
+    .c4 { background: #6e2e2a; color: #f8f1e8; }
+    .c5 { background: #1b1916; color: #f3efe6; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 640px) {
+      .page { padding: 18px 14px 24px; gap: 14px; }
+      .grid { gap: 7px; }
+      header { align-items: flex-start; flex-direction: column; gap: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <p class="kicker">LOOKBOOK</p>
+      <p class="hint">指针停在格子上，卡片沿波浪边缘盖住它</p>
+    </header>
+    <div class="grid" id="grid">
+      <button class="tile" type="button" data-edge="left" aria-pressed="false">
+        <span class="art a0" aria-hidden="true"><i class="shape shape-a"></i><i class="shape shape-b"></i></span>
+        <span class="card c0" aria-hidden="true"><span class="index">01</span><span class="name">骨白</span><span class="note">从左缘进入</span></span>
+        <span class="sr-only">骨白，从左侧波浪边缘展开</span>
+      </button>
+      <button class="tile" type="button" data-edge="bottom" aria-pressed="false">
+        <span class="art a1" aria-hidden="true"><i class="shape shape-a"></i><i class="shape shape-b"></i></span>
+        <span class="card c1" aria-hidden="true"><span class="index">02</span><span class="name">织片</span><span class="note">从底缘进入</span></span>
+        <span class="sr-only">织片，从底部波浪边缘展开</span>
+      </button>
+      <button class="tile" type="button" data-edge="left" aria-pressed="false">
+        <span class="art a2" aria-hidden="true"><i class="shape shape-a"></i><i class="shape shape-b"></i><i class="shape shape-c"></i></span>
+        <span class="card c2" aria-hidden="true"><span class="index">03</span><span class="name">压褶</span><span class="note">从左缘进入</span></span>
+        <span class="sr-only">压褶，从左侧波浪边缘展开</span>
+      </button>
+      <button class="tile" type="button" data-edge="left" aria-pressed="false">
+        <span class="art a3" aria-hidden="true"><i class="shape shape-a"></i><i class="shape shape-b"></i></span>
+        <span class="card c3" aria-hidden="true"><span class="index">04</span><span class="name">滚边</span><span class="note">从左缘进入</span></span>
+        <span class="sr-only">滚边，从左侧波浪边缘展开</span>
+      </button>
+      <button class="tile" type="button" data-edge="left" aria-pressed="false">
+        <span class="art a4" aria-hidden="true"><i class="shape shape-a"></i><i class="shape shape-b"></i></span>
+        <span class="card c4" aria-hidden="true"><span class="index">05</span><span class="name">暗缝</span><span class="note">从左缘进入</span></span>
+        <span class="sr-only">暗缝，从左侧波浪边缘展开</span>
+      </button>
+      <button class="tile" type="button" data-edge="left" aria-pressed="false">
+        <span class="art a5" aria-hidden="true"><i class="shape shape-a"></i><i class="shape shape-b"></i></span>
+        <span class="card c5" aria-hidden="true"><span class="index">06</span><span class="name">落色</span><span class="note">从左缘进入</span></span>
+        <span class="sr-only">落色，从左侧波浪边缘展开</span>
+      </button>
+    </div>
+  </main>
+  <script>
+    const tiles = [...document.querySelectorAll('.tile')];
+    const order = [0, 1, 2, 5, 4, 3];
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    const cards = tiles.map((tile) => tile.querySelector('.card'));
+    const arts = tiles.map((tile) => tile.querySelector('.art'));
+    const progress = tiles.map(() => 0);
+    let reduced = motion.matches;
+    let held = null;
+    let autoOn = !reduced;
+    let step = 0;
+    let phase = 'in';
+    let phaseTime = 0;
+    let last = performance.now();
+    let frame = 0;
+
+    function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+    function waveClip(amount, edge) {
+      const p = clamp(amount, 0, 1);
+      const env = Math.sin(Math.PI * p);
+      const steps = 14;
+      const pts = [];
+      if (edge === 'bottom') {
+        for (let i = 0; i <= steps; i++) {
+          const x = i / steps;
+          const y = clamp(1 - p + Math.sin(x * Math.PI * 2.15 + 0.4) * 0.14 * env, 0, 1);
+          pts.push((x * 100).toFixed(2) + '% ' + (y * 100).toFixed(2) + '%');
+        }
+        pts.push('100% 100%', '0% 100%');
+      } else {
+        for (let i = 0; i <= steps; i++) {
+          const y = i / steps;
+          const x = clamp(p + Math.sin(y * Math.PI * 2.15 + 0.6) * 0.14 * env, 0, 1);
+          pts.push((x * 100).toFixed(2) + '% ' + (y * 100).toFixed(2) + '%');
+        }
+        pts.push('0% 100%', '0% 0%');
+      }
+      return 'polygon(' + pts.join(',') + ')';
+    }
+
+    function paint() {
+      for (let i = 0; i < tiles.length; i++) {
+        const amount = reduced ? (held === i ? 1 : 0) : progress[i];
+        const edge = tiles[i].dataset.edge;
+        cards[i].style.clipPath = waveClip(amount, edge);
+        const slide = Math.sin(Math.PI * amount) * 12;
+        arts[i].style.transform = edge === 'bottom' ? 'translateY(' + (-slide) + 'px)' : 'translateX(' + slide + 'px)';
+        const open = amount > 0.5;
+        if (tiles[i].getAttribute('aria-pressed') !== String(open)) tiles[i].setAttribute('aria-pressed', String(open));
+      }
+    }
+
+    function ensureLoop() {
+      if (frame || reduced) return;
+      last = performance.now();
+      frame = requestAnimationFrame(tick);
+    }
+
+    function tick(now) {
+      frame = requestAnimationFrame(tick);
+      const dt = Math.min(48, now - last);
+      last = now;
+      if (reduced) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        return;
+      }
+      if (autoOn && held == null && document.visibilityState !== 'hidden') {
+        phaseTime += dt;
+        const i = order[step];
+        const dur = phase === 'in' ? 720 : phase === 'hold' ? 520 : phase === 'out' ? 460 : 180;
+        const t = clamp(phaseTime / dur, 0, 1);
+        if (phase === 'in') progress[i] = t;
+        else if (phase === 'hold') progress[i] = 1;
+        else if (phase === 'out') progress[i] = 1 - t;
+        else progress[i] = 0;
+        if (t === 1) {
+          phaseTime = 0;
+          if (phase === 'in') phase = 'hold';
+          else if (phase === 'hold') phase = 'out';
+          else if (phase === 'out') { progress[i] = 0; phase = 'gap'; }
+          else { phase = 'in'; step = (step + 1) % order.length; }
+        }
+      }
+      for (let i = 0; i < tiles.length; i++) {
+        if (!autoOn || held != null || order[step] !== i || phase === 'gap') {
+          const target = held === i ? 1 : 0;
+          progress[i] += (target - progress[i]) * (1 - Math.exp(-dt / 160));
+          if (Math.abs(target - progress[i]) < 0.004) progress[i] = target;
+        }
+      }
+      paint();
+    }
+
+    function hold(tile) {
+      held = tiles.indexOf(tile);
+      autoOn = false;
+      if (reduced) paint();
+    }
+    function release(tile) {
+      if (tiles.indexOf(tile) !== held) return;
+      held = null;
+      autoOn = !reduced;
+      phase = 'gap';
+      phaseTime = 0;
+      if (reduced) paint();
+    }
+
+    for (const tile of tiles) {
+      tile.addEventListener('pointerenter', () => hold(tile));
+      tile.addEventListener('pointerleave', () => release(tile));
+      tile.addEventListener('focus', () => hold(tile));
+      tile.addEventListener('blur', () => release(tile));
+    }
+    motion.addEventListener('change', () => {
+      reduced = motion.matches;
+      autoOn = !reduced && held == null;
+      if (reduced) {
+        for (let i = 0; i < progress.length; i++) progress[i] = held === i ? 1 : 0;
+        if (frame) { cancelAnimationFrame(frame); frame = 0; }
+      } else ensureLoop();
+      paint();
+    });
+    document.addEventListener('visibilitychange', () => { last = performance.now(); });
+    paint();
+    ensureLoop();
+  </script>
+</body>
+</html>
