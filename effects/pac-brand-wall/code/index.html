@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P.A.C. 品牌墙</title>
+  <style>
+    :root {
+      --blue: #2a56e2;
+      --ink: #141414;
+      --paper: #f6f1e4;
+      --bar: #10182f;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      background: var(--blue);
+      color: var(--ink);
+      font-family: Impact, "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+    }
+    .bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bar);
+      color: #fff;
+    }
+    .brand-name {
+      margin: 0;
+      font-size: 13px;
+      letter-spacing: 0.14em;
+      font-weight: 700;
+    }
+    .tabs, .transport { display: flex; flex-wrap: wrap; gap: 8px; }
+    button {
+      min-height: 44px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 999px;
+      background: #243056;
+      color: #fff;
+      font: 700 14px/1 system-ui, sans-serif;
+    }
+    button[aria-selected="true"] { background: var(--paper); color: var(--ink); }
+    button:focus-visible { outline: 3px solid var(--paper); outline-offset: 2px; }
+    button:disabled { opacity: 0.55; }
+    .frame {
+      min-height: 0;
+      display: grid;
+      place-items: center;
+      padding: 10px;
+    }
+    .stage {
+      position: relative;
+      width: min(100%, calc(100dvh - 84px), 860px);
+      aspect-ratio: 1;
+      container-type: size;
+      overflow: hidden;
+      background: var(--blue);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28);
+    }
+    .board {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transform: translateX(6%);
+      transition: opacity 180ms ease, transform 180ms ease;
+      background-color: var(--blue);
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.72) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.72) 1px, transparent 1px);
+      background-size: 8cqw 8cqw;
+      pointer-events: none;
+    }
+    .board.is-on {
+      opacity: 1;
+      transform: none;
+      z-index: 1;
+      pointer-events: auto;
+    }
+    html.reduce .board { transition: none; }
+    .mark {
+      position: absolute;
+      margin: 0;
+      font-weight: 900;
+      letter-spacing: -0.045em;
+      line-height: 0.78;
+    }
+    .poster-a .mark { left: 5cqw; top: 6cqw; font-size: 20cqw; z-index: 1; }
+    .pizza {
+      position: absolute;
+      width: 38cqw;
+      height: 38cqw;
+      right: 6cqw;
+      top: 24cqw;
+      z-index: 1;
+    }
+    .poster-b .mark { left: 6cqw; top: 5cqw; font-size: 16cqw; z-index: 1; }
+    .poster-b .pizza { width: 30cqw; height: 30cqw; left: 35cqw; right: auto; top: 22cqw; }
+    .caption {
+      position: absolute;
+      left: 6cqw;
+      bottom: 7cqw;
+      z-index: 2;
+      margin: 0;
+      max-width: 58cqw;
+      font-size: 4.2cqw;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 0.92;
+    }
+    .caption span {
+      display: block;
+      margin-top: 1.2cqw;
+      font-family: Georgia, "Times New Roman", serif;
+      font-style: italic;
+      font-weight: 700;
+      font-size: 0.72em;
+      letter-spacing: 0;
+    }
+    .poster-b .caption {
+      left: 18cqw;
+      right: 18cqw;
+      bottom: 27cqw;
+      max-width: none;
+      text-align: center;
+      font-size: 3.3cqw;
+    }
+    .poster-b .figure { width: 14cqw; height: 20cqw; bottom: 3cqw; }
+    .figure { position: absolute; bottom: 4cqw; width: 16cqw; height: 22cqw; }
+    .figure.left { left: 4cqw; }
+    .figure.right { right: 4cqw; }
+    .menu-grid {
+      position: absolute;
+      inset: 6cqw 4cqw 24cqw;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 2cqw;
+    }
+    .col h2 {
+      margin: 0 0 1.4cqw;
+      padding-bottom: 0.6cqw;
+      border-bottom: 0.45cqw solid var(--ink);
+      font-size: 5.4cqw;
+      letter-spacing: -0.04em;
+      line-height: 0.9;
+    }
+    .item {
+      display: grid;
+      grid-template-columns: 7cqw 1fr;
+      gap: 1cqw;
+      align-items: center;
+      margin: 0 0 1.5cqw;
+      font-family: system-ui, sans-serif;
+      font-size: 2.15cqw;
+      font-weight: 800;
+      line-height: 1.05;
+    }
+    .item small {
+      display: block;
+      margin-top: 0.3cqw;
+      font-weight: 700;
+      opacity: 0.72;
+    }
+    .icon { width: 7cqw; height: 7cqw; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <p class="brand-name">P.A.C. 品牌墙</p>
+    <div class="tabs" role="tablist" aria-label="品牌板">
+      <button type="button" role="tab" id="tab-poster" aria-controls="board-poster" aria-selected="true">海报</button>
+      <button type="button" role="tab" id="tab-menu" aria-controls="board-menu" aria-selected="false" tabindex="-1">菜单</button>
+      <button type="button" role="tab" id="tab-roma" aria-controls="board-roma" aria-selected="false" tabindex="-1">罗马海报</button>
+    </div>
+    <div class="transport">
+      <button type="button" id="pause" aria-pressed="false">暂停</button>
+    </div>
+  </header>
+  <main class="frame">
+    <div class="stage" id="stage" aria-label="P.A.C. 品牌墙">
+      <p id="live" class="sr-only" aria-live="polite">海报，Napoletana</p>
+
+      <section class="board poster-a is-on" id="board-poster" role="tabpanel" aria-labelledby="tab-poster" data-label="海报，Napoletana">
+        <h2 class="mark">P.A.C.</h2>
+        <svg class="pizza" viewBox="0 0 200 200" aria-hidden="true">
+          <circle cx="100" cy="100" r="90" fill="#e7c48a" stroke="#141414" stroke-width="7"/>
+          <circle cx="100" cy="100" r="74" fill="#f3d7a1" stroke="#141414" stroke-width="5"/>
+          <circle cx="100" cy="100" r="58" fill="#ef4d3a" stroke="#141414" stroke-width="4"/>
+          <circle cx="78" cy="86" r="10" fill="#f6e27a" stroke="#141414" stroke-width="3"/>
+          <circle cx="118" cy="78" r="9" fill="#f6e27a" stroke="#141414" stroke-width="3"/>
+          <circle cx="124" cy="116" r="11" fill="#f6e27a" stroke="#141414" stroke-width="3"/>
+          <circle cx="86" cy="122" r="8" fill="#2f8f4e" stroke="#141414" stroke-width="3"/>
+          <path d="M70 100c10-16 22-16 32 0" fill="none" stroke="#141414" stroke-width="3"/>
+        </svg>
+        <p class="caption">PIZZA ARTIGIANALE<span>Napoletana</span></p>
+      </section>
+
+      <section class="board" id="board-menu" role="tabpanel" aria-labelledby="tab-menu" aria-hidden="true" inert data-label="菜单，Pizza、Fritti、Dolci">
+        <div class="menu-grid">
+          <div class="col">
+            <h2>PIZZA</h2>
+            <p class="item"><svg class="icon" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="#f3d7a1" stroke="#141414" stroke-width="3"/><circle cx="32" cy="32" r="12" fill="#ef4d3a" stroke="#141414" stroke-width="2"/></svg><span>Margherita</span></p>
+            <p class="item"><svg class="icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M14 28h36v16a12 12 0 0 1-12 12H26A12 12 0 0 1 14 44z" fill="#f6f1e4" stroke="#141414" stroke-width="3"/><path d="M20 28c2-10 22-10 24 0" fill="none" stroke="#141414" stroke-width="3"/></svg><span>Marinara</span></p>
+            <p class="item"><svg class="icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 8l18 40H14z" fill="#ef4d3a" stroke="#141414" stroke-width="3"/><circle cx="32" cy="34" r="4" fill="#f6e27a"/></svg><span>Diavola</span></p>
+          </div>
+          <div class="col">
+            <h2>FRITTI</h2>
+            <p class="item"><svg class="icon" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="34" r="16" fill="#e7c48a" stroke="#141414" stroke-width="3"/><path d="M32 18v8" stroke="#141414" stroke-width="3"/></svg><span>Supplì</span></p>
+            <p class="item"><svg class="icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 18l8 30M30 16l4 32M44 18l-6 30" fill="none" stroke="#141414" stroke-width="4" stroke-linecap="round"/></svg><span>Patatine</span></p>
+            <p class="item"><svg class="icon" viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="32" cy="34" rx="16" ry="12" fill="#3d7a45" stroke="#141414" stroke-width="3"/><ellipse cx="32" cy="34" rx="5" ry="4" fill="#f6f1e4"/></svg><span>Olive</span></p>
+          </div>
+          <div class="col">
+            <h2>DOLCI</h2>
+            <p class="item"><svg class="icon" viewBox="0 0 64 64" aria-hidden="true"><rect x="14" y="18" width="36" height="30" fill="#f6f1e4" stroke="#141414" stroke-width="3"/><path d="M14 28h36M14 38h36" stroke="#141414" stroke-width="3"/></svg><span>Tiramisù</span></p>
+          </div>
+        </div>
+        <svg class="figure left" viewBox="0 0 80 120" aria-hidden="true">
+          <circle cx="40" cy="18" r="12" fill="#f6f1e4" stroke="#141414" stroke-width="3"/>
+          <path d="M40 32v34M22 48h36M28 108l12-42 12 42" fill="none" stroke="#141414" stroke-width="3" stroke-linecap="round"/>
+          <path d="M24 46c6-10 26-10 32 0v22H24z" fill="#f6f1e4" stroke="#141414" stroke-width="3"/>
+        </svg>
+        <svg class="figure right" viewBox="0 0 80 120" aria-hidden="true">
+          <circle cx="40" cy="18" r="12" fill="#f6f1e4" stroke="#141414" stroke-width="3"/>
+          <path d="M28 16h24" stroke="#141414" stroke-width="3"/>
+          <path d="M40 32l-16 28h32z" fill="#f6f1e4" stroke="#141414" stroke-width="3"/>
+          <path d="M24 60l16 16 16-16M30 108l10-32 10 32" fill="none" stroke="#141414" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </section>
+
+      <section class="board poster-b" id="board-roma" role="tabpanel" aria-labelledby="tab-roma" aria-hidden="true" inert data-label="海报，Contemporanea，Roma">
+        <h2 class="mark">P.A.C.</h2>
+        <svg class="pizza" viewBox="0 0 200 200" aria-hidden="true">
+          <circle cx="100" cy="100" r="90" fill="#e7c48a" stroke="#141414" stroke-width="7"/>
+          <circle cx="100" cy="100" r="70" fill="#ef4d3a" stroke="#141414" stroke-width="4"/>
+          <circle cx="74" cy="96" r="12" fill="#f6e27a" stroke="#141414" stroke-width="3"/>
+          <circle cx="112" cy="78" r="10" fill="#2f8f4e" stroke="#141414" stroke-width="3"/>
+          <circle cx="128" cy="118" r="11" fill="#f6e27a" stroke="#141414" stroke-width="3"/>
+          <path d="M64 118c18 20 54 20 72 0" fill="none" stroke="#141414" stroke-width="4"/>
+        </svg>
+        <svg class="figure left" viewBox="0 0 80 120" aria-hidden="true">
+          <circle cx="40" cy="16" r="11" fill="#f6f1e4" stroke="#141414" stroke-width="3"/>
+          <path d="M22 42h36l-6 28H28z" fill="#f6f1e4" stroke="#141414" stroke-width="3"/>
+          <path d="M30 108l10-38 10 38M18 50l14 8M62 50L48 58" fill="none" stroke="#141414" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <svg class="figure right" viewBox="0 0 80 120" aria-hidden="true">
+          <circle cx="40" cy="16" r="11" fill="#f6f1e4" stroke="#141414" stroke-width="3"/>
+          <path d="M26 34h28v8H26z" fill="#141414"/>
+          <path d="M40 44l-18 30h36z" fill="#f6f1e4" stroke="#141414" stroke-width="3"/>
+          <path d="M28 108l12-34 12 34" fill="none" stroke="#141414" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <p class="caption">PIZZA ARTIGIANALE CONTEMPORANEA<span>Roma</span></p>
+      </section>
+    </div>
+  </main>
+  <script>
+    const BRAND = { hold: 2200 };
+    const boards = [...document.querySelectorAll(".board")];
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const live = document.getElementById("live");
+    const pauseBtn = document.getElementById("pause");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let index = 0;
+    let timer = 0;
+    let paused = false;
+
+    function stop() {
+      if (timer) window.clearInterval(timer);
+      timer = 0;
+    }
+
+    function start() {
+      stop();
+      if (paused || reduce.matches) return;
+      timer = window.setInterval(() => go(index + 1, true), BRAND.hold);
+    }
+
+    function go(next, announce) {
+      index = (next + boards.length) % boards.length;
+      boards.forEach((board, n) => {
+        const on = n === index;
+        board.classList.toggle("is-on", on);
+        board.setAttribute("aria-hidden", on ? "false" : "true");
+        board.inert = !on;
+      });
+      tabs.forEach((tab, n) => {
+        const on = n === index;
+        tab.setAttribute("aria-selected", on ? "true" : "false");
+        tab.tabIndex = on ? 0 : -1;
+      });
+      if (announce) live.textContent = boards[index].dataset.label || "";
+    }
+
+    function syncMotion() {
+      document.documentElement.classList.toggle("reduce", reduce.matches);
+      if (reduce.matches) {
+        stop();
+        pauseBtn.disabled = true;
+        pauseBtn.textContent = "减少动态";
+        pauseBtn.setAttribute("aria-pressed", "true");
+        return;
+      }
+      pauseBtn.disabled = false;
+      pauseBtn.textContent = paused ? "播放" : "暂停";
+      pauseBtn.setAttribute("aria-pressed", paused ? "true" : "false");
+      if (!paused) start();
+    }
+
+    tabs.forEach((tab, n) => {
+      tab.addEventListener("click", () => {
+        paused = true;
+        syncMotion();
+        go(n, true);
+      });
+    });
+
+    pauseBtn.addEventListener("click", () => {
+      if (reduce.matches) return;
+      paused = !paused;
+      syncMotion();
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.target.closest("input, textarea")) return;
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        paused = true;
+        syncMotion();
+        go(index + 1, true);
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        paused = true;
+        syncMotion();
+        go(index - 1, true);
+      } else if ((event.key === " " || event.key === "Spacebar") && !event.target.closest("button")) {
+        event.preventDefault();
+        if (reduce.matches) return;
+        paused = !paused;
+        syncMotion();
+      }
+    });
+
+    reduce.addEventListener("change", syncMotion);
+    syncMotion();
+  </script>
+</body>
+</html>
