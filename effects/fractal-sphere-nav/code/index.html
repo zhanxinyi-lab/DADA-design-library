@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>分形球体导航</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: #000;
+      color: #f3f3f4;
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+    h1 {
+      position: absolute;
+      z-index: 2;
+      top: clamp(18px, 4.5vh, 48px);
+      left: clamp(18px, 4vw, 52px);
+      margin: 0;
+      font-weight: 460;
+      font-size: clamp(30px, 5.4vh, 58px);
+      letter-spacing: -0.035em;
+      line-height: 0.96;
+      pointer-events: none;
+    }
+    h1 span { display: block; }
+    h1 .em { font-style: italic; font-weight: 430; }
+    .stage { position: absolute; inset: 0; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .nav { position: absolute; inset: 0; }
+    button {
+      position: absolute;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: transparent;
+      cursor: pointer;
+    }
+    button:focus-visible {
+      outline: 2px solid rgba(255, 255, 255, 0.9);
+      outline-offset: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    <span>Research.</span>
+    <span class="em">Pacing the frontier.</span>
+  </h1>
+  <div class="stage" id="stage">
+    <canvas id="c"></canvas>
+    <div class="nav" id="nav" role="group" aria-label="Research projects">
+      <button type="button" data-i="0" aria-pressed="true">hamr</button>
+      <button type="button" data-i="1" aria-pressed="false">flokr</button>
+      <button type="button" data-i="2" aria-pressed="false">evolve</button>
+    </div>
+  </div>
+  <script>
+    const names = ['hamr', 'flokr', 'evolve'];
+    const angles = [220, 340, 100].map((d) => d * Math.PI / 180);
+    const shapes = [
+      [
+        { x: 0.02, y: -0.06, s: 0.92 },
+        { x: 0.36, y: 0.1, s: 0.68 },
+        { x: -0.34, y: 0.08, s: 0.58 },
+        { x: 0.02, y: 0.36, s: 0.5 },
+        { x: -0.12, y: 0.7, s: 0.26 }
+      ],
+      [
+        { x: 0.02, y: -0.04, s: 0.94 },
+        { x: -0.36, y: 0.1, s: 0.6 },
+        { x: 0.38, y: 0.04, s: 0.52 },
+        { x: 0.04, y: 0.34, s: 0.46 },
+        { x: 0.0, y: 0.68, s: 0.24 }
+      ],
+      [
+        { x: -0.24, y: 0.0, s: 0.74 },
+        { x: 0.24, y: -0.04, s: 0.82 },
+        { x: 0.5, y: -0.12, s: 0.36 },
+        { x: -0.02, y: 0.24, s: 0.42 },
+        { x: 0.02, y: 0.56, s: 0.22 }
+      ]
+    ];
+
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const buttons = [...document.querySelectorAll('#nav button')];
+    const pack = document.createElement('canvas');
+    const pctx = pack.getContext('2d');
+    const blob = document.createElement('canvas');
+    const bctx = blob.getContext('2d', { willReadFrequently: true });
+
+    const seedR = Math.sqrt(3) / (2 + Math.sqrt(3));
+    const circles = packCircles();
+    const weight = [1, 0, 0];
+    let target = 0;
+    let arrivedAt = performance.now();
+    let paused = false;
+    let last = performance.now();
+    let layout = null;
+
+    function cadd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
+    function cmul(a, b) { return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }; }
+    function cscale(a, s) { return { re: a.re * s, im: a.im * s }; }
+    function csqrt(a) {
+      const m = Math.hypot(a.re, a.im);
+      return {
+        re: Math.sqrt((m + a.re) / 2),
+        im: Math.sign(a.im || 1) * Math.sqrt(Math.max(0, (m - a.re) / 2))
+      };
+    }
+
+    function fourth(a, b, c) {
+      const k1 = a.k, k2 = b.k, k3 = c.k;
+      const inner = k1 * k2 + k1 * k3 + k2 * k3;
+      if (inner < 1e-8) return [];
+      const sum = k1 + k2 + k3;
+      const rootK = Math.sqrt(inner);
+      const z1 = { re: a.x, im: a.y }, z2 = { re: b.x, im: b.y }, z3 = { re: c.x, im: c.y };
+      const kz = cadd(cadd(cscale(z1, k1), cscale(z2, k2)), cscale(z3, k3));
+      const prod = cadd(
+        cadd(cscale(cmul(z1, z2), k1 * k2), cscale(cmul(z1, z3), k1 * k3)),
+        cscale(cmul(z2, z3), k2 * k3)
+      );
+      const rootZ = csqrt(prod);
+      const out = [];
+      for (const ks of [1, -1]) {
+        const k4 = sum + ks * 2 * rootK;
+        if (!(k4 > 2.2 && k4 < 140)) continue;
+        for (const zs of [1, -1]) {
+          const num = cadd(kz, cscale(rootZ, zs * 2));
+          out.push({ k: k4, r: 1 / k4, x: num.re / k4, y: num.im / k4 });
+        }
+      }
+      return out;
+    }
+
+    function accept(c, list) {
+      if (!Number.isFinite(c.x) || !Number.isFinite(c.y) || c.r < 0.009 || c.r > 0.42) return false;
+      if (Math.hypot(c.x, c.y) + c.r > 1.004) return false;
+      for (const o of list) {
+        const d = Math.hypot(c.x - o.x, c.y - o.y);
+        if (d < 0.008 && Math.abs(c.r - o.r) < 0.008) return false;
+        if (d < c.r + o.r - 0.006) return false;
+      }
+      return true;
+    }
+
+    function packCircles() {
+      const d = 1 - seedR;
+      const seeds = angles.map((a, i) => ({
+        k: 1 / seedR, r: seedR, x: Math.cos(a) * d, y: Math.sin(a) * d, project: i
+      }));
+      const outer = { k: -1, r: 1, x: 0, y: 0 };
+      const list = seeds.slice();
+      const queue = [];
+      const all = [outer, ...seeds];
+      for (let i = 0; i < all.length; i++) {
+        for (let j = i + 1; j < all.length; j++) {
+          for (let k = j + 1; k < all.length; k++) queue.push([all[i], all[j], all[k]]);
+        }
+      }
+      let guard = 0;
+      while (queue.length && list.length < 210 && guard < 4000) {
+        guard++;
+        const [a, b, c] = queue.shift();
+        for (const cand of fourth(a, b, c)) {
+          if (!accept(cand, list)) continue;
+          list.push(cand);
+          if (cand.r > 0.012) queue.push([a, b, cand], [a, c, cand], [b, c, cand]);
+        }
+      }
+      return list;
+    }
+
+    function projectCenter(i, view) {
+      const d = (1 - seedR) * view.R;
+      return {
+        x: view.cx + Math.cos(angles[i]) * d,
+        y: view.cy + Math.sin(angles[i]) * d,
+        r: seedR * view.R
+      };
+    }
+
+    function resize() {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      const dpr = Math.min(2, devicePixelRatio || 1);
+      canvas.width = Math.max(1, Math.round(w * dpr));
+      canvas.height = Math.max(1, Math.round(h * dpr));
+      pack.width = canvas.width;
+      pack.height = canvas.height;
+      const R = Math.min(w * 0.36, h * 0.34);
+      layout = { w, h, dpr, cx: w * 0.5, cy: h * 0.57, R };
+      const side = Math.round(Math.min(380, Math.max(180, R * 2.2)));
+      blob.width = side;
+      blob.height = side;
+      drawPack();
+      placeButtons();
+    }
+
+    function drawPack() {
+      const { w, h, dpr, cx, cy, R } = layout;
+      pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      pctx.clearRect(0, 0, w, h);
+      const glow = pctx.createRadialGradient(cx, cy, R * 0.15, cx, cy, R * 1.02);
+      glow.addColorStop(0, 'rgba(255,255,255,0.035)');
+      glow.addColorStop(0.7, 'rgba(255,255,255,0.012)');
+      glow.addColorStop(1, 'rgba(255,255,255,0)');
+      pctx.fillStyle = glow;
+      pctx.beginPath();
+      pctx.arc(cx, cy, R * 1.02, 0, Math.PI * 2);
+      pctx.fill();
+
+      const dots = (x, y, r, alpha, gap) => {
+        if (r < 1.2) return;
+        pctx.fillStyle = `rgba(236,238,242,${alpha})`;
+        pctx.beginPath();
+        const step = Math.min(gap, (Math.PI * 2) / 6);
+        const n = Math.max(6, Math.floor((Math.PI * 2) / step));
+        const rad = r > 18 ? 1.15 : 0.85;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          pctx.moveTo(x + Math.cos(a) * r + rad, y + Math.sin(a) * r);
+          pctx.arc(x + Math.cos(a) * r, y + Math.sin(a) * r, rad, 0, Math.PI * 2);
+        }
+        pctx.fill();
+      };
+
+      dots(cx, cy, R, 0.78, 4.2 / R);
+      for (const ring of [1.14, 1.3]) {
+        const rr = R * ring;
+        const n = Math.floor((Math.PI * 2 * rr) / 7);
+        pctx.fillStyle = 'rgba(210,214,220,0.22)';
+        pctx.beginPath();
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          const side = 0.25 + 0.75 * Math.max(0, Math.cos(a - 0.2));
+          if (side < 0.45 && (i % 2) === 0) continue;
+          pctx.moveTo(cx + Math.cos(a) * rr + 0.8, cy + Math.sin(a) * rr);
+          pctx.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 0.8, 0, Math.PI * 2);
+        }
+        pctx.fill();
+      }
+
+      for (const c of circles) {
+        const depth = Math.hypot(c.x, c.y);
+        const shade = 0.42 + 0.58 * (1 - Math.min(1, depth));
+        const alpha = (c.r > 0.2 ? 0.82 : 0.62) * shade;
+        const gap = (c.r > 0.12 ? 3.6 : 2.8) / (R * c.r);
+        dots(cx + c.x * R, cy + c.y * R, c.r * R, alpha, gap);
+      }
+
+      pctx.strokeStyle = 'rgba(214,218,224,0.4)';
+      pctx.lineWidth = 1;
+      const s = Math.max(5, R * 0.02);
+      pctx.beginPath();
+      pctx.moveTo(cx, cy - s);
+      pctx.lineTo(cx + s, cy);
+      pctx.lineTo(cx, cy + s);
+      pctx.lineTo(cx - s, cy);
+      pctx.closePath();
+      pctx.stroke();
+    }
+
+    function placeButtons() {
+      buttons.forEach((btn, i) => {
+        const p = projectCenter(i, layout);
+        btn.style.width = `${p.r * 1.7}px`;
+        btn.style.height = `${p.r * 1.7}px`;
+        btn.style.left = `${p.x - p.r * 0.85}px`;
+        btn.style.top = `${p.y - p.r * 0.85}px`;
+      });
+    }
+
+    function smooth(t) {
+      const x = Math.max(0, Math.min(1, t));
+      return x * x * (3 - 2 * x);
+    }
+
+    function ballsFor(i, scale, now) {
+      const p = projectCenter(i, layout);
+      const wob = reduced ? 0 : Math.sin(now / 680 + i) * 0.035;
+      const out = [];
+      for (const s of shapes[i]) {
+        const rad = p.r * s.s * scale;
+        if (rad < 2) continue;
+        out.push({
+          x: p.x + (s.x + wob) * p.r,
+          y: p.y + (s.y + Math.cos(now / 900 + s.x) * (reduced ? 0 : 0.03)) * p.r,
+          r2: rad * rad,
+          warm: i === 1
+        });
+      }
+      return out;
+    }
+
+    function sample(balls, x, y) {
+      let cool = 0, warm = 0;
+      for (let i = 0; i < balls.length; i++) {
+        const b = balls[i];
+        const dx = x - b.x, dy = y - b.y;
+        const t = 1 - (dx * dx + dy * dy) / b.r2;
+        if (t <= 0) continue;
+        const v = t * t;
+        if (b.warm) warm += v;
+        else cool += v;
+      }
+      return { f: cool + warm, warm };
+    }
+
+    function band(f) {
+      if (f <= 0.2) return 0;
+      if (f >= 0.4) return 1;
+      const t = (f - 0.2) / 0.2;
+      return t * t * (3 - 2 * t);
+    }
+
+    function mix(a, b, t) { return a + (b - a) * t; }
+
+    function tone(warm, u) {
+      const edge = warm ? [214, 42, 158] : [255, 64, 150];
+      const mid = warm ? [255, 132, 58] : [78, 232, 208];
+      const core = warm ? [255, 236, 196] : [232, 255, 248];
+      if (u < 0.5) {
+        const t = u / 0.5;
+        return [mix(edge[0], mid[0], t), mix(edge[1], mid[1], t), mix(edge[2], mid[2], t)];
+      }
+      const t = (u - 0.5) / 0.5;
+      return [mix(mid[0], core[0], t), mix(mid[1], core[1], t), mix(mid[2], core[2], t)];
+    }
+
+    function drawBlob(now) {
+      const { cx, cy, R } = layout;
+      const span = R * 2.35;
+      const bw = blob.width;
+      const map = bw / span;
+      const originX = cx - span / 2;
+      const originY = cy - span / 2;
+      const balls = [];
+      for (let i = 0; i < 3; i++) {
+        const s = smooth((weight[i] - 0.05) / 0.9);
+        if (s < 0.03) continue;
+        for (const b of ballsFor(i, s, now)) {
+          balls.push({
+            x: (b.x - originX) * map,
+            y: (b.y - originY) * map,
+            r2: b.r2 * map * map,
+            warm: b.warm
+          });
+        }
+      }
+      const img = bctx.createImageData(bw, bw);
+      const data = img.data;
+      const tick = reduced ? 0 : Math.floor(now / 90);
+      for (let y = 0; y < bw; y++) {
+        for (let x = 0; x < bw; x++) {
+          const c0 = sample(balls, x, y);
+          if (c0.f < 0.16) continue;
+          const cR = sample(balls, x + 3.1, y - 0.8);
+          const cB = sample(balls, x - 3.4, y + 0.9);
+          const aC = band(c0.f);
+          const a = Math.max(aC, band(cR.f), band(cB.f));
+          if (a < 0.02) continue;
+          const u = Math.max(0, Math.min(1, (c0.f - 0.28) / 1.35));
+          const warmMix = c0.warm / c0.f;
+          const cool = tone(false, u);
+          const hot = tone(true, u);
+          let r = mix(cool[0], hot[0], warmMix);
+          let g = mix(cool[1], hot[1], warmMix);
+          let b = mix(cool[2], hot[2], warmMix);
+          const grit = (Math.sin(x * 12.9898 + y * 78.233 + tick) * 43758.5453);
+          const n = (grit - Math.floor(grit) - 0.5) * 42 * aC;
+          r = Math.max(0, Math.min(255, r + n + Math.max(0, band(cR.f) - aC) * 150));
+          g = Math.max(0, Math.min(255, g + n * 0.3));
+          b = Math.max(0, Math.min(255, b - n * 0.15 + Math.max(0, band(cB.f) - aC) * 140));
+          const o = (y * bw + x) * 4;
+          data[o] = r;
+          data[o + 1] = g;
+          data[o + 2] = b;
+          data[o + 3] = Math.round(a * 235);
+        }
+      }
+      bctx.putImageData(img, 0, 0);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 1.08, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.imageSmoothingEnabled = true;
+      ctx.filter = 'blur(0.6px)';
+      ctx.drawImage(blob, originX, originY, span, span);
+      ctx.filter = 'none';
+      ctx.restore();
+    }
+
+    function drawLabels() {
+      names.forEach((name, i) => {
+        const p = projectCenter(i, layout);
+        const on = weight[i];
+        const lit = on > 0.45;
+        ctx.fillStyle = lit ? (i === 1 ? '#5c3018' : '#164840') : 'rgba(255,255,255,0.42)';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+        const size = Math.max(13, p.r * 0.36);
+        ctx.font = `italic 500 ${size}px "Segoe UI", "Helvetica Neue", sans-serif`;
+        const textW = ctx.measureText(name).width;
+        const mark = i === 1 ? 0 : size * (i === 2 ? 1.05 : 0.62);
+        const gap = mark ? size * 0.16 : 0;
+        let x = p.x - (mark + gap + textW) / 2;
+        const y = p.y;
+        if (i === 0) {
+          ctx.save();
+          ctx.translate(x + size * 0.22, y);
+          ctx.strokeStyle = ctx.fillStyle;
+          ctx.lineWidth = Math.max(1.4, size * 0.07);
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(0, -size * 0.28);
+          ctx.lineTo(0, size * 0.28);
+          ctx.moveTo(-size * 0.16, -size * 0.08);
+          ctx.lineTo(size * 0.16, -size * 0.08);
+          ctx.stroke();
+          ctx.restore();
+        } else if (i === 2) {
+          const d = size * 0.2;
+          const ox = x + d * 0.15;
+          for (let row = 0; row < 2; row++) {
+            for (let col = 0; col < 2; col++) {
+              ctx.beginPath();
+              ctx.arc(ox + col * d * 1.7, y + (row - 0.5) * d * 1.7, d * 0.34, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+        ctx.fillText(name, x + mark + gap, y + size * 0.02);
+      });
+    }
+
+    function paint(now) {
+      const { w, h, dpr } = layout;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(pack, 0, 0, w, h);
+      drawBlob(now);
+      drawLabels();
+      let lead = 0;
+      for (let i = 1; i < 3; i++) if (weight[i] > weight[lead]) lead = i;
+      buttons.forEach((btn, i) => btn.setAttribute('aria-pressed', i === lead ? 'true' : 'false'));
+    }
+
+    function frame(now) {
+      const dt = Math.min(48, now - last);
+      last = now;
+      if (!reduced) {
+        const k = 1 - Math.pow(0.0015, dt / 760);
+        for (let i = 0; i < 3; i++) weight[i] += ((i === target ? 1 : 0) - weight[i]) * k;
+        const peak = Math.max(weight[0], weight[1], weight[2]);
+        if (peak > 0.96) {
+          if (!arrivedAt) arrivedAt = now;
+          if (!paused && now - arrivedAt > 1750) {
+            target = (target + 1) % 3;
+            arrivedAt = 0;
+          }
+        } else arrivedAt = 0;
+      }
+      paint(now);
+      if (!reduced) requestAnimationFrame(frame);
+    }
+
+    function go(i) {
+      target = i;
+      arrivedAt = 0;
+      if (reduced) {
+        weight[0] = weight[1] = weight[2] = 0;
+        weight[i] = 1;
+        paint(performance.now());
+      }
+    }
+
+    let resumeTimer = 0;
+    buttons.forEach((btn) => {
+      const i = Number(btn.dataset.i);
+      const enter = () => {
+        clearTimeout(resumeTimer);
+        paused = true;
+        go(i);
+      };
+      btn.addEventListener('pointerenter', enter);
+      btn.addEventListener('focus', enter);
+      btn.addEventListener('click', enter);
+    });
+    const nav = document.getElementById('nav');
+    const holding = () => nav.contains(document.activeElement);
+    nav.addEventListener('pointerleave', () => {
+      clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(() => {
+        if (holding()) return;
+        paused = false;
+        arrivedAt = performance.now();
+      }, 650);
+    });
+    nav.addEventListener('focusout', (e) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) {
+        paused = false;
+        arrivedAt = performance.now();
+      }
+    });
+    nav.addEventListener('keydown', (e) => {
+      const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+      if (!dir) return;
+      e.preventDefault();
+      const next = (target + dir + 3) % 3;
+      paused = true;
+      go(next);
+      buttons[next].focus();
+    });
+
+    addEventListener('resize', () => {
+      resize();
+      paint(performance.now());
+    });
+    resize();
+    if (reduced) paint(0);
+    else requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
