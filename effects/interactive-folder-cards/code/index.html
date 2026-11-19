@@ -5,349 +5,208 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>交互文件夹卡片</title>
   <style>
-    :root {
-      --page: #ececec;
-      --ink: #1a1a1a;
-      --muted: #8d8d8d;
-      --paper: #fbfbfb;
-      --cover: #f3f2f0;
-      --line: #1c1c1c;
-    }
+    :root { --page: #f1f1f2; --ink: #1c1c1c; --muted: #8a8a8a; }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
-    body {
-      background: var(--page);
-      color: var(--ink);
-      font-family: system-ui, sans-serif;
+    body { background: var(--page); color: var(--ink); font-family: "Segoe UI", system-ui, sans-serif; }
+    .defs { position: absolute; width: 0; height: 0; }
+    .stage { min-height: 100%; display: grid; place-items: center; padding: 120px 28px 72px; }
+    .board { display: grid; grid-template-columns: repeat(2, 252px); column-gap: 72px; row-gap: 64px; }
+    .folder { position: relative; z-index: 0; width: 252px; height: 168px; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; overflow: visible; }
+    .folder[data-state="peek"], .folder[data-state="open"] { z-index: 4; }
+    .folder:focus-visible .pocket { outline: 2px solid var(--ink); outline-offset: 6px; }
+    .back, .plate { position: absolute; inset: 0; clip-path: url(#folderClip); }
+    .back { background: #ececee; opacity: 0; transform: translateY(-14px); transition: opacity .35s ease, transform .45s cubic-bezier(.2,.8,.2,1); }
+    .folder[data-tone="dark"] .back { background: #9b9ba0; opacity: 1; transform: translateY(-22px); }
+    .folder[data-state="open"] .back { opacity: 1; }
+    .folder[data-tone="light"][data-state="open"] .back { background: #f6f6f7; transform: translateY(-12px); }
+    .pocket { position: absolute; inset: 0; z-index: 2; }
+    .plate { background: rgba(255,255,255,.58); transition: background .35s ease; filter: drop-shadow(0 16px 28px rgba(20,20,20,.10)); }
+    .folder[data-tone="dark"] .plate { background: rgba(22,22,24,.55); }
+    .folder[data-state="open"][data-tone="light"] .plate { background: #fff; }
+    .folder[data-state="open"][data-tone="dark"] .plate { background: #1c1c1f; }
+    .window { position: absolute; inset: 7px; clip-path: url(#folderClip); transition: opacity .35s ease; }
+    .folder[data-state="open"] .window { opacity: 0; }
+    .ghost { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .folder[data-tone="dark"] .ghost { filter: brightness(.62) saturate(.82); }
+    .frost { position: absolute; inset: 0; backdrop-filter: blur(4px) saturate(1.2); background: linear-gradient(to top, rgba(255,255,255,.9) 0%, rgba(255,255,255,.5) 26%, rgba(255,255,255,.08) 58%, rgba(255,255,255,0) 100%); }
+    .folder[data-tone="dark"] .frost { backdrop-filter: blur(5px) saturate(1.05); background: linear-gradient(to top, rgba(10,10,12,.88) 0%, rgba(10,10,12,.45) 30%, rgba(10,10,12,.1) 62%, rgba(10,10,12,0) 100%); }
+    .folder[data-state="peek"] .frost { backdrop-filter: blur(2px) saturate(1.15); background: linear-gradient(to top, rgba(255,255,255,.55) 0%, rgba(255,255,255,.12) 40%, rgba(255,255,255,0) 100%); }
+    .stack { position: absolute; z-index: 1; left: 26px; bottom: 18px; width: 200px; height: 126px; }
+    .sheet { position: absolute; inset: 0; padding: 4px; border-radius: 18px; background: #fff; box-shadow: 0 14px 28px rgba(20,20,20,.16); transform-origin: 50% 120%; opacity: 0; transform: translate(calc(var(--rest-x, 0) * 1px), calc(var(--rest-y, 0) * 1px)) rotate(calc(var(--rest-r, 0) * 1deg)); transition: transform .58s cubic-bezier(.2,.85,.2,1), opacity .35s ease; z-index: var(--i); }
+    .sheet img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
+    .folder[data-count="3"] .sheet:nth-child(1) { --i: 1; --peek-x: -34; --peek-y: -42; --peek-r: -10; --open-x: -84; --open-y: -78; --open-r: -14; }
+    .folder[data-count="3"] .sheet:nth-child(2) { --i: 2; --peek-x: -12; --peek-y: -64; --peek-r: -3; --open-x: 2; --open-y: -118; --open-r: -2; }
+    .folder[data-count="3"] .sheet:nth-child(3) { --i: 3; --peek-x: 12; --peek-y: -92; --peek-r: 4; --open-x: 52; --open-y: -86; --open-r: 9; }
+    .folder[data-count="4"] .sheet:nth-child(1) { --i: 1; --peek-x: -40; --peek-y: -36; --peek-r: -12; --open-x: -102; --open-y: -68; --open-r: -16; }
+    .folder[data-count="4"] .sheet:nth-child(2) { --i: 2; --peek-x: -18; --peek-y: -54; --peek-r: -6; --open-x: -36; --open-y: -108; --open-r: -7; }
+    .folder[data-count="4"] .sheet:nth-child(3) { --i: 3; --peek-x: 2; --peek-y: -74; --peek-r: 1; --open-x: 22; --open-y: -124; --open-r: 2; }
+    .folder[data-count="4"] .sheet:nth-child(4) { --i: 4; --peek-x: 16; --peek-y: -96; --peek-r: 5; --open-x: 70; --open-y: -84; --open-r: 12; }
+    .folder[data-tone="dark"][data-state="rest"] .sheet:nth-child(2) { --rest-y: -14; --rest-x: 0; --rest-r: 0; opacity: 1; clip-path: inset(0 0 90% 0); } .folder[data-state="peek"] .sheet, .folder[data-state="open"] .sheet { opacity: 1; clip-path: none; }
+    .folder[data-state="peek"] .sheet { transform: translate(calc(var(--peek-x) * 1px), calc(var(--peek-y) * 1px)) rotate(calc(var(--peek-r) * 1deg)); }
+    .folder[data-state="open"] .sheet { transform: translate(calc(var(--open-x) * 1px), calc(var(--open-y) * 1px)) rotate(calc(var(--open-r) * 1deg)); }
+    .meta { position: absolute; z-index: 3; left: 20px; right: 14px; bottom: 14px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+    .name, .count { display: block; }
+    .name { font-size: 15px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+    .count { margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.2; }
+    .folder[data-tone="dark"] .name { color: #fff; }
+    .folder[data-tone="dark"] .count { color: rgba(255,255,255,.74); }
+    .mark { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+    .folder[data-icon="plus"] .mark { background: #111; color: #fff; }
+    .folder[data-icon="more"] .mark { background: rgba(255,255,255,.72); color: #222; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); } .folder[data-state="open"][data-icon="more"] .mark { background: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,.16); }
+    .ico { display: none; }
+    .folder[data-icon="plus"]:not([data-state="open"]) .ico-plus,
+    .folder[data-icon="more"]:not([data-state="open"]) .ico-more,
+    .folder[data-state="open"] .ico-x { display: block; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 640px) {
+      .stage { padding: 96px 16px 56px; }
+      .board { grid-template-columns: minmax(0, 252px); row-gap: 84px; }
+      .folder[data-count="3"] .sheet:nth-child(1) { --open-x: -64; --open-r: -12; }
+      .folder[data-count="3"] .sheet:nth-child(3) { --open-x: 38; --open-r: 8; }
+      .folder[data-count="4"] .sheet:nth-child(1) { --open-x: -76; --open-r: -14; }
+      .folder[data-count="4"] .sheet:nth-child(4) { --open-x: 50; --open-r: 10; }
     }
-    .page {
-      min-height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
-    .stage {
-      flex: 1;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      padding: 72px 16px 8px;
-    }
-    .board {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(148px, 232px));
-      gap: 34px 42px;
-      align-items: start;
-    }
-    .card {
-      appearance: none;
-      display: block;
-      width: 100%;
-      margin: 0;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      text-align: left;
-      cursor: pointer;
-    }
-    .card:focus-visible .body {
-      outline: 2px solid var(--ink);
-      outline-offset: 4px;
-    }
-    .tab {
-      display: block;
-      width: 74px;
-      height: 16px;
-      margin: 0 0 -1px 16px;
-      border-radius: 9px 9px 0 0;
-      background: var(--paper);
-      box-shadow: 0 -1px 0 rgba(0, 0, 0, .04);
-    }
-    .body {
-      display: block;
-      padding: 12px 12px 14px;
-      border-radius: 8px 18px 18px 18px;
-      background: var(--paper);
-      box-shadow: 0 12px 28px rgba(0, 0, 0, .06);
-    }
-    .cover {
-      position: relative;
-      display: block;
-      height: 112px;
-      border-radius: 10px;
-      background: var(--cover);
-      overflow: hidden;
-      perspective: 480px;
-      transition: height .45s cubic-bezier(.2, .8, .2, 1);
-    }
-    .card.is-open .cover { height: 188px; }
-    .art {
-      position: absolute;
-      inset: 18px 16px 16px;
-      transition: transform .45s cubic-bezier(.2, .8, .2, 1);
-    }
-    .card.is-open .art { transform: translateY(18px) scale(1.04); }
-    .flap {
-      position: absolute;
-      left: 10px;
-      right: 10px;
-      top: 0;
-      height: 36px;
-      border-radius: 0 0 8px 8px;
-      background: linear-gradient(#fff, #f7f7f5);
-      box-shadow: 0 8px 16px rgba(0, 0, 0, .05);
-      transform-origin: top center;
-      transform: rotateX(78deg);
-      transition: transform .45s cubic-bezier(.2, .8, .2, 1);
-    }
-    .card.is-open .flap { transform: rotateX(18deg) translateY(-6px); }
-    .sheets {
-      position: absolute;
-      left: 16px;
-      right: 16px;
-      bottom: 12px;
-      display: grid;
-      gap: 5px;
-      opacity: 0;
-      transform: translateY(8px);
-      transition: opacity .35s ease, transform .45s cubic-bezier(.2, .8, .2, 1);
-    }
-    .card.is-open .sheets { opacity: 1; transform: none; }
-    .sheets i {
-      display: block;
-      height: 7px;
-      border-radius: 2px;
-      background: #fff;
-      box-shadow: 0 1px 0 rgba(0, 0, 0, .04);
-    }
-    .name, .meta { display: block; }
-    .name {
-      margin-top: 12px;
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: -.01em;
-    }
-    .meta {
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .controls {
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      padding: 8px 16px 22px;
-    }
-    .controls button {
-      min-height: 44px;
-      padding: 0 16px;
-      border-radius: 999px;
-      border: 1px solid var(--ink);
-      background: transparent;
-      color: var(--ink);
-      font: 600 14px/1 system-ui, sans-serif;
-      cursor: pointer;
-    }
-    .controls button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-    @media (max-width: 560px) {
-      .board { gap: 22px 16px; }
-      .cover { height: 96px; }
-      .card.is-open .cover { height: 156px; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .cover, .art, .flap, .sheets { transition: none; }
-    }
+    @media (prefers-reduced-motion: reduce) { .sheet, .back, .window, .plate { transition: none; } }
   </style>
 </head>
 <body>
-  <div class="page">
-    <div class="stage">
-      <div class="board" id="board">
-        <button type="button" class="card" data-id="files" aria-expanded="false">
-          <span class="tab" aria-hidden="true"></span>
-          <span class="body">
-            <span class="cover">
-              <span class="flap" aria-hidden="true"></span>
-              <svg class="art" viewBox="0 0 120 80" aria-hidden="true">
-                <rect x="18" y="16" width="62" height="44" rx="4" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
-                <rect x="28" y="24" width="62" height="44" rx="4" fill="#fbfbfb" stroke="#1c1c1c" stroke-width="2.4"/>
-                <path d="M36 40h36M36 50h24" stroke="#1c1c1c" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-              <span class="sheets" aria-hidden="true"><i></i><i></i><i></i></span>
+  <svg class="defs" width="0" height="0" aria-hidden="true">
+    <clipPath id="folderClip" clipPathUnits="objectBoundingBox">
+      <path d="M0.07 0 H0.40 Q0.47 0 0.47 0.09 V0.11 Q0.47 0.18 0.55 0.18 H0.93 Q1 0.18 1 0.28 V0.90 Q1 1 0.90 1 H0.10 Q0 1 0 0.90 V0.10 Q0 0 0.07 0 Z"/>
+    </clipPath>
+  </svg>
+  <div class="stage">
+    <div class="board">
+      <button type="button" class="folder" data-id="files" data-tone="light" data-icon="plus" data-count="3" data-state="rest" aria-expanded="false">
+        <span class="back" aria-hidden="true"></span>
+        <span class="stack" aria-hidden="true">
+          <span class="sheet"><img src="files-1.jpg" alt=""></span>
+          <span class="sheet"><img src="files-2.jpg" alt=""></span>
+          <span class="sheet"><img src="files-3.jpg" alt=""></span>
+        </span>
+        <span class="pocket">
+          <span class="plate"></span>
+          <span class="window"><img class="ghost" src="files-3.jpg" alt=""><span class="frost"></span></span>
+          <span class="meta">
+            <span class="copy"><span class="name">My Files</span><span class="count">3 items</span></span>
+            <span class="mark" aria-hidden="true">
+              <svg class="ico ico-plus" viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+              <svg class="ico ico-more" viewBox="0 0 24 24" width="16" height="16"><circle cx="6" cy="12" r="1.45" fill="currentColor"/><circle cx="12" cy="12" r="1.45" fill="currentColor"/><circle cx="18" cy="12" r="1.45" fill="currentColor"/></svg>
+              <svg class="ico ico-x" viewBox="0 0 24 24" width="15" height="15"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
             </span>
-            <span class="name">My Files</span>
-            <span class="meta">3 items</span>
           </span>
-        </button>
-        <button type="button" class="card" data-id="archives" aria-expanded="false">
-          <span class="tab" aria-hidden="true"></span>
-          <span class="body">
-            <span class="cover">
-              <span class="flap" aria-hidden="true"></span>
-              <svg class="art" viewBox="0 0 120 80" aria-hidden="true">
-                <rect x="22" y="18" width="76" height="14" rx="3" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
-                <rect x="22" y="36" width="76" height="14" rx="3" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
-                <rect x="22" y="54" width="76" height="14" rx="3" fill="#1c1c1c"/>
-              </svg>
-              <span class="sheets" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        </span>
+      </button>
+      <button type="button" class="folder" data-id="archives" data-tone="light" data-icon="more" data-count="4" data-state="rest" aria-expanded="false">
+        <span class="back" aria-hidden="true"></span>
+        <span class="stack" aria-hidden="true">
+          <span class="sheet"><img src="archives-1.jpg" alt=""></span>
+          <span class="sheet"><img src="archives-2.jpg" alt=""></span>
+          <span class="sheet"><img src="archives-3.jpg" alt=""></span>
+          <span class="sheet"><img src="archives-4.jpg" alt=""></span>
+        </span>
+        <span class="pocket">
+          <span class="plate"></span>
+          <span class="window"><img class="ghost" src="archives-4.jpg" alt=""><span class="frost"></span></span>
+          <span class="meta">
+            <span class="copy"><span class="name">Archives</span><span class="count">4 items</span></span>
+            <span class="mark" aria-hidden="true">
+              <svg class="ico ico-plus" viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+              <svg class="ico ico-more" viewBox="0 0 24 24" width="16" height="16"><circle cx="6" cy="12" r="1.45" fill="currentColor"/><circle cx="12" cy="12" r="1.45" fill="currentColor"/><circle cx="18" cy="12" r="1.45" fill="currentColor"/></svg>
+              <svg class="ico ico-x" viewBox="0 0 24 24" width="15" height="15"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
             </span>
-            <span class="name">Archives</span>
-            <span class="meta">4 items</span>
           </span>
-        </button>
-        <button type="button" class="card" data-id="studio" aria-expanded="false">
-          <span class="tab" aria-hidden="true"></span>
-          <span class="body">
-            <span class="cover">
-              <span class="flap" aria-hidden="true"></span>
-              <svg class="art" viewBox="0 0 120 80" aria-hidden="true">
-                <rect x="16" y="14" width="88" height="56" rx="6" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
-                <circle cx="60" cy="42" r="14" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
-                <circle cx="60" cy="42" r="4" fill="#1c1c1c"/>
-              </svg>
-              <span class="sheets" aria-hidden="true"><i></i><i></i><i></i></span>
+        </span>
+      </button>
+      <button type="button" class="folder" data-id="studio" data-tone="dark" data-icon="plus" data-count="3" data-state="rest" aria-expanded="false">
+        <span class="back" aria-hidden="true"></span>
+        <span class="stack" aria-hidden="true">
+          <span class="sheet"><img src="studio-1.jpg" alt=""></span>
+          <span class="sheet"><img src="studio-2.jpg" alt=""></span>
+          <span class="sheet"><img src="studio-3.jpg" alt=""></span>
+        </span>
+        <span class="pocket">
+          <span class="plate"></span>
+          <span class="window"><img class="ghost" src="studio-3.jpg" alt=""><span class="frost"></span></span>
+          <span class="meta">
+            <span class="copy"><span class="name">Studio</span><span class="count">3 items</span></span>
+            <span class="mark" aria-hidden="true">
+              <svg class="ico ico-plus" viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+              <svg class="ico ico-more" viewBox="0 0 24 24" width="16" height="16"><circle cx="6" cy="12" r="1.45" fill="currentColor"/><circle cx="12" cy="12" r="1.45" fill="currentColor"/><circle cx="18" cy="12" r="1.45" fill="currentColor"/></svg>
+              <svg class="ico ico-x" viewBox="0 0 24 24" width="15" height="15"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
             </span>
-            <span class="name">Studio</span>
-            <span class="meta">3 items</span>
           </span>
-        </button>
-        <button type="button" class="card" data-id="collection" aria-expanded="false">
-          <span class="tab" aria-hidden="true"></span>
-          <span class="body">
-            <span class="cover">
-              <span class="flap" aria-hidden="true"></span>
-              <svg class="art" viewBox="0 0 120 80" aria-hidden="true">
-                <rect x="18" y="16" width="36" height="24" rx="4" fill="#1c1c1c"/>
-                <rect x="62" y="16" width="36" height="24" rx="4" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
-                <rect x="18" y="46" width="36" height="24" rx="4" fill="none" stroke="#1c1c1c" stroke-width="2.4"/>
-                <rect x="62" y="46" width="36" height="24" rx="4" fill="#1c1c1c"/>
-              </svg>
-              <span class="sheets" aria-hidden="true"><i></i><i></i><i></i></span>
+        </span>
+      </button>
+      <button type="button" class="folder" data-id="collection" data-tone="light" data-icon="more" data-count="3" data-state="rest" aria-expanded="false">
+        <span class="back" aria-hidden="true"></span>
+        <span class="stack" aria-hidden="true">
+          <span class="sheet"><img src="collection-1.jpg" alt=""></span>
+          <span class="sheet"><img src="collection-2.jpg" alt=""></span>
+          <span class="sheet"><img src="collection-3.jpg" alt=""></span>
+        </span>
+        <span class="pocket">
+          <span class="plate"></span>
+          <span class="window"><img class="ghost" src="collection-3.jpg" alt=""><span class="frost"></span></span>
+          <span class="meta">
+            <span class="copy"><span class="name">Collection</span><span class="count">3 items</span></span>
+            <span class="mark" aria-hidden="true">
+              <svg class="ico ico-plus" viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+              <svg class="ico ico-more" viewBox="0 0 24 24" width="16" height="16"><circle cx="6" cy="12" r="1.45" fill="currentColor"/><circle cx="12" cy="12" r="1.45" fill="currentColor"/><circle cx="18" cy="12" r="1.45" fill="currentColor"/></svg>
+              <svg class="ico ico-x" viewBox="0 0 24 24" width="15" height="15"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
             </span>
-            <span class="name">Collection</span>
-            <span class="meta">3 items</span>
           </span>
-        </button>
-      </div>
-    </div>
-    <div class="controls">
-      <button type="button" id="toggle">暂停</button>
-      <button type="button" id="next">下一步</button>
+        </span>
+      </button>
     </div>
   </div>
   <p id="live" class="sr-only" aria-live="polite"></p>
   <script>
-    const beats = [
-      { at: 0, id: "", say: "四张文件夹都合上。My Files 3 项，Archives 4 项，Studio 3 项，Collection 3 项。" },
-      { at: 450, id: "files", say: "My Files 展开，里面 3 项。下一排随之下移。" },
-      { at: 1900, id: "", say: "文件夹收回。" },
-      { at: 3300, id: "archives", say: "Archives 展开，里面 4 项。" },
-      { at: 3850, id: "", say: "文件夹收回。" },
-      { at: 4050, id: "studio", say: "Studio 展开，里面 3 项。" },
-      { at: 4550, id: "", say: "文件夹收回。" },
-      { at: 5100, id: "collection", say: "Collection 展开，里面 3 项。" },
-      { at: 5600, id: "", say: "回到四张都合上的网格。" }
-    ];
-    const LOOP = 6900;
-    const cards = [...document.querySelectorAll(".card")];
+    const folders = [...document.querySelectorAll(".folder")];
     const live = document.getElementById("live");
-    const toggle = document.getElementById("toggle");
-    const nextBtn = document.getElementById("next");
-    const motion = matchMedia("(prefers-reduced-motion: reduce)");
-    let playing = !motion.matches;
-    let origin = performance.now();
-    let elapsed = 0;
-    let timer = 0;
-    let beatIndex = -1;
-    let held = false;
-
-    function indexAt(ms) {
-      let index = 0;
-      for (let i = 0; i < beats.length; i++) if (ms >= beats[i].at) index = i;
-      return index;
+    const fine = matchMedia("(hover: hover) and (pointer: fine)");
+    const say = { files: "My Files", archives: "Archives", studio: "Studio", collection: "Collection" };
+    function setState(folder, state) {
+      folder.dataset.state = state;
+      folder.setAttribute("aria-expanded", state === "open" ? "true" : "false");
     }
-
-    function show(id, say) {
-      for (const card of cards) {
-        const open = card.dataset.id === id;
-        card.classList.toggle("is-open", open);
-        card.setAttribute("aria-expanded", open ? "true" : "false");
-      }
-      if (say) live.textContent = say;
+    function announce(folder, state) {
+      const name = say[folder.dataset.id] || "文件夹";
+      const count = folder.dataset.count;
+      if (state === "open") live.textContent = name + " 摊开，" + count + " 张卡片。";
+      else if (state === "peek") live.textContent = name + " 抽出一沓卡片。";
+      else live.textContent = name + " 合上。";
     }
-
-    function showIndex(index) {
-      if (index === beatIndex && !held) return;
-      beatIndex = index;
-      held = false;
-      const beat = beats[index];
-      show(beat.id, beat.say);
-    }
-
-    function stop() {
-      clearTimeout(timer);
-      timer = 0;
-    }
-
-    function frame() {
-      if (!playing) return;
-      elapsed = (performance.now() - origin) % LOOP;
-      showIndex(indexAt(elapsed));
-      timer = setTimeout(frame, 80);
-    }
-
-    function setPlaying(on) {
-      if (on && motion.matches) on = false;
-      playing = on;
-      toggle.textContent = playing ? "暂停" : "播放";
-      toggle.setAttribute("aria-pressed", playing ? "true" : "false");
-      stop();
-      if (playing) {
-        origin = performance.now() - elapsed;
-        frame();
-      }
-    }
-
-    for (const card of cards) {
-      card.addEventListener("click", () => {
-        const id = card.classList.contains("is-open") ? "" : card.dataset.id;
-        const beat = beats.find((item) => item.id === id) || beats[0];
-        held = true;
-        beatIndex = -1;
-        show(id, id ? beat.say : "文件夹合上。");
-        setPlaying(false);
+    for (const folder of folders) {
+      folder.addEventListener("pointerenter", () => {
+        if (fine.matches && folder.dataset.state !== "open") setState(folder, "peek");
+      });
+      folder.addEventListener("pointerleave", () => {
+        if (folder.dataset.state === "peek") setState(folder, "rest");
+      });
+      folder.addEventListener("focus", () => {
+        if (folder.dataset.state === "rest") setState(folder, "peek");
+      });
+      folder.addEventListener("blur", () => {
+        if (folder.dataset.state === "peek") setState(folder, "rest");
+      });
+      folder.addEventListener("click", () => {
+        const open = folder.dataset.state === "open";
+        for (const other of folders) {
+          if (other !== folder && other.dataset.state === "open") setState(other, "rest");
+        }
+        const next = open ? (fine.matches ? "peek" : "rest") : "open";
+        setState(folder, next);
+        announce(folder, next);
       });
     }
-
-    toggle.addEventListener("click", () => {
-      held = false;
-      setPlaying(!playing);
-    });
-    nextBtn.addEventListener("click", () => {
-      const index = (Math.max(beatIndex, 0) + 1) % beats.length;
-      elapsed = beats[index].at;
-      origin = performance.now() - elapsed;
-      held = false;
-      beatIndex = -1;
-      showIndex(index);
-    });
-    motion.addEventListener("change", () => setPlaying(!motion.matches));
-    toggle.setAttribute("aria-pressed", playing ? "true" : "false");
-    if (!playing) toggle.textContent = "播放";
-    showIndex(0);
-    if (playing) frame();
+    const pose = new URLSearchParams(location.search).get("pose");
+    if (pose) {
+      const parts = pose.split(":");
+      const folder = folders.find((item) => item.dataset.id === parts[0]);
+      if (folder && (parts[1] === "peek" || parts[1] === "open")) setState(folder, parts[1]);
+    }
   </script>
 </body>
 </html>
