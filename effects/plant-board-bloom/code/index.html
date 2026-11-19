@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>植物感品牌板</title>
+  <style>
+    :root {
+      --page: #e7e4dc;
+      --paper: #f6f4ef;
+      --card: #fffcf7;
+      --ink: #1b1916;
+      --sap: #24683f;
+      --moss: #3f8f57;
+      --mint: #d5f3cc;
+      --pale: #e8e6e0;
+      --deep: #10261c;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      align-items: center;
+      justify-items: center;
+      gap: 14px;
+      padding: 18px 16px 16px;
+      background: var(--page);
+      color: var(--ink);
+      font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+    }
+    .board {
+      width: min(92vw, calc(100svh - 132px), 760px);
+      aspect-ratio: 1;
+      display: grid;
+      grid-template-rows: 32% 26% 42%;
+      background: var(--paper);
+      overflow: hidden;
+      box-shadow: 0 18px 50px rgba(24, 28, 22, .16);
+    }
+    .canopy, .lockup, .field { min-height: 0; position: relative; }
+    .canopy { display: grid; grid-template-columns: 1.15fr .85fr; background: var(--deep); }
+    .thicket { position: relative; overflow: hidden; background: #163226; }
+    .mass {
+      position: absolute;
+      background: var(--ink);
+      border-radius: 46% 54% 42% 58%;
+    }
+    .mass--a { left: -8%; top: 18%; width: 46%; height: 78%; transform: rotate(-8deg); }
+    .mass--b { left: 28%; top: -12%; width: 34%; height: 70%; background: #0c2218; border-radius: 50%; }
+    .mass--c { left: 46%; bottom: -18%; width: 42%; height: 62%; background: var(--sap); border-radius: 60% 40% 55% 45%; }
+    .glade {
+      background:
+        radial-gradient(120% 80% at 70% 20%, var(--moss), transparent 55%),
+        linear-gradient(160deg, var(--sap), var(--deep));
+    }
+    .lockup { display: grid; grid-template-columns: 24% 52% 24%; }
+    .gutter { background: var(--sap); }
+    .gutter--dark {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.08), transparent 30%),
+        var(--ink);
+    }
+    .card {
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 6%;
+      background: var(--card);
+      padding: 8% 6%;
+    }
+    .mark { width: min(22%, 72px); height: auto; color: var(--sap); }
+    .name {
+      margin: 0;
+      color: var(--sap);
+      font-size: clamp(1.35rem, 4.6vw, 2.6rem);
+      font-weight: 560;
+      letter-spacing: .18em;
+      line-height: 1;
+      text-indent: .18em;
+    }
+    .field { display: grid; grid-template-columns: 22% 1fr; background: var(--mint); }
+    .stem-col { position: relative; overflow: hidden; background: var(--pale); }
+    .wash, .intruder { position: absolute; inset: 0; }
+    .wash {
+      background: linear-gradient(90deg, var(--moss), var(--mint));
+      transform: scaleX(0);
+      transform-origin: left center;
+      animation: wash 8s linear infinite;
+    }
+    .intruder {
+      width: 78%;
+      height: 74%;
+      top: 13%;
+      left: -8%;
+      background: var(--ink);
+      border-radius: 46% 58% 42% 62%;
+      transform: translateX(-130%);
+      animation: enter 8s linear infinite;
+    }
+    .plot { position: relative; overflow: hidden; }
+    .bloom {
+      position: absolute;
+      left: 18%;
+      top: 8%;
+      width: 68%;
+      height: 84%;
+      color: var(--sap);
+      transform: scale(.18);
+      transform-origin: 50% 70%;
+      opacity: 0;
+      animation: bloom 8s linear infinite;
+    }
+    .bloom--late {
+      left: 42%;
+      top: 18%;
+      width: 46%;
+      color: var(--moss);
+      animation-name: bloom-late;
+    }
+    .tune {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      align-items: end;
+      justify-content: center;
+      width: min(92vw, 760px);
+      margin: 0;
+      color: #3c403c;
+      font-family: "Segoe UI", sans-serif;
+      font-size: 13px;
+    }
+    .tune label { display: grid; gap: 4px; }
+    .tune input[type="text"] {
+      width: 9rem;
+      border: 1px solid #c8c6be;
+      background: #fff;
+      color: var(--ink);
+      border-radius: 4px;
+      padding: 6px 8px;
+      font: inherit;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .tune input[type="color"] {
+      width: 3rem;
+      height: 2rem;
+      padding: 0;
+      border: 1px solid #c8c6be;
+      background: #fff;
+    }
+    @keyframes bloom {
+      0% { transform: scale(.18); opacity: 0; }
+      12% { opacity: 1; }
+      70% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes bloom-late {
+      0%, 18% { transform: scale(.18); opacity: 0; }
+      32% { opacity: 1; }
+      74%, 100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes wash {
+      0%, 74% { transform: scaleX(0); }
+      90%, 100% { transform: scaleX(1); }
+    }
+    @keyframes enter {
+      0%, 76% { transform: translateX(-130%); }
+      92%, 100% { transform: translateX(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .bloom, .wash, .intruder { animation: none; }
+      .bloom { transform: scale(1); opacity: 1; }
+      .wash { transform: scaleX(1); }
+      .intruder { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <article class="board" id="board">
+    <section class="canopy" aria-hidden="true">
+      <div class="thicket">
+        <i class="mass mass--a"></i>
+        <i class="mass mass--b"></i>
+        <i class="mass mass--c"></i>
+      </div>
+      <div class="glade"></div>
+    </section>
+    <section class="lockup">
+      <div class="gutter" aria-hidden="true"></div>
+      <div class="card">
+        <svg class="mark" viewBox="0 0 80 80" aria-hidden="true">
+          <path d="M40 70 V34" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <path d="M40 50 C30 44 18 34 14 18 C30 22 38 36 40 50Z"/>
+          <path d="M40 40 C52 32 64 20 70 8 C56 14 46 28 40 40Z"/>
+        </svg>
+        <p class="name" id="name">HALIA</p>
+      </div>
+      <div class="gutter gutter--dark" aria-hidden="true"></div>
+    </section>
+    <section class="field" aria-hidden="true">
+      <div class="stem-col">
+        <i class="wash"></i>
+        <i class="intruder"></i>
+      </div>
+      <div class="plot">
+        <svg class="bloom" viewBox="0 0 120 140">
+          <path d="M60 132 C60 96 60 78 60 58" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <path d="M60 96 C40 86 22 70 16 42 C40 48 54 74 60 96Z"/>
+          <path d="M60 78 C82 66 102 46 112 18 C86 28 70 54 60 78Z"/>
+          <path d="M60 64 C46 50 34 30 30 12 C48 20 58 42 60 64Z"/>
+        </svg>
+        <svg class="bloom bloom--late" viewBox="0 0 120 140">
+          <path d="M48 120 C70 90 92 70 108 40 C78 58 58 88 48 120Z"/>
+        </svg>
+      </div>
+    </section>
+  </article>
+  <form class="tune" id="tune">
+    <label>名称
+      <input id="brand" type="text" maxlength="12" value="HALIA" autocomplete="off" spellcheck="false">
+    </label>
+    <label>深叶
+      <input id="sap" type="color" value="#24683f">
+    </label>
+    <label>浅底
+      <input id="mint" type="color" value="#d5f3cc">
+    </label>
+  </form>
+  <script>
+    const board = document.querySelector("#board");
+    const nameEl = document.querySelector("#name");
+    const brand = document.querySelector("#brand");
+    const sap = document.querySelector("#sap");
+    const mint = document.querySelector("#mint");
+    const paint = () => {
+      const word = (brand.value || "HALIA").replace(/\s+/g, " ").trim().slice(0, 12) || "HALIA";
+      nameEl.textContent = word;
+      board.style.setProperty("--sap", sap.value);
+      board.style.setProperty("--mint", mint.value);
+    };
+    document.querySelector("#tune").addEventListener("input", paint);
+  </script>
+</body>
+</html>
