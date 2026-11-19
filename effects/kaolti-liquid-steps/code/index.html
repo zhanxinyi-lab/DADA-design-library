@@ -242,10 +242,14 @@
       if (btn) btn.focus({ preventScroll: true });
       pointer = { x: e.clientX, y: e.clientY, touch: e.pointerType !== 'mouse' };
     });
+    function endContact(e) {
+      if (e.pointerType !== 'mouse') keyIndex = -1;
+      away();
+    }
     dock.addEventListener('pointerleave', away);
-    dock.addEventListener('pointercancel', away);
+    dock.addEventListener('pointercancel', endContact);
     dock.addEventListener('pointerup', (e) => {
-      if (e.pointerType !== 'mouse') away();
+      if (e.pointerType !== 'mouse') endContact(e);
     });
     dock.addEventListener('focusin', (e) => {
       const btn = e.target.closest('button');
