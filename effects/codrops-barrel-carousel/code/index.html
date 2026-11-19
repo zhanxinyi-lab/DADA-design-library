@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>弧形作品轮播</title>
+  <style>
+    :root { color-scheme: dark; --ink: #f7f7f7; --bg: #080808; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; }
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      touch-action: none;
+      user-select: none;
+    }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+    canvas.dragging { cursor: grabbing; }
+    .hud, .edges, #labels { position: fixed; inset: 0; pointer-events: none; }
+    .hud { z-index: 3; }
+    .edges { z-index: 3; }
+    #labels { z-index: 2; }
+    .brand {
+      position: absolute;
+      top: 28px;
+      left: 28px;
+      line-height: 1.15;
+    }
+    .name { font-size: 15px; font-weight: 560; letter-spacing: -0.03em; }
+    .role { margin-top: 5px; font-size: 12px; opacity: 0.72; }
+    .tools {
+      position: absolute;
+      top: 22px;
+      right: 18px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .year { font-size: 14px; letter-spacing: 0.04em; padding: 10px 8px; }
+    button {
+      pointer-events: auto;
+      font: inherit;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+    }
+    button:focus-visible { outline: 2px solid #f7f7f7; outline-offset: 3px; }
+    .icon-btn { width: 44px; height: 44px; display: grid; place-items: center; }
+    .burger { width: 16px; height: 9px; display: flex; flex-direction: column; justify-content: space-between; }
+    .burger i { display: block; height: 1px; background: currentColor; }
+    .close-x { font-size: 22px; line-height: 1; }
+    #index {
+      position: absolute;
+      top: 68px;
+      right: 22px;
+      min-width: 180px;
+      padding: 8px;
+      background: rgba(12, 12, 12, 0.94);
+      border: 1px solid rgba(247, 247, 247, 0.14);
+      z-index: 4;
+      pointer-events: auto;
+    }
+    #index button { display: block; width: 100%; text-align: left; padding: 9px 12px; letter-spacing: 0.12em; font-size: 12px; }
+    #index button:hover, #index button[aria-current="true"] { background: rgba(247, 247, 247, 0.08); }
+    .edge {
+      position: absolute;
+      top: 50%;
+      width: 44px;
+      height: 64px;
+      transform: translateY(-50%);
+      font-size: 28px;
+      opacity: 0.78;
+    }
+    .edge.prev { left: 12px; }
+    .edge.next { right: 12px; }
+    .label {
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+    #err { position: fixed; left: 16px; bottom: 16px; z-index: 5; max-width: 70ch; color: #ffb4a8; }
+    @media (max-width: 700px) {
+      .brand { top: 18px; left: 16px; }
+      .name { font-size: 14px; }
+      .tools { top: 10px; right: 8px; }
+      .edge { width: 40px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .label { text-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="view" aria-hidden="true"></canvas>
+  <header class="hud">
+    <div class="brand">
+      <div class="name" id="brand-name"></div>
+      <div class="role" id="brand-role"></div>
+    </div>
+    <div class="tools">
+      <span class="year" id="year"></span>
+      <button type="button" class="icon-btn" id="menu-btn" aria-expanded="false" aria-controls="index" aria-label="项目目录">
+        <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+      <button type="button" class="icon-btn" id="close-btn" hidden aria-label="关闭项目">
+        <span class="close-x" aria-hidden="true">×</span>
+      </button>
+    </div>
+    <nav id="index" hidden aria-label="项目"></nav>
+  </header>
+  <div class="edges">
+    <button type="button" class="edge prev" id="prev" hidden aria-label="上一个项目">‹</button>
+    <button type="button" class="edge next" id="next" hidden aria-label="下一个项目">›</button>
+  </div>
+  <div id="labels"></div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <p id="err" hidden></p>
+  <script>
+    const BRAND = {
+      name: 'Held Studio',
+      role: 'Design & Development',
+      year: '2026',
+      projects: [
+        { title: 'Orbit', colors: ['#102033', '#7ea4c4', '#d5e4ea'], seed: 11 },
+        { title: 'Linen', colors: ['#3a2a22', '#c6a384', '#f2e2cf'], seed: 29 },
+        { title: 'Harbor', colors: ['#0d2c2c', '#3f8f86', '#d7efe6'], seed: 47 },
+        { title: 'Kettle', colors: ['#2a140e', '#c45a32', '#f0d2b0'], seed: 71 },
+        { title: 'Glass', colors: ['#1a2430', '#8fd0d8', '#f4f7f8'], seed: 97 },
+        { title: 'Field', colors: ['#172214', '#6e8f45', '#e4efc8'], seed: 113 },
+        { title: 'Cedar', colors: ['#24160f', '#a8643c', '#edd8bf'], seed: 139 },
+        { title: 'Paper', colors: ['#1c1b1a', '#8d8a84', '#f3f1ec'], seed: 163 }
+      ]
+    };
+
+    const FOV = 36 * Math.PI / 180;
+    const CAM_Z = 4.85;
+    const OPEN_LAMBDA = 4.4;
+    const EDGE_LAMBDA = 2.15;
+    const POS_LAMBDA = 8;
+    const TEX_W = 320;
+    const TEX_H = 428;
+    const GALLERY_W = 720;
+    const GALLERY_H = 460;
+
+    const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
+    const fineQuery = matchMedia('(hover: hover) and (pointer: fine)');
+    let reduced = reducedQuery.matches;
+    let fine = fineQuery.matches;
+
+    const $ = (id) => document.getElementById(id);
+    $('brand-name').textContent = BRAND.name;
+    $('brand-role').textContent = BRAND.role;
+    $('year').textContent = BRAND.year;
+    document.title = BRAND.name;
+
+    const canvas = $('view');
+    const labelRoot = $('labels');
+    const indexNav = $('index');
+    const menuBtn = $('menu-btn');
+    const closeBtn = $('close-btn');
+    const prevBtn = $('prev');
+    const nextBtn = $('next');
+    const live = $('live');
+    const gl = canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false });
+    if (!gl) {
+      $('err').hidden = false;
+      $('err').textContent = '这个浏览器打不开 WebGL，弧形轮播无法显示。';
+      throw new Error('webgl unavailable');
+    }
+
+    const labels = BRAND.projects.map((project) => {
+      const el = document.createElement('div');
+      el.className = 'label';
+      el.textContent = project.title;
+      labelRoot.appendChild(el);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = project.title;
+      btn.addEventListener('click', () => {
+        setMenu(false);
+        const i = BRAND.projects.indexOf(project);
+        if (heroOpen > 0.45) swapTo(i, i > shown ? 1 : -1);
+        else beginOpen(i, [0.5, 0.5]);
+      });
+      indexNav.appendChild(btn);
+      return el;
+    });
+
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return () => {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function paint(project, variant, width, height) {
+      const c = document.createElement('canvas');
+      c.width = width;
+      c.height = height;
+      const g = c.getContext('2d');
+      const [ink, mid, paper] = project.colors;
+      const rng = mulberry32(project.seed + variant * 101 + width);
+      const sky = g.createLinearGradient(0, 0, width, height);
+      sky.addColorStop(0, variant % 2 ? mid : ink);
+      sky.addColorStop(1, variant % 2 ? ink : mid);
+      g.fillStyle = sky;
+      g.fillRect(0, 0, width, height);
+      g.fillStyle = paper;
+      g.globalAlpha = 0.92;
+      g.beginPath();
+      g.arc(width * (0.28 + rng() * 0.48), height * (0.22 + rng() * 0.36), Math.min(width, height) * (0.22 + rng() * 0.18), 0, Math.PI * 2);
+      g.fill();
+      g.globalAlpha = 0.38 + variant * 0.05;
+      g.fillStyle = variant % 3 === 0 ? paper : mid;
+      g.save();
+      g.translate(width * 0.5, height * (0.42 + variant * 0.04));
+      g.rotate(-0.4 + variant * 0.18);
+      g.fillRect(-width, -height * 0.07, width * 2, height * (0.1 + (variant % 3) * 0.03));
+      g.restore();
+      g.globalAlpha = 0.85;
+      g.fillStyle = ink;
+      for (let i = 0; i < 4; i++) {
+        const w = width * (0.12 + rng() * 0.22);
+        const h = height * (0.018 + rng() * 0.035);
+        g.fillRect(rng() * (width - w), height * (0.12 + rng() * 0.7), w, h);
+      }
+      g.globalAlpha = 1;
+      return c;
+    }
+
+    function upload(source) {
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      return tex;
+    }
+
+    const covers = [];
+    const galleries = [];
+    for (const project of BRAND.projects) {
+      covers.push(upload(paint(project, 0, TEX_W, TEX_H)));
+      const set = [];
+      for (let v = 0; v < 4; v++) set.push(upload(paint(project, v, GALLERY_W, GALLERY_H)));
+      galleries.push(set);
+    }
+
+    const VS = `
+      attribute vec2 aPos;
+      attribute vec2 aUv;
+      uniform mat4 uMVP;
+      uniform vec2 uSize;
+      uniform float uRadius;
+      uniform float uOval;
+      uniform float uWrap;
+      uniform float uMode;
+      uniform float uCurve;
+      uniform float uOffsetY;
+      uniform float uBulge;
+      uniform float uTravel;
+      uniform vec2 uPull;
+      varying vec2 vUv;
+      void main() {
+        vec3 p = vec3(aPos.x * uSize.x, aPos.y * uSize.y, 0.0);
+        vec2 d = (aPos - uPull) * vec2(1.15, 1.0);
+        p.z += exp(-dot(d, d) * 5.5) * uBulge;
+        float mid = exp(-aPos.x * aPos.x * 7.0);
+        p.z += mid * uTravel;
+        if (uMode < 0.5) {
+          float ang = p.x / max(uRadius, 0.001);
+          float bx = sin(ang) * uRadius;
+          float bz = (cos(ang) - 1.0) * uRadius * uOval;
+          p.x = mix(p.x, bx, uWrap);
+          p.z += bz * uWrap;
+        } else {
+          float y0 = p.y + uOffsetY;
+          float ang = y0 / max(uRadius, 0.001);
+          float by = sin(ang) * uRadius;
+          float bz = (cos(ang) - 1.0) * uRadius * uOval;
+          p.y = mix(y0, by, uCurve);
+          p.z += bz * uCurve;
+        }
+        vUv = aUv;
+        gl_Position = uMVP * vec4(p, 1.0);
+      }
+    `;
+    const FS = `
+      precision mediump float;
+      varying vec2 vUv;
+      uniform sampler2D uTex;
+      uniform float uAlpha;
+      uniform float uShade;
+      uniform float uChroma;
+      uniform vec2 uLight;
+      uniform float uGlow;
+      uniform float uRound;
+      uniform vec2 uUvScale;
+      void main() {
+        vec2 uv = (vUv - 0.5) * uUvScale + 0.5;
+        float s = uChroma;
+        vec3 col = vec3(
+          texture2D(uTex, uv + vec2(s, 0.0)).r,
+          texture2D(uTex, uv).g,
+          texture2D(uTex, uv - vec2(s, 0.0)).b
+        );
+        vec2 q = uv - uLight;
+        col += exp(-dot(q, q) * 6.5) * uGlow * vec3(1.0, 0.98, 0.94);
+        col *= uShade;
+        vec2 p = vUv - 0.5;
+        vec2 b = vec2(0.5 - uRound);
+        vec2 dd = abs(p) - b;
+        float dist = length(max(dd, 0.0)) + min(max(dd.x, dd.y), 0.0) - uRound;
+        float mask = 1.0 - smoothstep(0.0, 0.014, dist);
+        if (mask < 0.01) discard;
+        gl_FragColor = vec4(col, mask * uAlpha);
+      }
+    `;
+
+    function compile(type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(shader) || 'shader';
+        $('err').hidden = false;
+        $('err').textContent = log;
+        throw new Error(log);
+      }
+      return shader;
+    }
+    const program = gl.createProgram();
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, VS));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      const log = gl.getProgramInfoLog(program) || 'link';
+      $('err').hidden = false;
+      $('err').textContent = log;
+      throw new Error(log);
+    }
+    gl.useProgram(program);
+    const loc = {};
+    for (const name of ['uMVP', 'uSize', 'uRadius', 'uOval', 'uWrap', 'uMode', 'uCurve', 'uOffsetY', 'uBulge', 'uTravel', 'uPull', 'uTex', 'uAlpha', 'uShade', 'uChroma', 'uLight', 'uGlow', 'uRound', 'uUvScale']) {
+      loc[name] = gl.getUniformLocation(program, name);
+    }
+    const aPos = gl.getAttribLocation(program, 'aPos');
+    const aUv = gl.getAttribLocation(program, 'aUv');
+
+    const SEG_X = 28;
+    const SEG_Y = 16;
+    const positions = [];
+    const uvs = [];
+    const indices = [];
+    for (let y = 0; y <= SEG_Y; y++) {
+      for (let x = 0; x <= SEG_X; x++) {
+        positions.push(-0.5 + x / SEG_X, -0.5 + y / SEG_Y);
+        uvs.push(x / SEG_X, y / SEG_Y);
+      }
+    }
+    const stride = SEG_X + 1;
+    for (let y = 0; y < SEG_Y; y++) {
+      for (let x = 0; x < SEG_X; x++) {
+        const i = y * stride + x;
+        indices.push(i, i + 1, i + stride, i + 1, i + stride + 1, i + stride);
+      }
+    }
+    const posBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+    const uvBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvs), gl.STATIC_DRAW);
+    const idxBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+    const indexCount = indices.length;
+
+    function ident() {
+      const m = new Float32Array(16);
+      m[0] = m[5] = m[10] = m[15] = 1;
+      return m;
+    }
+    function mul(a, b) {
+      const o = new Float32Array(16);
+      for (let c = 0; c < 4; c++) {
+        for (let r = 0; r < 4; r++) {
+          o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+        }
+      }
+      return o;
+    }
+    function perspective(fov, aspect, near, far) {
+      const f = 1 / Math.tan(fov / 2);
+      const m = new Float32Array(16);
+      m[0] = f / aspect;
+      m[5] = f;
+      m[10] = (far + near) / (near - far);
+      m[11] = -1;
+      m[14] = (2 * far * near) / (near - far);
+      return m;
+    }
+    function lookAt(eye, center, up) {
+      const zx = eye[0] - center[0];
+      const zy = eye[1] - center[1];
+      const zz = eye[2] - center[2];
+      let zl = Math.hypot(zx, zy, zz) || 1;
+      const znx = zx / zl, zny = zy / zl, znz = zz / zl;
+      let xx = up[1] * znz - up[2] * zny;
+      let xy = up[2] * znx - up[0] * znz;
+      let xz = up[0] * zny - up[1] * znx;
+      let xl = Math.hypot(xx, xy, xz) || 1;
+      xx /= xl; xy /= xl; xz /= xl;
+      const yx = zny * xz - znz * xy;
+      const yy = znz * xx - znx * xz;
+      const yz = znx * xy - zny * xx;
+      const m = ident();
+      m[0] = xx; m[1] = yx; m[2] = znx;
+      m[4] = xy; m[5] = yy; m[6] = zny;
+      m[8] = xz; m[9] = yz; m[10] = znz;
+      m[12] = -(xx * eye[0] + xy * eye[1] + xz * eye[2]);
+      m[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
+      m[14] = -(znx * eye[0] + zny * eye[1] + znz * eye[2]);
+      return m;
+    }
+    function translate(x, y, z) {
+      const m = ident();
+      m[12] = x; m[13] = y; m[14] = z;
+      return m;
+    }
+    function rotY(a) {
+      const c = Math.cos(a), s = Math.sin(a);
+      const m = ident();
+      m[0] = c; m[2] = -s; m[8] = s; m[10] = c;
+      return m;
+    }
+
+    function damp(current, target, lambda, dt) {
+      return current + (target - current) * (1 - Math.exp(-lambda * dt));
+    }
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function smoothstep(e0, e1, x) {
+      const t = clamp((x - e0) / (e1 - e0), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+    function mix(a, b, t) { return a + (b - a) * t; }
+
+    let cssW = 1, cssH = 1, aspect = 1;
+    let pos = 0, target = 0, velocity = 0;
+    let heroOpen = 0, heroTarget = 0, edge = 0;
+    let shown = -1, outgoing = -1, swapP = 1, swapDir = 1;
+    let depart = null;
+    let pullUv = [0, 0];
+    let galleryPos = 0, galleryTarget = 0, galleryVel = 0;
+    let arc = reduced ? 1 : 0;
+    let tiltX = 0, tiltY = 0;
+    let hover = -1;
+    const pointer = { nx: 0, ny: 0, px: 0, py: 0, inside: false };
+    let dragging = null;
+    let lastPoses = [];
+    let viewProj = ident();
+    let metricsNow = null;
+    let announced = '';
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cssW = Math.max(1, canvas.clientWidth);
+      cssH = Math.max(1, canvas.clientHeight);
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      aspect = cssW / cssH;
+    }
+    resize();
+    addEventListener('resize', resize);
+
+    function metrics() {
+      const viewH = 2 * CAM_Z * Math.tan(FOV / 2);
+      const viewW = viewH * aspect;
+      const cardH = Math.min(viewH * 0.64, viewW * (cssW < 700 ? 0.56 : 0.46));
+      const cardW = cardH / 1.36;
+      const n = BRAND.projects.length;
+      const radiusX = cardW * 1.2 * n / Math.PI;
+      const radiusZ = radiusX * 1.02;
+      const loopWidth = Math.PI * radiusX;
+      return { viewW, viewH, cardW, cardH, n, radiusX, radiusZ, loopWidth, spacing: loopWidth / n };
+    }
+
+    function wrappedOffset(i, m, at) {
+      let wrapped = (i * m.spacing + at) % m.loopWidth;
+      wrapped = ((wrapped % m.loopWidth) + m.loopWidth) % m.loopWidth;
+      if (wrapped > m.loopWidth / 2) wrapped -= m.loopWidth;
+      return wrapped;
+    }
+
+    function cardPose(i, at, m) {
+      const wrapped = wrappedOffset(i, m, at);
+      const angle = wrapped / m.radiusX;
+      const along = wrapped / m.spacing;
+      const arcX = Math.sin(angle) * m.radiusX;
+      const arcZ = (Math.cos(angle) - 1) * m.radiusZ;
+      const flatX = along * m.cardW * 1.16;
+      const k = arc;
+      const edgeAmt = Math.min(1, Math.abs(angle) / 1.05);
+      const fade = k < 0.98 ? 1 : 1 - smoothstep(0.62, 1.22, Math.abs(angle));
+      return {
+        x: mix(flatX, arcX, k),
+        y: 0,
+        z: arcZ * k,
+        rot: -angle * 0.9 * k,
+        angle,
+        fade,
+        shade: 1 - edgeAmt * 0.28,
+        w: m.cardW * (1 - edgeAmt * 0.06),
+        h: m.cardH * (1 - edgeAmt * 0.04),
+        wrap: k
+      };
+    }
+
+    function nearestPosFor(i, m) {
+      const base = -i * m.spacing;
+      let best = base;
+      let bestD = Infinity;
+      for (let k = -2; k <= 2; k++) {
+        const candidate = base + k * m.loopWidth;
+        const d = Math.abs(candidate - target);
+        if (d < bestD) { best = candidate; bestD = d; }
+      }
+      return best;
+    }
+
+    function centerIndex(m) {
+      const k = Math.round(-pos / m.spacing);
+      return ((k % m.n) + m.n) % m.n;
+    }
+
+    function say(text) {
+      if (announced === text) return;
+      announced = text;
+      live.textContent = text;
+    }
+
+    function beginOpen(i, uv) {
+      const m = metrics();
+      depart = cardPose(i, pos, m);
+      pullUv = uv;
+      shown = i;
+      outgoing = -1;
+      swapP = 1;
+      heroTarget = 1;
+      target = nearestPosFor(i, m);
+      galleryPos = 0;
+      galleryTarget = 0;
+      setMenu(false);
+      say('打开 ' + BRAND.projects[i].title);
+    }
+
+    function closeProject() {
+      if (shown < 0) return;
+      heroTarget = 0;
+      say('回到作品轮播');
+    }
+
+    function swapTo(i, dir) {
+      const n = BRAND.projects.length;
+      i = ((i % n) + n) % n;
+      if (shown < 0) { beginOpen(i, [0.5, 0.5]); return; }
+      if (i === shown || swapP < 0.82) return;
+      outgoing = shown;
+      shown = i;
+      swapDir = dir >= 0 ? 1 : -1;
+      swapP = 0;
+      target = nearestPosFor(i, metrics());
+      say(BRAND.projects[i].title);
+    }
+
+    function stepProject(dir) {
+      const m = metrics();
+      if (heroOpen > 0.45) swapTo((shown < 0 ? centerIndex(m) : shown) + dir, dir);
+      else target = nearestPosFor((centerIndex(m) + dir + m.n) % m.n, m);
+    }
+
+    function setMenu(open) {
+      menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      indexNav.hidden = !open;
+      if (open) {
+        const buttons = indexNav.querySelectorAll('button');
+        buttons.forEach((btn, i) => btn.setAttribute('aria-current', i === (shown < 0 ? centerIndex(metrics()) : shown) ? 'true' : 'false'));
+      }
+    }
+
+    function projectPoint(mvp, x, y, z) {
+      const clipX = mvp[0] * x + mvp[4] * y + mvp[8] * z + mvp[12];
+      const clipY = mvp[1] * x + mvp[5] * y + mvp[9] * z + mvp[13];
+      const clipW = mvp[3] * x + mvp[7] * y + mvp[11] * z + mvp[15];
+      if (!clipW) return null;
+      return {
+        x: (clipX / clipW * 0.5 + 0.5) * cssW,
+        y: (1 - (clipY / clipW * 0.5 + 0.5)) * cssH
+      };
+    }
+
+    function pick(px, py) {
+      let best = -1;
+      let bestZ = -Infinity;
+      for (const pose of lastPoses) {
+        if (pose.fade < 0.28) continue;
+        const center = projectPoint(viewProj, pose.x, pose.y, pose.z);
+        if (!center) continue;
+        const right = projectPoint(mul(viewProj, translate(pose.x, pose.y, pose.z)), Math.cos(pose.rot) * pose.w * 0.5, 0, -Math.sin(pose.rot) * pose.w * 0.5);
+        const top = projectPoint(viewProj, pose.x, pose.y + pose.h * 0.5, pose.z);
+        if (!right || !top) continue;
+        const hx = Math.abs(right.x - center.x) + 8;
+        const hy = Math.abs(top.y - center.y) + 8;
+        if (Math.abs(px - center.x) <= hx && Math.abs(py - center.y) <= hy && pose.z >= bestZ) {
+          best = pose.i;
+          bestZ = pose.z;
+          const u = clamp((px - (center.x - hx)) / (hx * 2), 0, 1);
+          const v = clamp((py - (center.y - hy)) / (hy * 2), 0, 1);
+          pose.hitUv = [u, 1 - v];
+        }
+      }
+      const found = lastPoses.find((pose) => pose.i === best);
+      return found ? { i: best, uv: found.hitUv || [0.5, 0.5] } : null;
+    }
+
+    menuBtn.addEventListener('click', () => setMenu(indexNav.hidden));
+    closeBtn.addEventListener('click', closeProject);
+    prevBtn.addEventListener('click', () => stepProject(-1));
+    nextBtn.addEventListener('click', () => stepProject(1));
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (!indexNav.hidden) setMenu(false);
+        else closeProject();
+      } else if (e.key === 'ArrowRight') { stepProject(1); e.preventDefault(); }
+      else if (e.key === 'ArrowLeft') { stepProject(-1); e.preventDefault(); }
+      else if (e.key === 'ArrowDown' && heroOpen > 0.5) { galleryTarget += metrics().viewH * 0.34; e.preventDefault(); }
+      else if (e.key === 'ArrowUp' && heroOpen > 0.5) { galleryTarget -= metrics().viewH * 0.34; e.preventDefault(); }
+      else if (e.key === 'Enter' && heroOpen < 0.2 && indexNav.hidden) beginOpen(centerIndex(metrics()), [0.5, 0.5]);
+    });
+    addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const m = metrics();
+      if (heroOpen > 0.62) galleryTarget += e.deltaY * 0.0016 * m.viewH;
+      else if (heroTarget < 0.5) target -= (e.deltaY + e.deltaX) * 0.00095 * m.loopWidth;
+    }, { passive: false });
+
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: 0, swapped: false };
+      canvas.classList.add('dragging');
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      pointer.px = e.clientX;
+      pointer.py = e.clientY;
+      pointer.nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.ny = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+      pointer.inside = true;
+      if (!dragging || dragging.id !== e.pointerId) return;
+      const dx = e.clientX - dragging.lx;
+      const dy = e.clientY - dragging.ly;
+      dragging.lx = e.clientX;
+      dragging.ly = e.clientY;
+      dragging.moved += Math.abs(dx) + Math.abs(dy);
+      const m = metrics();
+      if (heroOpen > 0.72) {
+        galleryTarget += dy * 0.0034 * m.viewH;
+        const travelX = e.clientX - dragging.x;
+        if (!dragging.swapped && Math.abs(travelX) > 92 && Math.abs(travelX) > Math.abs(e.clientY - dragging.y) * 1.2) {
+          stepProject(travelX < 0 ? 1 : -1);
+          dragging.swapped = true;
+          dragging.x = e.clientX;
+          dragging.y = e.clientY;
+        }
+      } else if (heroTarget < 0.5) {
+        target -= dx / rect.width * m.loopWidth * 0.78;
+      }
+    });
+    function endPointer(e) {
+      if (!dragging || (e && dragging.id !== e.pointerId)) return;
+      const tap = dragging.moved < 9 && !dragging.swapped;
+      const x = dragging.lx;
+      const y = dragging.ly;
+      dragging = null;
+      canvas.classList.remove('dragging');
+      if (!tap || heroOpen > 0.25 || heroTarget > 0.5) return;
+      const hit = pick(x, y);
+      if (hit) beginOpen(hit.i, hit.uv);
+    }
+    canvas.addEventListener('pointerup', endPointer);
+    canvas.addEventListener('pointercancel', endPointer);
+    canvas.addEventListener('pointerleave', () => { pointer.inside = false; });
+
+    function syncMotion() {
+      const want = reducedQuery.matches;
+      if (want !== reduced) {
+        reduced = want;
+        if (reduced) {
+          arc = 1;
+          heroOpen = heroTarget;
+          edge = heroTarget;
+          pos = target;
+          galleryPos = galleryTarget;
+          swapP = 1;
+        }
+      }
+      fine = fineQuery.matches;
+    }
+    reducedQuery.addEventListener('change', syncMotion);
+    fineQuery.addEventListener('change', syncMotion);
+
+    const hashOpen = /^#open=(\d+)$/.exec(location.hash);
+    if (hashOpen) {
+      const i = Number(hashOpen[1]);
+      if (i >= 0 && i < BRAND.projects.length) {
+        arc = 1;
+        beginOpen(i, [0.42, 0.46]);
+        if (reduced) { heroOpen = 1; edge = 1; pos = target; }
+      }
+    }
+
+    function drawMesh(tex, mvp, opt) {
+      gl.uniformMatrix4fv(loc.uMVP, false, mvp);
+      gl.uniform2f(loc.uSize, opt.w, opt.h);
+      gl.uniform1f(loc.uRadius, opt.radius);
+      gl.uniform1f(loc.uOval, opt.oval);
+      gl.uniform1f(loc.uWrap, opt.wrap);
+      gl.uniform1f(loc.uMode, opt.mode);
+      gl.uniform1f(loc.uCurve, opt.curve);
+      gl.uniform1f(loc.uOffsetY, opt.offsetY);
+      gl.uniform1f(loc.uBulge, opt.bulge);
+      gl.uniform1f(loc.uTravel, opt.travel);
+      gl.uniform2f(loc.uPull, opt.pull[0], opt.pull[1]);
+      gl.uniform1f(loc.uAlpha, opt.alpha);
+      gl.uniform1f(loc.uShade, opt.shade);
+      gl.uniform1f(loc.uChroma, opt.chroma);
+      gl.uniform2f(loc.uLight, opt.light[0], opt.light[1]);
+      gl.uniform1f(loc.uGlow, opt.glow);
+      gl.uniform1f(loc.uRound, opt.round);
+      gl.uniform2f(loc.uUvScale, opt.uv[0], opt.uv[1]);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(loc.uTex, 0);
+      gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_SHORT, 0);
+    }
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      syncMotion();
+      const m = metrics();
+      metricsNow = m;
+      if (!reduced) arc = damp(arc, 1, 2.6, dt);
+      else arc = 1;
+
+      const prevPos = pos;
+      pos = reduced ? target : damp(pos, target, POS_LAMBDA, dt);
+      velocity = (pos - prevPos) / Math.max(dt, 1 / 120);
+      heroOpen = reduced ? heroTarget : damp(heroOpen, heroTarget, OPEN_LAMBDA, dt);
+      edge = reduced ? heroOpen : damp(edge, heroOpen, EDGE_LAMBDA, dt);
+      const pull = (heroOpen - edge) * (reduced ? 0 : 0.72);
+      const prevGallery = galleryPos;
+      galleryPos = reduced ? galleryTarget : damp(galleryPos, galleryTarget, 9, dt);
+      galleryVel = (galleryPos - prevGallery) / Math.max(dt, 1 / 120);
+      if (!reduced && outgoing >= 0) swapP = damp(swapP, 1, 5.2, dt);
+      else swapP = 1;
+      if (swapP > 0.985) outgoing = -1;
+
+      const openAmt = heroOpen;
+      const tiltGate = fine && openAmt < 0.55 ? 1 : 0;
+      const aimX = pointer.inside ? pointer.nx : 0;
+      const aimY = pointer.inside ? pointer.ny : 0;
+      tiltX = damp(tiltX, aimX * 0.42 * tiltGate, 5, dt);
+      tiltY = damp(tiltY, -aimY * 0.26 * tiltGate, 5, dt);
+      const eye = [tiltX, tiltY, CAM_Z];
+      const view = lookAt(eye, [tiltX * 0.15, tiltY * 0.12, 0], [0, 1, 0]);
+      const proj = perspective(FOV, aspect, 0.08, 40);
+      viewProj = mul(proj, view);
+
+      const stretch = reduced ? 1 : 1 + clamp(Math.abs(velocity) * 0.0045, 0, 0.16);
+      const chroma = reduced ? 0 : clamp(velocity * 0.00055, -0.02, 0.02);
+      const travel = reduced ? 0 : clamp(velocity * 0.012, -0.28, 0.28);
+      const lightUv = fine && pointer.inside
+        ? [clamp(0.5 - pointer.nx * 0.28, 0.12, 0.88), clamp(0.5 + pointer.ny * 0.22, 0.12, 0.88)]
+        : [0.5, 0.5];
+
+      if (fine && openAmt < 0.4 && pointer.inside) {
+        const hit = pick(pointer.px, pointer.py);
+        hover = hit ? hit.i : -1;
+      } else hover = -1;
+
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(8 / 255, 8 / 255, 8 / 255, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.disable(gl.DEPTH_TEST);
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+      gl.enableVertexAttribArray(aUv);
+      gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
+
+      const poses = [];
+      for (let i = 0; i < m.n; i++) {
+        const pose = cardPose(i, pos, m);
+        pose.i = i;
+        poses.push(pose);
+      }
+      lastPoses = poses;
+      poses.sort((a, b) => a.z - b.z);
+      for (const pose of poses) {
+        const hidden = shown === pose.i && openAmt > 0.04;
+        const alpha = pose.fade * (1 - openAmt) * (hidden ? 0 : 1);
+        if (alpha < 0.02) continue;
+        const model = mul(translate(pose.x, pose.y, pose.z), rotY(pose.rot));
+        const hovered = hover === pose.i && openAmt < 0.35;
+        drawMesh(covers[pose.i], mul(viewProj, model), {
+          w: pose.w * (pose.i === shown ? 1 : stretch),
+          h: pose.h,
+          radius: m.radiusX,
+          oval: m.radiusZ / m.radiusX,
+          wrap: pose.wrap,
+          mode: 0,
+          curve: 0,
+          offsetY: 0,
+          bulge: hovered && !reduced ? 0.22 : 0,
+          travel: reduced ? 0 : travel,
+          pull: [0, 0],
+          alpha,
+          shade: pose.shade,
+          chroma: reduced ? 0 : chroma,
+          light: lightUv,
+          glow: hovered ? 0.28 : 0.05,
+          round: 0.03,
+          uv: [1, 1]
+        });
+        const screen = projectPoint(viewProj, pose.x, pose.y - pose.h * 0.5, pose.z);
+        const label = labels[pose.i];
+        if (screen && alpha > 0.35) {
+          label.style.opacity = String(Math.min(1, alpha));
+          label.style.transform = 'translate(' + (screen.x - label.offsetWidth * 0.5) + 'px,' + (screen.y + 10) + 'px)';
+        } else label.style.opacity = '0';
+      }
+
+      if (shown >= 0 && openAmt > 0.012 && depart) {
+        const livePose = cardPose(shown, pos, m);
+        const base = heroTarget > 0.5 ? depart : livePose;
+        const dist = CAM_Z - mix(base.z, 0.12, openAmt);
+        const coverH = 2 * dist * Math.tan(FOV / 2) * 1.04;
+        const coverW = coverH * aspect * 1.04;
+        const hero = {
+          x: mix(base.x, 0, openAmt),
+          y: mix(base.y, 0, openAmt),
+          z: mix(base.z, 0.12, openAmt),
+          rot: mix(base.rot, 0, openAmt),
+          w: mix(base.w, coverW, openAmt),
+          h: mix(base.h, coverH, openAmt),
+          wrap: mix(base.wrap, 0, openAmt)
+        };
+        const model = mul(translate(hero.x, hero.y, hero.z), rotY(hero.rot));
+        drawMesh(covers[shown], mul(viewProj, model), {
+          w: hero.w,
+          h: hero.h,
+          radius: m.radiusX,
+          oval: m.radiusZ / m.radiusX,
+          wrap: hero.wrap,
+          mode: 0,
+          curve: 0,
+          offsetY: 0,
+          bulge: pull,
+          travel: (1 - openAmt) * travel,
+          pull: [pullUv[0] - 0.5, pullUv[1] - 0.5],
+          alpha: 1,
+          shade: mix(base.shade, 1, openAmt),
+          chroma: chroma * (1 - openAmt),
+          light: lightUv,
+          glow: mix(0.12, 0.02, openAmt),
+          round: mix(0.03, 0, openAmt),
+          uv: [1, 1]
+        });
+      }
+
+      const enter = smoothstep(0.58, 1, openAmt);
+      if (shown >= 0 && enter > 0.01) {
+        const speedCurve = reduced ? 0 : clamp(Math.abs(galleryVel) * 0.55, 0, 1);
+        const curve = reduced ? 0 : mix(1, speedCurve, enter);
+        const itemW = m.viewW * 0.92;
+        const itemH = m.viewH * 0.42;
+        const gap = mix(itemH * 0.7, itemH * 0.1, enter);
+        const qa = itemW / itemH;
+        const ia = GALLERY_W / GALLERY_H;
+        const uvScale = qa > ia ? [1, ia / qa] : [qa / ia, 1];
+        const step = itemH + gap;
+        const count = galleries[shown].length;
+        const total = step * count;
+        const slide = reduced ? 1 : (1 - Math.pow(1 - clamp(swapP, 0, 1), 3));
+        const barrelR = m.viewH * 0.95;
+        const drawColumn = (projectIndex, xShift, alphaMul) => {
+          if (projectIndex < 0) return;
+          let scroll = galleryPos % total;
+          if (scroll < 0) scroll += total;
+          const batch = [];
+          for (let copy = -1; copy <= 1; copy++) {
+            for (let i = 0; i < count; i++) {
+              const y = i * step + copy * total - scroll;
+              if (Math.abs(y) > m.viewH * 1.2) continue;
+              batch.push({ i, y });
+            }
+          }
+          batch.sort((a, b) => Math.abs(b.y) - Math.abs(a.y));
+          for (const item of batch) {
+              const y = item.y;
+              const band = 1 - smoothstep(m.viewH * 0.55, m.viewH * 1.05, Math.abs(y));
+              const model = translate(xShift, 0, 0.55);
+              drawMesh(galleries[projectIndex][item.i], mul(viewProj, model), {
+                w: itemW,
+                h: itemH,
+                radius: barrelR,
+                oval: 1,
+                wrap: 0,
+                mode: 1,
+                curve,
+                offsetY: y,
+                bulge: 0,
+                travel: 0,
+                pull: [0, 0],
+                alpha: enter * band * alphaMul,
+                shade: 1,
+                chroma: reduced ? 0 : clamp(galleryVel * 0.012, -0.016, 0.016),
+                light: [0.5, 0.5],
+                glow: 0.04,
+                round: 0.012,
+                uv: uvScale
+              });
+          }
+        };
+        if (outgoing >= 0) drawColumn(outgoing, -swapDir * slide * m.viewW, 1);
+        drawColumn(shown, outgoing >= 0 ? swapDir * (1 - slide) * m.viewW : 0, 1);
+      }
+
+      const galleryUi = openAmt > 0.84;
+      closeBtn.hidden = !galleryUi;
+      menuBtn.hidden = galleryUi;
+      $('year').hidden = galleryUi;
+      prevBtn.hidden = !galleryUi;
+      nextBtn.hidden = !galleryUi;
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
