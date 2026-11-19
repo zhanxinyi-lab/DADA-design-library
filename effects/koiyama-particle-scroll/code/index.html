@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KOIYAMA</title>
+  <style>
+    :root {
+      --indigo: #07091a;
+      --pool: #141a33;
+      --silver: #e7edf6;
+      --mute: #9aa6be;
+      --line: rgba(231, 237, 246, 0.28);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--indigo); color: var(--silver); }
+    body { font-family: "Iowan Old Style", Palatino, Georgia, serif; }
+    button, .ui { font-family: "Segoe UI", Helvetica, Arial, sans-serif; }
+    .track { height: 560vh; }
+    .stage {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at 62% 46%, var(--pool), transparent 58%),
+        var(--indigo);
+    }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    header {
+      position: absolute;
+      z-index: 2;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 22px 6vw 0;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+    .brand { font-weight: 620; letter-spacing: 0.22em; }
+    nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 18px; }
+    nav button {
+      background: none;
+      border: 0;
+      padding: 0;
+      color: var(--mute);
+      letter-spacing: inherit;
+      text-transform: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+    nav button[aria-current="true"] { color: var(--silver); }
+    .hero, .copy {
+      position: absolute;
+      z-index: 2;
+      left: 6vw;
+      max-width: min(34rem, 86vw);
+      pointer-events: none;
+    }
+    .hero { top: 22vh; }
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(4.2rem, 13vw, 8.4rem);
+      font-weight: 500;
+      letter-spacing: -0.045em;
+      line-height: 0.84;
+    }
+    .hero p, .copy p {
+      margin: 16px 0 0;
+      max-width: 34ch;
+      color: var(--mute);
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.55;
+      letter-spacing: 0.01em;
+    }
+    .copy { bottom: 12vh; }
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--mute);
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+    .copy h2 {
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 500;
+      letter-spacing: -0.035em;
+      line-height: 0.96;
+    }
+    .chap, .hint, .rail {
+      position: absolute;
+      z-index: 2;
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+    .chap {
+      right: 6vw;
+      bottom: 12vh;
+      letter-spacing: 0.18em;
+      font-size: 12px;
+      color: var(--mute);
+    }
+    .hint {
+      left: 6vw;
+      bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-size: 11px;
+      color: var(--mute);
+    }
+    .hint i {
+      display: block;
+      width: 1px;
+      height: 42px;
+      background: linear-gradient(var(--silver), transparent);
+      transform-origin: top;
+      animation: dip 1.8s ease-in-out infinite;
+    }
+    @keyframes dip {
+      0%, 100% { transform: scaleY(0.45); opacity: 0.4; }
+      50% { transform: scaleY(1); opacity: 1; }
+    }
+    .rail {
+      left: 6vw;
+      right: 6vw;
+      bottom: 0;
+      height: 1px;
+      background: var(--line);
+    }
+    .rail span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: var(--silver);
+    }
+    @media (max-width: 700px) {
+      header { align-items: flex-start; }
+      nav { max-width: 58vw; }
+      .hero { top: 16vh; }
+      .chap { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hint i { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="track" id="track">
+    <div class="stage">
+      <canvas id="c"></canvas>
+      <header>
+        <div class="brand" id="brand"></div>
+        <nav id="nav"></nav>
+      </header>
+      <div class="hero" id="hero">
+        <h1 id="hero-title"></h1>
+        <p id="hero-text"></p>
+      </div>
+      <div class="copy" id="copy" hidden>
+        <p class="eyebrow" id="eyebrow"></p>
+        <h2 id="title"></h2>
+        <p id="text"></p>
+      </div>
+      <div class="chap" id="chap">01</div>
+      <div class="hint" id="hint"><span>Scroll</span><i></i></div>
+      <div class="rail"><span id="rail"></span></div>
+    </div>
+  </div>
+  <script>
+    const BRAND = {
+      name: 'KOIYAMA',
+      hero: 'Scroll to follow the water.',
+      indigo: '#07091a',
+      pool: '#141a33',
+      silver: '#e7edf6',
+      mute: '#9aa6be',
+      nav: [
+        { label: 'Sake', at: 0.2 },
+        { label: 'The kura', at: 0.4 },
+        { label: 'Counter', at: 0.74 },
+        { label: 'Visit', at: 0.9 }
+      ],
+      sections: [
+        {
+          at: 0,
+          hero: true,
+          chap: '01'
+        },
+        {
+          at: 0.2,
+          chap: '02',
+          eyebrow: 'Autumn release',
+          title: 'Kimoto junmai, No. 27',
+          text: 'Twelve hundred bottles a season. We brew only through the cold months.'
+        },
+        {
+          at: 0.4,
+          chap: '03',
+          eyebrow: 'The kura',
+          title: 'A small brewhouse above a spring-fed pond.',
+          text: 'We steam Omachi rice at dawn and grow the koji by hand. The kura has brewed this way since 1911.'
+        },
+        {
+          at: 0.56,
+          chap: '04',
+          eyebrow: 'The water',
+          title: 'The koi taste every batch first.',
+          text: 'The spring rises under the cedar grove behind the kura. It fills the pond first, then runs on to the rice. Kuro-ike: cooked rice and walnut, a dry finish, at room temperature or gently warmed.'
+        },
+        {
+          at: 0.74,
+          chap: '05',
+          eyebrow: 'The counter',
+          title: 'Eight seats, one evening.',
+          text: 'Thursday to Sunday, from 17:30. Shoes off. A cup of spring water, the lamps still low.'
+        },
+        {
+          at: 0.9,
+          chap: '06',
+          eyebrow: 'Visit',
+          title: 'Four letters a year.',
+          text: 'When brewing starts, when it stops, when the bottles are ready, and one from the pond in high summer. Reserve a seat at the counter.'
+        }
+      ]
+    };
+
+    const root = document.documentElement;
+    root.style.setProperty('--indigo', BRAND.indigo);
+    root.style.setProperty('--pool', BRAND.pool);
+    root.style.setProperty('--silver', BRAND.silver);
+    root.style.setProperty('--mute', BRAND.mute);
+    document.getElementById('brand').textContent = BRAND.name;
+    document.getElementById('hero-title').textContent = BRAND.name;
+    document.getElementById('hero-text').textContent = BRAND.hero;
+
+    const track = document.getElementById('track');
+    const nav = document.getElementById('nav');
+    const heroEl = document.getElementById('hero');
+    const copyEl = document.getElementById('copy');
+    const hint = document.getElementById('hint');
+    BRAND.nav.forEach((item) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = item.label;
+      button.addEventListener('click', () => {
+        const total = track.offsetHeight - window.innerHeight;
+        window.scrollTo({ top: track.offsetTop + total * item.at, behavior: 'smooth' });
+      });
+      nav.appendChild(button);
+    });
+
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let shapes = null;
+    let count = 0;
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let shown = -1;
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+    function sample(draw, n) {
+      const w = 520;
+      const h = 340;
+      const off = document.createElement('canvas');
+      off.width = w;
+      off.height = h;
+      const g = off.getContext('2d', { willReadFrequently: true });
+      g.clearRect(0, 0, w, h);
+      draw(g, w, h);
+      const img = g.getImageData(0, 0, w, h).data;
+      const raw = [];
+      for (let y = 0; y < h; y += 2) {
+        for (let x = 0; x < w; x += 2) {
+          if (img[(y * w + x) * 4 + 3] < 48) continue;
+          raw.push([(x / (w - 1)) * 2 - 1, (y / (h - 1)) * 2 - 1]);
+        }
+      }
+      raw.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const out = new Float32Array(n * 2);
+      for (let i = 0; i < n; i++) {
+        const p = raw[Math.min(raw.length - 1, Math.floor(i * raw.length / n))];
+        out[i * 2] = p[0];
+        out[i * 2 + 1] = p[1];
+      }
+      return out;
+    }
+
+    function drawKoi(g, w, h) {
+      const s = Math.min(w, h);
+      g.save();
+      g.translate(w * 0.5, h * 0.52);
+      g.scale(s / 300, s / 300);
+      g.fillStyle = '#fff';
+      g.beginPath();
+      g.moveTo(118, 2);
+      g.bezierCurveTo(96, -36, 28, -34, -28, -20);
+      g.bezierCurveTo(-62, -12, -78, -6, -90, -2);
+      g.lineTo(-146, -46);
+      g.lineTo(-118, -4);
+      g.lineTo(-150, 10);
+      g.lineTo(-112, 12);
+      g.lineTo(-142, 50);
+      g.lineTo(-84, 10);
+      g.bezierCurveTo(-60, 30, 8, 36, 62, 24);
+      g.bezierCurveTo(108, 14, 132, 12, 118, 2);
+      g.closePath();
+      g.fill();
+      g.beginPath();
+      g.moveTo(-8, -22);
+      g.quadraticCurveTo(18, -74, 58, -18);
+      g.quadraticCurveTo(24, -30, -8, -22);
+      g.fill();
+      g.beginPath();
+      g.moveTo(36, 12);
+      g.quadraticCurveTo(8, 58, 64, 22);
+      g.quadraticCurveTo(52, 14, 36, 12);
+      g.fill();
+      g.globalCompositeOperation = 'destination-out';
+      g.beginPath();
+      g.arc(86, -4, 5, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
+    }
+
+    function bottlePath(g) {
+      g.beginPath();
+      g.moveTo(-15, -118);
+      g.lineTo(15, -118);
+      g.lineTo(17, -106);
+      g.lineTo(10, -98);
+      g.lineTo(10, -58);
+      g.bezierCurveTo(10, -36, 20, -24, 46, -4);
+      g.bezierCurveTo(74, 18, 70, 78, 52, 102);
+      g.lineTo(36, 116);
+      g.lineTo(-36, 116);
+      g.lineTo(-52, 102);
+      g.bezierCurveTo(-70, 78, -74, 18, -46, -4);
+      g.bezierCurveTo(-20, -24, -10, -36, -10, -58);
+      g.lineTo(-10, -98);
+      g.lineTo(-17, -106);
+      g.closePath();
+      g.fill();
+    }
+
+    function drawBottle(g, w, h) {
+      const s = Math.min(w, h);
+      g.save();
+      g.translate(w * 0.5, h * 0.54);
+      g.scale(s / 310, s / 310);
+      g.fillStyle = '#fff';
+      bottlePath(g);
+      g.restore();
+    }
+
+    function drawPair(g, w, h) {
+      const s = Math.min(w, h);
+      g.save();
+      g.translate(w * 0.42, h * 0.56);
+      g.scale(s / 360, s / 360);
+      g.fillStyle = '#fff';
+      g.save();
+      g.translate(-28, 8);
+      g.scale(0.86, 0.86);
+      bottlePath(g);
+      g.restore();
+      g.beginPath();
+      g.moveTo(62, 18);
+      g.bezierCurveTo(78, 8, 112, 8, 128, 20);
+      g.lineTo(116, 78);
+      g.bezierCurveTo(108, 98, 82, 98, 74, 78);
+      g.closePath();
+      g.fill();
+      g.beginPath();
+      g.ellipse(95, 20, 34, 9, 0.04, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
+    }
+
+    function build() {
+      count = window.innerWidth < 720 ? 1100 : 1900;
+      shapes = {
+        koi: sample(drawKoi, count),
+        bottle: sample(drawBottle, count),
+        pair: sample(drawPair, count)
+      };
+    }
+
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      build();
+    }
+
+    function progress() {
+      const rect = track.getBoundingClientRect();
+      const total = rect.height - window.innerHeight;
+      if (total <= 0) return 0;
+      return clamp(-rect.top / total, 0, 1);
+    }
+
+    function weights(p) {
+      if (p < 0.3) return [1, 0, 0];
+      if (p < 0.48) {
+        const u = (p - 0.3) / 0.18;
+        return [1 - u, u, 0];
+      }
+      if (p < 0.6) return [0, 1, 0];
+      if (p < 0.76) {
+        const u = (p - 0.6) / 0.16;
+        return [0, 1 - u, u];
+      }
+      return [0, 0, 1];
+    }
+
+    function sectionIndex(p) {
+      let index = 0;
+      BRAND.sections.forEach((section, i) => { if (p + 0.001 >= section.at) index = i; });
+      return index;
+    }
+
+    function renderCopy(p) {
+      const index = sectionIndex(p);
+      const buttons = nav.children;
+      BRAND.nav.forEach((item, i) => {
+        const on = p >= item.at && (i === BRAND.nav.length - 1 || p < BRAND.nav[i + 1].at);
+        buttons[i].setAttribute('aria-current', on ? 'true' : 'false');
+      });
+      heroEl.style.opacity = String(clamp(1 - p / 0.16, 0, 1));
+      hint.style.opacity = String(clamp(1 - p / 0.08, 0, 1));
+      document.getElementById('rail').style.width = (p * 100).toFixed(2) + '%';
+      if (index === shown) return;
+      shown = index;
+      const section = BRAND.sections[index];
+      document.getElementById('chap').textContent = section.chap;
+      const heroOn = !!section.hero;
+      heroEl.hidden = !heroOn && p > 0.16;
+      copyEl.hidden = heroOn;
+      if (!heroOn) {
+        document.getElementById('eyebrow').textContent = section.eyebrow;
+        document.getElementById('title').textContent = section.title;
+        document.getElementById('text').textContent = section.text;
+      }
+    }
+
+    function frame(now) {
+      const p = progress();
+      renderCopy(p);
+      const [wk, wb, wp] = weights(p);
+      const chaos = 1 - Math.max(wk, wb, wp);
+      const time = reduce ? now * 0.00015 : now * 0.001;
+      const mobile = width < 720;
+      const spread = Math.min(width, height) * (mobile ? 0.42 : 0.5);
+      const cx = width * (mobile ? 0.5 : 0.64);
+      const cy = height * (mobile ? 0.4 : 0.5);
+      const koi = shapes.koi;
+      const bottle = shapes.bottle;
+      const pair = shapes.pair;
+      ctx.clearRect(0, 0, width, height);
+      for (let i = 0; i < count; i++) {
+        const o = i * 2;
+        let x = koi[o] * wk + bottle[o] * wb + pair[o] * wp;
+        let y = koi[o + 1] * wk + bottle[o + 1] * wb + pair[o + 1] * wp;
+        if (wk > 0.2) {
+          const wag = Math.sin(time * 2.1 + x * 4.2) * Math.max(0, 0.62 - x) * 0.16 * wk;
+          y += reduce ? wag * 0.25 : wag;
+          x += Math.sin(time * 0.65) * 0.025 * wk;
+        }
+        if (chaos > 0.02) {
+          x += Math.sin(i * 0.17 + time * 2.4) * chaos * 0.2;
+          y += Math.cos(i * 0.13 + time * 2.1) * chaos * 0.2;
+        }
+        const spec = (i % 9 === 0) ? 0.95 : 0.42 + (i % 5) * 0.1;
+        ctx.fillStyle = i % 13 === 0 ? 'rgb(255,255,255)' : 'rgb(216,224,236)';
+        ctx.globalAlpha = spec;
+        const s = i % 8 === 0 ? 2.2 : 1.45;
+        ctx.fillRect(cx + x * spread, cy + y * spread * 0.9, s, s);
+      }
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(frame);
+    }
+
+    resize();
+    addEventListener('resize', resize);
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
