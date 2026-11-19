@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Timberwolves paper flex</title>
+  <style>
+    :root {
+      --mono: "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
+      --sans: "Segoe UI", Arial, "Liberation Sans", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; height: 100%; background: #000; color: #f2f2f2; }
+    body { display: grid; place-items: center; }
+    #stage {
+      width: min(100vw, 100vh);
+      height: min(100vw, 100vh);
+      position: relative;
+      overflow: hidden;
+      background: #050505;
+      container-type: size;
+      touch-action: none;
+      cursor: crosshair;
+    }
+    #stage:focus { outline: none; }
+    #stage:focus-visible { outline: 1px solid rgba(255,255,255,.45); outline-offset: -8px; }
+    #plot { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+    .vignette {
+      position: absolute; inset: 0; z-index: 2; pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 58%, rgba(0,0,0,.5) 100%);
+    }
+    header, #readout, #log, .hair { position: absolute; z-index: 3; pointer-events: none; }
+    header {
+      top: 4.2%; left: 4.2%; right: 4.2%;
+      display: flex; justify-content: space-between; gap: 16px;
+      font-family: var(--mono);
+      font-size: 12px; font-size: 1.55cqmin;
+      letter-spacing: .01em;
+      color: rgba(255,255,255,.78);
+      text-shadow: -1px 0 rgba(255,40,50,.75), 1px 0 rgba(40,230,255,.6);
+    }
+    #meta { text-align: right; }
+    #readout { top: 12%; left: 5%; right: 6%; }
+    #hero, #pnl {
+      position: relative;
+      display: inline-block;
+      font-family: var(--sans);
+      font-weight: 800;
+      letter-spacing: -0.045em;
+      line-height: .92;
+    }
+    #hero {
+      font-size: 48px; font-size: 7.1cqmin;
+      color: #f7f7f7;
+      text-shadow: -2px 0 rgba(255,40,50,.8), 2px 0 rgba(40,240,255,.7);
+    }
+    #pnl { font-size: 58px; font-size: 8.4cqmin; }
+    #pct {
+      margin-left: .28em;
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 22px; font-size: 2.8cqmin;
+      letter-spacing: -0.03em;
+    }
+    .neg { color: #ff2a2a; text-shadow: -2px 0 rgba(255,70,70,.85), 2px 0 rgba(80,255,255,.35); }
+    .pos { color: #c9ffe9; text-shadow: -2px 0 rgba(255,50,70,.55), 2px 0 rgba(70,255,220,.75); }
+    #sub {
+      margin: .45em 0 0;
+      min-height: 1.2em;
+      font-family: var(--sans);
+      font-weight: 650;
+      font-size: 18px; font-size: 2.45cqmin;
+      letter-spacing: -0.02em;
+    }
+    .hot {
+      background: repeating-linear-gradient(-52deg, #f4f4f4 0 2px, #161616 2px 5px);
+      color: transparent;
+      text-shadow: none;
+    }
+    .corners i {
+      position: absolute;
+      width: .32em; height: .32em;
+      border: 2px solid rgba(255,255,255,.92);
+      pointer-events: none;
+    }
+    .corners i:nth-child(1) { left: -.12em; top: -.02em; border-right: 0; border-bottom: 0; }
+    .corners i:nth-child(2) { right: -.12em; top: -.02em; border-left: 0; border-bottom: 0; }
+    .corners i:nth-child(3) { left: -.12em; bottom: -.02em; border-right: 0; border-top: 0; }
+    .corners i:nth-child(4) { right: -.12em; bottom: -.02em; border-left: 0; border-top: 0; }
+    .corners.off i { opacity: 0; }
+    #log {
+      left: 4.2%; bottom: 8.2%;
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 12px; font-size: 1.65cqmin;
+      line-height: 1.38;
+      color: rgba(236,236,236,.82);
+      text-shadow: -1px 0 rgba(255,40,50,.55), 1px 0 rgba(40,255,220,.45);
+      white-space: pre;
+    }
+    .hair {
+      left: 4%; right: 5%; bottom: 6.2%; height: 2px;
+      background: linear-gradient(90deg, #ff3a3a, #d8fff4 42%, #fff 68%, #8af 100%);
+      box-shadow: 0 0 0 1px rgba(0,0,0,.4);
+    }
+    #rerun {
+      position: absolute; z-index: 6;
+      right: 4.2%; bottom: 8.2%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: rgba(255,255,255,.72);
+      font-family: var(--mono);
+      font-size: 12px; font-size: 1.65cqmin;
+      cursor: pointer;
+      opacity: 0;
+    }
+    #stage:not(.playing):hover #rerun,
+    #stage:not(.playing):focus-within #rerun,
+    #rerun:focus-visible { opacity: 1; }
+    #stage.playing #rerun { pointer-events: none; }
+    #stage::before {
+      content: "";
+      position: absolute; inset: 0; z-index: 5; pointer-events: none;
+      background: repeating-linear-gradient(to bottom, rgba(255,255,255,.045) 0 1px, transparent 1px 3px);
+      mix-blend-mode: screen;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #stage::before { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main id="stage" tabindex="0" aria-label="Timberwolves paper trade. Drag to scrub. Enter replays.">
+    <canvas id="plot" width="720" height="720" aria-hidden="true"></canvas>
+    <div class="vignette"></div>
+    <header>
+      <div id="title">Timberwolves vs. Heat · Timberwolves · paper</div>
+      <div id="meta">frame 000/300 · scene 1/4</div>
+    </header>
+    <div id="readout">
+      <div id="hero" class="corners off" aria-hidden="true"><i></i><i></i><i></i><i></i><span id="heroWord"></span></div>
+      <div id="pnlRow">
+        <div id="pnl" class="corners off"><i></i><i></i><i></i><i></i><span id="pnlWord"></span></div><span id="pct"></span>
+      </div>
+      <p id="sub"></p>
+    </div>
+    <pre id="log"></pre>
+    <div class="hair"></div>
+    <button id="rerun" type="button">rerun</button>
+  </main>
+  <script>
+    const DUR = 10000;
+    const WORD = "Timberwolves";
+    const STEPS = [
+      [0.00, 0.14], [0.11, 0.26], [0.20, 0.22], [0.30, 0.38], [0.38, 0.34],
+      [0.47, 0.50], [0.55, 0.46], [0.64, 0.64], [0.74, 0.76], [0.86, 0.88], [1.00, 0.88]
+    ];
+    const MARKS = [
+      [0.21, -243.33, -2.4],
+      [0.30, 709.65, 7.0],
+      [0.36, 1390.35, 13.7],
+      [0.42, 1118.07, 11.1],
+      [0.48, 1254.21, 12.4],
+      [0.56, 2343.33, 23.2],
+      [0.64, 2887.89, 28.6],
+      [0.72, 3500.52, 34.6]
+    ];
+    const LINES = [
+      [0.26, "> flex timberwolves"],
+      [0.34, "ok lock entry x: 440 y: 572 · 74.3"],
+      [0.76, "ok lock exit x: 563 y: 335 · 100.0"],
+      [0.84, "ok bite +34.6%"],
+      [0.90, "done · held 29m"]
+    ];
+
+    const stage = document.getElementById("stage");
+    const canvas = document.getElementById("plot");
+    const meta = document.getElementById("meta");
+    const hero = document.getElementById("hero");
+    const heroWord = document.getElementById("heroWord");
+    const pnl = document.getElementById("pnl");
+    const pnlWord = document.getElementById("pnlWord");
+    const pct = document.getElementById("pct");
+    const sub = document.getElementById("sub");
+    const log = document.getElementById("log");
+    const rerun = document.getElementById("rerun");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function mulberry32(a) {
+      return function () {
+        a |= 0; a = a + 0x6D2B79F5 | 0;
+        let t = Math.imul(a ^ a >>> 15, 1 | a);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+    }
+    const rnd = mulberry32(21198014);
+    const DOTS = [];
+    for (let i = 0; i < STEPS.length - 1; i++) {
+      const a = STEPS[i], b = STEPS[i + 1];
+      const count = 28 + Math.round((b[0] - a[0]) * 90);
+      for (let k = 0; k < count; k++) {
+        DOTS.push({ x: a[0] + (b[0] - a[0]) * rnd(), y: a[1] + (rnd() - 0.5) * 0.018, n: rnd() });
+      }
+    }
+    const DEBRIS = [];
+    for (let i = 0; i < 90; i++) DEBRIS.push({ x: 0.62 + rnd() * 0.36, y: 0.15 + rnd() * 0.7, n: rnd() });
+
+    let view = { w: 720, h: 720, dpr: 1 };
+    let progress = 0;
+    let mode = "hold";
+    let gen = 0;
+    let ptr = null;
+    let logText = "";
+
+    function fit() {
+      const r = stage.getBoundingClientRect();
+      view.w = Math.max(1, r.width);
+      view.h = Math.max(1, r.height);
+      view.dpr = Math.min(2, devicePixelRatio || 1);
+      canvas.width = Math.round(view.w * view.dpr);
+      canvas.height = Math.round(view.h * view.dpr);
+    }
+    function sceneOf(p) {
+      if (p < 0.22) return 1;
+      if (p < 0.68) return 2;
+      if (p < 0.80) return 3;
+      return 4;
+    }
+    function chartU(p) {
+      if (p < 0.18) return 0.06 + p * 0.4;
+      if (p < 0.70) return 0.12 + (p - 0.18) / 0.52 * 0.88;
+      return 1;
+    }
+    function money(n) {
+      const sign = n < 0 ? "-" : "+";
+      const parts = Math.abs(n).toFixed(2).split(".");
+      return sign + "$" + parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + parts[1];
+    }
+    function percent(n) {
+      return (n < 0 ? "-" : "+") + Math.abs(n).toFixed(1) + "%";
+    }
+    function markAt(p) {
+      let m = MARKS[0];
+      for (const row of MARKS) if (p >= row[0]) m = row;
+      return m;
+    }
+
+    function drawType(p) {
+      const scene = sceneOf(p);
+      const frame = Math.min(300, Math.round(p * 300));
+      meta.textContent = "frame " + String(frame).padStart(3, "0") + "/300 · scene " + scene + "/4";
+      const showHero = scene === 1;
+      hero.hidden = !showHero;
+      if (showHero) {
+        const n = Math.max(1, Math.round(Math.min(1, p / 0.16) * WORD.length));
+        heroWord.replaceChildren();
+        for (let i = 0; i < n; i++) {
+          const s = document.createElement("span");
+          s.textContent = WORD[i];
+          if (i < n - 1 && (i * 5 + frame) % 11 === 0) s.className = "hot";
+          heroWord.appendChild(s);
+        }
+        hero.classList.toggle("off", n < 4);
+        heroWord.style.transform = frame % 8 === 0 ? "translate(2px,-1px)" : "";
+        sub.textContent = "Timberwolves vs. Heat";
+        sub.style.opacity = String(Math.max(0, Math.min(1, (p - 0.08) / 0.08)));
+      }
+      const showPnl = scene >= 2;
+      pnl.parentElement.hidden = !showPnl;
+      if (showPnl) {
+        const m = markAt(p);
+        const up = m[1] >= 0;
+        pnlWord.textContent = money(m[1]);
+        pnl.classList.toggle("pos", up);
+        pnl.classList.toggle("neg", !up);
+        pnl.classList.toggle("off", scene < 4);
+        pct.textContent = scene < 4 ? percent(m[2]) : "";
+        pct.className = up ? "pos" : "neg";
+        if (scene === 4) {
+          sub.textContent = "+34.6% · Timberwolves · won";
+          sub.style.opacity = "1";
+        } else sub.textContent = "";
+      }
+      const lines = LINES.filter((row) => p >= row[0]).map((row) => row[1]);
+      const visible = lines.slice(-4).join("\n");
+      if (visible !== logText) { log.textContent = visible; logText = visible; }
+      stage.classList.toggle("playing", mode === "play");
+      rerun.tabIndex = mode === "play" ? -1 : 0;
+    }
+
+    function poly(u) {
+      const a0 = STEPS[0];
+      const pts = [[a0[0], 0], [a0[0], a0[1]]];
+      for (let i = 0; i < STEPS.length - 1; i++) {
+        const a = STEPS[i], b = STEPS[i + 1];
+        if (a[0] >= u) break;
+        const x2 = Math.min(b[0], u);
+        pts.push([x2, a[1]]);
+        if (b[0] <= u) pts.push([b[0], b[1]]);
+      }
+      const last = pts[pts.length - 1];
+      pts.push([last[0], 0]);
+      return pts;
+    }
+
+    function drawChart(ctx, p) {
+      const w = view.w, h = view.h;
+      const box = { x: w * 0.08, y: h * 0.33, w: w * 0.56, h: h * 0.40 };
+      const X = (nx) => box.x + nx * box.w;
+      const Y = (ny) => box.y + box.h - ny * box.h;
+      const u = chartU(p);
+      const scene = sceneOf(p);
+      const g = scene === 3 ? 1 : 0;
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,.38)";
+      ctx.lineWidth = 1;
+      if (p > 0.5) {
+        ctx.beginPath();
+        ctx.moveTo(X(0.02), Y(0.02));
+        ctx.lineTo(X(0.92), Y(1.05));
+        ctx.moveTo(X(0.48), Y(0.72));
+        ctx.lineTo(X(1.18), Y(0.22));
+        ctx.stroke();
+      } else if (p > 0.08) {
+        ctx.beginPath();
+        ctx.moveTo(w * 0.18, h * 0.08);
+        ctx.lineTo(w * 0.72, h * 0.22);
+        ctx.moveTo(w * 0.42, h * 0.02);
+        ctx.lineTo(w * 0.88, h * 0.16);
+        ctx.stroke();
+      }
+
+      const pts = poly(u);
+      ctx.beginPath();
+      pts.forEach((pt, i) => (i ? ctx.lineTo(X(pt[0]), Y(pt[1])) : ctx.moveTo(X(pt[0]), Y(pt[1]))));
+      ctx.closePath();
+      ctx.save();
+      ctx.clip();
+      ctx.strokeStyle = "rgba(214,214,214,.42)";
+      ctx.beginPath();
+      const span = box.w + box.h;
+      for (let x = box.x - box.h; x < box.x + box.w; x += 7) {
+        ctx.moveTo(x, box.y);
+        ctx.lineTo(x + box.h, box.y + box.h);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.setLineDash([3, 4]);
+      ctx.strokeStyle = "rgba(255,255,255,.75)";
+      ctx.beginPath();
+      for (let i = 0; i < STEPS.length - 1; i++) {
+        const a = STEPS[i], b = STEPS[i + 1];
+        if (a[0] > u) break;
+        const x2 = Math.min(b[0], u);
+        ctx.moveTo(X(a[0]), Y(a[1]));
+        ctx.lineTo(X(x2), Y(a[1]));
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#f3f3f3";
+      for (let i = 1; i < STEPS.length; i++) {
+        const step = STEPS[i];
+        if (step[0] > u) break;
+        const top = Math.max(step[1], STEPS[i - 1][1]);
+        ctx.fillRect(X(step[0]) - 1.5, Y(top), 3, Math.min(22, box.h * 0.07));
+      }
+
+      const shake = g ? Math.sin(p * 90) * 5 : 0;
+      for (const d of DOTS) {
+        if (d.x > u) continue;
+        const jx = shake * (d.n - 0.5) * 2;
+        const alpha = 0.35 + d.n * 0.65;
+        ctx.fillStyle = "rgba(245,245,245," + alpha + ")";
+        ctx.fillRect(X(d.x) + jx, Y(d.y), 2, 2);
+        if (g || d.n > 0.72) {
+          ctx.fillStyle = "rgba(255,50,60,.8)";
+          ctx.fillRect(X(d.x) - 3 + jx, Y(d.y), 2, 2);
+          ctx.fillStyle = "rgba(60,255,230,.75)";
+          ctx.fillRect(X(d.x) + 3 + jx, Y(d.y) + 1, 2, 2);
+        }
+      }
+      if (p > 0.66) {
+        const fade = scene === 3 ? 1 : 0.55;
+        for (const d of DEBRIS) {
+          if (d.n > fade) continue;
+          ctx.fillStyle = d.n > 0.5 ? "rgba(255,70,80,.85)" : "rgba(230,230,230,.8)";
+          ctx.fillRect(w * d.x, h * d.y, 2, 2);
+        }
+      }
+
+      bracket(ctx, X(-0.02), Y(0.16), "Y:14.3", p > 0.3);
+      bracket(ctx, X(0.90), Y(0.98), "Y:100.0", p > 0.62);
+      if (ptr && scene >= 2) {
+        const lx = ptr.x * w;
+        const ly = ptr.y * h;
+        const onChart = lx >= box.x && lx <= box.x + box.w && ly >= box.y && ly <= box.y + box.h;
+        if (onChart) {
+          const reach = Math.max(12, w * 0.028);
+          const labelH = Math.max(13, w * 0.022);
+          const cx = Math.min(box.x + box.w - reach, Math.max(box.x + reach, lx));
+          const cy = Math.min(box.y + box.h - reach, Math.max(box.y + reach + labelH + 6, ly));
+          bracket(ctx, cx, cy, "X:" + Math.round(cx) + " Y:" + (cy / h * 100).toFixed(1), true);
+        }
+      }
+      ctx.restore();
+    }
+
+    function bracket(ctx, x, y, label, on) {
+      if (!on) return;
+      const s = Math.max(12, view.w * 0.028);
+      ctx.strokeStyle = "rgba(255,255,255,.92)";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(x - s, y - s + s * 0.45); ctx.lineTo(x - s, y - s); ctx.lineTo(x - s + s * 0.45, y - s);
+      ctx.moveTo(x + s - s * 0.45, y - s); ctx.lineTo(x + s, y - s); ctx.lineTo(x + s, y - s + s * 0.45);
+      ctx.moveTo(x - s, y + s - s * 0.45); ctx.lineTo(x - s, y + s); ctx.lineTo(x - s + s * 0.45, y + s);
+      ctx.moveTo(x + s - s * 0.45, y + s); ctx.lineTo(x + s, y + s); ctx.lineTo(x + s, y + s - s * 0.45);
+      ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y);
+      ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4);
+      ctx.stroke();
+      ctx.font = Math.max(10, view.w * 0.018) + "px Cascadia Mono, Segoe UI Mono, Consolas, monospace";
+      const tw = ctx.measureText(label).width;
+      const bw = tw + 8, bh = Math.max(13, view.w * 0.022);
+      const bx = x - bw / 2, by = y - s - bh - 4;
+      ctx.fillStyle = "#f4f4f4";
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = "#111";
+      ctx.fillText(label, bx + 4, by + bh * 0.78);
+    }
+
+    function draw() {
+      fit();
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+      ctx.clearRect(0, 0, view.w, view.h);
+      drawChart(ctx, progress);
+      drawType(progress);
+    }
+
+    function start() {
+      const my = ++gen;
+      if (reduce) {
+        mode = "hold";
+        progress = 1;
+        draw();
+        return;
+      }
+      mode = "play";
+      const t0 = performance.now();
+      const step = (now) => {
+        if (my !== gen || mode !== "play") return;
+        progress = Math.min(1, (now - t0) / DUR);
+        draw();
+        if (progress >= 1) { mode = "hold"; draw(); return; }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+    function holdAt(p) {
+      gen += 1;
+      mode = "hold";
+      progress = Math.max(0, Math.min(1, p));
+      draw();
+    }
+
+    let drag = false;
+    stage.addEventListener("pointerdown", (e) => {
+      if (e.target === rerun || e.button > 0) return;
+      drag = true;
+      stage.setPointerCapture(e.pointerId);
+      const r = stage.getBoundingClientRect();
+      holdAt((e.clientX - r.left) / r.width);
+    });
+    stage.addEventListener("pointermove", (e) => {
+      const r = stage.getBoundingClientRect();
+      ptr = { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+      if (drag) holdAt(ptr.x);
+      else if (mode !== "play") draw();
+    });
+    stage.addEventListener("pointerup", () => { drag = false; });
+    stage.addEventListener("pointerleave", () => { ptr = null; if (!drag && mode !== "play") draw(); });
+    stage.addEventListener("keydown", (e) => {
+      if (e.target === rerun) return;
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); start(); }
+    });
+    rerun.addEventListener("pointerdown", (e) => e.stopPropagation());
+    rerun.addEventListener("click", () => start());
+    addEventListener("resize", () => { if (mode !== "play") draw(); });
+
+    const queryT = new URLSearchParams(location.search).get("t");
+    const hash = location.hash.match(/t=([0-9.]+)/);
+    const hashT = Number(queryT != null ? queryT : hash ? hash[1] : NaN);
+    if (Number.isFinite(hashT)) holdAt(hashT);
+    else start();
+  </script>
+</body>
+</html>
