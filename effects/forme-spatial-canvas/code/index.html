@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>空间画布电商</title>
+  <style>
+    :root {
+      --paper: #f3f0ea;
+      --ink: #1c1b19;
+      --muted: #6d675f;
+      --line: rgba(28, 27, 25, 0.14);
+      --panel: #f7f4ef;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background:
+        radial-gradient(circle at 18% 0%, #fff 0, transparent 36%),
+        var(--paper);
+      color: var(--ink);
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+    }
+    .app { height: 100%; position: relative; overflow: hidden; }
+    .top {
+      position: absolute;
+      z-index: 2;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 18px 20px;
+      pointer-events: none;
+    }
+    .mark { font-weight: 680; letter-spacing: 0.16em; font-size: 13px; }
+    .mark small { display: block; letter-spacing: 0.08em; font-weight: 500; color: var(--muted); margin-top: 4px; }
+    .cart {
+      pointer-events: none;
+      border: 1px solid var(--line);
+      background: rgba(247, 244, 239, 0.86);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+    .stage {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      touch-action: none;
+      cursor: grab;
+      outline: none;
+    }
+    .stage.is-panning { cursor: grabbing; }
+    .stage:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
+    .world { position: relative; width: 2400px; height: 1560px; transform-origin: 0 0; }
+    .item {
+      position: absolute;
+      width: 148px;
+      height: 188px;
+      margin: 0;
+      padding: 8px 6px 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      transform: rotate(var(--rot));
+    }
+    .item .glyph { display: block; width: 96px; height: 132px; margin: 0 auto; }
+    .item svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 12px 8px rgba(48, 36, 18, 0.16)); }
+    .item .name { display: block; margin-top: 6px; text-align: center; font-size: 12px; letter-spacing: 0.02em; }
+    .item:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 18px; }
+    .item.is-float { animation: float 6.4s ease-in-out infinite; }
+    @keyframes float {
+      0%, 100% { transform: rotate(var(--rot)) translateY(0); }
+      50% { transform: rotate(var(--rot)) translateY(-8px); }
+    }
+    .hint {
+      position: absolute;
+      z-index: 2;
+      left: 20px;
+      bottom: 16px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      pointer-events: none;
+    }
+    .detail {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+      background: var(--panel);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .detail.is-open { opacity: 1; visibility: visible; pointer-events: auto; }
+    .detail, .item.is-float, .stage { transition: opacity 0.28s ease; }
+    .hero, .info { min-height: 0; }
+    .hero {
+      display: grid;
+      place-items: center;
+      padding: 28px 18px;
+      background:
+        radial-gradient(circle at 50% 58%, rgba(255,255,255,0.9), transparent 46%),
+        #efeae3;
+    }
+    .hero .big { width: min(42vh, 280px); height: min(54vh, 360px); }
+    .hero svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 22px 16px rgba(48, 36, 18, 0.18)); }
+    .info {
+      position: relative;
+      overflow: auto;
+      padding: 28px 28px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .close {
+      position: absolute;
+      top: 16px; right: 16px;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: #fff;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .kicker { margin: 28px 0 0; color: var(--muted); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(32px, 4vw, 48px); font-weight: 620; letter-spacing: -0.03em; }
+    .price { margin: 0; font-size: 20px; }
+    .blurb { margin: 0; max-width: 36ch; color: var(--muted); line-height: 1.45; }
+    .field { display: flex; flex-direction: column; gap: 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .swatches, .sizes { display: flex; flex-wrap: wrap; gap: 8px; }
+    .swatch, .size, .add {
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: inherit;
+    }
+    .swatch { width: 28px; height: 28px; border-radius: 50%; padding: 0; }
+    .swatch[aria-pressed="true"], .size[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
+    .size { min-width: 44px; height: 36px; border-radius: 999px; padding: 0 12px; letter-spacing: 0.04em; }
+    .add {
+      margin-top: auto;
+      height: 48px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: #f7f4ef;
+      border: 0;
+      font-size: 15px;
+    }
+    .add:focus-visible, .close:focus-visible, .swatch:focus-visible, .size:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 3px;
+    }
+    @media (max-width: 800px) {
+      .detail { grid-template-columns: 1fr; grid-template-rows: 38vh minmax(0, 1fr); }
+      .info { padding-top: 18px; }
+      .kicker { margin-top: 36px; }
+      h1 { font-size: 32px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .item.is-float { animation: none; }
+      .detail, .item.is-float, .stage { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="mark">NORTH<small>空间画布</small></div>
+      <div class="cart" aria-live="polite">已放 <span id="cart-count">0</span></div>
+    </header>
+    <div class="stage" id="stage" tabindex="0" aria-label="产品画布，拖拽或方向键平移">
+      <div class="world" id="world"></div>
+    </div>
+    <p class="hint">拖动画布，或滚轮、方向键平移。点一件看详情。</p>
+    <div class="detail" id="detail" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="product-title">
+      <div class="hero"><div class="big" id="hero-glyph"></div></div>
+      <div class="info">
+        <button class="close" id="close" type="button" aria-label="关闭">×</button>
+        <p class="kicker" id="product-kind"></p>
+        <h1 id="product-title"></h1>
+        <p class="price" id="product-price"></p>
+        <p class="blurb" id="product-blurb"></p>
+        <div class="field">颜色<div class="swatches" id="swatches"></div></div>
+        <div class="field">尺寸<div class="sizes" id="sizes"></div></div>
+        <button class="add" id="add" type="button">放入</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const WORLD_W = 2400;
+    const WORLD_H = 1560;
+    const products = [
+      { id: "still", kind: "瓶", shape: "bottle", name: "Still", price: 28, blurb: "细长瓶身，适合放在桌角。", x: 760, y: 420, rot: -8,
+        colors: [{ name: "鼠尾草", body: "#7f8c78", cap: "#2c2a26", accent: "#d5dece" }, { name: "沙色", body: "#d7b899", cap: "#8a5a3a", accent: "#f0e2cf" }, { name: "墨色", body: "#2c3136", cap: "#d9d3c8", accent: "#8d97a1" }] },
+      { id: "day", kind: "杯", shape: "cup", name: "Day Cup", price: 24, blurb: "带盖的日常杯。", x: 1040, y: 300, rot: 7,
+        colors: [{ name: "奶油", body: "#f2e2c4", cap: "#1f1e1c", accent: "#fffaf2" }, { name: "赤陶", body: "#c46b4a", cap: "#2a211c", accent: "#f0c2b0" }, { name: "海盐", body: "#8eaba8", cap: "#243331", accent: "#d7e6e3" }] },
+      { id: "round", kind: "罐", shape: "tin", name: "Round", price: 32, blurb: "扁圆铁罐，盖上有一圈色带。", x: 1280, y: 480, rot: -4,
+        colors: [{ name: "石墨", body: "#3c4148", cap: "#c9a36a", accent: "#ece7df" }, { name: "莓红", body: "#8d3d48", cap: "#e7d7c4", accent: "#f4e7ea" }, { name: "松绿", body: "#3f5c52", cap: "#e6dcc8", accent: "#d5e3da" }] },
+      { id: "balm", kind: "管", shape: "tube", name: "Soft Balm", price: 18, blurb: "软管，盖帽可以换色。", x: 900, y: 700, rot: 9,
+        colors: [{ name: "杏", body: "#e7b89a", cap: "#2d2926", accent: "#fff4ec" }, { name: "丁香", body: "#b9a6c4", cap: "#2d2933", accent: "#f4eef7" }, { name: "清水", body: "#d9e4ea", cap: "#31515d", accent: "#ffffff" }] },
+      { id: "jar", kind: "瓶", shape: "jar", name: "Clear Jar", price: 36, blurb: "宽口瓶，看得到里面的颜色。", x: 1180, y: 780, rot: -6,
+        colors: [{ name: "蜂蜜", body: "#f6f1e8", cap: "#c7a15a", accent: "#e7c56a" }, { name: "莓果", body: "#f4ecee", cap: "#6e3a46", accent: "#c45b6c" }, { name: "冷杉", body: "#eef2ef", cap: "#2f463c", accent: "#6e8f78" }] },
+      { id: "mist", kind: "喷雾", shape: "spray", name: "Field Mist", price: 26, blurb: "侧面是喷头，瓶身跟随色点。", x: 1500, y: 280, rot: 5,
+        colors: [{ name: "雾蓝", body: "#d5e1e6", cap: "#314851", accent: "#7fa0ab" }, { name: "柑橘", body: "#f3ddb0", cap: "#8a5a22", accent: "#e2a84a" }, { name: "黑", body: "#2a2a28", cap: "#efeae3", accent: "#8d8a84" }] },
+      { id: "pour", kind: "碗", shape: "bowl", name: "Pour", price: 22, blurb: "开口碗，内壁是选中的颜色。", x: 560, y: 640, rot: -3,
+        colors: [{ name: "陶土", body: "#e6d2c4", cap: "#b56a45", accent: "#f7efe8" }, { name: "青", body: "#d5ddd6", cap: "#5d7a6a", accent: "#f4f7f4" }, { name: "炭", body: "#d9d5d0", cap: "#2e2c2a", accent: "#f7f5f2" }] },
+      { id: "pocket", kind: "壶", shape: "flask", name: "Pocket", price: 30, blurb: "小扁壶，适合握在手里。", x: 1680, y: 620, rot: 8,
+        colors: [{ name: "黄铜", body: "#c6a15a", cap: "#3a3124", accent: "#f0e2bc" }, { name: "墨绿", body: "#31463d", cap: "#d7c7a4", accent: "#8eaa9b" }, { name: "银", body: "#d8dbdf", cap: "#4d555d", accent: "#ffffff" }] },
+      { id: "river", kind: "瓶", shape: "bottle", name: "River", price: 34, blurb: "再往右拖，还有一支更高的瓶。", x: 1880, y: 360, rot: -7,
+        colors: [{ name: "河蓝", body: "#6f8c9a", cap: "#1e2a30", accent: "#d5e4ea" }, { name: "石灰", body: "#dfe6cf", cap: "#3d4a32", accent: "#f7f8f1" }, { name: "李子", body: "#6a455c", cap: "#f0e4ea", accent: "#e4c3d2" }] },
+      { id: "noon", kind: "杯", shape: "cup", name: "Noon", price: 20, blurb: "画布左边还有一只矮杯。", x: 420, y: 300, rot: 6,
+        colors: [{ name: "正午", body: "#f0d78a", cap: "#2b2416", accent: "#fff8e4" }, { name: "可可", body: "#6b4b38", cap: "#efe4d6", accent: "#d7bba4" }, { name: "白", body: "#f7f4ef", cap: "#222", accent: "#e7e1d8" }] }
+    ];
+
+    const stage = document.getElementById("stage");
+    const worldEl = document.getElementById("world");
+    const detail = document.getElementById("detail");
+    const reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduced = reducedQuery.matches;
+    const picked = new Map(products.map((p) => [p.id, { color: 0, size: "M" }]));
+    const world = { x: 0, y: 0 };
+    let vx = 0;
+    let vy = 0;
+    let raf = 0;
+    let openId = "";
+    let returnFocus = null;
+    let cart = 0;
+    let addTimer = 0;
+
+    function glyph(shape, color) {
+      const b = color.body;
+      const c = color.cap;
+      const a = color.accent;
+      if (shape === "cup") return `<svg viewBox="0 0 120 160" aria-hidden="true"><rect x="34" y="28" width="52" height="12" rx="6" fill="${c}"/><path d="M32 40h56l-6 78c-1 10-8 16-22 16s-21-6-22-16z" fill="${b}"/><path d="M40 58h40l-4 46c-1 6-5 10-16 10s-15-4-16-10z" fill="${a}" opacity="0.55"/><rect x="78" y="36" width="10" height="16" rx="3" fill="${c}"/></svg>`;
+      if (shape === "tin") return `<svg viewBox="0 0 120 160" aria-hidden="true"><ellipse cx="60" cy="58" rx="34" ry="12" fill="${c}"/><rect x="26" y="58" width="68" height="52" fill="${b}"/><ellipse cx="60" cy="110" rx="34" ry="12" fill="${b}"/><rect x="26" y="70" width="68" height="8" fill="${a}"/><ellipse cx="60" cy="58" rx="22" ry="7" fill="${a}" opacity="0.85"/></svg>`;
+      if (shape === "tube") return `<svg viewBox="0 0 120 160" aria-hidden="true"><rect x="46" y="18" width="28" height="16" rx="4" fill="${c}"/><path d="M40 34h40l8 96c0 8-8 14-28 14s-28-6-28-14z" fill="${b}"/><rect x="48" y="62" width="24" height="34" rx="8" fill="${a}" opacity="0.8"/></svg>`;
+      if (shape === "jar") return `<svg viewBox="0 0 120 160" aria-hidden="true"><rect x="36" y="28" width="48" height="14" rx="4" fill="${c}"/><rect x="42" y="42" width="36" height="8" fill="${a}"/><path d="M30 54h60v62c0 16-12 26-30 26s-30-10-30-26z" fill="${b}" stroke="${c}" stroke-width="3"/><path d="M36 86h48v28c0 10-8 16-24 16s-24-6-24-16z" fill="${a}"/></svg>`;
+      if (shape === "spray") return `<svg viewBox="0 0 120 160" aria-hidden="true"><rect x="58" y="24" width="28" height="10" rx="3" fill="${c}"/><rect x="70" y="18" width="8" height="14" fill="${c}"/><rect x="52" y="34" width="22" height="12" fill="${a}"/><path d="M40 46h40v86c0 10-8 16-20 16s-20-6-20-16z" fill="${b}"/><rect x="48" y="70" width="8" height="36" rx="4" fill="#fff" opacity="0.28"/></svg>`;
+      if (shape === "bowl") return `<svg viewBox="0 0 120 160" aria-hidden="true"><path d="M18 70h84c-4 36-20 54-42 54S22 106 18 70z" fill="${b}"/><ellipse cx="60" cy="70" rx="42" ry="14" fill="${a}"/><ellipse cx="60" cy="70" rx="28" ry="8" fill="${c}"/></svg>`;
+      if (shape === "flask") return `<svg viewBox="0 0 120 160" aria-hidden="true"><rect x="48" y="16" width="24" height="14" rx="3" fill="${c}"/><path d="M48 30h24l16 28v62c0 12-10 20-28 20s-28-8-28-20V58z" fill="${b}"/><path d="M44 78h40v34c0 8-8 14-20 14s-20-6-20-14z" fill="${a}" opacity="0.8"/></svg>`;
+      return `<svg viewBox="0 0 120 160" aria-hidden="true"><rect x="50" y="10" width="20" height="16" rx="3" fill="${c}"/><path d="M44 26h32l6 16H38z" fill="${a}"/><path d="M32 48c2-8 12-12 28-12s26 4 28 12v78c0 12-12 18-28 18s-28-6-28-18z" fill="${b}"/><path d="M40 78h40v36c0 8-8 12-20 12s-20-4-20-12z" fill="${a}" opacity="0.9"/><rect x="44" y="62" width="7" height="30" rx="3" fill="#fff" opacity="0.25"/></svg>`;
+    }
+
+    function paintItem(id) {
+      const product = products.find((item) => item.id === id);
+      const choice = picked.get(id);
+      const node = worldEl.querySelector(`[data-id="${id}"] .glyph`);
+      if (product && node) node.innerHTML = glyph(product.shape, product.colors[choice.color]);
+    }
+
+    function renderWorld() {
+      worldEl.replaceChildren();
+      for (const product of products) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = reduced ? "item" : "item is-float";
+        button.dataset.id = product.id;
+        button.style.left = product.x + "px";
+        button.style.top = product.y + "px";
+        button.style.setProperty("--rot", product.rot + "deg");
+        button.style.animationDelay = ((product.x + product.y) % 2400) / 400 + "s";
+        button.setAttribute("aria-label", product.name + "，" + product.price + " 美元，打开详情");
+        button.innerHTML = `<span class="glyph"></span><span class="name"></span>`;
+        button.querySelector(".name").textContent = product.name;
+        button.addEventListener("click", () => {
+          if (button.dataset.suppress === "1") {
+            button.dataset.suppress = "";
+            return;
+          }
+          openDetail(product.id, button);
+        });
+        worldEl.append(button);
+        paintItem(product.id);
+      }
+    }
+
+    function clamp() {
+      const pad = 80;
+      const minX = stage.clientWidth - WORLD_W - pad;
+      const maxX = pad;
+      const minY = stage.clientHeight - WORLD_H - pad;
+      const maxY = pad;
+      world.x = Math.min(maxX, Math.max(minX, world.x));
+      world.y = Math.min(maxY, Math.max(minY, world.y));
+    }
+
+    function apply() {
+      worldEl.style.transform = `translate(${world.x}px, ${world.y}px)`;
+    }
+
+    function stopGlide() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      vx = 0;
+      vy = 0;
+    }
+
+    function glide() {
+      if (reduced) return;
+      const step = () => {
+        vx *= 0.9;
+        vy *= 0.9;
+        if (Math.hypot(vx, vy) < 0.25) {
+          raf = 0;
+          return;
+        }
+        world.x += vx;
+        world.y += vy;
+        clamp();
+        apply();
+        raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+    }
+
+    function centerOn(x, y) {
+      world.x = stage.clientWidth / 2 - x;
+      world.y = stage.clientHeight / 2 - y;
+      clamp();
+      apply();
+    }
+
+    function paintDetail() {
+      const product = products.find((item) => item.id === openId);
+      if (!product) return;
+      const choice = picked.get(product.id);
+      const color = product.colors[choice.color];
+      document.getElementById("hero-glyph").innerHTML = glyph(product.shape, color);
+      const big = document.querySelector("#hero-glyph svg");
+      const scale = choice.size === "S" ? 0.82 : choice.size === "L" ? 1.12 : 1;
+      if (big) big.style.transform = `scale(${scale})`;
+      document.getElementById("product-kind").textContent = product.kind;
+      document.getElementById("product-title").textContent = product.name;
+      document.getElementById("product-price").textContent = "$" + product.price;
+      document.getElementById("product-blurb").textContent = product.blurb + " 当前是" + color.name + "，" + choice.size + "。";
+      const swatches = document.getElementById("swatches");
+      swatches.replaceChildren();
+      product.colors.forEach((entry, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "swatch";
+        button.style.background = entry.body;
+        button.setAttribute("aria-label", entry.name);
+        button.setAttribute("aria-pressed", index === choice.color ? "true" : "false");
+        button.addEventListener("click", () => {
+          choice.color = index;
+          paintItem(product.id);
+          paintDetail();
+        });
+        swatches.append(button);
+      });
+      const sizes = document.getElementById("sizes");
+      sizes.replaceChildren();
+      for (const size of ["S", "M", "L"]) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "size";
+        button.textContent = size;
+        button.setAttribute("aria-pressed", size === choice.size ? "true" : "false");
+        button.addEventListener("click", () => {
+          choice.size = size;
+          paintDetail();
+        });
+        sizes.append(button);
+      }
+    }
+
+    function openDetail(id, from) {
+      stopGlide();
+      openId = id;
+      returnFocus = from || document.activeElement;
+      detail.classList.add("is-open");
+      detail.setAttribute("aria-hidden", "false");
+      detail.inert = false;
+      stage.inert = true;
+      paintDetail();
+      document.getElementById("close").focus();
+    }
+
+    function closeDetail() {
+      if (!openId) return;
+      detail.classList.remove("is-open");
+      detail.setAttribute("aria-hidden", "true");
+      detail.inert = true;
+      stage.inert = false;
+      openId = "";
+      if (returnFocus && returnFocus.focus) returnFocus.focus();
+    }
+
+    let drag = null;
+    stage.addEventListener("pointerdown", (event) => {
+      if (openId || event.button !== 0) return;
+      stopGlide();
+      const card = event.target.closest ? event.target.closest(".item") : null;
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, ox: world.x, oy: world.y, moved: false, card, lx: event.clientX, ly: event.clientY, t: performance.now() };
+    });
+    stage.addEventListener("pointermove", (event) => {
+      if (!drag || drag.id !== event.pointerId) return;
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) > 6) {
+        drag.moved = true;
+        stage.classList.add("is-panning");
+        stage.setPointerCapture(event.pointerId);
+      }
+      if (!drag.moved) return;
+      world.x = drag.ox + dx;
+      world.y = drag.oy + dy;
+      clamp();
+      apply();
+      const dt = Math.max(16, performance.now() - drag.t);
+      vx = (event.clientX - drag.lx) / dt * 16;
+      vy = (event.clientY - drag.ly) / dt * 16;
+      drag.lx = event.clientX;
+      drag.ly = event.clientY;
+      drag.t = performance.now();
+    });
+    function endDrag(event) {
+      if (!drag || drag.id !== event.pointerId) return;
+      const moved = drag.moved;
+      const card = drag.card;
+      drag = null;
+      stage.classList.remove("is-panning");
+      if (!moved) return;
+      if (card) {
+        card.dataset.suppress = "1";
+        setTimeout(() => { card.dataset.suppress = ""; }, 0);
+      }
+      glide();
+    }
+    stage.addEventListener("pointerup", endDrag);
+    stage.addEventListener("pointercancel", endDrag);
+
+    stage.addEventListener("wheel", (event) => {
+      if (openId) return;
+      event.preventDefault();
+      stopGlide();
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight : 1;
+      world.x -= event.deltaX * unit;
+      world.y -= event.deltaY * unit;
+      clamp();
+      apply();
+    }, { passive: false });
+
+    stage.addEventListener("keydown", (event) => {
+      if (openId) return;
+      const step = event.shiftKey ? 120 : 56;
+      const map = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+      const delta = map[event.key];
+      if (!delta) return;
+      event.preventDefault();
+      stopGlide();
+      world.x += delta[0];
+      world.y += delta[1];
+      clamp();
+      apply();
+    });
+
+    document.getElementById("close").addEventListener("click", closeDetail);
+    document.getElementById("add").addEventListener("click", () => {
+      const product = products.find((item) => item.id === openId);
+      if (!product) return;
+      cart += 1;
+      document.getElementById("cart-count").textContent = String(cart);
+      const add = document.getElementById("add");
+      add.textContent = "已放入 " + product.name;
+      clearTimeout(addTimer);
+      addTimer = setTimeout(() => { add.textContent = "放入"; }, 900);
+    });
+    detail.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDetail();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const nodes = [...detail.querySelectorAll("button")].filter((el) => !el.disabled);
+      if (!nodes.length) return;
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+
+    function syncMotion() {
+      reduced = reducedQuery.matches;
+      for (const item of worldEl.querySelectorAll(".item")) item.classList.toggle("is-float", !reduced);
+      if (reduced) stopGlide();
+    }
+    if (reducedQuery.addEventListener) reducedQuery.addEventListener("change", syncMotion);
+
+    detail.inert = true;
+    renderWorld();
+    centerOn(1040, 520);
+    window.addEventListener("resize", () => { clamp(); apply(); });
+  </script>
+</body>
+</html>
