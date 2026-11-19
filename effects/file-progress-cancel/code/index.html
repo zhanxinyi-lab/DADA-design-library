@@ -21,7 +21,8 @@
     .track { height: 6px; border-radius: 999px; background: #e6dfd4; overflow: hidden; }
     .bar { height: 100%; width: 0; background: #241f1b; }
     .bar.is-preview { height: 10px; border-radius: 999px; }
-    .drop {
+    .drop[hidden] { display: none; }
+    .drop:not([hidden]) {
       min-height: 120px; border-radius: 14px; border: 1px dashed #c9c0b4;
       display: grid; place-items: center; text-align: center; padding: 16px;
       background: radial-gradient(circle, #d9d1c6 1px, transparent 1.4px) 0 0 / 12px 12px;
@@ -116,7 +117,7 @@
       detail.textContent = "正在做预览";
       go.textContent = "取消";
       bar.classList.add("is-preview");
-      bar.style.width = "100%";
+      bar.style.width = "72%";
       say("正在做预览，尚未完成");
       if (reduce.matches) return;
       timer = setTimeout(more, 900);
