@@ -5,26 +5,25 @@
 - 状态：video_recreated
 - 原文：https://x.com/frontm_an/status/2118971398173409489
 - 素材 ID：2118971398173409489
-- 版本：1.0.0
+- 版本：1.1.0
 
 ## 复刻说明
 
-自包含单文件，无外链。对照原帖正文，以及站点已发布的 `poster0.jpg`（1080×1374）和 `preview.mp4`（720×916，可读到 30fps × 240 帧）。目录里这条时长记为约 15 秒，推文媒体时长也是约 15 秒；画面里的舞台时钟是短循环，这里取 2.4 秒 / 30fps，不是 Remotion 的帧时钟。时间码没有做机器 OCR。
+自包含单文件，无外链。对照原帖正文，以及原帖视频（约 15.125 秒，可读的 720×916、每秒 1 帧抽了 15 张）。素材库条目 `https://x-material-library.workers.xd-sites.com/s/rjqagsc0hcqp/assets/2118971398173409489/preview.mp4` 现在返回 404；当前站点清单里这条是 `code_only_preview`，没有 poster、video 或 license，`code_links` 只指向本目录。
 
-看得到、并且做进页面的：
+原帖列出的 6 个名字都能在画面里对上，但它们不是 1.0.0 那种深色滑杆。15 秒里实际看到的是一张竖版说明页：
 
-- 深色舞台中央的 `MOTION`。spacing 改变它在两个姿态之间的移动距离和字距。
-- typography 改变字号；数值升高后会折成两行。
-- motion blur 按这一帧的位移加大模糊。
-- easing 在 linear、ease-in、ease-out、in-out、back 之间切换，旁边有对应曲线。默认 ease-out。
-- follow-through 用一串滞后的点，主体停住后尾部还在走。单位是帧。
-- anticipation 在主动作前先向反方向挪一小段。单位是帧。
-- 底部有播放/暂停、当前时间和可拖动的时间轴。
+- 标题是 OPUS 5.5 / YOUR F*CKING MOTION DESIGN LAB，副行写着 Claude Code + Remotion + GSAP / six editable controls。
+- 提示行打出 `build a motion lab. expose six controls. keep every scene editable.`
+- 中间预览窗有自己的时间码、场景名，以及一条带菱形刻度的时间轴。
+- 下方是 6 张控制卡：spacing、typography、motion blur、easing、follow-through、anticipation。当前场景会给对应的卡加橙色描边。
+- 再下面是 directing prompt、一段只展示的 frame-driven code，以及三张交付缩略图。
+- 页脚是 THE LOOP：BUILD > RENDER > SCRUB > TUNE > REPEAT。
 
-滑杆上的默认读数（spacing 24、typography 16、motion blur 0.4、follow-through 3 帧、anticipation 2 帧）来自海报和抽帧里反复出现的面板，不是从配置文件量出来的。
+按抽帧，场景大致是：0–2.2s spacing（弹跳的蓝点和 squash），2.2–3.6s 标题字，3.6–4.6s motion blur 注释，4.6–6.2s 仍是 typography（STRETCH / SNAP），6.2–8.6s easing（先直线后 ease in-out），8.6–11.2s follow-through 拖尾，11.2–13.2s anticipation 的百分比刻度，13.2–15s FINAL DELIVERY。时间码没有做机器 OCR，秒数来自画面上的 `00.0s / 15.0s`。
 
-明确不做：不接 Claude Code，不加载 Remotion 或 GSAP，不声称能生成、渲染或和帧时钟同步，也不提供「改一句反馈就重渲」的工作流。原帖提到的配置文件和示例反馈句没有出现成可操作的界面。
+页面只复刻这些看得见的交互：播放/暂停或逐步前进、拖动 15 秒时间轴、点 6 张卡跳到对应场景、方向键改时间、数字键 1–6 跳卡。系统开启减少动态效果时不自动播放，播放键改为 Step，每次前进 0.5 秒。
 
-许可：原帖没有附开源许可证，站点目录条目也没有 license 字段，`code_links` 为空。页面是对照可见界面写的原创前端，不包含原视频、海报、字体文件或第三方源码。
+明确不做：不接 Claude Code，不加载 Remotion 或 GSAP，不生成、不渲染、也不和帧时钟同步。预览里的代码和命令是画面上的文字，不会执行。不包含原视频、海报、字体文件、商标图片或第三方源码。
 
-键盘：Tab 能走到播放键、时间轴和六个控制；方向键改当前滑杆或时间；焦点不在控件上时，空格播放/暂停。系统开启减少动态效果时不自动播放，播放键改为「Step」，每次前进 6 帧，拖动时间轴仍会切到对应的静止姿态。
+许可：原帖没有附开源许可证，站点目录条目也没有 license 字段。
