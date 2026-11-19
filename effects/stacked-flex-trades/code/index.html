@@ -399,8 +399,14 @@
       if (ptr && scene >= 2) {
         const lx = ptr.x * w;
         const ly = ptr.y * h;
-        const label = "X:" + Math.round(lx) + " Y:" + (ly / h * 100).toFixed(1);
-        bracket(ctx, lx, ly, label, true);
+        const onChart = lx >= box.x && lx <= box.x + box.w && ly >= box.y && ly <= box.y + box.h;
+        if (onChart) {
+          const reach = Math.max(12, w * 0.028);
+          const labelH = Math.max(13, w * 0.022);
+          const cx = Math.min(box.x + box.w - reach, Math.max(box.x + reach, lx));
+          const cy = Math.min(box.y + box.h - reach, Math.max(box.y + reach + labelH + 6, ly));
+          bracket(ctx, cx, cy, "X:" + Math.round(cx) + " Y:" + (cy / h * 100).toFixed(1), true);
+        }
       }
       ctx.restore();
     }
