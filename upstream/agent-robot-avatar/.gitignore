@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.DS_Store
+Thumbs.db
+*.log
+playwright-report/
+test-results/
+.pages-site/
+demo/*-tuner.html
+
+# Permanent local tools and backups. Never commit or publish this directory.
+/local-only/
+
+
+# Local embedded build output
+embedded/.pio/

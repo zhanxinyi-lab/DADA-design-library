@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Types
+        run: bun run check-types
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Tests (round-trip + SVG importer)
+        run: bunx playwright-core install --with-deps chromium && bun run test
+
+      - name: Lottie JSON and TGS corpus
+        run: bash scripts/test-lottie-corpus-ci.sh
+
+      - name: Bone canvas workflows
+        run: bun run test:browser
+
+      - name: Validate shipped Rive assets
+        run: bun run check:riv
+
+      - name: Rive corpus round-trip
+        run: |
+          bun run rive:init
+          bun run test:corpus -- vendor/rive-runtime/tests
+
+      - name: MCP server
+        run: bun run test:mcp
+        env:
+          OPENRIVE_DATA_DIR: ${{ runner.temp }}/openrive-mcp
+
+      - name: Build
+        run: bun run build
+
+      - name: Dependency security audit
+        # braces has no patched release yet and is reachable only through the
+        # development-only Next lint preset. Keep the audit failing on every
+        # actionable high/critical advisory while documenting this exception.
+        run: bun audit --audit-level=high --ignore GHSA-vfj7-8cjw-p6xm
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: openrive
+          POSTGRES_PASSWORD: openrive
+          POSTGRES_DB: openrive
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U openrive" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://openrive:openrive@localhost:5432/openrive
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Drizzle migrations are up to date
+        run: |
+          bun run db:generate
+          # Drizzle emits LF on Linux and CRLF on Windows; compare the
+          # generated content without treating line endings as schema drift.
+          git diff --ignore-space-at-eol --exit-code packages/db/src/migrations packages/db/src/migrations.generated.ts || {
+            echo "::error::Schema changed without a migration. Run 'bun run db:generate' and commit the result."
+            exit 1
+          }
+
+      - name: CLI against PostgreSQL
+        run: |
+          bun run cli db status
+          bun run cli new "CI check" --template bouncing-ball
+          bun run cli export "CI check" /tmp/ci.riv
+          bun run cli validate /tmp/ci.riv
+          bun run cli delete "CI check"

@@ -1,0 +1,86 @@
+# OpenRive + PostgreSQL
+#
+#   cp .env.example .env        # set OPENRIVE_ACCESS_TOKEN and POSTGRES_PASSWORD
+#   docker compose up -d
+#   open http://localhost:3000
+#
+# Single container with the embedded database instead:
+#   docker compose -f docker-compose.standalone.yml up -d
+#
+# The image is published to the GitHub Container Registry by .github/workflows/image.yml.
+# To build it from this checkout instead, add the build override:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+# Full guide: docs/self-hosting.md
+services:
+  openrive:
+    # OPENRIVE_TAG picks the version: latest (default, the newest build), a
+    # release such as 0.0.6, or the commit the build came from
+    image: ghcr.io/upstandplatform/openrive:${OPENRIVE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${OPENRIVE_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-openrive}:${POSTGRES_PASSWORD:-openrive}@db:5432/${POSTGRES_DB:-openrive}
+      # Set OPENRIVE_URL to the public HTTPS origin in Dokploy or another
+      # reverse-proxied deployment. The localhost default is for local compose.
+      OPENRIVE_URL: ${OPENRIVE_URL:-http://localhost:3000}
+      OPENRIVE_AUTH: ${OPENRIVE_AUTH:-on}
+      OPENRIVE_SIGNUP: ${OPENRIVE_SIGNUP:-first}
+      OPENRIVE_AUTH_SECRET: ${OPENRIVE_AUTH_SECRET:-}
+      OPENRIVE_TRUSTED_ORIGINS: ${OPENRIVE_TRUSTED_ORIGINS:-}
+      OPENRIVE_REDIS_URL: ${OPENRIVE_REDIS_URL:-redis://redis:6379}
+      # Strongly recommended when the server is reachable by others:
+      # every visitor must enter this password (any user name).
+      OPENRIVE_ACCESS_TOKEN: ${OPENRIVE_ACCESS_TOKEN:-}
+    volumes:
+      # used by the CLI inside the container for imports and exports
+      - openrive-data:/data
+    # the short form: some deploy platforms (Dokploy) reject the long
+    # "condition: service_healthy" spelling. OpenRive waits for the database
+    # itself, retrying while PostgreSQL finishes starting.
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-openrive}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openrive}
+      POSTGRES_DB: ${POSTGRES_DB:-openrive}
+    volumes:
+      - openrive-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # uncomment to reach the database from the host (backups, drizzle-kit studio)
+    # ports:
+    #   - "5432:5432"
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    # Rate limits, locks and queues are intentionally ephemeral. No RDB,
+    # AOF, or volume is enabled; a Redis restart clears this coordination data.
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - ${OPENRIVE_REDIS_MAXMEMORY:-128mb}
+      - --maxmemory-policy
+      - noeviction
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  openrive-data:
+  openrive-db:

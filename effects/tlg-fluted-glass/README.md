@@ -5,7 +5,7 @@
 - 状态：has_code
 - 许可证：MIT（Copyright (c) 2024 thelazygod，全文在 code/index.html 顶部注释）
 - 原文：https://github.com/the-lazy-god/tlg-fluted-glass
-- 本地 fork：https://github.com/zhanxinyi-lab/tlg-fluted-glass
+- 上游快照：[upstream/tlg-fluted-glass](../../upstream/tlg-fluted-glass/)
 - 素材 ID：tlg-fluted-glass
 - 版本：1.2.0
 

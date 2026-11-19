@@ -1,0 +1,70 @@
+{
+  "id": "toshi",
+  "name": "Toshi",
+  "description": "A friendly community mascot for OpenHuman, featuring expressive animations and interactive states.",
+  "status": "ready",
+  "tags": ["community", "openhuman", "ready"],
+  "stateEngine": {
+    "visemeCodes": [
+      "sil",
+      "PP",
+      "FF",
+      "TH",
+      "DD",
+      "kk",
+      "CH",
+      "SS",
+      "nn",
+      "RR",
+      "aa",
+      "E",
+      "ih",
+      "oh",
+      "ou"
+    ],
+    "states": {
+      "idle": "idle",
+      "thinking": "look_around"
+    },
+    "idlePoseCycle": [
+      "idle",
+      "look_around",
+      "pointing",
+      "hand_wave",
+      "dancing",
+      "celebration"
+    ],
+    "channels": [
+      {
+        "key": "eyes",
+        "enum": "eyes",
+        "label": "Eyes",
+        "values": [
+          "look_up",
+          "look_down",
+          "look_left",
+          "look_right",
+          "blink",
+          "squinting",
+          "confused",
+          "thinking"
+        ],
+        "cycle": {
+          "enabled": true,
+          "intervalMs": 2600,
+          "order": "random"
+        }
+      }
+    ]
+  },
+  "files": [
+    {
+      "role": "runtime",
+      "path": "toshi.riv"
+    },
+    {
+      "role": "source",
+      "path": "toshi.rev"
+    }
+  ]
+}

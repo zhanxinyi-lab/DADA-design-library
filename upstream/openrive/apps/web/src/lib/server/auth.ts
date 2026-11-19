@@ -1,0 +1,111 @@
+// Server-side access control. Every API route goes through these helpers, so
+// roles are enforced on the server and not only hidden in the interface.
+import {
+  auth,
+  authEnabled,
+  emailVerificationRequired,
+  canEditProject,
+  canManageProject,
+  canShareProject,
+  canSeeProject,
+  canTransferProject,
+  isAdmin,
+  getAccount,
+  sessionUser,
+  SESSION_COOKIE,
+  type Account,
+} from '@openrive/auth';
+import { getOrganizationMemberRole, listUsers } from '@openrive/db';
+import type { ProjectMeta } from '@openrive/shared';
+import { headers as nextHeaders } from 'next/headers';
+import { apiKeyVerificationFailure, fail } from './route';
+
+export { auth, authEnabled, canEditProject, canManageProject, canShareProject, canSeeProject, canTransferProject, isAdmin, SESSION_COOKIE };
+export type { Account };
+
+/**
+ * Who is making this request.
+ *
+ * With authentication on, that is the signed-in account. With it off (the
+ * local, login-free default) the request acts as the chosen local user (or the
+ * first admin), so a single user keeps working without signing in.
+ */
+export async function currentUser(): Promise<Account | null> {
+  return currentUserFromHeaders(await nextHeaders());
+}
+
+/** Resolves either a Better Auth session or a scoped Better Auth API key. */
+type UserResolution = { user: Account; error?: never } | { user: null; error?: Response };
+
+async function resolveCurrentUserFromHeaders(requestHeaders: Headers): Promise<UserResolution> {
+  const authorization = requestHeaders.get('authorization');
+  const usesBearer = authorization !== null && /^Bearer(?:\s|$)/i.test(authorization);
+  if (usesBearer) {
+    const key = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? '';
+    if (!key) return { user: null };
+    const result = await (await auth()).api.verifyApiKey({
+      body: { configId: 'mcp', key, permissions: { mcp: ['read', 'write'] } },
+    });
+    if (!result.valid || !result.key) {
+      const error = apiKeyVerificationFailure(result.error);
+      return { user: null, error: error ?? fail('MCP API key was rejected. Check that the full key is configured and has not been revoked.', 401) };
+    }
+    const account = await getAccount(result.key.referenceId);
+    if (!account || account.disabled) return { user: null, error: fail('The account associated with this MCP API key is disabled or unavailable.', 401) };
+    if (emailVerificationRequired() && !account.emailVerified) return { user: null, error: fail('Verify the account email address before using its MCP API key.', 403) };
+    const organizationId = requestHeaders.get('x-openrive-organization-id');
+    if (!organizationId) return { user: account };
+    const role = await getOrganizationMemberRole(organizationId, account.id);
+    return { user: role ? { ...account, activeOrganizationId: organizationId, activeOrganizationRole: role as Account['activeOrganizationRole'] } : account };
+  }
+  if (authEnabled()) return { user: await sessionUser(requestHeaders) };
+  const users = await listUsers();
+  const cookieHeader = requestHeaders.get('cookie') ?? '';
+  const cookieMatch = cookieHeader.match(/(?:^|;\s*)openrive:user=([^;]+)/);
+  let cookieUserId: string | null = null;
+  if (cookieMatch) {
+    try {
+      cookieUserId = decodeURIComponent(cookieMatch[1]!);
+    } catch {
+      // Ignore a malformed local-user cookie and fall back to the default user.
+    }
+  }
+  const requestedUserId = requestHeaders.get('x-openrive-user-id') ?? cookieUserId;
+  const local =
+    (requestedUserId ? users.find((u) => u.id === requestedUserId) : undefined) ??
+    users.find((u) => isAdmin(u)) ??
+    users[0];
+  return { user: local ? { ...local, email: null, emailVerified: false, disabled: false, lastLoginAt: null, hasPassword: false } : null };
+}
+
+export async function currentUserFromHeaders(requestHeaders: Headers): Promise<Account | null> {
+  return (await resolveCurrentUserFromHeaders(requestHeaders)).user;
+}
+
+export type Guard<T> = { user: Account; error?: never } | { user?: never; error: Response } | T;
+
+/** Requires a signed-in account. */
+export async function requireUser(): Promise<{ user: Account; error?: never } | { user?: never; error: Response }> {
+  const result = await resolveCurrentUserFromHeaders(await nextHeaders());
+  if (!result.user) return { error: result.error ?? fail('Sign in to continue', 401) };
+  return { user: result.user };
+}
+
+/** Requires an administrator. */
+export async function requireAdmin(): Promise<{ user: Account; error?: never } | { user?: never; error: Response }> {
+  const result = await requireUser();
+  if (result.error) return result;
+  if (!isAdmin(result.user)) return { error: fail('Administrators only', 403) };
+  return result;
+}
+
+/** Requires permission to change a project. */
+export function requireEdit(user: Account, project: ProjectMeta): Response | null {
+  if (!canEditProject(user, project)) return fail('You cannot edit this file', 403);
+  return null;
+}
+
+export function requireProjectManager(user: Account, project: ProjectMeta): Response | null {
+  if (!canManageProject(user, project)) return fail('Only the owner or an administrator may manage this file', 403);
+  return null;
+}

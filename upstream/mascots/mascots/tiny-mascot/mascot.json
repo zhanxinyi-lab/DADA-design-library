@@ -1,0 +1,49 @@
+{
+  "id": "tiny-mascot",
+  "name": "Tiny Mascot",
+  "description": "Default OpenHuman mascot built in Rive Studio.",
+  "status": "ready",
+  "tags": ["default", "openhuman"],
+  "stateEngine": {
+    "visemeCodes": [
+      "sil",
+      "PP",
+      "FF",
+      "TH",
+      "DD",
+      "kk",
+      "CH",
+      "SS",
+      "nn",
+      "RR",
+      "aa",
+      "E",
+      "ih",
+      "oh",
+      "ou"
+    ],
+    "states": {
+      "idle": "idle",
+      "thinking": "thinking"
+    },
+    "idlePoseCycle": [
+      "idle",
+      "bookreading",
+      "coffeedrink",
+      "writing",
+      "bobbateadrink",
+      "hand_wave",
+      "dancing"
+    ]
+  },
+  "files": [
+    {
+      "role": "runtime",
+      "path": "tinyMascot.riv"
+    },
+    {
+      "role": "source",
+      "path": "tinyMascot.rev"
+    }
+  ]
+}

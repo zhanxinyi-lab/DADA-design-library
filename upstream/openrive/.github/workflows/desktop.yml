@@ -1,0 +1,254 @@
+# Builds the OpenRive desktop app (Electrobun) for macOS, Windows and Linux and
+# publishes it as a GitHub release.
+#
+#   Actions -> Desktop -> Run workflow      picks the next version (patch by
+#                                           default), tags it and releases
+#   git push origin v1.2.3                  builds and releases that exact tag
+#   pull request                            builds only, as a check
+#
+# Versions are tag-driven: the workflow stamps the computed version into the app
+# before packaging, so no version-bump commit is needed. Electrobun does not
+# cross-compile, so every target builds on its own runner.
+name: Desktop
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths: ['apps/desktop/**', 'apps/web/**', 'packages/**', 'scripts/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version to release
+        type: choice
+        options: [patch, minor, major, none]
+        default: patch
+      channel:
+        description: Electrobun build channel
+        type: choice
+        options: [stable, canary]
+        default: stable
+      prerelease:
+        description: Mark the release as a pre-release
+        type: boolean
+        default: false
+      draft:
+        description: Create the release as a draft
+        type: boolean
+        default: false
+      release_version:
+        description: Build and attach assets to an existing version (for example 0.1.0)
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+      tag: ${{ steps.pick.outputs.tag }}
+      release: ${{ steps.pick.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags are needed to find the current version
+
+      - name: Pick the version
+        id: pick
+        env:
+          BUMP: ${{ inputs.bump || 'patch' }}
+          REQUESTED_VERSION: ${{ inputs.release_version || '' }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            # a pushed tag is the version
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#v}"
+            release=true
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${REQUESTED_VERSION}" ]; then
+            version="${REQUESTED_VERSION#v}"
+            if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9_.-]+)?$ ]]; then
+              echo "Invalid release version: ${REQUESTED_VERSION}" >&2
+              exit 1
+            fi
+            tag="v${version}"
+            release=true
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${BUMP}" != "none" ]; then
+            latest="$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n1)"
+            [ -n "${latest}" ] || latest="v0.0.0"
+            base="${latest#v}"
+            major="${base%%.*}"
+            rest="${base#*.}"
+            minor="${rest%%.*}"
+            patch="${rest#*.}"
+            patch="${patch%%-*}"   # drop any pre-release suffix
+            case "${BUMP}" in
+              major) major=$((major + 1)); minor=0; patch=0 ;;
+              minor) minor=$((minor + 1)); patch=0 ;;
+              patch) patch=$((patch + 1)) ;;
+            esac
+            version="${major}.${minor}.${patch}"
+            tag="v${version}"
+            release=true
+            echo "Previous release: ${latest}"
+          else
+            # pull requests and dispatches with bump=none only produce artifacts
+            version="0.0.0-build.${GITHUB_RUN_NUMBER}"
+            tag=""
+            release=false
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "release=${release}" >> "$GITHUB_OUTPUT"
+          echo "### Desktop ${version}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release: ${release}${tag:+ (tag ${tag})}" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: macos-arm64
+          - os: windows-2025
+            target: win-x64
+          - os: ubuntu-24.04
+            target: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libgtk-3-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev libpipewire-0.3-dev librsvg2-dev
+
+      - name: macOS build dependencies
+        if: runner.os == 'macOS'
+        run: brew install cmake
+
+      - run: bun install --frozen-lockfile
+
+      - name: Stamp the version
+        shell: bash
+        run: bun scripts/set-desktop-version.ts "${{ needs.version.outputs.version }}"
+
+      # produces apps/desktop/build/server (Next.js standalone) that the bundle copies in
+      - name: Build the web server bundle
+        run: bun run --cwd apps/desktop build:server
+
+      - name: Build the desktop app
+        working-directory: apps/desktop
+        run: bunx electrobun build --env=${{ inputs.channel || 'stable' }}
+
+      # everything, including update.json, the .tar.zst bundles and the delta
+      # patches: the in-app updater downloads them straight from the release
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openrive-${{ matrix.target }}
+          path: apps/desktop/artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    needs: [version, build]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create the tag
+        if: github.ref_type != 'tag'
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "${TAG} already exists"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" -m "OpenRive ${TAG}"
+            git push origin "${TAG}"
+          fi
+
+      # The release job creates tags with GITHUB_TOKEN. GitHub does not start
+      # push-triggered workflows for those tags, so explicitly dispatch the
+      # container workflow against the release tag.
+      - name: Publish the matching container image
+        if: github.ref_type != 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh workflow run image.yml --repo "${GITHUB_REPOSITORY}" --ref "${TAG}"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List what will be published
+        run: ls -lh artifacts
+
+      - name: Attach desktop assets to the selected existing release
+        if: github.ref_type == 'tag' || inputs.release_version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+              gh release upload "${TAG}" artifacts/* --repo "${GITHUB_REPOSITORY}" --clobber
+              exit 0
+            fi
+            echo "Release ${TAG} is not available yet (attempt ${attempt}/60); waiting for validation workflow."
+            sleep 10
+          done
+          echo "Release ${TAG} was not created by the validation workflow." >&2
+          exit 1
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type != 'tag' && inputs.release_version == ''
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: OpenRive ${{ needs.version.outputs.version }}
+          draft: ${{ inputs.draft || false }}
+          prerelease: ${{ inputs.prerelease || false }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: artifacts/*
+          body: |
+            ## OpenRive ${{ needs.version.outputs.version }} — desktop
+
+            | Platform | Download |
+            | --- | --- |
+            | macOS (Apple Silicon) | `macos-arm64-OpenRive.dmg` |
+            | Windows | `win-x64-OpenRive-Setup.zip` |
+            | Linux | `linux-x64-OpenRive-Setup.tar.gz` |
+
+            The app carries its own editor and database, so nothing else has to be installed. Projects live in your
+            user data folder; set `DATABASE_URL` before launching to share a PostgreSQL instead.
+
+            Already running OpenRive? It updates itself: **user menu → Check for updates**. The `update.json`,
+            `.tar.zst` and `.patch` files attached here are what that uses.
+
+            These builds are not code-signed yet, so macOS and Windows will warn on first launch.

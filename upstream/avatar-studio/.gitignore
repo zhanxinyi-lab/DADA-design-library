@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.DS_Store
+Thumbs.db
+*.log
+playwright-report/
+test-results/
+.pages-site/
+demo/*-tuner.html
+
+mcp/client-config.local.json
+
+# Generated documentation pages (source: README and MCP guides).
+docs/*.html
+docs/search-index.json
+
+# Generated, self-hosted glossy renderer bundle.
+demo/generated/

@@ -1,0 +1,80 @@
+# Contributing to OpenRive
+
+Thanks for helping build OpenRive. Every contribution counts: bug reports, docs fixes, templates, file-format coverage
+and features.
+
+## Ways to contribute
+
+| You want to… | Start here |
+| --- | --- |
+| Report a bug or a file that renders wrong | [Bug report](https://github.com/UpstandPlatform/OpenRive/issues/new?template=bug_report.yml) |
+| Suggest a feature | [Feature request](https://github.com/UpstandPlatform/OpenRive/issues/new?template=feature_request.yml) |
+| Propose or build a template | [Template request](https://github.com/UpstandPlatform/OpenRive/issues/new?template=template_request.yml) · [contribution/templates.md](contribution/templates.md) |
+| Improve docs | [contribution/docs.md](contribution/docs.md) |
+| Write code | [contribution/development.md](contribution/development.md) |
+| Work with AI agents | [contribution/ai-collaboration.md](contribution/ai-collaboration.md) |
+| Report a security vulnerability | [Security policy](SECURITY.md) — use private reporting |
+| Read the community standards | [Code of Conduct](CODE_OF_CONDUCT.md) |
+
+## Quick start for code contributions
+
+OpenRive requires [Bun](https://bun.sh) 1.4 or newer and Git. Docker is optional
+for PostgreSQL-backed development. The full setup and architecture notes are in
+the [development guide](contribution/development.md).
+
+```bash
+git clone https://github.com/UpstandPlatform/OpenRive.git
+cd OpenRive
+bun install
+bun run dev                 # http://localhost:3000
+```
+
+1. **Open or find an issue** first for anything bigger than a small fix, so we can agree on the approach.
+2. **Branch** from `main`: `feat/assets-drag`, `fix/text-bounds`, `docs/self-hosting`.
+3. **Make the change** following the [code style](contribution/code-style.md).
+4. **Check it**:
+   ```bash
+   bun run check-types
+   bun run lint
+   bun run test
+   ```
+   Also run `bun run test:mcp` if you touched the editing API or tools, and
+   `bun run test:corpus -- <rive-runtime>/tests` if you touched the format layer
+   (see [testing](contribution/testing.md)).
+5. **Open a pull request** using the template. Include screenshots or a short recording for UI changes, and attach
+   `.riv` files for format fixes.
+
+## Project layout
+
+| Area | Path |
+| --- | --- |
+| Web editor and REST API | `apps/web/` |
+| CLI, TUI and MCP server | `apps/cli/` |
+| Electrobun desktop app | `apps/desktop/` |
+| `.riv` format and editing core | `packages/rive/` |
+| Database schema and queries | `packages/db/` |
+| Shared zod schemas and types | `packages/shared/` |
+| Shared React components | `packages/ui/` |
+
+The shared, DOM-free editing API lives in `packages/rive/src/api.ts`. Editor
+commands belong in `apps/web/src/components/editor/actions.ts`, and database
+changes belong in `packages/db/src/schema.ts`.
+
+## Ground rules
+
+- **Never break files.** Unmodified `.riv` files must round-trip byte for byte. Format changes need tests.
+- **Local-first and login-free.** Don't add accounts, telemetry or required network calls. Optional integrations must
+  be off by default.
+- **One editing API.** Features that create or change content belong in
+  `packages/rive/src/api.ts` (or a DOM-free module next to it), so the UI, CLI,
+  MCP and Code panel all get them.
+- **Keyboard and menus.** New commands go in the action registry
+  (`apps/web/src/components/editor/actions.ts`) with a sensible shortcut when
+  appropriate.
+- **Docs with features.** User-visible changes update the relevant page in `docs/`.
+- Be kind and constructive. Assume good intent.
+- Follow the [Code of Conduct](CODE_OF_CONDUCT.md) in all OpenRive community spaces.
+
+## License
+
+By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
