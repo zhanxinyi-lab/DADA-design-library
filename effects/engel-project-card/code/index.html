@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dark project card</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #050506; color: #f5f5f6; }
+    body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
+    button, input { font: inherit; color: inherit; }
+    button { background: none; border: 0; padding: 0; cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 1px solid #fff; outline-offset: 3px; }
+    #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    .stage {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 100%;
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: 22px 28px 26px;
+      pointer-events: none;
+    }
+    .stage > * { min-width: 0; }
+    .stage button, .stage input, .stage label { pointer-events: auto; }
+    header, footer {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 12px; width: 100%; max-width: 100%; min-width: 0;
+    }
+    footer { align-items: flex-end; }
+    .mark {
+      width: 36px; height: 36px; border-radius: 9px; color: #fff;
+      display: grid; place-items: center;
+    }
+    .status-wrap { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; flex: 0 1 auto; }
+    .status { display: inline-flex; align-items: center; gap: 8px; letter-spacing: 0.14em; font-size: 11px; font-weight: 650; white-space: nowrap; }
+    .dot { width: 5px; height: 5px; border-radius: 50%; background: #fff; display: inline-block; }
+    .more { letter-spacing: 0.2em; font-size: 16px; line-height: 1; padding: 4px 2px; }
+    .editor {
+      position: absolute; top: calc(100% + 10px); right: 0; width: min(240px, 70vw);
+      padding: 12px; border: 1px solid rgba(255,255,255,.16); background: rgba(8,8,10,.92);
+      display: grid; gap: 8px;
+    }
+    .editor[hidden] { display: none; }
+    .editor label { display: grid; gap: 4px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #c8c8cc; }
+    .editor input[type="text"] {
+      background: transparent; border: 0; border-bottom: 1px solid rgba(255,255,255,.35);
+      padding: 4px 0; letter-spacing: 0.08em;
+    }
+    .editor input[type="color"] { width: 100%; height: 28px; border: 0; background: transparent; padding: 0; }
+    .project { min-width: 0; max-width: 100%; }
+    h1 { margin: 0; font-size: clamp(16px, 2.4vw, 28px); font-weight: 620; letter-spacing: 0.14em; line-height: 1; }
+    .discover {
+      margin-top: 8px; display: inline-flex; align-items: center; gap: 8px;
+      font-size: 11px; letter-spacing: 0.16em; opacity: .88;
+    }
+    .discover svg { transition: transform .2s linear; }
+    .discover[aria-expanded="true"] svg { transform: rotate(180deg); }
+    .note { margin: 8px 0 0; max-width: 36ch; font-size: 12px; letter-spacing: 0.04em; line-height: 1.45; color: #c9c9ce; }
+    .note[hidden] { display: none; }
+    .next-col { text-align: right; flex: 0 0 auto; }
+    .index { margin: 0; font-variant-numeric: tabular-nums; letter-spacing: 0.08em; }
+    .index b { font-size: clamp(18px, 2.2vw, 26px); font-weight: 600; }
+    .index span { font-size: 12px; opacity: .72; }
+    .next {
+      margin-top: 6px; display: inline-flex; align-items: center; gap: 8px;
+      font-size: 11px; letter-spacing: 0.16em;
+    }
+    .live {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+    @media (max-width: 640px) {
+      .stage { padding: 16px 16px 18px; }
+      h1 { font-size: 16px; letter-spacing: 0.08em; }
+      .discover, .next, .status { font-size: 10px; letter-spacing: 0.04em; }
+      .status-wrap { gap: 6px; }
+      .index b { font-size: 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .discover svg { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div class="stage">
+    <header>
+      <button class="mark" id="home" type="button" aria-label="Back to the preview card">
+        <svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">
+          <rect x="1.4" y="1.4" width="33.2" height="33.2" rx="9" fill="none" stroke="currentColor" stroke-width="1.4"></rect>
+          <path d="M11 22.5c1.2-6 4.2-9 7-9 3.2 0 5 2.2 5 4.6 0 2.2-1.5 3.6-3.4 4.1-1.5.4-1.6 1.3-1.6 2.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+        </svg>
+      </button>
+      <div class="status-wrap">
+        <p class="status">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path d="M8 1.2 9.3 6.2 14.4 8 9.3 9.8 8 14.8 6.7 9.8 1.6 8 6.7 6.2Z" fill="currentColor"></path>
+          </svg>
+          <i class="dot"></i>
+          <span id="status-text">AVAILABLE</span>
+        </p>
+        <button class="more" id="more" type="button" aria-expanded="false" aria-controls="editor" aria-label="Edit name, color, and status">...</button>
+        <form class="editor" id="editor" hidden>
+          <label>Name <input id="field-name" type="text" maxlength="24" autocomplete="off"></label>
+          <label>Color <input id="field-color" type="color" value="#b44bff"></label>
+          <label>Status <input id="field-status" type="text" maxlength="16" autocomplete="off"></label>
+        </form>
+      </div>
+    </header>
+    <div></div>
+    <footer>
+      <div class="project">
+        <h1 id="title">W3R.ONE</h1>
+        <button class="discover" id="discover" type="button" aria-expanded="false" aria-controls="note">
+          DISCOVER PROJECT
+          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+            <path d="M2 4.2 6 8l4-3.8" fill="none" stroke="currentColor" stroke-width="1.2"></path>
+          </svg>
+        </button>
+        <p class="note" id="note" hidden></p>
+      </div>
+      <div class="next-col">
+        <p class="index" id="index"><b>02</b><span>/06</span></p>
+        <button class="next" id="next" type="button">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1"></circle>
+            <path d="M6.6 5.1 10.2 8 6.6 10.9" fill="none" stroke="currentColor" stroke-width="1.2"></path>
+          </svg>
+          NEXT PROJECT
+        </button>
+      </div>
+    </footer>
+  </div>
+  <p class="live" id="live" aria-live="polite"></p>
+  <script>
+    const PROJECTS = [
+      { name: "NORTH GLASS", color: "#6eb6ff", status: "AVAILABLE", line: "Placeholder card. The preview did not show this title." },
+      { name: "W3R.ONE", color: "#b44bff", status: "AVAILABLE", line: "Title read from the preview, shown there as 02 / 06." },
+      { name: "HALO TYPE", color: "#ffb15a", status: "AVAILABLE", line: "Placeholder card. Replace the name and color." },
+      { name: "FIELD NOTE", color: "#6ee0b0", status: "AVAILABLE", line: "Placeholder card. Replace the name and color." },
+      { name: "QUIET MOTOR", color: "#ff6d8c", status: "AVAILABLE", line: "Placeholder card. Replace the name and color." },
+      { name: "OPEN ROOM", color: "#d5d0ff", status: "AVAILABLE", line: "Placeholder card. Replace the name and color." }
+    ];
+
+    const canvas = document.getElementById("scene");
+    const ctx = canvas.getContext("2d");
+    const title = document.getElementById("title");
+    const note = document.getElementById("note");
+    const discover = document.getElementById("discover");
+    const indexEl = document.getElementById("index");
+    const statusText = document.getElementById("status-text");
+    const live = document.getElementById("live");
+    const editor = document.getElementById("editor");
+    const more = document.getElementById("more");
+    const fieldName = document.getElementById("field-name");
+    const fieldColor = document.getElementById("field-color");
+    const fieldStatus = document.getElementById("field-status");
+
+    let projects = PROJECTS.map((item) => ({ ...item }));
+    let index = 1;
+    let yaw = 0.55;
+    let pointerX = 0;
+    let pointerY = 0;
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduced = motion.matches;
+    let rgb = hexToRgb(projects[index].color);
+    let target = rgb.slice();
+    const gem = buildGem();
+    const layer = document.createElement("canvas");
+    const lctx = layer.getContext("2d");
+
+    function hexToRgb(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+    function rgbToHex(c) {
+      return "#" + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
+    }
+    function mix(a, b, t) { return a.map((v, i) => v + (b[i] - v) * t); }
+    function buildGem() {
+      const rings = 6;
+      const segs = 10;
+      const verts = [{ x: 0, y: 1.2, z: 0 }];
+      for (let i = 1; i <= rings; i++) {
+        const t = i / (rings + 1);
+        const y = Math.cos(t * Math.PI) * 1.14;
+        const radius = Math.sin(t * Math.PI);
+        for (let j = 0; j < segs; j++) {
+          const a = (j / segs) * Math.PI * 2;
+          verts.push({ x: Math.cos(a) * radius, y, z: Math.sin(a) * radius * 0.9 });
+        }
+      }
+      verts.push({ x: 0, y: -1.22, z: 0 });
+      const faces = [];
+      for (let j = 0; j < segs; j++) faces.push([0, 1 + j, 1 + ((j + 1) % segs)]);
+      for (let i = 0; i < rings - 1; i++) {
+        for (let j = 0; j < segs; j++) {
+          const a = 1 + i * segs + j;
+          const b = 1 + i * segs + ((j + 1) % segs);
+          const c = 1 + (i + 1) * segs + ((j + 1) % segs);
+          const d = 1 + (i + 1) * segs + j;
+          faces.push([a, d, b], [b, d, c]);
+        }
+      }
+      const bottom = verts.length - 1;
+      const base = 1 + (rings - 1) * segs;
+      for (let j = 0; j < segs; j++) faces.push([bottom, base + ((j + 1) % segs), base + j]);
+      return { verts, faces };
+    }
+    function rotate(v, yawNow, pitchNow) {
+      const cy = Math.cos(yawNow), sy = Math.sin(yawNow);
+      const x1 = v.x * cy + v.z * sy;
+      const z1 = -v.x * sy + v.z * cy;
+      const cp = Math.cos(pitchNow), sp = Math.sin(pitchNow);
+      return { x: x1, y: v.y * cp - z1 * sp, z: v.y * sp + z1 * cp };
+    }
+    function normal(a, b, c) {
+      const ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+      const vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+      const x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx;
+      const len = Math.hypot(x, y, z) || 1;
+      return { x: x / len, y: y / len, z: z / len };
+    }
+    function resize() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      canvas.width = Math.max(1, Math.floor(w * dpr));
+      canvas.height = Math.max(1, Math.floor(h * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function paintGem(target, w, h) {
+      const scale = Math.min(w, h) * 0.32;
+      const cx = w * 0.5;
+      const cy = h * 0.46;
+      const pitch = 0.16 + pointerY * 0.2;
+      const yawNow = yaw + pointerX * 0.3;
+      const pts = gem.verts.map((v) => rotate(v, yawNow, pitch));
+      const light = { x: -0.15, y: 0.78, z: 0.6 };
+      const faces = gem.faces.map((f) => {
+        const a = pts[f[0]], b = pts[f[1]], c = pts[f[2]];
+        const n = normal(a, b, c);
+        return { a, b, c, n, depth: (a.z + b.z + c.z) / 3 };
+      }).filter((f) => f.n.z > 0.02).sort((p, q) => p.depth - q.depth);
+      target.clearRect(0, 0, w, h);
+      target.lineJoin = "round";
+      target.lineCap = "round";
+      for (const f of faces) {
+        const lambert = Math.max(0, f.n.x * light.x + f.n.y * light.y + f.n.z * light.z);
+        const col = mix(mix(rgb, [10, 8, 16], 0.62), [255, 255, 255], Math.min(1, lambert * 0.78));
+        const proj = [f.a, f.b, f.c].map((p) => {
+          const z = 3.5 - p.z;
+          const s = 2.7 / z;
+          return [cx + p.x * scale * s, cy - p.y * scale * s];
+        });
+        target.beginPath();
+        target.moveTo(proj[0][0], proj[0][1]);
+        target.lineTo(proj[1][0], proj[1][1]);
+        target.lineTo(proj[2][0], proj[2][1]);
+        target.closePath();
+        target.fillStyle = "rgb(" + col.map((v) => Math.round(v)).join(",") + ")";
+        target.fill();
+        target.strokeStyle = "rgba(255,255,255," + (0.05 + lambert * 0.22) + ")";
+        target.lineWidth = 1;
+        target.stroke();
+      }
+      target.save();
+      target.globalCompositeOperation = "source-atop";
+      const core = target.createLinearGradient(cx, cy - scale * 0.85, cx, cy + scale * 0.85);
+      core.addColorStop(0, "rgba(255,255,255,0)");
+      core.addColorStop(0.42, "rgba(255,255,255,0.72)");
+      core.addColorStop(0.58, "rgba(255,255,255,0.16)");
+      core.addColorStop(1, "rgba(255,255,255,0)");
+      target.fillStyle = core;
+      target.fillRect(cx - scale * 0.07, cy - scale * 0.9, scale * 0.14, scale * 1.7);
+      target.restore();
+    }
+    function draw() {
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      if (layer.width !== canvas.width || layer.height !== canvas.height) {
+        layer.width = canvas.width;
+        layer.height = canvas.height;
+      }
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#050506";
+      ctx.fillRect(0, 0, w, h);
+      const cx = w * 0.5;
+      const hex = rgbToHex(rgb);
+      const pool = ctx.createRadialGradient(cx, h * 0.7, 8, cx, h * 0.7, Math.min(w, h) * 0.42);
+      pool.addColorStop(0, hex + "88");
+      pool.addColorStop(0.4, hex + "33");
+      pool.addColorStop(1, hex + "00");
+      ctx.fillStyle = pool;
+      ctx.beginPath();
+      ctx.ellipse(cx, h * 0.74, Math.min(w, h) * 0.38, Math.min(w, h) * 0.07, 0, 0, Math.PI * 2);
+      ctx.fill();
+      paintGem(lctx, w, h);
+      ctx.drawImage(layer, 0, 0, w, h);
+    }
+    function pad(n) { return String(n).padStart(2, "0"); }
+    function announce() {
+      const item = projects[index];
+      live.textContent = item.name + ", " + pad(index + 1) + " of " + pad(projects.length) + ", " + item.status;
+    }
+    function renderCard() {
+      const item = projects[index];
+      title.textContent = item.name;
+      statusText.textContent = item.status;
+      note.textContent = item.line;
+      indexEl.innerHTML = "<b>" + pad(index + 1) + "</b><span>/" + pad(projects.length) + "</span>";
+      fieldName.value = item.name;
+      fieldColor.value = item.color;
+      fieldStatus.value = item.status;
+      target = hexToRgb(item.color);
+      announce();
+    }
+    function show(i) {
+      index = (i + projects.length) % projects.length;
+      renderCard();
+    }
+    document.getElementById("next").addEventListener("click", () => show(index + 1));
+    document.getElementById("home").addEventListener("click", () => {
+      projects = PROJECTS.map((item) => ({ ...item }));
+      discover.setAttribute("aria-expanded", "false");
+      note.hidden = true;
+      setEditor(false);
+      show(1);
+      rgb = hexToRgb(projects[1].color);
+      target = rgb.slice();
+    });
+    discover.addEventListener("click", () => {
+      const open = discover.getAttribute("aria-expanded") === "true";
+      discover.setAttribute("aria-expanded", open ? "false" : "true");
+      note.hidden = open;
+    });
+    function setEditor(open) {
+      editor.hidden = !open;
+      more.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    more.addEventListener("click", () => setEditor(editor.hidden));
+    fieldName.addEventListener("input", () => {
+      projects[index].name = fieldName.value.slice(0, 24) || "UNTITLED";
+      title.textContent = projects[index].name;
+      announce();
+    });
+    fieldColor.addEventListener("input", () => {
+      projects[index].color = fieldColor.value;
+      target = hexToRgb(fieldColor.value);
+    });
+    fieldStatus.addEventListener("input", () => {
+      projects[index].status = fieldStatus.value.slice(0, 16) || "AVAILABLE";
+      statusText.textContent = projects[index].status;
+      announce();
+    });
+    function onNativeControl(node) {
+      return node instanceof Element && !!node.closest("button, input, textarea, select, a, [contenteditable='true']");
+    }
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        setEditor(false);
+        return;
+      }
+      if (onNativeControl(event.target)) return;
+      if (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        show(index + 1);
+      }
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      const r = canvas.getBoundingClientRect();
+      pointerX = ((event.clientX - r.left) / r.width - 0.5) * 2;
+      pointerY = ((event.clientY - r.top) / r.height - 0.5) * 2;
+    });
+    window.addEventListener("resize", resize);
+    motion.addEventListener("change", () => { reduced = motion.matches; });
+    function tick() {
+      if (!reduced) yaw += 0.006;
+      for (let i = 0; i < 3; i++) rgb[i] += (target[i] - rgb[i]) * 0.08;
+      draw();
+      requestAnimationFrame(tick);
+    }
+    resize();
+    renderCard();
+    tick();
+  </script>
+</body>
+</html>
