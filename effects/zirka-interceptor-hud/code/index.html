@@ -274,14 +274,38 @@
 
         var push = inFlight ? flightT : 0;
         craft.style.transform = "translate(calc(-50% + " + lerp(0, 4, push) + "%), calc(-50% + " + lerp(0, 2, push) + "%)) scale(" + lerp(1, 1.18, push) + ") rotate(" + lerp(-8, 4, push) + "deg)";
-        if (!reduce.matches) requestAnimationFrame(render);
       }
 
+      var frame = 0;
+
+      function stopLoop() {
+        if (!frame) return;
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+
+      function loop(now) {
+        frame = 0;
+        render(now);
+        if (!reduce.matches) frame = requestAnimationFrame(loop);
+      }
+
+      function syncMotion() {
+        stopLoop();
+        if (reduce.matches) {
+          render(performance.now());
+          return;
+        }
+        start = performance.now();
+        frame = requestAnimationFrame(loop);
+      }
+
+      reduce.addEventListener("change", syncMotion);
       document.getElementById("replay").addEventListener("click", function () {
         start = performance.now();
         if (reduce.matches) render(start);
       });
-      render(performance.now());
+      syncMotion();
     })();
   </script>
 </body>
