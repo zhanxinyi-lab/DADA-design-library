@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Raenest 卡片选择</title>
+  <style>
+    :root {
+      --page: #e6e6e6;
+      --phone: #fafafa;
+      --ink: #1c1c1e;
+      --muted: #8e8e93;
+      --indigo: #4f3fd6;
+      --step: 103.18%;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    button { font: inherit; }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .fit {
+      min-height: 100%;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+    .frame {
+      width: min(100vw, calc(100dvh * 0.8));
+      aspect-ratio: 1600 / 2000;
+      position: relative;
+      overflow: hidden;
+      background: var(--page);
+      container-type: inline-size;
+    }
+    .phone {
+      position: absolute;
+      z-index: 1;
+      left: 27.75%;
+      top: 11.2%;
+      width: 44.5625%;
+      height: 77.65%;
+      background: var(--phone);
+      color: var(--ink);
+      border-radius: 3.7cqw;
+      box-shadow: 0 1.4cqw 3.4cqw rgba(20, 20, 20, 0.08);
+      container-type: size;
+    }
+    .status {
+      position: absolute;
+      top: 2.15%;
+      left: 11%;
+      right: 8%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 3.5cqw;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .glyphs { display: inline-flex; align-items: center; gap: 1.3cqw; }
+    .sig { display: inline-flex; align-items: flex-end; gap: 0.28cqw; height: 2.5cqw; }
+    .sig i {
+      display: block;
+      width: 0.48cqw;
+      background: var(--ink);
+      border-radius: 0.4cqw;
+    }
+    .sig i:nth-child(1) { height: 32%; }
+    .sig i:nth-child(2) { height: 52%; }
+    .sig i:nth-child(3) { height: 74%; }
+    .sig i:nth-child(4) { height: 100%; }
+    .wifi, .bat { display: block; }
+    .wifi { width: 3.4cqw; height: 2.5cqw; }
+    .bat { width: 5.4cqw; height: 2.5cqw; }
+    .head {
+      position: absolute;
+      top: 8.6%;
+      left: 6.2%;
+      right: 6.2%;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+    }
+    .back {
+      width: 8.6cqw;
+      height: 8.6cqw;
+      justify-self: start;
+      border: 0;
+      border-radius: 50%;
+      background: #f2f2f3;
+      color: var(--ink);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .back svg { width: 42%; height: 42%; }
+    h1 {
+      margin: 0;
+      grid-column: 2;
+      font-size: 4.5cqw;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+    .copy {
+      position: absolute;
+      top: 17.2%;
+      left: 8%;
+      right: 8%;
+      margin: 0;
+      font-size: 3.85cqw;
+      line-height: 1.35;
+      letter-spacing: -0.015em;
+    }
+    .style {
+      position: absolute;
+      top: 29.2%;
+      left: 8%;
+      right: 8%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2cqw;
+    }
+    .style-name, .style-note { margin: 0; }
+    .style-name {
+      font-size: 3.7cqw;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .style-note {
+      margin-top: 0.28em;
+      min-height: 1.25em;
+      color: var(--muted);
+      font-size: 3.15cqw;
+      letter-spacing: -0.01em;
+    }
+    .chosen {
+      width: 2.2cqw;
+      height: 1.2cqw;
+      flex: none;
+      border-left: 0.38cqw solid var(--ink);
+      border-bottom: 0.38cqw solid var(--ink);
+      transform: rotate(-45deg) translateY(-15%);
+    }
+    .swatches {
+      position: absolute;
+      left: 6%;
+      right: 5.2%;
+      top: 67.7%;
+      height: 3.35%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .swatch {
+      height: 100%;
+      width: 12.2%;
+      border: 0;
+      border-radius: 1.15cqw;
+      background: var(--chip);
+      color: var(--tick, #fff);
+      display: grid;
+      place-items: center;
+      padding: 0;
+      cursor: pointer;
+    }
+    .swatch[aria-checked="true"] { width: 16.4%; }
+    .swatch.s-ivory { box-shadow: inset 0 0 0 1px #d8d3cb; }
+    .mark {
+      width: 1.7cqw;
+      height: 0.9cqw;
+      border-left: 0.32cqw solid currentColor;
+      border-bottom: 0.32cqw solid currentColor;
+      transform: rotate(-45deg) translateY(-10%);
+      opacity: 0;
+    }
+    .swatch[aria-checked="true"] .mark { opacity: 1; }
+    .continue {
+      position: absolute;
+      left: 5.9%;
+      top: 88.28%;
+      width: 88.2%;
+      height: 5.28%;
+      border: 0;
+      border-radius: 999px;
+      background: var(--indigo);
+      color: #fff;
+      font-size: 3.7cqw;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+    }
+    .home {
+      position: absolute;
+      left: 50%;
+      bottom: 1.35%;
+      width: 34%;
+      height: 0.55%;
+      transform: translateX(-50%);
+      background: #111;
+      border-radius: 999px;
+    }
+    .deck {
+      position: absolute;
+      z-index: 2;
+      left: 30.375%;
+      top: 41.95%;
+      width: 39.3125%;
+      height: 18.95%;
+    }
+    .card {
+      position: absolute;
+      top: 0;
+      left: calc(var(--n) * var(--step));
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: 0;
+      border-radius: 1.15cqw;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      text-align: left;
+      cursor: pointer;
+      transform: translateX(calc(var(--i) * var(--step) * -1));
+      transition: transform 320ms cubic-bezier(.22, .7, .24, 1);
+    }
+    .card[aria-current="true"] { cursor: default; }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .55;
+      background-image:
+        radial-gradient(circle at 50% 50%, var(--line) 0.7px, transparent 0.95px),
+        repeating-linear-gradient(90deg, transparent 0 2.1cqw, var(--line) 2.1cqw 2.16cqw),
+        repeating-linear-gradient(0deg, transparent 0 2.1cqw, var(--line) 2.1cqw 2.16cqw);
+      background-size: 2.1cqw 2.1cqw, auto, auto;
+    }
+    .s-black { --bg: #0b0b0b; --ink: #f6f3ec; --line: rgba(255, 255, 255, .38); --chip: #0b0b0b; --tick: #fff; }
+    .s-rust { --bg: #b5532e; --ink: #fff7f2; --line: rgba(255, 255, 255, .42); --chip: #b5532e; --tick: #fff; }
+    .s-green { --bg: #006b3f; --ink: #f3fff8; --line: rgba(255, 255, 255, .4); --chip: #006b3f; --tick: #fff; }
+    .s-indigo { --bg: #4f3fd6; --ink: #f5f3ff; --line: rgba(255, 255, 255, .42); --chip: #4f3fd6; --tick: #fff; }
+    .s-gold { --bg: #bfae66; --ink: #241c08; --line: rgba(36, 28, 8, .4); --chip: #bfae66; --tick: #1c1c1e; }
+    .s-ivory { --bg: #f4f1ea; --ink: #241c18; --line: rgba(36, 28, 24, .32); --chip: #f7f4ef; --tick: #1c1c1e; }
+    .s-maroon { --bg: #431829; --ink: #fff5f7; --line: rgba(255, 255, 255, .38); --chip: #431829; --tick: #fff; }
+    .card.s-ivory { box-shadow: inset 0 0 0 1px rgba(36, 28, 24, .16); }
+    .brand, .emblem, .meta, .who { position: absolute; z-index: 1; }
+    .brand {
+      left: 6.5%;
+      top: 8%;
+      display: flex;
+      align-items: center;
+      gap: 0.4em;
+      font-size: 1.55cqw;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      white-space: nowrap;
+    }
+    .logo {
+      width: 0.95em;
+      height: 0.95em;
+      border: 0.12em solid currentColor;
+      border-radius: 50%;
+      display: inline-block;
+      position: relative;
+    }
+    .logo::after {
+      content: "";
+      position: absolute;
+      inset: 27%;
+      background: currentColor;
+      border-radius: 50%;
+    }
+    .emblem {
+      left: 33%;
+      top: 18%;
+      width: 28%;
+      height: 60%;
+    }
+    .meta {
+      right: 5.5%;
+      top: 34%;
+      width: 30%;
+      text-align: right;
+      font-size: 1.05cqw;
+      letter-spacing: 0.08em;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .meta b {
+      display: block;
+      font-size: 1.25cqw;
+      font-weight: 750;
+      letter-spacing: 0.12em;
+    }
+    .meta small {
+      display: block;
+      margin-top: 0.55em;
+      font-size: 0.72cqw;
+      font-weight: 650;
+      letter-spacing: 0.08em;
+      white-space: normal;
+    }
+    .who {
+      left: 6.5%;
+      bottom: 8%;
+      font-size: 1.15cqw;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+    :focus-visible {
+      outline: 2px solid #1c1c1e;
+      outline-offset: 3px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="fit">
+    <div class="frame">
+      <article class="phone" lang="en">
+        <div class="status">
+          <span>9:41</span>
+          <span class="glyphs" aria-hidden="true">
+            <span class="sig"><i></i><i></i><i></i><i></i></span>
+            <svg class="wifi" viewBox="0 0 16 12"><path d="M1 5.2a8 8 0 0 1 14 0" fill="none" stroke="#1c1c1e" stroke-width="1.5" stroke-linecap="round"/><path d="M3.5 7.7a5 5 0 0 1 9 0" fill="none" stroke="#1c1c1e" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="10.3" r="1" fill="#1c1c1e"/></svg>
+            <svg class="bat" viewBox="0 0 26 12"><rect x="0.7" y="0.8" width="21" height="10.4" rx="2.2" fill="none" stroke="#1c1c1e" stroke-width="1.3"/><rect x="2.3" y="2.4" width="15.2" height="7.2" rx="1" fill="#1c1c1e"/><path d="M23 4.2h1.4a.8.8 0 0 1 .8.8v2a.8.8 0 0 1-.8.8H23z" fill="#1c1c1e"/></svg>
+          </span>
+        </div>
+        <div class="head">
+          <button class="back" type="button" aria-label="Back">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.2 3.2 5.4 8l4.8 4.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <h1>Create Card</h1>
+        </div>
+        <p class="copy">Pick a style for your virtual card. You can spend online in USD and change the look later.</p>
+        <div class="style">
+          <div>
+            <p class="style-name" id="style-name">Adire Indigo</p>
+            <p class="style-note" id="style-note">Inspired by Yoruba resist-dyed cloth</p>
+          </div>
+          <span class="chosen" aria-hidden="true"></span>
+        </div>
+        <div class="swatches" role="radiogroup" aria-label="Card color">
+          <button class="swatch s-black" type="button" role="radio" aria-checked="false" aria-label="Black" tabindex="-1"><span class="mark"></span></button>
+          <button class="swatch s-rust" type="button" role="radio" aria-checked="false" aria-label="Rust" tabindex="-1"><span class="mark"></span></button>
+          <button class="swatch s-green" type="button" role="radio" aria-checked="false" aria-label="Green" tabindex="-1"><span class="mark"></span></button>
+          <button class="swatch s-indigo" type="button" role="radio" aria-checked="true" aria-label="Adire Indigo" data-note="Inspired by Yoruba resist-dyed cloth" tabindex="0"><span class="mark"></span></button>
+          <button class="swatch s-gold" type="button" role="radio" aria-checked="false" aria-label="Gold" tabindex="-1"><span class="mark"></span></button>
+          <button class="swatch s-ivory" type="button" role="radio" aria-checked="false" aria-label="Ivory" tabindex="-1"><span class="mark"></span></button>
+          <button class="swatch s-maroon" type="button" role="radio" aria-checked="false" aria-label="Maroon" tabindex="-1"><span class="mark"></span></button>
+        </div>
+        <button class="continue" type="button">Continue</button>
+        <div class="home" aria-hidden="true"></div>
+      </article>
+      <div class="deck" style="--i: 3">
+        <button class="card s-black" type="button" style="--n: 0" tabindex="-1" aria-label="Black" aria-current="false"></button>
+        <button class="card s-rust" type="button" style="--n: 1" tabindex="-1" aria-label="Rust" aria-current="false"></button>
+        <button class="card s-green" type="button" style="--n: 2" tabindex="-1" aria-label="Green" aria-current="false"></button>
+        <button class="card s-indigo" type="button" style="--n: 3" tabindex="-1" aria-label="Adire Indigo" aria-current="true"></button>
+        <button class="card s-gold" type="button" style="--n: 4" tabindex="-1" aria-label="Gold" aria-current="false"></button>
+        <button class="card s-ivory" type="button" style="--n: 5" tabindex="-1" aria-label="Ivory" aria-current="false"></button>
+        <button class="card s-maroon" type="button" style="--n: 6" tabindex="-1" aria-label="Maroon" aria-current="false"></button>
+      </div>
+      <p class="sr" aria-live="polite" id="live"></p>
+    </div>
+  </div>
+  <script>
+    const face = '<span class="brand"><i class="logo" aria-hidden="true"></i>raenest</span>'
+      + '<svg class="emblem" viewBox="0 0 120 160" aria-hidden="true"><ellipse cx="60" cy="80" rx="48" ry="68" fill="none" stroke="currentColor" stroke-width="3"/><ellipse cx="60" cy="80" rx="34" ry="50" fill="currentColor" opacity=".14"/><path d="M60 48 78 80 60 112 42 80Z" fill="none" stroke="currentColor" stroke-width="2.4"/></svg>'
+      + '<span class="meta"><b>VISA 7997</b><small>MEMBER SINCE<br>2026</small></span>'
+      + '<span class="who">AYOMIDE BAMISILE</span>';
+    const deck = document.querySelector('.deck');
+    const cards = [...deck.querySelectorAll('.card')];
+    const radios = [...document.querySelectorAll('[role="radio"]')];
+    const nameEl = document.querySelector('#style-name');
+    const noteEl = document.querySelector('#style-note');
+    const live = document.querySelector('#live');
+    const group = document.querySelector('[role="radiogroup"]');
+    cards.forEach((card) => { card.innerHTML = face; });
+    let index = 3;
+
+    function select(next, announce) {
+      index = Math.max(0, Math.min(cards.length - 1, next));
+      deck.style.setProperty('--i', String(index));
+      const radio = radios[index];
+      nameEl.textContent = radio.getAttribute('aria-label');
+      noteEl.textContent = radio.dataset.note || '';
+      radios.forEach((el, i) => {
+        const on = i === index;
+        el.setAttribute('aria-checked', on ? 'true' : 'false');
+        el.tabIndex = on ? 0 : -1;
+      });
+      cards.forEach((el, i) => el.setAttribute('aria-current', i === index ? 'true' : 'false'));
+      if (announce) live.textContent = noteEl.textContent ? nameEl.textContent + '. ' + noteEl.textContent : nameEl.textContent;
+    }
+
+    group.addEventListener('click', (event) => {
+      const radio = event.target.closest('[role="radio"]');
+      if (!radio) return;
+      select(radios.indexOf(radio), true);
+    });
+    group.addEventListener('keydown', (event) => {
+      let next = index;
+      if (event.key === 'ArrowRight') next += 1;
+      else if (event.key === 'ArrowLeft') next -= 1;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = radios.length - 1;
+      else return;
+      event.preventDefault();
+      select(next, true);
+      radios[index].focus();
+    });
+    deck.addEventListener('click', (event) => {
+      const card = event.target.closest('.card');
+      if (!card) return;
+      select(cards.indexOf(card), true);
+    });
+    document.querySelector('.continue').addEventListener('click', () => {
+      live.textContent = nameEl.textContent + ' stays selected.';
+    });
+  </script>
+</body>
+</html>
