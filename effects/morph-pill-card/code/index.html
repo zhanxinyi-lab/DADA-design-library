@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>胶囊原地展开</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: grid; place-items: center; padding: 32px 16px;
+      background: #141311; color: #f4f1ea;
+      font: 16px/1.45 "Segoe UI", "PingFang SC", sans-serif;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: center; width: min(920px, 100%); }
+    .slot { position: relative; z-index: 1; height: 44px; flex: none; }
+    .slot.is-hot { z-index: 4; }
+    .slot:has(.pill.is-open) { z-index: 2; }
+    .pill {
+      position: absolute; top: 0; bottom: auto; left: 0; z-index: 1;
+      width: max-content; max-width: min(460px, calc(100vw - 32px));
+      padding: 6px 14px 6px 6px; border: 0; border-radius: 999px;
+      background: #f7f4ee; color: #1c1916; font: inherit; text-align: left; cursor: pointer;
+      display: grid; grid-template-columns: 32px auto; column-gap: 8px; align-items: center;
+      transition: width .5s cubic-bezier(.16,1.15,.32,1), border-radius .5s cubic-bezier(.16,1.15,.32,1), padding .5s cubic-bezier(.16,1.15,.32,1);
+    }
+    .pill.is-open {
+      top: auto; bottom: 0; z-index: 1; width: min(460px, calc(100vw - 32px)); height: 176px; overflow: hidden; border-radius: 22px;
+      grid-template-columns: 128px minmax(0, 1fr); padding: 14px 14px 52px; align-items: start;
+    }
+    .pill.is-closing { pointer-events: none; }
+    .mark {
+      width: 32px; height: 32px; border-radius: 50%; grid-column: 1; grid-row: 1;
+      background: radial-gradient(circle at 35% 30%, #fff6, transparent 42%), var(--swatch);
+      transition: width .5s cubic-bezier(.16,1.15,.32,1), height .5s cubic-bezier(.16,1.15,.32,1), border-radius .5s cubic-bezier(.16,1.15,.32,1);
+    }
+    .pill.is-open .mark { width: 128px; height: 96px; border-radius: 16px; grid-row: 1 / span 2; }
+    .name { grid-column: 2; grid-row: 1; font-weight: 700; }
+    .detail { grid-column: 2; grid-row: 2; width: 0; height: 0; min-width: 0; overflow: hidden; }
+    .pill.is-open .detail { width: auto; height: auto; }
+    .copy { display: grid; align-content: start; gap: 4px; margin: 0; color: #5e584f; font-size: 13px; font-weight: 500; }
+    .meta { color: #5e584f; font-size: 13px; }
+    .more { color: #1c1916; font-weight: 700; }
+    .pill:focus-visible { outline: 2px solid #f4f1ea; outline-offset: 4px; }
+    @media (prefers-reduced-motion: reduce) {
+      .pill, .mark, .detail { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="row" id="pills">
+    <span class="slot is-hot"><button class="pill" type="button" style="--swatch:#d36b45" aria-expanded="false" aria-labelledby="n1">
+      <span class="mark"></span><span class="name" id="n1">北向</span>
+      <span class="detail" aria-hidden="true" inert><span class="copy"><span class="meta">示意图形 · 无原图</span><span>同一张表面从胶囊长成卡片。</span><span class="more">展开说明</span></span></span>
+    </button></span>
+    <span class="slot is-hot"><button class="pill" type="button" style="--swatch:#3f6f62" aria-expanded="false" aria-labelledby="n2">
+      <span class="mark"></span><span class="name" id="n2">折页</span>
+      <span class="detail" aria-hidden="true" inert><span class="copy"><span class="meta">悬停展开 · 移出收回</span><span>点一下可以钉住，再点或按 Escape 关闭。</span><span class="more">展开说明</span></span></span>
+    </button></span>
+    <span class="slot is-hot"><button class="pill" type="button" style="--swatch:#d2a24c" aria-expanded="false" aria-labelledby="n3">
+      <span class="mark"></span><span class="name" id="n3">暖点</span>
+      <span class="detail" aria-hidden="true" inert><span class="copy"><span class="meta">其余胶囊保持收起</span><span>键盘焦点环在深色背景上可见。</span><span class="more">展开说明</span></span></span>
+    </button></span>
+  </div>
+  <script>
+    const row = document.querySelector("#pills");
+    const pills = [...document.querySelectorAll(".pill")];
+    const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
+    let pinned = null;
+    function measure() {
+      for (const pill of pills) {
+        const slot = pill.parentElement;
+        const open = pill.classList.contains("is-open");
+        pill.style.width = "max-content";
+        const closed = pill.querySelector(".name").offsetWidth + 32 + 8 + 20;
+        slot.style.width = closed + "px";
+        pill.dataset.closed = closed + "px";
+        pill.style.width = open ? "min(460px, calc(100vw - 32px))" : closed + "px";
+      }
+    }
+    function setOpen(target) {
+      for (const pill of pills) {
+        const on = pill === target;
+        const wasOpen = pill.classList.contains("is-open");
+        const detail = pill.querySelector(".detail");
+        pill.classList.toggle("is-open", on);
+        pill.classList.toggle("is-closing", wasOpen && !on && !matchMedia("(prefers-reduced-motion: reduce)").matches);
+        pill.style.width = on ? "min(460px, calc(100vw - 32px))" : pill.dataset.closed;
+        pill.setAttribute("aria-expanded", on ? "true" : "false");
+        detail.setAttribute("aria-hidden", on ? "false" : "true");
+        if (on) detail.removeAttribute("inert");
+        else detail.setAttribute("inert", "");
+        const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const closing = wasOpen && !on;
+        pill.parentElement.classList.toggle("is-hot", !on && (!closing || reduce));
+      }
+    }
+    function settle(pill) {
+      pill.classList.remove("is-closing");
+      if (!pill.classList.contains("is-open")) pill.parentElement.classList.add("is-hot");
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    for (const pill of pills) {
+      pill.addEventListener("click", () => {
+        pinned = pinned === pill ? null : pill;
+        setOpen(pinned);
+      });
+      pill.addEventListener("transitionend", (event) => {
+        if (event.target !== pill || event.propertyName !== "width") return;
+        settle(pill);
+      });
+    }
+    if (fine) {
+      row.addEventListener("pointerover", (event) => {
+        if (event.pointerType === "touch" || pinned) return;
+        const pill = event.target.closest(".pill");
+        if (pill) setOpen(pill);
+      });
+      row.addEventListener("pointerleave", (event) => {
+        if (event.pointerType === "touch" || pinned) return;
+        if (row.contains(event.relatedTarget)) return;
+        setOpen(null);
+      });
+    }
+    document.addEventListener("pointerdown", (event) => {
+      if (event.target.closest(".pill")) return;
+      pinned = null;
+      setOpen(null);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      pinned = null;
+      setOpen(null);
+    });
+  </script>
+</body>
+</html>

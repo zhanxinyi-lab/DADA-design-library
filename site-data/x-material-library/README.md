@@ -4,12 +4,12 @@
 
 ## 当前 canonical 快照（2026-11-13）
 
-- 当前清单包含 131 条保留素材记录、6 条仅代码预览记录，以及 2026-11-13 包新增的 8 条待复刻记录，共 145 条、145 个唯一 ID；PR #85 批准删除的 114 个素材 ID 仍全部缺席。
-- 62 个现有 `effects/<slug>/code/index.html` 均有且仅有一个代码状态记录映射：56 条映射到保留素材记录；其余 6 条为代码专用预览记录，其中 4 条使用 `effect-<slug>` 合成 ID，`pro-threads` 和 `voice-orbs` 沿用各自效果 README 中已有的素材 ID。它们均标记为 `code_only_preview`，不恢复被删除条目的来源 ID 或素材数据。
+- 当前清单包含 131 条保留素材记录、11 条仅代码预览记录，以及 2026-11-13 包新增的 8 条待复刻记录，共 150 条、150 个唯一 ID。其中 5 条代码预览是追加的原创交互：`effect-morph-pill-card`、`effect-spotlight-carousel`、`effect-button-proximity-feedback`、`effect-nav-card-highlight`、`effect-file-progress-cancel`。锚点弹出菜单沿用已有 `jh3yy-anchor-popover`，没有新建副本。PR #85 批准删除的 114 个素材 ID 仍全部缺席。
+- 67 个 `effects/<slug>/code/index.html` 均有且仅有一个带 `code` 字段的记录：56 条映射到保留素材记录；其余 11 条为 `code_only_preview`。后 5 条是追加的原创交互。代码专用预览不恢复被删除条目的来源 ID 或素材数据。
 - PR #86 已将 62 条代码预览映射到 canonical `effects/<slug>/code/index.html`；站点数据 PR 不复制代码实现，部署仍须使用完整静态站点树并另行验证。
 - 历史浏览器显示 129 条对应 PR #86 之前的 131 条线上基线及本地隐藏状态；未读取或修改浏览器本地存储，不把该历史数字当作当前清单数。
-- `items.js` 与 `items.json` 保持语义一致；没有改动站点 UI、布局、功能、basePath `/s/rjqagsc0hcqp/` 或任何效果实现文件。
-- 62 个预览目录共 63 个代码文件（`voice-orbs` 含一个附加文件）。站点数据发布需在 PR 合并后单独组装完整站点树，保留现有 UI、布局、功能与 basePath `/s/rjqagsc0hcqp/`；不能把 `site-data/x-material-library/` 单独作为部署根目录。
+- `items.js` 与 `items.json` 保持语义一致。站点 UI、布局、功能和 basePath `/s/rjqagsc0hcqp/` 没有改。2026-11-18 新增了 4 个效果实现文件。
+- 67 个预览目录共 68 个代码文件（`voice-orbs` 含一个附加文件）。站点数据发布需在 PR 合并后单独组装完整站点树，保留现有 UI、布局、功能与 basePath `/s/rjqagsc0hcqp/`；不能把 `site-data/x-material-library/` 单独作为部署根目录。
 - 历史导入 manifest 继续记录导入当时的事实，不代表当前 canonical 清单；下文的 11/10–11/12 数量是当时批次的历史快照。
 
 ## 2026-11-10/12 数据增量

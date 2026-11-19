@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>焦点卡片轮播</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: grid; align-content: center; gap: 18px; padding: 28px 16px;
+      background: #171512; color: #f6f1e8;
+      font: 16px/1.4 "Segoe UI", "PingFang SC", sans-serif;
+    }
+    .stage { width: min(880px, 100%); margin: 0 auto; }
+    .rail {
+      position: relative; height: 280px; overflow: hidden; touch-action: pan-y;
+      user-select: none; cursor: grab;
+    }
+    .rail.is-dragging { cursor: grabbing; }
+    .card {
+      position: absolute; top: 0; left: 0; height: 100%; padding: 0; border: 0;
+      background: transparent; color: inherit; cursor: inherit; text-align: left;
+    }
+    .frame {
+      display: block; position: relative; width: 100%; height: 100%; overflow: hidden;
+      border-radius: 22px; box-shadow: 0 14px 28px rgba(0, 0, 0, .28);
+    }
+    .art { position: absolute; top: 0; height: 100%; width: 420px; left: 50%; transform: translateX(-50%); }
+    .block { position: absolute; display: block; border-radius: 10px; }
+    .edge-l { left: 72px; top: 36px; width: 56px; height: 168px; }
+    .core { left: 184px; top: 48px; width: 52px; height: 148px; }
+    .edge-r { left: 300px; top: 28px; width: 60px; height: 188px; }
+    .caption {
+      position: absolute; left: 0; right: 0; bottom: 0; margin: 0; padding: 36px 16px 14px;
+      background: linear-gradient(transparent, rgba(20, 16, 12, .78));
+      color: #f6f1e8; pointer-events: none;
+    }
+    .title, .sub { display: block; margin: 0; }
+    .title { font-size: 22px; font-weight: 650; }
+    .sub { margin-top: 2px; font-size: 13px; color: #f3eadf; }
+    .rail.is-anim .card { transition: width .35s ease, transform .35s ease; }
+    .rail.is-anim .caption { transition: opacity .25s ease; }
+    .card:focus-visible { outline: none; }
+    .card:focus-visible .frame { box-shadow: inset 0 0 0 2px #f6f1e8, 0 14px 28px rgba(0, 0, 0, .28); }
+    .controls { display: flex; justify-content: center; gap: 10px; }
+    .controls button {
+      border: 1px solid #f6f1e8; border-radius: 999px; background: transparent; color: inherit;
+      padding: 8px 14px; cursor: pointer;
+    }
+    .controls button:focus-visible { outline: 2px solid #f6f1e8; outline-offset: 4px; }
+    .sr {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rail.is-anim .card, .rail.is-anim .caption { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="widget" id="widget">
+    <div class="stage">
+      <div class="rail" id="row" role="region" aria-roledescription="轮播" aria-label="焦点卡片">
+        <button class="card" type="button">
+          <span class="frame">
+            <span class="art" style="background:#e7d7c3" aria-hidden="true"><span class="block edge-l" style="background:#8c4b32"></span><span class="block core" style="background:#c48962"></span><span class="block edge-r" style="background:#5c3224"></span></span>
+            <p class="caption"><span class="title">静场</span><span class="sub">中间一块稳住</span></p>
+          </span>
+        </button>
+        <button class="card" type="button">
+          <span class="frame">
+            <span class="art" style="background:#d7e0dc" aria-hidden="true"><span class="block edge-l" style="background:#24584d"></span><span class="block core" style="background:#6ea094"></span><span class="block edge-r" style="background:#163e36"></span></span>
+            <p class="caption"><span class="title">折线</span><span class="sub">台阶留在两侧</span></p>
+          </span>
+        </button>
+        <button class="card" type="button">
+          <span class="frame">
+            <span class="art" style="background:#ead7d2" aria-hidden="true"><span class="block edge-l" style="background:#7a3144"></span><span class="block core" style="background:#c46b7c"></span><span class="block edge-r" style="background:#4e2030"></span></span>
+            <p class="caption"><span class="title">暖边</span><span class="sub">竖条贴着边</span></p>
+          </span>
+        </button>
+        <button class="card" type="button">
+          <span class="frame">
+            <span class="art" style="background:#ddd8ea" aria-hidden="true"><span class="block edge-l" style="background:#3d3a72"></span><span class="block core" style="background:#8a86c4"></span><span class="block edge-r" style="background:#242246"></span></span>
+            <p class="caption"><span class="title">留白</span><span class="sub">空处比色块多</span></p>
+          </span>
+        </button>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" id="prev">上一张</button>
+      <button type="button" id="next">下一张</button>
+    </div>
+    <p id="status" class="sr" aria-live="polite"></p>
+  </div>
+  <script>
+    const NARROW = 112;
+    const WIDE = 292;
+    const OVERLAP = 28;
+    const cards = [...document.querySelectorAll(".card")];
+    const rail = document.querySelector("#row");
+    const widget = document.querySelector("#widget");
+    const status = document.querySelector("#status");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+    let index = 0;
+    let drag = null;
+    let suppressClick = false;
+
+    function stride() {
+      return (WIDE + NARROW) / 2 - OVERLAP;
+    }
+    function clampIndex(value) {
+      return Math.max(0, Math.min(cards.length - 1, value));
+    }
+    function widthsFor(active) {
+      return cards.map((_, i) => {
+        const distance = Math.abs(i - active);
+        const open = distance >= 1 ? 0 : 1 - distance;
+        return Math.round(NARROW + (WIDE - NARROW) * open);
+      });
+    }
+    function layout(active, animate) {
+      if (rail.clientWidth < 40) return;
+      const motion = Boolean(animate) && !reduce.matches;
+      if (!motion) rail.classList.remove("is-anim");
+      else if (!rail.classList.contains("is-anim")) {
+        rail.classList.add("is-anim");
+        void rail.offsetWidth;
+      }
+      const widths = widthsFor(active);
+      const lefts = [];
+      let cursor = 0;
+      widths.forEach((width) => {
+        lefts.push(cursor);
+        cursor += width - OVERLAP;
+      });
+      const start = clampIndex(Math.floor(active));
+      const end = clampIndex(Math.ceil(active));
+      const mix = start === end ? 0 : active - start;
+      const focus = (lefts[start] + widths[start] / 2) * (1 - mix) + (lefts[end] + widths[end] / 2) * mix;
+      const shift = rail.clientWidth / 2 - focus;
+      cards.forEach((card, i) => {
+        const open = Math.abs(i - active) >= 1 ? 0 : 1 - Math.abs(i - active);
+        card.style.width = widths[i] + "px";
+        card.style.transform = "translate3d(" + Math.round(lefts[i] + shift) + "px,0,0)";
+        card.style.zIndex = String(Math.round(open * 10));
+        card.querySelector(".caption").style.opacity = String(open);
+      });
+    }
+    function applyCurrent(announce) {
+      cards.forEach((card, i) => {
+        const on = i === index;
+        card.classList.toggle("is-on", on);
+        if (on) card.setAttribute("aria-current", "true");
+        else card.removeAttribute("aria-current");
+      });
+      if (announce) status.textContent = cards[index].querySelector(".title").textContent + "，第 " + (index + 1) + " 张，共 " + cards.length + " 张";
+    }
+    function go(next, options) {
+      const wrap = !options || options.wrap !== false;
+      index = wrap ? (next % cards.length + cards.length) % cards.length : clampIndex(next);
+      applyCurrent(true);
+      layout(index, !options || options.animate !== false);
+      if (options && options.focus) cards[index].focus();
+    }
+    rail.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      drag = {
+        x: event.clientX,
+        id: event.pointerId,
+        origin: index,
+        card: event.target.closest(".card"),
+        visual: index
+      };
+      rail.classList.add("is-dragging");
+      layout(index, false);
+      rail.setPointerCapture(event.pointerId);
+    });
+    rail.addEventListener("pointermove", (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const dx = event.clientX - drag.x;
+      drag.visual = clampIndex(drag.origin - dx / stride());
+      layout(drag.visual, false);
+    });
+    function endDrag(event, cancel) {
+      if (!drag || event.pointerId !== drag.id) return;
+      const dx = event.clientX - drag.x;
+      const card = drag.card;
+      const visual = drag.visual;
+      drag = null;
+      rail.classList.remove("is-dragging");
+      if (!cancel && Math.abs(dx) <= 8 && card) {
+        go(cards.indexOf(card), { wrap: false });
+        return;
+      }
+      if (Math.abs(dx) > 8) {
+        suppressClick = true;
+        setTimeout(() => { suppressClick = false; }, 50);
+      }
+      go(Math.round(clampIndex(visual)), { wrap: false });
+    }
+    rail.addEventListener("pointerup", (event) => endDrag(event, false));
+    rail.addEventListener("pointercancel", (event) => endDrag(event, true));
+    rail.addEventListener("click", (event) => {
+      if (suppressClick) {
+        suppressClick = false;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      const card = event.target.closest(".card");
+      if (card) go(cards.indexOf(card), { wrap: false });
+    });
+    widget.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      const onCard = Boolean(event.target.closest(".card"));
+      go(index + (event.key === "ArrowRight" ? 1 : -1), { focus: onCard });
+    });
+    document.querySelector("#prev").addEventListener("click", () => go(index - 1));
+    document.querySelector("#next").addEventListener("click", () => go(index + 1));
+    reduce.addEventListener("change", () => layout(index, false));
+    new ResizeObserver(() => { if (!drag) layout(index, false); }).observe(rail);
+    function boot() {
+      if (rail.clientWidth < 40) {
+        requestAnimationFrame(boot);
+        return;
+      }
+      applyCurrent(true);
+      layout(index, false);
+    }
+    boot();
+  </script>
+</body>
+</html>

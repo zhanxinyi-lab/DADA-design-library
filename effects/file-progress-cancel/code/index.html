@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>文件上传进度</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: grid; place-items: center; padding: 24px;
+      background: #f7f4ee; color: #241f1b;
+      font: 15px/1.4 "Segoe UI", "PingFang SC", sans-serif;
+    }
+    .card {
+      width: min(440px, 100%); padding: 16px; border-radius: 18px; background: #fffdf8;
+      box-shadow: 0 10px 30px #241f1b14; display: grid; gap: 10px;
+    }
+    .row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .muted { color: #6d665c; }
+    .files { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .files[hidden] { display: none; }
+    .file { text-align: left; }
+    .file[aria-pressed="true"] { background: #efe7da; box-shadow: inset 0 0 0 2px #241f1b; }
+    .track { height: 6px; border-radius: 999px; background: #e6dfd4; overflow: hidden; }
+    .bar { height: 100%; width: 0; background: #241f1b; }
+    .bar.is-preview { height: 10px; border-radius: 999px; }
+    .drop[hidden] { display: none; }
+    .drop:not([hidden]) {
+      min-height: 120px; border-radius: 14px; border: 1px dashed #c9c0b4;
+      display: grid; place-items: center; text-align: center; padding: 16px;
+      background: radial-gradient(circle, #d9d1c6 1px, transparent 1.4px) 0 0 / 12px 12px;
+    }
+    .chip {
+      display: inline-flex; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 8px;
+      background: #fff; border: 1px solid #e6dfd4;
+    }
+    button {
+      border: 1px solid #241f1b; border-radius: 10px; background: #fffdf8; color: #241f1b;
+      font: inherit; padding: 8px 12px; cursor: pointer;
+    }
+    button.solid { background: #241f1b; color: #f7f4ee; }
+    button:focus-visible { outline: 2px solid #241f1b; outline-offset: 3px; }
+    .phase { min-height: 1.4em; margin: 0; }
+  </style>
+</head>
+<body>
+  <section class="card" id="card" aria-label="文件上传">
+    <div class="row">
+      <strong id="title">3 份已备好</strong>
+      <span class="muted" id="meta">4.8 MB</span>
+    </div>
+    <ul class="files" id="files">
+      <li><button type="button" class="file" data-file="北窗说明.pdf" aria-pressed="true">北窗说明.pdf</button></li>
+      <li><button type="button" class="file" data-file="台阶草图.pdf" aria-pressed="false">台阶草图.pdf</button></li>
+      <li><button type="button" class="file" data-file="灯罩记录.pdf" aria-pressed="false">灯罩记录.pdf</button></li>
+    </ul>
+    <div class="track" id="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="尚未开始"><div class="bar" id="bar"></div></div>
+    <div class="row">
+      <span id="detail">北窗说明.pdf 和另外 2 份</span>
+      <button type="button" id="go" class="solid">开始上传</button>
+      <button type="button" id="next" hidden>下一段</button>
+    </div>
+    <button type="button" class="drop" id="drop" hidden>
+      <div>
+        <strong>松开即可放入</strong>
+        <div class="muted">或点此选择，单份不超过 10 MB</div>
+        <div class="chip" id="chip" hidden>台阶记录.mp4</div>
+      </div>
+    </button>
+    <p class="phase" id="phase" role="status"></p>
+  </section>
+  <script>
+    const title = document.querySelector("#title");
+    const meta = document.querySelector("#meta");
+    const detail = document.querySelector("#detail");
+    const go = document.querySelector("#go");
+    const next = document.querySelector("#next");
+    const files = document.querySelector("#files");
+    const fileButtons = [...document.querySelectorAll(".file")];
+    const track = document.querySelector("#track");
+    const bar = document.querySelector("#bar");
+    const drop = document.querySelector("#drop");
+    const chip = document.querySelector("#chip");
+    const phase = document.querySelector("#phase");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+    let timer = 0;
+    let mode = "ready";
+
+    function say(text) { phase.textContent = text; }
+    function stop() { clearInterval(timer); timer = 0; }
+    function showDrop(on) { drop.hidden = !on; chip.hidden = !on; }
+    function showFiles(on) { files.hidden = !on; }
+    function setProgress(percent, text) {
+      bar.style.width = percent + "%";
+      track.setAttribute("aria-valuenow", String(percent));
+      track.setAttribute("aria-valuetext", text);
+    }
+    function focusIfHidden(target, next) {
+      if (target.contains(document.activeElement) || document.activeElement === target) next.focus();
+    }
+
+    function ready() {
+      stop();
+      const leavingDrop = document.activeElement === drop;
+      mode = "ready";
+      title.textContent = "3 份已备好";
+      meta.textContent = "4.8 MB";
+      detail.textContent = "北窗说明.pdf 和另外 2 份";
+      next.hidden = true;
+      focusIfHidden(next, go);
+      go.hidden = false;
+      go.textContent = "开始上传";
+      go.className = "solid";
+      if (leavingDrop) go.focus();
+      showDrop(false);
+      showFiles(true);
+      bar.classList.remove("is-preview");
+      setProgress(0, "尚未开始");
+      say("");
+    }
+
+    function uploadThree() {
+      stop();
+      mode = "upload-3";
+      showDrop(false);
+      title.textContent = "正在上传 3 份";
+      meta.textContent = "剩余 2 秒  40%";
+      detail.textContent = "第 1 份 / 3  北窗说明.pdf";
+      go.hidden = false;
+      go.textContent = "取消";
+      go.className = "";
+      focusIfHidden(files, go);
+      showFiles(false);
+      bar.classList.remove("is-preview");
+      setProgress(40, "正在上传 3 份，40%，尚未完成");
+      say("正在上传，尚未完成");
+      if (reduce.matches) { next.hidden = false; return; }
+      timer = setTimeout(processing, 900);
+    }
+
+    function processing() {
+      if (mode !== "upload-3") return;
+      mode = "processing";
+      title.textContent = "正在处理 3 份";
+      meta.textContent = "";
+      detail.textContent = "正在做预览";
+      go.textContent = "取消";
+      bar.classList.add("is-preview");
+      setProgress(72, "正在做预览，72%，尚未完成");
+      say("正在做预览，尚未完成");
+      if (reduce.matches) { next.hidden = false; return; }
+      next.hidden = true;
+      timer = setTimeout(more, 900);
+    }
+
+    function more() {
+      if (mode !== "processing") return;
+      mode = "more";
+      focusIfHidden(next, go);
+      next.hidden = true;
+      title.textContent = "还可以再传";
+      meta.textContent = "";
+      detail.textContent = "";
+      go.hidden = false;
+      go.textContent = "再传一份";
+      go.className = "";
+      bar.classList.remove("is-preview");
+      setProgress(70, "还可以再传，尚未完成");
+      say("");
+    }
+
+    function armDrop() {
+      mode = "drop";
+      showDrop(true);
+      title.textContent = "等待放入";
+      meta.textContent = "";
+      detail.textContent = "";
+      drop.focus();
+      go.hidden = true;
+      setProgress(0, "等待放入，尚未开始上传");
+      say("松开后开始第二批，不会直接完成");
+    }
+
+    function uploadTwo() {
+      stop();
+      mode = "upload-2";
+      showDrop(true);
+      title.textContent = "正在上传 2 份";
+      meta.textContent = "0%";
+      detail.textContent = "第 1 份 / 2  台阶记录.mp4";
+      go.hidden = false;
+      go.textContent = "取消";
+      go.className = "";
+      bar.classList.remove("is-preview");
+      setProgress(0, "正在上传 2 份，0%，尚未完成");
+      say("正在上传，尚未完成");
+      if (reduce.matches) {
+        meta.textContent = "21%";
+        setProgress(21, "正在上传 2 份，21%，尚未完成");
+        return;
+      }
+      timer = setTimeout(() => {
+        if (mode !== "upload-2") return;
+        meta.textContent = "21%";
+        setProgress(21, "正在上传 2 份，21%，尚未完成");
+      }, 700);
+    }
+    for (const button of fileButtons) {
+      button.addEventListener("click", () => {
+        for (const entry of fileButtons) entry.setAttribute("aria-pressed", entry === button ? "true" : "false");
+        detail.textContent = button.dataset.file + " 和另外 2 份";
+      });
+    }
+
+    next.addEventListener("click", () => {
+      if (!reduce.matches) return;
+      if (mode === "upload-3") processing();
+      else if (mode === "processing") more();
+    });
+    go.addEventListener("click", () => {
+      if (mode === "ready") uploadThree();
+      else if (mode === "more") armDrop();
+      else ready();
+    });
+    drop.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      if (mode === "drop") say("松开即可放入");
+    });
+    drop.addEventListener("drop", (event) => {
+      event.preventDefault();
+      if (mode === "drop") uploadTwo();
+    });
+    drop.addEventListener("click", () => { if (mode === "drop") uploadTwo(); });
+    ready();
+  </script>
+</body>
+</html>
