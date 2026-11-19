@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unslop 仪表盘故事帧</title>
+  <style>
+    :root {
+      --stage: #0e0e0e;
+      --credit: #bdbdbd;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--stage);
+      color: #f3f3f3;
+      font-family: system-ui, sans-serif;
+    }
+    .page {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px 12px 20px;
+    }
+    .frame {
+      --page-a: #5b34b8;
+      --page-b: #2e1872;
+      --page-c: #170d3d;
+      --side: #140e33;
+      --main: #0d1131;
+      --line: rgba(47, 38, 114, .95);
+      --ink: #f6f3ff;
+      --muted: #968ee0;
+      --soft: #d6d2ff;
+      --card-a: #2b1f6e;
+      --card-b: #122666;
+      --edge: rgba(167, 139, 250, .55);
+      --accent-a: #e9d5ff;
+      --accent-b: #818cf8;
+      --good: #4ade80;
+      --glow: 0 0 16px rgba(139, 92, 246, .55);
+      --nav: 22px;
+      position: relative;
+      width: min(92vw, 680px);
+      aspect-ratio: 1;
+      padding: 4.2%;
+      overflow: hidden;
+      background: linear-gradient(160deg, var(--page-a), var(--page-b) 52%, var(--page-c));
+      box-shadow: 0 24px 70px rgba(76, 29, 149, .28);
+      transition: background 720ms linear, box-shadow 720ms linear;
+    }
+    .frame[data-look="clean"] {
+      --page-a: #6a6a6a;
+      --page-b: #3a3a3a;
+      --page-c: #242424;
+      --side: #1b1b1b;
+      --main: #141414;
+      --line: #2e2e2e;
+      --ink: #f3f3f3;
+      --muted: #8e8e8e;
+      --soft: #d7d7d7;
+      --card-a: #242424;
+      --card-b: #242424;
+      --edge: #3c3c3c;
+      --accent-a: #f3f3f3;
+      --accent-b: #f3f3f3;
+      --good: #cfcfcf;
+      --glow: 0 0 0 transparent;
+      box-shadow: none;
+    }
+    .app, .brand, .search, .nav .item, .plans li, .card, .grad, .pill, .kbd, .pro, .emo, .delta, .label {
+      transition:
+        background-color 680ms ease,
+        color 680ms ease,
+        border-color 680ms ease,
+        box-shadow 680ms ease,
+        height 520ms cubic-bezier(.65, 0, .35, 1),
+        margin 520ms cubic-bezier(.65, 0, .35, 1),
+        gap 520ms ease,
+        opacity 420ms ease,
+        width 420ms ease,
+        transform 520ms cubic-bezier(.65, 0, .35, 1);
+    }
+    .brand { transition-delay: 0ms; }
+    .search { transition-delay: 40ms; }
+    .nav .item:nth-child(1) { transition-delay: 70ms; }
+    .nav .item:nth-child(2) { transition-delay: 110ms; }
+    .nav .item:nth-child(3) { transition-delay: 150ms; }
+    .nav .item:nth-child(4) { transition-delay: 190ms; }
+    .nav .item:nth-child(5) { transition-delay: 230ms; }
+    .nav .item:nth-child(6) { transition-delay: 270ms; }
+    .plans li { transition-delay: 300ms; }
+    .crumb { transition-delay: 80ms; }
+    .title { transition-delay: 140ms; }
+    .stats { transition-delay: 220ms; }
+    .revenue { transition-delay: 320ms; }
+    .app {
+      height: 100%;
+      display: flex;
+      overflow: hidden;
+      border-radius: 10px;
+      background: var(--side);
+      box-shadow: 0 18px 50px rgba(20, 8, 48, .45), 0 0 0 1px var(--edge);
+    }
+    .side {
+      width: 38%;
+      flex: 0 0 38%;
+      padding: 8px 10px 0 8px;
+      color: var(--soft);
+      border-right: 1px solid var(--line);
+    }
+    .brand, .search, .nav .item, .plans li, .crumb, .k {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .brand { height: 28px; gap: 6px; color: var(--ink); }
+    .mark {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #a855f7, #3b82f6);
+      box-shadow: var(--glow);
+      font-size: 11px;
+    }
+    .frame[data-look="clean"] .mark { background: #2e2e2e; }
+    .word {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+    .grad {
+      background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .frame[data-look="clean"] .grad {
+      background: none;
+      color: var(--ink);
+    }
+    .pro, .kbd, .pill {
+      margin-left: auto;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #a855f7, #3b82f6);
+      color: white;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      padding: 1px 5px;
+      box-shadow: var(--glow);
+    }
+    .frame[data-look="clean"] .pro,
+    .frame[data-look="clean"] .kbd,
+    .frame[data-look="clean"] .pill {
+      opacity: 0;
+      width: 0;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: none;
+    }
+    .bell { margin-left: 6px; font-size: 12px; }
+    .search {
+      height: 28px;
+      margin-top: 8px;
+      padding: 0 6px 0 8px;
+      border-radius: 999px;
+      border: 1px solid #5b4bc4;
+      background: #1f1850;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+      box-shadow: var(--glow);
+      gap: 5px;
+    }
+    .frame[data-look="clean"] .search {
+      border-color: #333;
+      background: #222;
+      box-shadow: none;
+      border-radius: 8px;
+    }
+    .label {
+      margin: 10px 0 4px;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 750;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .nav, .plans { display: flex; flex-direction: column; }
+    .nav .item, .plans li {
+      height: var(--uh, 22px);
+      margin-top: var(--um, 0px);
+      padding: 0 6px;
+      border-radius: 8px;
+      color: var(--soft);
+      font-size: 12px;
+      font-weight: 650;
+      gap: 5px;
+    }
+    .frame[data-space="even"] .nav .item,
+    .frame[data-space="even"] .plans li {
+      height: var(--nav);
+      margin-top: 1px;
+    }
+    .nav .item[aria-current="page"] {
+      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      color: white;
+      box-shadow: var(--glow);
+    }
+    .frame[data-look="clean"] .nav .item[aria-current="page"] {
+      background: #2a2a2a;
+      color: var(--ink);
+      box-shadow: none;
+    }
+    .count {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .frame:not([data-look="clean"]) .count {
+      color: white;
+      background: linear-gradient(135deg, #a855f7, #3b82f6);
+      border-radius: 999px;
+      padding: 0 5px;
+      box-shadow: var(--glow);
+    }
+    .main {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      padding: 8px 10px 0;
+      background: var(--main);
+      color: var(--ink);
+    }
+    .main::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(70% 46% at 90% 0%, rgba(139, 92, 246, .38), transparent 70%),
+        radial-gradient(50% 40% at 0% 100%, rgba(59, 130, 246, .22), transparent 70%);
+      opacity: 1;
+      transition: opacity 680ms ease 180ms;
+    }
+    .frame[data-look="clean"] .main::before { opacity: 0; }
+    .crumb, .title, .stats, .revenue { position: relative; }
+    .crumb { height: 18px; color: var(--soft); font-size: 11px; font-weight: 700; gap: 4px; }
+    .title {
+      margin: 2px 0 0;
+      font-size: clamp(16px, 3.4vw, 26px);
+      line-height: 1.05;
+      font-weight: 800;
+      letter-spacing: -.03em;
+    }
+    .wave { margin-left: 4px; font-size: .72em; }
+    .stats {
+      display: grid;
+      grid-template-columns: 1.35fr .8fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .frame[data-space="uneven"] .stats { margin-top: 22px; gap: 14px; }
+    .card {
+      position: relative;
+      overflow: hidden;
+      min-height: 78px;
+      padding: 8px 8px 6px;
+      border-radius: 16px;
+      border: 1px solid var(--edge);
+      background: linear-gradient(115deg, var(--card-a), var(--card-b));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), var(--glow);
+    }
+    .frame[data-look="clean"] .card {
+      border-radius: 10px;
+      box-shadow: none;
+    }
+    .k {
+      margin: 0;
+      color: var(--soft);
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      gap: 3px;
+    }
+    .frame[data-look="clean"] .k { letter-spacing: 0; font-weight: 650; }
+    .frame[data-look="clean"] .label { text-transform: none; letter-spacing: .02em; }
+    .num {
+      margin: 2px 0 0;
+      font-size: clamp(18px, 3.6vw, 28px);
+      font-weight: 800;
+      letter-spacing: -.03em;
+      line-height: 1;
+    }
+    .delta { margin: 6px 0 0; color: var(--good); font-size: 11px; font-weight: 750; gap: 3px; }
+    .bigemo {
+      position: absolute;
+      right: 4px;
+      bottom: 2px;
+      font-size: 28px;
+      filter: drop-shadow(0 0 10px rgba(168, 85, 247, .8));
+    }
+    .revenue { margin-top: 10px; min-height: 92px; }
+    .frame[data-space="uneven"] .revenue { margin-top: 18px; }
+    .emo {
+      display: inline-grid;
+      place-items: center;
+      width: 1.05em;
+      overflow: hidden;
+      flex: 0 0 auto;
+    }
+    .frame[data-look="clean"] .emo { width: 0; opacity: 0; }
+    .measures {
+      position: absolute;
+      inset: 4.2%;
+      pointer-events: none;
+    }
+    .measures span {
+      position: absolute;
+      opacity: 0;
+      transition: opacity 240ms ease, transform 520ms cubic-bezier(.65, 0, .35, 1), background-color 300ms ease, border-color 300ms ease, top 520ms cubic-bezier(.65, 0, .35, 1);
+    }
+    .measures .h, .measures .v { background: #ff4d6a; }
+    .frame[data-lines="mark"] .measures span,
+    .frame[data-lines="fixed"] .measures span { opacity: 1; }
+    .frame[data-lines="fixed"] .h,
+    .frame[data-lines="fixed"] .v { background: rgba(255, 255, 255, .92); }
+    .measures .h {
+      left: 7%;
+      width: 28%;
+      height: 1px;
+      transform: scaleX(0);
+      transform-origin: left center;
+    }
+    .frame[data-lines="mark"] .h,
+    .frame[data-lines="fixed"] .h { transform: scaleX(1); }
+    .measures .h1 { top: 31%; }
+    .measures .h2 { top: 41%; }
+    .measures .h3 { top: 54%; }
+    .measures .h4 { top: 66%; }
+    .frame[data-space="even"] .h1 { top: 34%; }
+    .frame[data-space="even"] .h2 { top: 41%; }
+    .frame[data-space="even"] .h3 { top: 48%; }
+    .frame[data-space="even"] .h4 { top: 55%; }
+    .measures .v {
+      top: 24%;
+      left: 36.5%;
+      width: 1px;
+      height: 48%;
+      transform: scaleY(0);
+      transform-origin: center top;
+    }
+    .frame[data-lines="mark"] .v,
+    .frame[data-lines="fixed"] .v { transform: scaleY(1); }
+    .measures .box {
+      top: 34%;
+      left: 42%;
+      width: 54%;
+      height: 28%;
+      background: transparent;
+      border: 1px solid #ff4d6a;
+    }
+    .frame[data-lines="fixed"] .box { border-color: rgba(255, 255, 255, .92); }
+    .bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: min(92vw, 680px);
+      color: var(--credit);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .bar a { color: inherit; }
+    button {
+      border: 1px solid #444;
+      background: #1b1b1b;
+      color: #f3f3f3;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font: 600 13px/1 system-ui, sans-serif;
+      cursor: pointer;
+    }
+    button:focus-visible { outline: 2px solid #f3f3f3; outline-offset: 3px; }
+    button[hidden] { display: none; }
+    @media (max-width: 560px) {
+      .side { width: 42%; flex-basis: 42%; }
+      .nav .item, .plans li, .search { font-size: 10px; }
+      .label { letter-spacing: .06em; }
+      .stats { grid-template-columns: 1fr .72fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .frame, .frame *, .measures span { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="frame" id="frame" data-look="slop" data-space="uneven" data-lines="off" role="group" aria-label="Ember 仪表盘从紫雾界面洗成石墨界面">
+      <div class="app">
+        <aside class="side">
+          <div class="brand">
+            <span class="mark emo" aria-hidden="true">✨</span>
+            <span class="word grad" data-slop="EmberAI" data-clean="Ember">EmberAI</span>
+            <span class="pro">PRO</span>
+            <span class="bell emo" aria-hidden="true">🔔</span>
+          </div>
+          <div class="search">
+            <span class="emo" aria-hidden="true">🔍</span>
+            <span data-slop="Search anything..." data-clean="Search">Search anything...</span>
+            <span class="kbd">⌘K</span>
+          </div>
+          <p class="label"><span data-slop="NAVIGATION" data-clean="Navigation">NAVIGATION</span></p>
+          <nav class="nav" aria-label="Navigation">
+            <div class="item" aria-current="page" style="--uh:30px;--um:0px"><span class="emo" aria-hidden="true">🏠</span><span>Overview</span></div>
+            <div class="item" style="--uh:18px;--um:6px"><span class="emo" aria-hidden="true">📥</span><span>Inbox</span><span class="count">12</span></div>
+            <div class="item" style="--uh:26px;--um:2px"><span class="emo" aria-hidden="true">🚀</span><span>Projects</span><span class="pill">New</span></div>
+            <div class="item" style="--uh:16px;--um:7px"><span class="emo" aria-hidden="true">👥</span><span>Customers</span></div>
+            <div class="item" style="--uh:28px;--um:1px"><span class="emo" aria-hidden="true">💸</span><span>Invoices</span></div>
+            <div class="item" style="--uh:18px;--um:8px"><span class="emo" aria-hidden="true">📊</span><span>Reports</span></div>
+          </nav>
+          <p class="label"><span class="emo" aria-hidden="true">💳</span><span data-slop="PLANS" data-clean="Plans">PLANS</span></p>
+          <ul class="plans">
+            <li style="--uh:24px;--um:2px"><span class="emo" aria-hidden="true">🏢</span><span>Enterprise</span><span class="count">18</span></li>
+            <li style="--uh:16px;--um:6px"><span class="emo" aria-hidden="true">💼</span><span>Business</span><span class="count">64</span></li>
+            <li style="--uh:22px;--um:1px"><span class="emo" aria-hidden="true">⚡</span><span>Pro</span><span class="count">210</span></li>
+            <li style="--uh:18px;--um:5px"><span class="emo" aria-hidden="true">🌱</span><span>Starter</span><span class="count">480</span></li>
+          </ul>
+        </aside>
+        <section class="main">
+          <p class="crumb"><span class="emo" aria-hidden="true">📊</span>Overview</p>
+          <h1 class="title grad"><span data-slop="Welcome back, Damir!" data-clean="October 2026">Welcome back, Damir!</span><span class="emo wave" aria-hidden="true">👋</span></h1>
+          <div class="stats">
+            <article class="card">
+              <p class="k"><span class="emo" aria-hidden="true">💰</span><span data-slop="PAID THIS MONTH" data-clean="Paid this month">PAID THIS MONTH</span></p>
+              <p class="num grad">$48,210</p>
+              <p class="delta"><span class="emo" aria-hidden="true">🔥</span><span data-slop="+12%!!" data-clean="+12% vs last month">+12%!!</span></p>
+              <span class="bigemo emo" aria-hidden="true">💳</span>
+            </article>
+            <article class="card">
+              <p class="k"><span class="emo" aria-hidden="true">⚠️</span><span data-slop="OVERDUE" data-clean="Overdue">OVERDUE</span></p>
+              <p class="num grad">07</p>
+              <p class="delta"><span class="emo" aria-hidden="true">😬</span><span data-slop="3 less!!" data-clean="3 fewer">3 less!!</span></p>
+            </article>
+          </div>
+          <article class="card revenue">
+            <p class="k"><span class="emo" aria-hidden="true">📈</span><span data-slop="REVENUE" data-clean="Revenue">REVENUE</span></p>
+            <p class="num grad">$124,860</p>
+            <p class="delta"><span class="emo" aria-hidden="true">🚀</span><span data-slop="+4.2% this month!!" data-clean="4.2% vs September">+4.2% this month!!</span></p>
+          </article>
+        </section>
+      </div>
+      <div class="measures" aria-hidden="true">
+        <span class="h h1"></span>
+        <span class="h h2"></span>
+        <span class="h h3"></span>
+        <span class="h h4"></span>
+        <span class="v"></span>
+        <span class="box"></span>
+      </div>
+    </div>
+    <div class="bar">
+      <p class="credit">改编自 <a href="https://github.com/heydamir/unslop">Damir Sokolovsky 的 Unslop</a> 故事帧，CC BY 4.0。</p>
+      <button type="button" id="step" hidden>下一步</button>
+    </div>
+  </div>
+  <script>
+    const frame = document.getElementById("frame");
+    const stepButton = document.getElementById("step");
+    const rolls = [...document.querySelectorAll("[data-slop]")];
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    const beats = [
+      { at: 0, space: "uneven", look: "slop", lines: "off", copy: "slop" },
+      { at: 1100, space: "uneven", look: "slop", lines: "mark", copy: "slop" },
+      { at: 2700, space: "even", look: "slop", lines: "mark", copy: "slop" },
+      { at: 4500, space: "even", look: "slop", lines: "fixed", copy: "slop" },
+      { at: 5400, space: "even", look: "clean", lines: "fixed", copy: "slop" },
+      { at: 7000, space: "even", look: "clean", lines: "off", copy: "clean" },
+      { at: 9800, space: "even", look: "clean", lines: "off", copy: "clean" }
+    ];
+    const loopMs = 10800;
+    let job = 0;
+    let started = 0;
+    let raf = 0;
+    let lastCopy = "slop";
+    let manual = 0;
+
+    function paint(beat, animateCopy) {
+      frame.dataset.space = beat.space;
+      frame.dataset.look = beat.look;
+      frame.dataset.lines = beat.lines;
+      const token = ++job;
+      if (beat.copy === "slop" || !animateCopy) {
+        for (const el of rolls) el.textContent = el.dataset[beat.copy];
+        lastCopy = beat.copy;
+        return;
+      }
+      if (lastCopy === "clean") return;
+      lastCopy = "clean";
+      const t0 = performance.now();
+      const dur = 760;
+      const tick = (now) => {
+        if (token !== job) return;
+        const t = Math.min(1, (now - t0) / dur);
+        for (const el of rolls) {
+          const from = el.dataset.slop;
+          const to = el.dataset.clean;
+          const n = Math.max(from.length, to.length);
+          const cut = Math.round(t * n);
+          el.textContent = (to.slice(0, cut) + from.slice(cut)).trimEnd();
+        }
+        if (t < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+
+    function beatAt(ms) {
+      let current = beats[0];
+      for (const beat of beats) if (ms >= beat.at) current = beat;
+      return current;
+    }
+
+    function frameLoop(now) {
+      raf = requestAnimationFrame(frameLoop);
+      if (document.hidden) return;
+      const elapsed = (now - started) % loopMs;
+      const beat = beatAt(elapsed);
+      const crossed = beat.copy === "clean" && lastCopy !== "clean";
+      if (frame.dataset.space !== beat.space || frame.dataset.look !== beat.look || frame.dataset.lines !== beat.lines || crossed) {
+        paint(beat, true);
+      }
+    }
+
+    function play() {
+      cancelAnimationFrame(raf);
+      started = performance.now();
+      lastCopy = "";
+      paint(beats[0], false);
+      raf = requestAnimationFrame(frameLoop);
+    }
+
+    function showManual() {
+      cancelAnimationFrame(raf);
+      stepButton.hidden = false;
+      paint(beats[manual], false);
+    }
+
+    function sync() {
+      if (motion.matches) showManual();
+      else {
+        stepButton.hidden = true;
+        play();
+      }
+    }
+
+    stepButton.addEventListener("click", () => {
+      manual = (manual + 1) % beats.length;
+      paint(beats[manual], false);
+    });
+    motion.addEventListener("change", sync);
+    sync();
+  </script>
+</body>
+</html>
