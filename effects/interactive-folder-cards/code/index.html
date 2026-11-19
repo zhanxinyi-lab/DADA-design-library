@@ -21,17 +21,17 @@
     .folder[data-state="open"] .back { opacity: 1; }
     .folder[data-tone="light"][data-state="open"] .back { background: #f6f6f7; transform: translateY(-12px); }
     .pocket { position: absolute; inset: 0; z-index: 2; }
-    .plate { background: rgba(255,255,255,.94); transition: background .35s ease; filter: drop-shadow(0 16px 28px rgba(20,20,20,.10)); }
-    .folder[data-tone="dark"] .plate { background: #17171a; }
+    .plate { background: rgba(255,255,255,.58); transition: background .35s ease; filter: drop-shadow(0 16px 28px rgba(20,20,20,.10)); }
+    .folder[data-tone="dark"] .plate { background: rgba(22,22,24,.55); }
     .folder[data-state="open"][data-tone="light"] .plate { background: #fff; }
     .folder[data-state="open"][data-tone="dark"] .plate { background: #1c1c1f; }
     .window { position: absolute; inset: 7px; clip-path: url(#folderClip); transition: opacity .35s ease; }
     .folder[data-state="open"] .window { opacity: 0; }
     .ghost { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .folder[data-tone="dark"] .ghost { filter: brightness(.62) saturate(.82); }
-    .frost { position: absolute; left: 0; right: 0; bottom: 0; height: 48%; background: linear-gradient(to top, #fff 0 32%, rgba(255,255,255,.9) 58%, rgba(255,255,255,0) 100%); }
-    .folder[data-tone="dark"] .frost { background: linear-gradient(to top, #121214 0 34%, rgba(18,18,20,.88) 60%, rgba(18,18,20,0) 100%); }
-    .folder[data-state="peek"] .frost { height: 70%; }
+    .frost { position: absolute; inset: 0; backdrop-filter: blur(4px) saturate(1.2); background: linear-gradient(to top, rgba(255,255,255,.9) 0%, rgba(255,255,255,.5) 26%, rgba(255,255,255,.08) 58%, rgba(255,255,255,0) 100%); }
+    .folder[data-tone="dark"] .frost { backdrop-filter: blur(5px) saturate(1.05); background: linear-gradient(to top, rgba(10,10,12,.88) 0%, rgba(10,10,12,.45) 30%, rgba(10,10,12,.1) 62%, rgba(10,10,12,0) 100%); }
+    .folder[data-state="peek"] .frost { backdrop-filter: blur(2px) saturate(1.15); background: linear-gradient(to top, rgba(255,255,255,.55) 0%, rgba(255,255,255,.12) 40%, rgba(255,255,255,0) 100%); }
     .stack { position: absolute; z-index: 1; left: 26px; bottom: 18px; width: 200px; height: 126px; }
     .sheet { position: absolute; inset: 0; padding: 4px; border-radius: 18px; background: #fff; box-shadow: 0 14px 28px rgba(20,20,20,.16); transform-origin: 50% 120%; opacity: 0; transform: translate(calc(var(--rest-x, 0) * 1px), calc(var(--rest-y, 0) * 1px)) rotate(calc(var(--rest-r, 0) * 1deg)); transition: transform .58s cubic-bezier(.2,.85,.2,1), opacity .35s ease; z-index: var(--i); }
     .sheet img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
@@ -42,7 +42,7 @@
     .folder[data-count="4"] .sheet:nth-child(2) { --i: 2; --peek-x: -18; --peek-y: -54; --peek-r: -6; --open-x: -36; --open-y: -108; --open-r: -7; }
     .folder[data-count="4"] .sheet:nth-child(3) { --i: 3; --peek-x: 2; --peek-y: -74; --peek-r: 1; --open-x: 22; --open-y: -124; --open-r: 2; }
     .folder[data-count="4"] .sheet:nth-child(4) { --i: 4; --peek-x: 16; --peek-y: -96; --peek-r: 5; --open-x: 70; --open-y: -84; --open-r: 12; }
-    .folder[data-tone="dark"] .sheet:nth-child(2) { --rest-y: -46; --rest-x: 8; --rest-r: -1; opacity: 1; } .folder[data-state="peek"] .sheet, .folder[data-state="open"] .sheet { opacity: 1; }
+    .folder[data-tone="dark"][data-state="rest"] .sheet:nth-child(2) { --rest-y: -14; --rest-x: 0; --rest-r: 0; opacity: 1; clip-path: inset(0 0 90% 0); } .folder[data-state="peek"] .sheet, .folder[data-state="open"] .sheet { opacity: 1; clip-path: none; }
     .folder[data-state="peek"] .sheet { transform: translate(calc(var(--peek-x) * 1px), calc(var(--peek-y) * 1px)) rotate(calc(var(--peek-r) * 1deg)); }
     .folder[data-state="open"] .sheet { transform: translate(calc(var(--open-x) * 1px), calc(var(--open-y) * 1px)) rotate(calc(var(--open-r) * 1deg)); }
     .meta { position: absolute; z-index: 3; left: 20px; right: 14px; bottom: 14px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
