@@ -225,7 +225,7 @@
 </head>
 <body>
 <div id="app">
-  <canvas id="stage" tabindex="0" aria-label="人偶舞台。拖动手腕或脚踝上的圆点摆姿势，方向键微调，双击可钉住。"></canvas>
+  <canvas id="stage" tabindex="0" aria-label="人偶舞台。拖动手腕或脚踝上的圆点摆姿势，方向键微调。鼠标双击钉住，触控点一下钉住、再点一下解开。"></canvas>
   <div class="dock">
     <div class="console">
       <span class="rail l"></span><span class="rail r"></span>
@@ -305,6 +305,7 @@
   let lock = { lHand: false, rHand: false, lFoot: false, rFoot: false };
   let hover = null;
   let drag = null;
+  let touchPin = null;
   let label = 'RIG:MANQ';
   let anim = null;
 
@@ -710,8 +711,21 @@
     const r = canvas.getBoundingClientRect();
     return { x: ev.clientX - r.left, y: ev.clientY - r.top };
   }
+  const TAP = 8;
+  function toggleLock(key) {
+    lock[key] = !lock[key];
+    drag = null;
+    touchPin = null;
+    hover = key;
+    label = names[key];
+    refreshReadout();
+  }
   canvas.addEventListener('pointermove', (ev) => {
     const p = localPoint(ev);
+    if (touchPin && !drag && Math.hypot(p.x - touchPin.x, p.y - touchPin.y) > TAP) {
+      if (!lock[touchPin.key]) drag = touchPin.key;
+      touchPin = null;
+    }
     if (drag) {
       if (lock[drag]) return;
       const pin = pinCache.find((item) => item.key === drag);
@@ -737,19 +751,33 @@
     const p = localPoint(ev);
     const next = hit(p.x, p.y);
     if (!next) return;
-    if (ev.detail >= 2) {
-      lock[next.key] = !lock[next.key];
-      drag = null;
+    if (ev.pointerType !== 'touch' && ev.detail >= 2) {
+      toggleLock(next.key);
+      return;
+    }
+    if (ev.pointerType === 'touch') {
+      touchPin = { key: next.key, x: p.x, y: p.y, id: ev.pointerId };
+      try { canvas.setPointerCapture(ev.pointerId); } catch (err) { /* 指针已经结束时捕获会失败 */ }
+      canvas.focus();
+      hover = next.key;
+      label = names[next.key];
       refreshReadout();
       return;
     }
     if (lock[next.key]) { hover = next.key; refreshReadout(); return; }
     drag = next.key;
-    canvas.setPointerCapture(ev.pointerId);
+    try { canvas.setPointerCapture(ev.pointerId); } catch (err) { /* 指针已经结束时捕获会失败 */ }
     canvas.focus();
   });
-  canvas.addEventListener('pointerup', () => { drag = null; });
-  canvas.addEventListener('pointercancel', () => { drag = null; });
+  canvas.addEventListener('pointerup', (ev) => {
+    if (touchPin && touchPin.id === ev.pointerId) {
+      const p = localPoint(ev);
+      if (Math.hypot(p.x - touchPin.x, p.y - touchPin.y) <= TAP) toggleLock(touchPin.key);
+      touchPin = null;
+    }
+    drag = null;
+  });
+  canvas.addEventListener('pointercancel', () => { drag = null; touchPin = null; });
   canvas.addEventListener('keydown', (ev) => {
     const key = hover || drag || 'lHand';
     const step = ev.shiftKey ? 0.06 : 0.03;
