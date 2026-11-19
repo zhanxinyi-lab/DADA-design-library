@@ -834,8 +834,9 @@
       else if (/^[1-6]$/.test(event.key)) { pause(); seek(cards[Number(event.key) - 1][4]); }
     });
     window.addEventListener("resize", () => aim(beatAt(time).card));
-    const queryTime = Number(new URLSearchParams(location.hash.replace(/^#/, "")).get("t"));
-    const hasQuery = Number.isFinite(queryTime);
+    const rawTime = new URLSearchParams(location.hash.replace(/^#/, "")).get("t");
+    const queryTime = rawTime === null ? NaN : Number(rawTime);
+    const hasQuery = rawTime !== null && Number.isFinite(queryTime);
     if (hasQuery) playing = false;
     render(hasQuery ? clamp(queryTime, 0, DURATION) : 0);
     if (playing) { last = performance.now(); requestAnimationFrame(tick); }
