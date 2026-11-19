@@ -1,0 +1,265 @@
+# Agent Robot Avatar
+
+<p align="center">
+  <img src="./assets/readme/agent-robot-avatar-header.jpg" alt="Agent Robot Avatar">
+</p>
+
+[English](https://github.com/CX-ArtLab/agent-robot-avatar/blob/main/README.md) | [简体中文](https://github.com/CX-ArtLab/agent-robot-avatar/blob/main/docs/README.zh-CN.md) | [Español](https://github.com/CX-ArtLab/agent-robot-avatar/blob/main/docs/README.es.md) | [Русский](https://github.com/CX-ArtLab/agent-robot-avatar/blob/main/docs/README.ru.md) | [Français](https://github.com/CX-ArtLab/agent-robot-avatar/blob/main/docs/README.fr.md) | [Português](https://github.com/CX-ArtLab/agent-robot-avatar/blob/main/docs/README.pt.md) | [Deutsch](https://github.com/CX-ArtLab/agent-robot-avatar/blob/main/docs/README.de.md) | [日本語](https://github.com/CX-ArtLab/agent-robot-avatar/blob/main/docs/README.ja.md) | [한국어](https://github.com/CX-ArtLab/agent-robot-avatar/blob/main/docs/README.ko.md) | [繁體中文](https://github.com/CX-ArtLab/agent-robot-avatar/blob/main/docs/README.zh-TW.md)
+
+![Version](https://img.shields.io/badge/version-v0.7.2-111111?style=flat-square) [![License](https://img.shields.io/badge/license-MIT-0A7EA4?style=flat-square)](./LICENSE) [![CI](https://github.com/CX-ArtLab/agent-robot-avatar/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/CX-ArtLab/agent-robot-avatar/actions/workflows/validate.yml) [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/P0E625WIOI)
+
+![Vanilla JavaScript](https://img.shields.io/badge/Vanilla-JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=000) ![Web Component](https://img.shields.io/badge/Web-Native%20Component-5A67D8?style=flat-square) ![SVG](https://img.shields.io/badge/Rendering-SVG-FFB13B?style=flat-square&logo=svg&logoColor=000) ![Zero Dependencies](https://img.shields.io/badge/Dependencies-0-2EA44F?style=flat-square)
+
+A lightweight, expressive robot avatar Web Component for AI agents and interactive applications.
+
+Suitable for AI assistant and agent interfaces, including products and experiences similar to ChatGPT, Claude, Codex, Cursor, Grok Bot, Gemini CLI, and OpenCode.
+
+It can also be used for desktop pets, virtual pets, desktop companions, digital mascots, chatbot avatars, and other interactive character experiences.
+
+Agent Robot Avatar can also be used as a visual feedback layer for AG-UI-style agent interfaces.
+
+Built with SVG and vanilla JavaScript, it works as a native custom element with zero runtime dependencies.
+
+<p align="center">
+  <img src="./assets/demo/agent-robot-avatar-demo.gif" alt="Agent Robot Avatar interactive animation demo" width="560">
+</p>
+
+## Live Demo
+
+[Open the interactive demo](https://cx-artlab.github.io/agent-robot-avatar/) · [Visit the Skin Gallery](https://cx-artlab.github.io/agent-robot-avatar/skins.html)
+
+## Highlights
+
+- Native Web Component
+- SVG rendering + vanilla JavaScript
+- Zero runtime dependencies
+- Automatic blinking and subtle idle behavior
+- Pointer-following eyes and inertial head movement
+- Jelly-style drag deformation with elastic recovery
+- Press-and-hold squeeze and draggable spring antenna interactions
+- Programmatically controlled Agent states and expressions
+- Expressions for waiting, success, failure, affirm, wary, inspect, angry, refuse, love and more
+- Reduced-motion support
+- Configurable sleep behavior
+- Adjustable head roundness
+- 188 numbered skins in 17 series, with light that follows the pointer
+- A lite build without skins for the smallest pages
+- TypeScript declarations included
+
+## Install
+
+```bash
+npm install agent-robot-avatar
+```
+
+```js
+import 'agent-robot-avatar';
+```
+
+Or download `agent-robot-avatar-x.y.z.zip` from the [latest release](https://github.com/CX-ArtLab/agent-robot-avatar/releases/latest). It holds only the component, skins included. Unzip it next to your page:
+
+```html
+<script type="module" src="./agent-robot-avatar/agent-robot-avatar.js"></script>
+```
+
+Then add the component:
+
+```html
+<agent-robot-avatar id="avatar"></agent-robot-avatar>
+```
+
+No initialization code is required. The avatar enters its default idle behavior automatically.
+
+### Lite build
+
+For pages that never use skins, `agent-robot-avatar/lite` is the same avatar without any skin code:
+
+```js
+import 'agent-robot-avatar/lite';
+```
+
+In the lite build the `skin` attribute is ignored, and the console notes that skins need the full build.
+
+## Basic usage
+
+```js
+const avatar = document.querySelector('#avatar');
+
+avatar.play('success');
+avatar.play('wary');
+avatar.play('refuse');
+
+avatar.reset();
+```
+
+Available actions:
+
+| Action | Looks like | Use when |
+| --- | --- | --- |
+| `idle` | Blinks and glances around | Default state |
+| `bored` | Glances slowly from side to side | Nothing has happened for a while |
+| `waiting-spin` | Eyes circle from side to side | Waiting for a reply (default) |
+| `waiting-wrap` | Eyes slide out one side and back in the other | Waiting for a reply |
+| `waiting-wave` | Eyes bob up and down in turn | Waiting for a reply |
+| `input` | Eyes become blinking text cursors | The user is typing |
+| `affirm` | Nods | Got it, confirmed |
+| `success` | Happy, smiling eyes | Task completed |
+| `failure` | Head and eyes droop | Task or connection failed |
+| `wary` | Turns its head and gives a guarded up-and-down look | An action needs confirmation |
+| `inspect` | Narrows its eyes and scans up and down | Checking or reviewing something |
+| `angry` | Lowered, glaring eyes | Content blocked |
+| `refuse` | Shakes its head | Cannot or will not do the request |
+| `surprise` | Wide-open eyes | Something unexpected |
+| `love` | Eyes merge into a beating heart | Thanks, affection |
+| `random` | Eyes spin like slot-machine reels | Random pick, playful moment |
+| `sleep` | Closes its eyes and sleeps | No activity for a long time |
+| `wake` | Opens its eyes and wakes up | Activity resumes |
+
+Waiting actions play one round with `play()`. `startWaiting({ variant: 'spin' | 'wrap' | 'wave' })` loops until another action starts or `stopWaiting()` is called.
+
+Names from 0.5 (`send`, `warning`, `error`, `blocked`, `slot` and others) still work with a console notice until 1.0; see the [upgrade table](CHANGELOG.md#upgrading-from-05x).
+
+For a real Agent request lifecycle:
+
+```js
+avatar.startWaiting();
+
+// Alternative waiting motion: eyes turn out through one side and return through the other.
+avatar.startWaiting({ variant: 'wrap' });
+
+// Alternative waiting motion: staggered vertical eye waves.
+avatar.startWaiting({ variant: 'wave' });
+
+try {
+  const result = await runAgentRequest();
+  await avatar.play(result.ok ? 'success' : 'failure');
+} catch (error) {
+  await avatar.play('failure');
+}
+```
+
+## Common options
+
+```html
+<agent-robot-avatar
+  size="160"
+  color="#08090b"
+  auto-sleep="30000"
+  wake-on="activity"
+  motion="auto">
+</agent-robot-avatar>
+```
+
+| Attribute | Purpose |
+| --- | --- |
+| `size` | Avatar size in pixels |
+| `color` | Main avatar color |
+| `auto-sleep` | Idle time before automatic sleep; `0` disables it |
+| `wake-on` | Automatic wake policy: `activity`, `interaction`, or `manual` |
+| `motion` | Motion policy: `auto`, `reduce`, or `full` |
+| `press-squeeze` | Center press-and-hold squeeze; set to `false` to disable |
+| `antenna-drag` | Antenna drag, spring return, and angry reaction; set to `false` to disable |
+| `skin` | Skin number, such as `301`; leave it out for the flat color |
+
+Common runtime controls:
+
+```js
+avatar.setPointerFollow(false);
+avatar.setHeadRoundness(75);
+avatar.setPressSqueeze(true);
+avatar.setAntennaDrag(true);
+```
+
+The avatar center begins the squeeze interaction. Moving more than 4 CSS pixels transfers the same pointer gesture to the existing head drag. Dragging the antenna uses the same pull limit as head dragging and ends with the existing angry reaction.
+
+## Skins · New in 0.7
+
+188 skins in 17 series, with light that follows the pointer. Every skin has a permanent number: the series number followed by two digits, so 305 is the fifth skin of series 3. Titles may be reworded later; numbers never change and are never reused.
+
+Every skin is still pure SVG: no images, canvas or WebGL. All skins together are about 70 KB over the network (about 290 KB uncompressed), and most of it loads only when a page uses a skin. For comparison, the avatar itself (the lite build, without skins) is about 45 KB.
+
+<img src="./assets/readme/skin-gallery.jpg" alt="Skin Gallery: featured skins, filters and search" width="100%">
+
+```html
+<agent-robot-avatar skin="301"></agent-robot-avatar>
+```
+
+```js
+avatar.setSkin(102);  // or '102'
+avatar.setSkin(null); // back to the flat color
+```
+
+See every skin with its number on the [all skins page](https://cx-artlab.github.io/agent-robot-avatar/materials/).
+
+| Series | Numbers |
+| --- | --- |
+| Glaze | 101–106 |
+| Ice glass | 201–206 |
+| Gummy | 301–312 |
+| Candy glass | 401–406 |
+| Acrylic | 501–512 |
+| Jelly | 601–612 |
+| Gradient | 701–712 |
+| Frosted glass | 801–806 |
+| Metal | 901–930 |
+| Gems and ceramics | 1001–1012 |
+| Wood | 1101–1106 |
+| Balls | 1201–1210 |
+| Clear and shimmer | 1301–1305 |
+| Fabric and leather | 1401–1412 |
+| Sweets and fruit | 1501–1512 |
+| Nature | 1601–1612 |
+| Patterns and tech | 1701–1717 |
+
+Skin painters download the first time a skin is used, so a page without skins never loads them. `await loadSkins()` loads them in advance. `SKINS` holds each skin’s Chinese and English titles and colors, `SKIN_SERIES` the series, and `SKIN_NAMES` every number.
+
+Every expression and gesture works with a skin. When the skin is removed, the `color` attribute applies again.
+
+## Events and integration
+
+The component emits `face-state` for visual state changes and `action-state` for semantic action lifecycle changes.
+
+For host integrations and accessibility status text, prefer `action-state`. See [`examples/accessibility.html`](./examples/accessibility.html) for a runnable request-lifecycle example.
+
+A minimal integration example is available at [`examples/basic.html`](./examples/basic.html).
+
+## Compatibility
+
+Designed for modern browsers with support for ES Modules, Custom Elements, SVG, Pointer Events, Web Animations API, `IntersectionObserver`, `ResizeObserver`, and `matchMedia`.
+
+Automated browser tests cover Chromium, Firefox, and WebKit.
+
+## Hardware version (in development)
+
+A C++ version that shows the avatar's expressions on robot and dev-board screens (it draws only the eyes) is in development and not released yet. See the [hardware guide](https://github.com/CX-ArtLab/agent-robot-avatar/tree/main/embedded).
+
+## Contributing
+
+Issues and pull requests are welcome. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) before submitting changes.
+
+## Project status
+
+**Current public version: v0.7.2**
+
+The public API is intentionally kept compact while the project evolves toward a future `1.0.0` stability commitment.
+
+Agent Robot Avatar is independently developed and is not affiliated with, endorsed by, or representative of any AI platform or brand.
+
+## Character design and visual identity
+
+The Agent Robot Avatar character, including its robot appearance and visual identity, is an original design by CX ArtLab.
+
+The MIT License applies to the software and source code. It allows the avatar to be used, modified, and distributed as part of applications, but it does not transfer ownership of the Agent Robot Avatar name, character identity, or visual identity, or grant the right to present them as another party's original character or standalone brand.
+
+Third-party product names mentioned in this project describe possible use cases only and do not indicate affiliation or endorsement.
+
+## License
+
+MIT License. See [`LICENSE`](./LICENSE).
+
+---
+
+If this project is useful to you, you can buy me a coffee.
+
+<a href='https://ko-fi.com/P0E625WIOI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+

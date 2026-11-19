@@ -1,0 +1,557 @@
+@import 'tailwindcss';
+
+/* UI typography is bundled so the editor remains fully usable offline. */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/fonts/IBMPlexSans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/fonts/IBMPlexSans-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/fonts/IBMPlexSans-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* bundled font used for text objects (same file that gets embedded in .riv) */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --bg-0: #121212;
+  --bg-1: #1a1a1a;
+  --bg-2: #222222;
+  --bg-3: #2c2c2c;
+  --bg-4: #363636;
+  --line: #2f2f2f;
+  --line-2: #3d3d3d;
+  --text-0: #f2f2f2;
+  --text-1: #bdbdbd;
+  --text-2: #8a8a8a;
+  --text-3: #5f5f5f;
+  --accent: #57a5e0;
+  --accent-2: #3d8bd0;
+  --key: #ffcf33;
+  --anim: #f25ca2;
+  --danger: #ff5c5c;
+  --ok: #27c498;
+  --stage: #151515;
+}
+
+@theme inline {
+  --color-bg0: var(--bg-0);
+  --color-bg1: var(--bg-1);
+  --color-bg2: var(--bg-2);
+  --color-bg3: var(--bg-3);
+  --color-bg4: var(--bg-4);
+  --color-line: var(--line);
+  --color-line2: var(--line-2);
+  --color-t0: var(--text-0);
+  --color-t1: var(--text-1);
+  --color-t2: var(--text-2);
+  --color-t3: var(--text-3);
+  --color-accent: var(--accent);
+  --color-key: var(--key);
+  --color-anim: var(--anim);
+  --color-danger: var(--danger);
+  --color-ok: var(--ok);
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+}
+
+html,
+body {
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  overscroll-behavior: none;
+}
+
+/* In the desktop app the window has no native frame: OpenRive's own top bars
+   are the window handle. Anything interactive inside them stays clickable.
+   --electrobun-app-region is what the desktop preload reads when it decides
+   whether a press starts a window move. It comes first because the CSS build
+   drops -webkit-app-region, while a custom property always survives. */
+html.desktop-chrome .window-drag {
+  --electrobun-app-region: drag;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+/* The desktop window is frameless, so give the rendered shell its own subtle
+   corner treatment instead of leaving the app surface perfectly square. */
+html.desktop-chrome {
+  background: transparent;
+}
+
+html.desktop-chrome,
+html.desktop-chrome body {
+  border-radius: 10px;
+}
+
+html.desktop-chrome body {
+  overflow: auto;
+  border: 1px solid var(--line);
+  box-sizing: border-box;
+}
+html.desktop-chrome .window-drag button,
+html.desktop-chrome .window-drag a,
+html.desktop-chrome .window-drag input,
+html.desktop-chrome .window-drag select,
+html.desktop-chrome .window-drag label,
+html.desktop-chrome .window-drag [role='button'],
+html.desktop-chrome .window-drag [contenteditable='true'] {
+  --electrobun-app-region: no-drag;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* This is an editor: dragging the timeline, a panel divider or the canvas must
+   never highlight the interface. Text stays selectable where it is content. */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+select,
+option,
+pre,
+code,
+[contenteditable='true'],
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a3a transparent;
+}
+
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* -------- reusable controls (in the components layer so utilities can override) -------- */
+@layer components {
+
+.field {
+  background: var(--bg-3);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  height: 24px;
+  padding: 0 6px;
+  outline: none;
+  min-width: 0;
+  width: 100%;
+}
+.field:hover {
+  border-color: var(--line-2);
+}
+.field:focus {
+  border-color: var(--accent);
+  background: var(--bg-2);
+}
+.field.keyed {
+  color: var(--key);
+}
+.field.animated {
+  color: var(--anim);
+}
+select.field {
+  padding-right: 2px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: var(--bg-3);
+  color: var(--text-0);
+  font-weight: 500;
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  background: var(--bg-4);
+}
+.btn-primary {
+  background: var(--accent-2);
+  color: white;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent);
+}
+.btn-danger {
+  background: #4a2020;
+  color: #ffb4b4;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #6a2828;
+}
+.btn-ghost {
+  background: transparent;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  color: var(--text-1);
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--text-0);
+}
+.icon-btn.active {
+  background: var(--accent-2);
+  color: white;
+}
+
+.panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-1);
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+.section {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 12px;
+}
+
+.label {
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.menu {
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  min-width: 180px;
+  z-index: 100;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 5px;
+  color: var(--text-0);
+}
+.menu-item:hover:not(:disabled) {
+  background: var(--accent-2);
+}
+.menu-item .shortcut {
+  margin-left: auto;
+  color: var(--text-2);
+  font-size: 11px;
+}
+.menu-item:hover .shortcut {
+  color: #dbeaff;
+}
+.menu-sep {
+  height: 1px;
+  background: var(--line-2);
+  margin: 4px 2px;
+}
+
+.editor-workspace {
+  container-type: inline-size;
+  container-name: editor-workspace;
+  overflow: hidden;
+}
+
+.editor-topbar {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.editor-topbar::-webkit-scrollbar {
+  display: none;
+}
+
+.editor-topbar > * {
+  flex-shrink: 0;
+}
+
+/* The toolbar scrolls horizontally on narrow windows, but the file menu must
+   remain visible below the bar instead of being clipped by overflow-y:hidden. */
+.editor-file-menu {
+  position: fixed !important;
+  top: 44px !important;
+  left: 8px !important;
+}
+
+.editor-shape-menu {
+  position: fixed !important;
+  z-index: 110;
+}
+
+.editor-sidebar,
+.editor-inspector {
+  position: relative;
+  transition: box-shadow 160ms ease;
+  min-width: 0;
+  z-index: 2;
+}
+
+.editor-panel-tabs,
+.editor-inspector-header {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.editor-panel-tabs {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.editor-inspector-header {
+  padding-left: 12px;
+}
+
+.editor-panel-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  height: 100%;
+}
+
+.editor-rail-separator {
+  width: 24px;
+  height: 1px;
+  background: var(--line);
+  margin: 1px 0 2px;
+}
+
+.editor-sidebar .section,
+.editor-inspector .section {
+  padding: 12px;
+}
+
+.editor-sidebar .panel-title,
+.editor-inspector .panel-title {
+  line-height: 1.25;
+}
+
+.editor-panel-rail-right {
+  border-left: 0;
+}
+
+.editor-splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  background: transparent;
+  border: 0;
+  z-index: 10;
+  cursor: col-resize;
+  padding: 0;
+  touch-action: none;
+}
+
+.editor-splitter-right {
+  right: -5px;
+}
+
+.editor-splitter-left {
+  left: -5px;
+}
+
+.editor-splitter:hover,
+.editor-splitter:focus-visible {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  outline: none;
+}
+
+.editor-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  z-index: 3;
+  cursor: default;
+}
+
+.editor-layout-compact .editor-sidebar,
+.editor-layout-compact .editor-inspector {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 48px !important;
+  box-shadow: none;
+}
+
+.editor-layout-compact .editor-sidebar-left {
+  left: 0;
+}
+
+.editor-layout-compact .editor-inspector {
+  right: 0;
+}
+
+.editor-layout-compact .editor-sidebar.editor-drawer-open,
+.editor-layout-compact .editor-inspector.editor-drawer-open {
+  width: min(320px, calc(100% - 56px)) !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  z-index: 4;
+}
+
+.editor-layout-compact .editor-inspector.editor-drawer-open {
+  right: 0;
+}
+
+.editor-layout-compact .editor-drawer-close {
+  position: absolute;
+  top: 6px;
+  left: min(320px, calc(100% - 56px));
+  transform: translateX(-100%);
+  z-index: 5;
+}
+
+.editor-layout-compact .editor-drawer-close-right {
+  left: auto;
+  right: min(320px, calc(100% - 56px));
+  transform: translateX(100%);
+}
+
+@container editor-workspace (max-width: 960px) {
+  .editor-workspace .editor-canvas-column {
+    width: 100%;
+  }
+}
+
+@media (max-width: 960px) {
+  .editor-topbar .editor-groups-label,
+  .editor-topbar .editor-save-state,
+  .editor-topbar .editor-action-label {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .editor-layout-compact .editor-sidebar.editor-drawer-open,
+  .editor-layout-compact .editor-inspector.editor-drawer-open {
+    width: min(300px, calc(100% - 44px)) !important;
+  }
+
+  .editor-layout-compact .editor-drawer-close {
+    left: min(300px, calc(100% - 44px));
+  }
+
+  .editor-layout-compact .editor-drawer-close-right {
+    right: min(300px, calc(100% - 44px));
+  }
+}
+
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    gap: 8px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .app-header-brand-label {
+    display: none;
+  }
+
+  .app-header-nav {
+    gap: 0;
+  }
+
+  .app-header-nav > a {
+    padding-left: 8px;
+    padding-right: 8px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header-account-label,
+  .app-header-secondary-link {
+    display: none;
+  }
+}
+
+.checker {
+  background-image: linear-gradient(45deg, #444 25%, transparent 25%), linear-gradient(-45deg, #444 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #444 75%), linear-gradient(-45deg, transparent 75%, #444 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+  background-color: #777;
+}
+
+.scrub {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg-4);
+  color: var(--text-1);
+}

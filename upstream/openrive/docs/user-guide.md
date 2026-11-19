@@ -1,0 +1,140 @@
+# User guide
+
+## Files page
+
+The home page lists the projects you can see. Each card plays its animation live on hover.
+
+- **Templates**: start from a template or example file (see [Templates](templates.md)).
+- **New file**: a blank file with artboard size presets (phone, tablet, desktop, social, icon…).
+- **Import**: drop `.riv` or `.oriv` files anywhere on the page, or use the Import button. `.oriv` keeps the editable
+  document and its embedded assets together; the CLI can also export a Git-friendly source folder.
+- Use a card's **⋯** menu to **rename, duplicate, share, download** or **delete** it; click to open it.
+
+## The editor
+
+```
+┌──────────────────────────── Top bar: menu, tools, Design/Animate, Code, Preview, Export ──────────┐
+│ Layers │ Theme │ Assets │                                                    │   Inspector        │
+│  hierarchy / theme      │                   Stage (canvas)                   │   properties of    │
+│  colors / assets        │                                                    │   the selection    │
+│                         ├────────────────────────────────────────────────────┤                    │
+│                         │ Code panel (Alt+C) · Timeline & state machine (Animate mode)              │
+└─────────────────────────┴────────────────────────────────────────────────────┴────────────────────┘
+```
+
+Changes save automatically. The title shows "Saving…" and then "All changes saved". If another tool (the CLI, MCP
+or another tab) changes the file while it's open, a banner lets you reload or keep your version.
+
+### Design mode
+
+| Tool | Key | Use |
+| --- | --- | --- |
+| Select | `V` | Click to select, `Shift` to add, drag to marquee. Drag handles to resize and rotate. |
+| Artboard | `A` | Drag to create an artboard |
+| Rectangle, Ellipse, Triangle, Polygon, Star | `R` `O` `Y` `Shift R` `Shift O` | Drag to draw: the preview shows the real shape and its size. Hold `Shift` for equal sides, `Alt` to draw from the center, `Esc` to cancel. |
+| Pen | `P` | Click to add points, drag for curves, click the first point to close |
+| Text | `T` | Click to add text, then type. Double-click text to edit it later. |
+| Bone | `B` | Drag to add a root bone. Select an existing bone first to extend the skeleton from its tip. |
+| Hand | `H` / hold `Space` | Pan. Scroll with `Ctrl` to zoom. |
+
+- **Groups**: `Ctrl G` / `Ctrl Shift G`. A new group takes the place of its front-most member, so draw order does not change.
+- **Skinning**: create a bone chain with the Bone tool, select a vector path, then choose **Bind bones** in Inspector.
+  Edit vertices in the path and select a point to change its four bone influence slots. Each edit is undoable; curve
+  handles follow their point's weights.
+- **Bones**: with Select active, drag a root bone's base handle to position it, a shaft to rotate it around its joint,
+  or a tip to change its length and angle. Child bones remain linked to their parent's tip. Each gesture is one undo
+  step and can be canceled with `Esc`. Use the Inspector for precise values.
+- **Picking**: `Ctrl`+click selects the object under the cursor even inside a group. Hovering previews what a click will
+  pick (a dashed box for groups, text and images). Dragging a marquee picks at the current level, and skips hidden and
+  locked objects. `Ctrl A` selects everything at the level you are in, and `Alt ]` / `Alt [` move the selection to the
+  layer above or below. Selecting on the canvas opens the group in the Layers list and scrolls to it; hovering a layer
+  outlines it on the canvas.
+- **Moving**: drag to move. **Smart guides** (on by default) snap to the edges and centers of other objects and the
+  artboard and draw pink guide lines; hold `Ctrl` to move freely. `Alt`+drag drags a copy, `Shift` locks the axis, and
+  `Esc` cancels the drag. A badge next to the pointer shows the position, size or angle while you drag. Smart guides
+  also apply when drawing and when moving artboards, and can be turned off in Preferences or the View menu.
+- **Focus**: `F` (or `Shift 2`) zooms to the selection, `Shift 1` fits the artboard, `Shift 3` fits every artboard, and
+  double-clicking an artboard's name fits it. Zooming eases in instead of jumping.
+- **What a click selects** is set by the **Groups** checkbox in the toolbar (`Alt G`):
+  - **on** (default): a click selects the whole group. **Double-click** enters the group and selects the item under the
+    cursor; double-clicking a nested group goes one level deeper. A chip at the top of the canvas shows which group you
+    are inside, and `Esc` steps back out one level.
+  - **off**: a click selects the exact object under the cursor, however deeply it is nested.
+  Either way, `Enter` goes inside the selection and `Shift Enter` selects the parent.
+- **Paths**: double-click a shape, or press `Enter`, to edit its vertices.
+- **Arrange**: `Ctrl [` / `Ctrl ]` change draw order. In Rive, objects higher in the Layers list draw on top.
+- **Inspector**: position, size, rotation, scale, opacity, blend mode, fills and strokes (solid or gradient), corner
+  radius, trim path, text styling and [distance constraints](constraints.md). Colors can link to [theme colors](theme-colors.md).
+- **Masks (clipping)**: draw the mask shape on top, select it together with what it should mask, and choose
+  **Use front shape as mask** (`Ctrl Alt M`, also in the right-click menu). The masked objects are drawn only inside
+  that shape, and the mask itself is hidden. The **Mask** section of the inspector lists every mask on the selection,
+  where you can turn one off with the eye, remove it, or add another shape as an extra mask.
+- **Context menus**: right-click objects, layers, the canvas, keyframes, timelines, states and transitions.
+- **Rulers and grid** (View menu, or `Alt R` / `Ctrl '`): rulers along the top and left show artboard pixels, highlight
+  the artboard's extent and track the selection. The grid draws over the active artboard at the spacing set in
+  Preferences (20 px by default), and **Snap to grid** (`Ctrl Shift '`) makes dragged objects stick to its lines.
+- **Guides**: drag from the top or left ruler to pull out a guide line (blue). Objects stick to guides when you move or
+  draw near them, like in Photoshop; hold `Ctrl` to move freely. Drag a guide to reposition it, or drag it back onto the
+  ruler to delete it. `Ctrl ;` shows or hides guides and **Clear guides** is in the View menu. Guides are saved per file in
+  this browser and are not written to the `.riv`.
+
+### Animate mode (`Tab`)
+
+- **Timelines**: create them in the timeline panel. Set duration, fps, speed and loop (one shot, loop, ping-pong).
+- **Auto-key**: in Animate mode, any property you change at the playhead gets a keyframe. `K` keys the selected
+  objects' transforms.
+- **Keyframes**: drag to move, `Shift`-click to select several, right-click to set interpolation (hold, linear, cubic
+  presets) or delete. The curve editor tweaks cubic easing.
+- **Copy and paste keyframes**: `Ctrl C` / `Ctrl X` copies the selected keys, and `Ctrl V` pastes them at the playhead,
+  keeping their spacing and easing. Right-click empty timeline space to paste at that exact frame instead. Keys can go
+  into another timeline, and — when they all came from one object — onto whichever object is selected, which is how you
+  reuse a move on a second shape. Keys that don't fit the target (a property it doesn't have) are skipped with a note.
+- **Playback**: `Enter` play/pause, `,` `.` step frames, `Alt ,` `Alt .` jump between keyframes, `Home`/`End`.
+
+### State machines
+
+State machines make files interactive:
+
+1. Add a state machine, and **properties** in the Data tab (number, boolean, trigger, string, color).
+   Properties are what your app sets at runtime; they replace state machine inputs, which Rive deprecated
+   (see [data binding](data-binding.md)).
+2. Add **states** with **Add state** (or right-click the graph) and pick a timeline for each. Add a **1D blend state**
+   to blend timelines by a numeric parameter. Drag from one state's edge to another state to create a **transition**.
+   Connect Entry (or Any State) to your first state.
+3. Select a transition to add **conditions** (for example `hover == true`, or `press` fired) and set its duration.
+4. Add **listeners** (Listeners tab): choose a target shape and a pointer event, then set data properties, fire a
+   custom event, or align a node to the pointer. The **Events** tab creates named events and their payload fields;
+   select an event listener to react to an event reported by the runtime.
+5. Press `Ctrl Enter` to preview the state machine on the stage and interact with it.
+
+### Preview
+
+**Preview** (`Ctrl P`) opens the file full-screen in the official runtime:
+
+- choose the artboard, state machine or timeline ("All timelines" plays every timeline together)
+- change inputs, and view model properties for data-bound files
+- watch fired events in the log, and switch backgrounds (dark, light, transparent)
+- download the `.riv`, or **Bundle** this whole screen as a folder you can ship — see
+  [preview bundles](preview-bundles.md)
+
+### Export
+
+**Export** (`Ctrl E`) downloads the `.riv`. Load it with any Rive runtime. **Check this file** opens a report for
+missing assets, preserved unknown data, and features that currently have limited editing support. **Export GIF or
+sprite sheet** renders the selected timeline on-device. The [Code panel](code-panel.md)'s Embed tab has ready-made
+snippets. For editable backups and CI checks, see [Git-friendly sources and backups](source-format.md).
+
+**Export preview bundle** (`Ctrl Shift E`, in the OpenRive menu) downloads a zip that plays the file on its own:
+`index.html`, an `index.js` player, the `.riv` and the Rive runtime. Unzip it, serve the folder, and you have the
+preview screen without OpenRive — see [preview bundles](preview-bundles.md).
+
+## Preferences
+
+`Ctrl ,` opens editing defaults: new shape fill (cycle colors or a fixed color), default stroke, text color and size,
+interpolation for new keys, nudge distances and pixel snapping. Preferences are saved per browser.
+
+## Undo
+
+Every change can be undone (`Ctrl Z`) and redone (`Ctrl Shift Z` / `Ctrl Y`), including script runs and imports.
+
+See also: [Shortcuts](shortcuts.md) · [Theme colors](theme-colors.md) · [Text & assets](text-and-assets.md) · [Code panel](code-panel.md)

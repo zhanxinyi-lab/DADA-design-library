@@ -1,0 +1,207 @@
+# Publishes the OpenRive container image to the GitHub Container Registry.
+#
+# Every publish tags the image with the commit it was built from and moves
+# :latest to it, so `docker compose pull` always gets the newest build:
+#
+#   push to main            ghcr.io/upstandplatform/openrive:1850d37 and :latest
+#   git push origin v1.2.3  the same, plus :1.2.3 and :1.2
+#   pull request            builds only, as a check that the Dockerfile still works
+#   Run workflow            publishes the branch it is run from
+#
+# One-time setup: the first push creates the package privately. Make it public
+# under Organisation -> Packages -> openrive -> Package settings, or nobody can
+# pull it without a token. GitHub links it to this repository automatically
+# (org.opencontainers.image.source, set by docker/metadata-action).
+#
+# Each architecture builds on its own native runner (no QEMU: emulating a
+# Next.js build is painfully slow) and is pushed by digest. The publish job
+# then joins those digests into one multi-architecture tag, so `docker pull`
+# gets the right one on amd64 and arm64 alike.
+name: Image
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'docker-compose*.yml'
+      - '.github/workflows/image.yml'
+      - 'package.json'
+      - 'bun.lock'
+      - 'apps/**'
+      - 'packages/**'
+      - 'scripts/copy-wasm.ts'
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/upstandplatform/openrive
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Keep GHCR releases behind the same checks as the normal CI workflow. A
+  # release tag must never publish an image that cannot pass the application
+  # checks or production build.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Types
+        run: bun run check-types
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Tests
+        run: bunx playwright-core install --with-deps chromium && bun run test
+
+      - name: Lottie JSON and TGS corpus
+        run: bash scripts/test-lottie-corpus-ci.sh
+
+      - name: Bone canvas workflows
+        run: bun run test:browser
+
+      - name: Build
+        run: bun run build
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # the labels are baked into each architecture here; the publish job only
+      # joins digests, which cannot add any
+      - name: Image labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.title=OpenRive
+            org.opencontainers.image.description=Local-first, login-free editor for Rive .riv files
+            org.opencontainers.image.url=https://openrive.upstand.dev
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to ghcr.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build ${{ matrix.platform }}
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            OPENRIVE_VERSION=${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '0.0.0-dev' }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # a pull request only has to prove the image still builds
+          outputs: ${{ github.event_name == 'pull_request' && 'type=cacheonly' || format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', 'ghcr.io/upstandplatform/openrive') }}
+          # attestations cannot be attached to a digest-only push
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+
+      - name: Keep the digest
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags for this build
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          # every publish gets the commit it was built from and moves 'latest';
+          # a v* tag additionally gets its version numbers
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      # one manifest list carrying both architectures, published under every tag
+      # above: the commit, latest, and the version when this is a release
+      - name: Join the architectures into one image
+        working-directory: /tmp/digests
+        run: |
+          set -euo pipefail
+          tags=""
+          while read -r tag; do
+            if [ -n "${tag}" ]; then tags="${tags} -t ${tag}"; fi
+          done <<< "${DOCKER_METADATA_OUTPUT_TAGS}"
+          docker buildx imagetools create ${tags} $(printf "${IMAGE}@sha256:%s " *)
+
+      - name: What was published
+        run: |
+          set -euo pipefail
+          {
+            echo "### Image"
+            echo
+            sed -e 's/^/- `/' -e 's/$/`/' <<< "${DOCKER_METADATA_OUTPUT_TAGS}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          docker buildx imagetools inspect "${IMAGE}:latest"

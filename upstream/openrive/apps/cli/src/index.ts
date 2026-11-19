@@ -1,0 +1,134 @@
+#!/usr/bin/env bun
+// openrive — the OpenRive command line tool.
+//   openrive            interactive terminal UI (OpenTUI)
+//   openrive <command>  scriptable commands (see HELP below)
+import { resetEnv } from '@openrive/shared/env';
+import * as commands from './commands';
+import { closeProjectStore, StoreError } from './project-store';
+
+const HELP = `openrive — OpenRive command line tools
+
+Usage:
+  openrive                                         Interactive terminal UI
+  openrive <command> [options]
+
+Server
+  serve [--port 3000] [--host 0.0.0.0] [--dev]     Start the editor
+  mcp                                              Start the MCP server (stdio) for AI assistants
+
+Projects
+  list                                             List projects
+  new <name> [--template <id>]                     Create a project (see: templates)
+  templates                                        List starter templates and example files
+  import <file...> [--name <name>]                Import .riv, .oriv, Lottie .json, or .tgs files as projects
+  export <project> [out.riv]                       Export a project to a .riv file
+  render <project|file.riv> [out.png]              Render a still frame (images/meshes use local Chromium)
+       [--renderer browser|software] [--browser <executable>]
+    [--artboard <name|index>] [--animation <name|index>] [--time <seconds>] [--scale <factor>]
+  source export <project|file.riv> [folder|out.oriv] Export reviewable source files or a portable archive
+  source import <folder|file.oriv> [name]           Restore editable source as a project
+  export <project> [out.zip] --bundle [--cdn]      Export a standalone preview bundle (index.html + index.js)
+  info <project | file.riv> [--json]               Show artboards, objects, timelines, state machines
+  diagnose <file.riv|file.oriv|folder...> [--json] Check references, assets, format, and editability
+  delete <project>                                 Delete a project
+  validate <file.riv...>                           Check files round-trip losslessly
+
+Users
+  users                                            List users
+  users add <name> [--role …] [--password <pw>]    Add a user (and optionally its password)
+  users password <name|id> [--password <pw>]       Set a password (asks when not given)
+  users role <name|id> --role admin|editor|viewer  Change a role
+  users remove <name|id>                           Remove a user (files move to an admin)
+
+Database
+  db status                                        Show the database in use and what it holds
+  db auth                                          Show whether sign-in is required, and who can sign in
+  db import [dir]                                  Import a legacy data folder (pre-Drizzle file storage)
+
+Global options
+  --db <url>       PostgreSQL URL (same as DATABASE_URL); without one an embedded PostgreSQL is used
+  --data <dir>     Data folder for the embedded database (default: ./data)
+  --help           Show this help
+
+Projects can be referenced by id or name.`;
+
+export function parseArgs(argv: string[]) {
+  const positional: string[] = [];
+  const options: commands.Options = {};
+  const booleans = new Set(['bundle', 'cdn', 'dev', 'help', 'json']);
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg.startsWith('--')) {
+      const equals = arg.indexOf('=');
+      const key = arg.slice(2, equals < 0 ? undefined : equals);
+      const value = equals < 0 ? undefined : arg.slice(equals + 1);
+      if (value !== undefined) options[key!] = value;
+      else if (booleans.has(key!)) options[key!] = true;
+      else if (argv[i + 1] && !argv[i + 1]!.startsWith('--')) options[key!] = argv[++i]!;
+      else options[key!] = true;
+    } else positional.push(arg);
+  }
+  return { positional, options };
+}
+
+async function main() {
+  const { positional, options } = parseArgs(process.argv.slice(2));
+  if (typeof options.data === 'string') process.env.OPENRIVE_DATA_DIR = options.data;
+  if (typeof options.db === 'string') process.env.DATABASE_URL = options.db;
+  resetEnv();
+
+  const [command, ...args] = positional;
+
+  if (options.help || command === 'help') return console.log(HELP);
+  if (!command) {
+    if (!process.stdout.isTTY) return console.log(HELP);
+    const { runTui } = await import('./tui/app');
+    return runTui();
+  }
+
+  switch (command) {
+    case 'serve':
+      return commands.serve(options);
+    case 'mcp':
+      return (await import('./mcp-server')).startMcpServer();
+    case 'list':
+      return commands.listProjects();
+    case 'templates':
+      return commands.listTemplates();
+    case 'new':
+      return commands.newProject(args, options);
+    case 'import':
+      return commands.importProjects(args, options);
+    case 'export':
+      return commands.exportProject(args, options);
+    case 'render':
+      return commands.render(args, options);
+    case 'info':
+      return commands.info(args, options);
+    case 'delete':
+      return commands.deleteProject(args);
+    case 'validate':
+      return commands.validate(args);
+    case 'source':
+      return commands.sourceCommand(args);
+    case 'diagnose':
+      return commands.diagnose(args, options);
+    case 'users':
+      return commands.users(args, options);
+    case 'db':
+    case 'storage':
+      return commands.dbCommand(command === 'storage' ? ['status'] : args);
+    default:
+      console.error(`Unknown command "${command}"\n`);
+      console.log(HELP);
+      process.exit(1);
+  }
+}
+
+main()
+  .then(() => closeProjectStore())
+  .catch(async (e) => {
+    console.error(e instanceof StoreError ? `Error: ${e.message}` : `Error: ${(e as Error).message}`);
+    await closeProjectStore().catch(() => {});
+    process.exit(1);
+  });

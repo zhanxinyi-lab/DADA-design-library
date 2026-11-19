@@ -1,0 +1,69 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+/examples
+
+# testing
+/coverage
+
+# next.js
+.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+/data
+.turbo/
+apps/desktop/build/
+apps/desktop/artifacts/
+apps/desktop/.hutch/
+/scripts/test-out.riv
+/scripts/sm-demo.riv
+/scripts/mcp-smoke.riv
+!.env.example
+.wiki/
+
+# Bun keeps bun.lock committed; other package managers are not used
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+apps/desktop/.cottontail-tmp/
+
+# a Rive runtime built from vendor/rive-wasm (bun run rive:sync)
+apps/web/public/rive/local/
+apps/web/public/rive/runtime.json
+/scripts/bundle-test-out.zip
+/scripts/databind-test-out.riv
+/scripts/databind-converted.riv
+/scripts/tmp/
+/output/
+/.playwright-cli/

@@ -31,15 +31,11 @@ DADA 的设计素材、可复用效果和设计工作流 Skill。站点：https:
 
 其余效果目录只保留说明。原先那套通用占位动画已删除，不能再当成复刻结果。
 
-## 单独 fork 的头像仓库
+## 上游快照
 
-这几个没有并进本仓库，也还没放进上面的效果目录。它们各自留在 zhanxinyi-lab 名下的 fork，网站「设计」分类只放预览和链接。
+设计效果不再单独挂在 zhanxinyi-lab 的仓库列表里。anime.js 和原来那些 fork 收在 [upstream/](upstream/README.md)，许可证原样保留。账号首页只留下本仓库、skills 和自动化看板。
 
-- [agent-robot-avatar](https://github.com/zhanxinyi-lab/agent-robot-avatar)：MIT，来自 CX-ArtLab/agent-robot-avatar。
-- [avatar-studio](https://github.com/zhanxinyi-lab/avatar-studio)：MIT，来自 ai-calypse/avatar-studio。
-- [robo-face](https://github.com/zhanxinyi-lab/robo-face)、[animate-bot](https://github.com/zhanxinyi-lab/animate-bot)：MIT。bloub 与 animate-bot 的演示图相同，网站只保留 animate-bot，避免重复展示。
-- [procedural-expression-library](https://github.com/zhanxinyi-lab/procedural-expression-library)、[mascots](https://github.com/zhanxinyi-lab/mascots)：GPL-3.0，只保留 fork，不把源码抄进本仓库。
-- [openrive](https://github.com/zhanxinyi-lab/openrive)：MIT。
+GPL-3.0 的 mascots 和 procedural-expression-library 也在 `upstream/`，不并进 `effects/`。bloub 与 animate-bot 的演示接近，网站仍不单独展示 bloub。
 
 ## Skill
 

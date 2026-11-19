@@ -1,0 +1,103 @@
+import AgentRobotAvatar, {
+  SKIN_NAMES,
+  SKIN_SERIES,
+  SKINS,
+  VERSION,
+  type AgentRobotAvatarAction,
+  type AgentRobotAvatarActionPhase,
+  type AgentRobotAvatarActionSource,
+  type AgentRobotAvatarActionStateDetail,
+  type AgentRobotAvatarCanonicalAction,
+  type AgentRobotAvatarMotion,
+  type AgentRobotAvatarSkin,
+  type AgentRobotAvatarState,
+  type AgentRobotAvatarWakeOn,
+} from 'agent-robot-avatar';
+
+const avatar = new AgentRobotAvatar();
+const action: AgentRobotAvatarAction = 'success';
+const wakeOn: AgentRobotAvatarWakeOn = 'interaction';
+const motion: AgentRobotAvatarMotion = 'reduce';
+
+void avatar.play(action);
+void avatar.startWaiting();
+void avatar.startWaiting({ variant: 'wrap' });
+void avatar.play('waiting-wrap');
+void avatar.startWaiting({ variant: 'wave' });
+void avatar.play('waiting-wave');
+void avatar.play('love');
+const loveState: AgentRobotAvatarState = 'love';
+const loveCanonical: AgentRobotAvatarCanonicalAction = 'love';
+void avatar.play('random');
+void avatar.play('slot');
+const randomState: AgentRobotAvatarState = 'random';
+const randomCanonical: AgentRobotAvatarCanonicalAction = 'random';
+void loveState;
+void loveCanonical;
+void randomState;
+void randomCanonical;
+void avatar.sleep();
+void avatar.wake();
+void avatar.input();
+void avatar.input(false);
+avatar
+  .stopWaiting()
+  .setPointerFollow(false)
+  .setAntennaFlash(true)
+  .setHeadRoundness(50)
+  .setSkin('1001')
+  .setSkin(1717)
+  .setSkin(null)
+  .reset();
+
+const roundness: number = avatar.getHeadRoundness();
+const skin: AgentRobotAvatarSkin | null = avatar.getSkin();
+void skin;
+const firstSkin: AgentRobotAvatarSkin | undefined = SKIN_NAMES[0];
+void firstSkin;
+const skinTitle: string = SKINS['301'].titleEn;
+void skinTitle;
+const seriesSkins: readonly AgentRobotAvatarSkin[] | undefined = SKIN_SERIES[0]?.skins;
+void seriesSkins;
+// @ts-expect-error skins are numbered, not named
+avatar.setSkin('obsidian');
+const version: string = VERSION;
+const element: AgentRobotAvatar = document.createElement('agent-robot-avatar');
+
+avatar.addEventListener('face-state', event => {
+  const state: AgentRobotAvatarState = event.detail.state;
+  void state;
+});
+
+avatar.addEventListener('action-state', event => {
+  const detail: AgentRobotAvatarActionStateDetail = event.detail;
+  const canonical: AgentRobotAvatarCanonicalAction = detail.action;
+  const phase: AgentRobotAvatarActionPhase = detail.phase;
+  const source: AgentRobotAvatarActionSource = detail.source;
+  void canonical;
+  void phase;
+  void source;
+});
+
+avatar.addEventListener('head-roundness-change', event => {
+  const value: number = event.detail.value;
+  const eventVersion: string = event.detail.version;
+  void value;
+  void eventVersion;
+});
+
+// @ts-expect-error Unknown actions must be rejected by TypeScript.
+avatar.play('not-a-real-action');
+// @ts-expect-error Wake policy values are a closed set.
+const invalidWakeOn: AgentRobotAvatarWakeOn = 'always';
+// @ts-expect-error Motion policy values are a closed set.
+const invalidMotion: AgentRobotAvatarMotion = 'minimal';
+
+void roundness;
+void version;
+void element;
+void wakeOn;
+void motion;
+void invalidWakeOn;
+void invalidMotion;
+

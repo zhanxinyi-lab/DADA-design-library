@@ -1,0 +1,168 @@
+# Changelog
+
+## 0.2.5 - 2026-10-23
+
+### MCP and cloud reliability
+
+- Improve MCP API-key authentication, expiry and rate-limit handling, including clearer errors for coding agents and consistent Bearer token parsing.
+- Add safer project access, API-key management, transactional cloud project updates, and stronger user and permission checks.
+- Expand MCP editing and diagnostics workflows, improve tool guidance, and fix CLI/TUI project operations.
+- Upgrade Next.js to the patched 16.4.1 release after upstream security advisories.
+
+### Editor and file compatibility
+
+- Fix editing, databinding, asset cleanup, animation exports and Lottie conversion edge cases while preserving Rive file round trips.
+- Improve runtime and desktop lifecycle cleanup, save conflict handling, and keyboard dismissal for dialogs and popovers.
+- Make exported preview bundles runnable from a local server on Windows and explain browser restrictions when opened directly from `file://`.
+
+## 0.2.4 - 2026-10-21
+
+### Preview bundles
+
+- Add a built-in PowerShell fallback to the Windows launcher, so preview bundles can start their local server even when Python is not installed. Directly opening `index.html` now shows launch instructions instead of module CORS errors.
+
+### MCP
+
+- Return specific machine-readable API-key errors and `Retry-After` for throttling, raise the per-key burst limit for coding-agent workflows, and let verified MCP bearer keys reach the endpoint when shared Basic auth is enabled.
+- Add structured tool results, atomic multi-step edit plans, visual PNG previews, project diagnostics, vertex conversion, clip editing and event rename/removal.
+- Correct deployment-aware MCP instructions and document the recommended inspect, edit, diagnose and preview loop.
+
+## 0.2.3 - 2026-10-21
+
+### MCP authentication
+
+- Return a clear `429 Too Many Requests` response when an MCP API key reaches its request or usage limit, instead of reporting it as an expired key with `401 Unauthorized`.
+
+## 0.2.2 - 2026-10-21
+
+### Preview bundles
+
+- Make exported previews explain the browser's `file://` restriction and provide a one-click Windows launcher plus a local server with the correct runtime MIME types.
+- Include clear run instructions for Windows, macOS, and Linux in generated bundles.
+
+## 0.2.1 - 2026-10-16
+
+### Editor preview
+
+- Keep the live state-machine runtime intact while document edits are pending, then apply the latest document when Preview stops. Show a notice while edits are queued.
+
+## 0.2.0 - 2026-10-16
+
+### Reliability and file compatibility
+
+- Preserve 64-bit Rive file IDs, empty-reference sentinels, and aligned file padding; reject truncated or unsafe binary values cleanly.
+- Resolve the remaining Rive object references, retain vertical Bézier handles, and make cascading deletion and databinding property removal safe across instances.
+- Preserve compound Lottie path fill rules, animated anchors, spatial tangents, easing, and combined color/opacity tracks.
+
+### Editor and exports
+
+- Keep selection and editor references valid through undo/redo, guard cyclic hierarchies, and support bone transforms and parent-safe multi-selection commands.
+- Retain state-machine input values during document refreshes, avoid zero-length playback loops, and keep animation exports responsive with worker-based GIF encoding.
+- Correct sprite-sheet downloads, thumbnails, asset URL cleanup, and desktop window state synchronization.
+
+### Server, CLI, and desktop
+
+- Bound request-body reads, return clear errors for invalid JSON, and keep cloud project blobs consistent during duplicate, migration, and cleanup operations.
+- Harden CLI argument handling, validation exit codes, account administration, renderer cleanup, MCP startup, and TUI shutdown.
+- Pin migration locks to one PostgreSQL connection, baseline legacy schemas, and add database indexes and owner references while preserving orphaned legacy files.
+- Validate desktop control origins, retry local server port collisions, and shut down the bundled server and storage client cleanly.
+
+## 0.1.7 - 2026-10-12
+
+### Import
+
+- Import static Lottie text with an embedded fallback font, separated 2D position channels, alpha mattes, native layer blend modes, and Gaussian Blur as an editable Rive Feather approximation.
+- Add regression coverage for the supplied Sample Animation in converter, .riv round-trip, browser import, and Preview workflows.
+
+## 0.1.6 - 2026-10-12
+
+### Import
+
+- Import supported Lottie JSON and Telegram TGS animations as editable Rive documents in the web app and CLI.
+- Add a reusable converter package with bounded input parsing, animated vector properties, and explicit errors for unsupported content.
+- Exercise real LottieFiles JSON and Telegram TGS fixtures in local and release validation.
+
+## 0.1.5 - 2026-10-12
+
+### Accounts and email
+
+- Keep the email verification page accessible before sign-in so unverified cloud accounts can request and complete verification.
+
+## 0.1.4 - 2026-10-12
+
+### Accounts and email
+
+- Require verified email ownership before cloud users can access OpenRive, including through existing sessions and MCP/API keys.
+- Send branded verification and workspace invitation emails through Resend; add a page for requesting another verification link.
+- Require `RESEND_API_KEY` and a verified `OPENRIVE_EMAIL_FROM` sender in cloud deployments.
+
+## 0.1.3 - 2026-10-11
+
+### Rigging
+
+- Correct skin and tendon bind matrices to match the official Rive runtime; deformed contours, bounds, vertex picking, and cubic handles now share that evaluation.
+- Add canvas weight painting with radius, strength, add/subtract modes, independent handle targets, normalized four-bone influences, and one undo step per stroke.
+- Add bone parent controls, auto weighting, topology-aware mesh smoothing, rebind pose, and unbind with the current contour preserved.
+- Fix scaled and mirrored tip edits, handle grab offsets, child linking from unselected tips, selection beyond artboard bounds, and interrupted gestures.
+- Reject parent changes that would introduce unsupported shear or discard animated root positioning; validate auto weighting before making changes.
+- Safely bake affected skins when deleting bound bones and report invalid skin references or weights in file diagnostics.
+- Expose the rigging operations through the shared API and seven new MCP tools.
+
+### Verification and rendering
+
+- Flush deferred drawing before saving software-rendered PNGs; add an optional local Chromium renderer for embedded images and image meshes.
+- Add 27 focused bone scenarios, 25 real browser canvas and Inspector scenarios, and official-runtime pixel checks for vector and image skinning, scaling, mirroring, rebind, and unbind.
+- Run browser rigging checks in CI and release validation; preserve byte-identical round-trips across the Rive corpus.
+- Keep UI typography on bundled IBM Plex Sans and remove the Inter UI fallback; Inter remains available as an editable project font.
+
+## 0.1.2 - 2026-10-11
+
+### Editor
+
+- Create bones on the canvas, select and reposition them, edit bone tips, and validate weighted skinning through the shared editing API.
+- Expand bone editor scenario coverage for hierarchy transforms, hit testing, positioning, rotation, creation, and edge cases.
+
+### Accounts and collaboration
+
+- Centralize account and workspace capabilities so UI, API, CLI, MCP, and repository operations enforce the same role policy.
+- Keep account roles independent from active workspace roles, refresh MCP authorization context per request, and bind stateful sessions to their selected workspace.
+- Protect the final active administrator from concurrent demotion or deletion and apply workspace membership permissions consistently.
+
+### Reliability
+
+- Add role and permission matrix tests, strengthen MCP smoke-test cleanup, and document the authorization boundaries.
+
+## 0.1.1 - 2026-10-11
+
+### Workspaces
+
+- Add owner-only workspace deletion in a typed-confirmation Danger zone; projects and invitations are removed safely, active sessions return to Personal, and personal projects remain untouched.
+
+### Rigging
+
+- Select bones directly on the canvas, move their roots, and drag selected tips to adjust length and rotation in one undoable gesture.
+- Clarify the current bone and skin editing scope in the user and file-format guides.
+
+## 0.1.0 - 2026-10-11
+
+### Editor
+
+- Author and rename artboard view models, edit data property defaults, and use data properties directly in state-machine conditions and listener actions.
+- Create named Rive events with number, boolean, string, and color payload fields. Listeners can report and react to those events.
+- Add 1D blend states, select their numeric parameter, and edit the timeline/value pairs in the inspector.
+- Add and edit distance constraints with closer-than, farther-than, and exact-distance rules.
+- Smart guides, ruler guides, smoother drawing and selection, and corpus round-trip checks in CI.
+
+### Tools and maintenance
+
+- Add MCP tools for named events, 1D blend states, and distance constraints; project inspection now includes those elements.
+- Update MCP and transitive dependencies, including the MCP SDK security update.
+
+### Accounts and collaboration
+
+- Add private workspaces with owner, administrator, editor, and viewer roles.
+- Invite verified email addresses, manage membership, and transfer workspace ownership safely.
+- Scope projects and API-key access to the selected workspace; configure SMTP to enable invitations and verification emails.
+- Add workspace project filters and navigation, plus responsive member management.
+
+See the [data binding guide](docs/data-binding.md), [user guide](docs/user-guide.md), and [MCP guide](docs/mcp.md) for details.

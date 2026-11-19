@@ -1,0 +1,37 @@
+# PostgreSQL for local development:  bun run db:up
+# Then run the app against it:
+#   DATABASE_URL=postgres://openrive:openrive@localhost:5432/openrive bun run dev
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openrive
+      POSTGRES_PASSWORD: openrive
+      POSTGRES_DB: openrive
+    ports:
+      - "5432:5432"
+    volumes:
+      - openrive-dev-db:/var/lib/postgresql/data
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - noeviction
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  openrive-dev-db:

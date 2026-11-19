@@ -1,0 +1,148 @@
+// End-to-end check of the MCP server over stdio using the official client.
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import path from 'path';
+import { importRiv } from '@openrive/rive/document';
+
+(async () => {
+  const transport = new StdioClientTransport({
+    command: 'bun',
+    args: ['apps/cli/src/mcp-server.ts'],
+    env: { ...process.env, OPENRIVE_DATA_DIR: process.env.OPENRIVE_DATA_DIR ?? './data' } as Record<string, string>,
+  });
+  const client = new Client({ name: 'smoke', version: '1.0.0' });
+  await client.connect(transport);
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'openrive-mcp-smoke-'));
+  try {
+  const tools = await client.listTools();
+  console.log('tools:', tools.tools.length, tools.tools.map((t) => t.name).join(', '));
+  if (tools.tools.length !== 50) throw new Error(`Expected 50 MCP tools, found ${tools.tools.length}`);
+  for (const name of ['apply_edit_plan', 'diagnose_project', 'render_preview', 'convert_vertex_type', 'add_clip', 'remove_clip', 'rename_event', 'remove_event']) {
+    if (!tools.tools.some((entry) => entry.name === name)) throw new Error(`Missing MCP tool ${name}`);
+  }
+  if (!tools.tools.find((entry) => entry.name === 'get_project')?.outputSchema) throw new Error('Read tools must advertise a structured result schema');
+  const call = async (name: string, args: Record<string, unknown>) => {
+    const r = (await client.callTool({ name, arguments: args })) as { content: { text: string }[]; isError?: boolean };
+    if (r.isError) throw new Error(`${name}: ${r.content[0].text}`);
+    return r.content[0].text;
+  };
+  const created = JSON.parse(await call('create_project', { name: 'MCP Smoke Test' }));
+  const p = created.id;
+  const plan = JSON.parse(await call('apply_edit_plan', {
+    project: p,
+    operations: [
+      { op: 'add_shape', kind: 'rectangle', name: 'Planned Shape', x: 80, y: 80, width: 40, height: 40, fill: '#5a91ff' },
+      { op: 'add_timeline', name: 'Planned Pulse', duration: 1 },
+      { op: 'add_keyframes', timeline: 'Planned Pulse', object: 'Planned Shape', property: 'scaleX', keys: [{ time: 0, value: 1 }, { time: 1, value: 1.2 }] },
+    ],
+  }));
+  if (!plan.saved || plan.operations.length !== 3) throw new Error('MCP edit plans did not save as a single successful batch');
+  const rejectedPlan = await client.callTool({ name: 'apply_edit_plan', arguments: {
+    project: p,
+    operations: [
+      { op: 'add_shape', kind: 'ellipse', name: 'Must Roll Back', x: 1, y: 1, width: 10, height: 10 },
+      { op: 'set_properties', object: 'No Such Object', properties: { opacity: 0.5 } },
+    ],
+  } }) as { isError?: boolean };
+  if (!rejectedPlan.isError) throw new Error('An invalid MCP edit plan should fail');
+  const rolledBackOutline = JSON.parse(await call('get_project', { project: p }));
+  if (rolledBackOutline.artboards[0].children.some((object: { name: string }) => object.name === 'Must Roll Back')) throw new Error('A failed MCP edit plan partially saved its earlier steps');
+  await call('define_theme_color', { project: p, name: 'Brand', color: '#7c5cff' });
+  await call('add_shape', { project: p, kind: 'ellipse', name: 'Dot', x: 250, y: 250, width: 120, height: 120 });
+  const rootBone = JSON.parse(await call('add_bone', { project: p, name: 'Root', x: 80, y: 80, length: 60 }));
+  const childBone = JSON.parse(await call('add_bone', { project: p, parent: rootBone.id, name: 'Child', length: 40, rotation: 0.5 }));
+  const rigPath = JSON.parse(await call('add_path', { project: p, name: 'Rig path', points: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 30 }, { x: 0, y: 30 }] }));
+  await call('bind_skin', { project: p, path: rigPath.pathId, bones: [rootBone.id, childBone.id] });
+  const riggingOutline = JSON.parse(await call('get_project', { project: p }));
+  const rigVertex = riggingOutline.artboards[0].children.find((object: { id: string }) => object.id === rigPath.id)?.children.find((object: { id: string }) => object.id === rigPath.pathId)?.vertices[0]?.id;
+  if (typeof rigVertex !== 'string') throw new Error('MCP did not bind path vertices.');
+  await call('convert_vertex_type', { project: p, vertex: rigVertex, type: 'CubicDetachedVertex' });
+  await call('set_skin_weights', { project: p, vertex: rigVertex, influences: [{ index: 1, weight: 0.75 }, { index: 2, weight: 0.25 }], channel: 'point' });
+  await call('auto_weight_skin', { project: p, path: rigPath.pathId });
+  await call('smooth_skin_weights', { project: p, path: rigPath.pathId });
+  await call('paint_skin_weights', { project: p, path: rigPath.pathId, bone: rootBone.id, x: 0, y: 0, radius: 100, strength: 0.5 });
+  await call('set_bone_parent', { project: p, bone: childBone.id });
+  await call('set_bone_parent', { project: p, bone: childBone.id, parent: rootBone.id });
+  await call('rebind_skin', { project: p, path: rigPath.pathId });
+  await call('unbind_skin', { project: p, path: rigPath.pathId });
+  await call('bind_skin', { project: p, path: rigPath.pathId, bones: [rootBone.id, childBone.id] });
+  await call('use_theme_color', { project: p, object: 'Dot', color: 'Brand' });
+  await call('add_text', { project: p, text: 'Made by MCP', x: 250, y: 400, origin: 'center', fontSize: 28, color: '#ffffff' });
+  await call('add_timeline', { project: p, name: 'Pulse', duration: 1, loop: 'pingPong' });
+  await call('add_keyframes', { project: p, timeline: 'Pulse', object: 'Dot', property: 'scaleX', keys: [{ time: 0, value: 1 }, { time: 1, value: 1.4 }] });
+  await call('add_keyframes', { project: p, timeline: 'Pulse', object: 'Dot', property: 'scaleY', keys: [{ time: 0, value: 1 }, { time: 1, value: 1.4 }] });
+  await call('add_state_machine', { project: p, name: 'Interact' });
+  await call('add_input', { project: p, stateMachine: 'Interact', type: 'boolean', name: 'on' });
+  await call('add_state', { project: p, stateMachine: 'Interact', timeline: 'Pulse' });
+  await call('add_transition', { project: p, stateMachine: 'Interact', from: 'entry', to: 'Pulse' });
+  await call('add_listener', { project: p, stateMachine: 'Interact', target: 'Dot', event: 'click', actions: [{ input: 'on', value: 'toggle' }] });
+
+  // data binding: the properties that replace state machine inputs
+  await call('add_property', { project: p, type: 'boolean', name: 'isHover' });
+  await call('add_property', { project: p, type: 'number', name: 'level', value: 2 });
+  await call('add_property', { project: p, type: 'trigger', name: 'ping' });
+  await call('add_property', { project: p, type: 'color', name: 'tint', value: '#ff7a2b' });
+  await call('set_property_value', { project: p, property: 'level', value: 5 });
+  await call('add_transition', { project: p, stateMachine: 'Interact', from: 'Pulse', to: 'exit', conditions: [{ property: 'isHover', value: true }, { property: 'level', op: '>', value: 3 }] });
+  await call('add_listener', { project: p, stateMachine: 'Interact', target: 'Dot', event: 'enter', actions: [{ property: 'isHover', value: true }] });
+  await call('add_event', { project: p, name: 'Activated', properties: [{ name: 'source', type: 'string', value: 'pointer' }] });
+  await call('add_listener', { project: p, stateMachine: 'Interact', target: 'Dot', event: 'click', actions: [{ fireEvent: 'Activated' }] });
+  await call('add_listener', { project: p, stateMachine: 'Interact', target: 'Dot', event: 'rive', eventName: 'Activated', actions: [{ property: 'isHover', value: true }] });
+  await call('rename_event', { project: p, event: 'Activated', name: 'Selected' });
+  await call('remove_event', { project: p, event: 'Selected' });
+  await call('add_blend_state', { project: p, stateMachine: 'Interact', animations: [{ animation: 'Pulse', value: 0 }] });
+  await call('add_shape', { project: p, kind: 'rectangle', name: 'Anchor', x: 100, y: 250, width: 40, height: 40 });
+  const clip = JSON.parse(await call('add_clip', { project: p, object: 'Dot', source: 'Anchor' }));
+  if (!clip.id) throw new Error('MCP could not add a clipping mask');
+  const removedClip = JSON.parse(await call('remove_clip', { project: p, object: 'Dot', clipId: clip.id }));
+  if (removedClip.removed !== 1) throw new Error('MCP could not remove a clipping mask');
+  await call('add_distance_constraint', { project: p, object: 'Dot', target: 'Anchor', distance: 100, mode: 'exact', strength: 0.8 });
+  const converted = JSON.parse(await call('convert_inputs_to_data_binding', { project: p }));
+  console.log('converted inputs:', JSON.stringify(converted));
+  await call('add_theme', { project: p, name: 'Warm' });
+  await call('set_theme_color_value', { project: p, theme: 'Warm', name: 'Brand', color: '#ff7a2b' });
+  await call('switch_theme', { project: p, theme: 'Warm' });
+  const outline = JSON.parse(await call('get_project', { project: p }));
+  console.log('properties:', JSON.stringify(outline.artboards[0].properties));
+  console.log('events:', JSON.stringify(outline.artboards[0].events));
+  const artboard = outline.artboards[0];
+  const interactive = artboard.stateMachines.find((machine: { name: string }) => machine.name === 'Interact');
+  const states = interactive?.layers.flatMap((layer: { states: { type: string }[] }) => layer.states) ?? [];
+  if (artboard.events.some((event: { name: string }) => event.name === 'Selected' || event.name === 'Activated')) throw new Error('MCP event removal did not clear the event');
+  if (!states.some((state: { type: string }) => state.type === 'BlendState1DInput')) throw new Error('MCP blend-state authoring was missing from project inspection');
+  if (!artboard.children.find((object: { name: string }) => object.name === 'Dot')?.constraints?.some((constraint: { type: string }) => constraint.type === 'DistanceConstraint')) throw new Error('MCP constraint authoring was missing from project inspection');
+  console.log('blend states:', JSON.stringify(states));
+  console.log('inputs left:', JSON.stringify(outline.artboards[0].stateMachines.map((m: { name: string; inputs: unknown[] }) => `${m.name}:${m.inputs.length}`)));
+  console.log('outline:', JSON.stringify(outline.artboards[0].children), JSON.stringify(outline.themeColors));
+  const health = JSON.parse(await call('diagnose_project', { project: p }));
+  if (!health.valid || health.roundTripsByteIdentically !== true) throw new Error('MCP project diagnostics did not report a clean byte-identical file');
+  const preview = await client.callTool({ name: 'render_preview', arguments: { project: p, artboard: '0', animation: 'Pulse', time: 0.25 } }) as {
+    content: { type: string; text?: string; data?: string; mimeType?: string }[];
+    structuredContent?: { width?: number; height?: number; project?: string };
+    isError?: boolean;
+  };
+  if (preview.isError) throw new Error(`MCP render_preview failed: ${preview.content.find((item) => item.text)?.text}`);
+  const image = preview.content.find((item) => item.type === 'image');
+  if (!image || image.mimeType !== 'image/png' || !image.data || !Buffer.from(image.data, 'base64').subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
+    throw new Error('MCP render_preview did not return a PNG image');
+  }
+  if (!preview.structuredContent?.width || !preview.structuredContent.height) throw new Error('MCP preview is missing structured dimensions');
+  const out = path.join(outputDirectory, 'mcp-smoke.riv');
+  console.log(await call('export_riv', { project: p, path: out }));
+  const back = importRiv(new Uint8Array(readFileSync(out)));
+  const rigTypes = new Set(back.artboards[0].objects.map((object) => object.type));
+  for (const type of ['RootBone', 'Bone', 'Skin', 'Tendon', 'Weight']) {
+    if (!rigTypes.has(type)) throw new Error(`MCP rigging did not create ${type}.`);
+  }
+  console.log('re-import ok:', back.artboards[0].objects.length, 'objects,', back.artboards[0].stateMachines.length, 'state machines');
+  await call('delete_project', { project: p });
+  await client.close();
+  } finally {
+    rmSync(outputDirectory, { recursive: true, force: true });
+  }
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
