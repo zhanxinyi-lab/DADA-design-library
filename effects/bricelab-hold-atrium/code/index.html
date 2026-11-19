@@ -5,16 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>按住构筑的线框中庭</title>
 <style>
-  html, body { height: 100%; margin: 0; background: #121418; color: #e7e2da; }
-  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  html, body { height: 100%; margin: 0; background: #10141a; color: #e7e2da; }
+  #catch { position: fixed; inset: 0; touch-action: none; cursor: pointer; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .hud {
-    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%);
     width: min(280px, calc(100% - 32px));
     display: flex; flex-direction: column; align-items: center; gap: 8px;
     font: 14px/1.4 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    pointer-events: none;
   }
   button {
-    position: relative; width: 100%; overflow: hidden;
+    position: relative; width: 100%; overflow: hidden; pointer-events: auto;
     border: 0; border-radius: 999px; padding: 14px 18px;
     background: #efe8dc; color: #1b1916; cursor: pointer;
     font: inherit; letter-spacing: .12em;
@@ -29,13 +31,15 @@
 </style>
 </head>
 <body>
-<canvas id="scene" aria-hidden="true"></canvas>
-<div class="hud">
-  <button id="hold" type="button" aria-label="按住构筑">
-    <i class="bar" id="bar"></i>
-    <span id="label">按住构筑</span>
-  </button>
-  <p class="hint" id="hint">松开即取消。空格或回车同样可用，Esc 回到线框。</p>
+<div id="catch">
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div class="hud">
+    <button id="hold" type="button" aria-label="按住进入">
+      <i class="bar" id="bar"></i>
+      <span id="label">按住进入</span>
+    </button>
+    <p class="hint" id="hint">在画面上按住。松开即取消。空格或回车同样可用，Esc 回到线框。</p>
+  </div>
 </div>
 <script>
 (() => {
@@ -45,6 +49,7 @@
   const LETGO_MIN_MS = 450;
   const SETTLE_MS = 700;
 
+  const catcher = document.getElementById('catch');
   const canvas = document.getElementById('scene');
   const ctx = canvas.getContext('2d');
   const hold = document.getElementById('hold');
@@ -56,16 +61,20 @@
   let w = 1, h = 1, dpr = 1;
   let value = 0;
   let mode = 'idle';
-  let modeT = 0;
-  let from = 0;
-  let dur = 1;
+  let phaseStart = 0;
+  let phaseDur = 1;
+  let phaseFrom = 0;
   let raf = 0;
-  let last = 0;
   let reduced = motion.matches;
+  let keyHeld = false;
+  const pointers = new Set();
 
   function easeInOut2(t) {
     return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
   }
+  function clamp01(t) { return Math.min(1, Math.max(0, t)); }
+  function ramp(a, b, t) { return clamp01((t - a) / (b - a)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
 
   function resize() {
     dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -76,33 +85,57 @@
     draw();
   }
 
-  function project(x, y, z) {
-    const camZ = -0.55 - value * 1.1;
-    const dz = Math.max(0.35, z - camZ);
-    const s = (h * 0.92) / dz;
-    return [w / 2 + x * s, h * 0.56 - y * s, s, z];
+  function camera() {
+    const u = easeInOut2(clamp01(value / 0.82));
+    const eye = { x: 0, y: lerp(8.4, 0.28, u), z: lerp(-5.6, 0.05, u) };
+    const look = { x: 0, y: lerp(-1.35, 0.22, u), z: lerp(1.8, 6.6, u) };
+    let fx = look.x - eye.x, fy = look.y - eye.y, fz = look.z - eye.z;
+    const fl = Math.hypot(fx, fy, fz) || 1;
+    fx /= fl; fy /= fl; fz /= fl;
+    const up = Math.abs(fy) > 0.92 ? { x: 0, y: 0, z: 1 } : { x: 0, y: 1, z: 0 };
+    let rx = fy * up.z - fz * up.y;
+    let ry = fz * up.x - fx * up.z;
+    let rz = fx * up.y - fy * up.x;
+    const rl = Math.hypot(rx, ry, rz) || 1;
+    rx /= rl; ry /= rl; rz /= rl;
+    const ux = ry * fz - rz * fy;
+    const uy = rz * fx - rx * fz;
+    const uz = rx * fy - ry * fx;
+    return { eye, fx, fy, fz, rx, ry, rz, ux, uy, uz };
   }
 
-  function poly(pts, fill, stroke, width) {
-    ctx.beginPath();
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-    ctx.closePath();
-    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.stroke(); }
+  function project(x, y, z, cam) {
+    const dx = x - cam.eye.x, dy = y - cam.eye.y, dz = z - cam.eye.z;
+    const cx = dx * cam.rx + dy * cam.ry + dz * cam.rz;
+    const cy = dx * cam.ux + dy * cam.uy + dz * cam.uz;
+    const cz = dx * cam.fx + dy * cam.fy + dz * cam.fz;
+    if (cz < 0.18) return null;
+    const s = (Math.min(w, h) * 1.05) / cz;
+    return [w / 2 + cx * s, h * 0.56 - cy * s, cz];
   }
 
-  function face(verts, fill, stroke) {
-    const pts = verts.map((p) => project(p[0], p[1], p[2]));
-    const depth = pts.reduce((sum, p) => sum + p[3], 0) / pts.length;
-    return { pts, fill, stroke, depth };
+  function face(cam, verts, fill) {
+    const pts = [];
+    for (const p of verts) {
+      const q = project(p[0], p[1], p[2], cam);
+      if (!q) return null;
+      pts.push(q);
+    }
+    const depth = pts.reduce((sum, p) => sum + p[2], 0) / pts.length;
+    return { pts, fill, depth };
   }
 
-  function box(cx, cy, cz, sx, sy, sz, fill) {
+  function wire(cam, a, b, lines) {
+    const pa = project(a[0], a[1], a[2], cam);
+    const pb = project(b[0], b[1], b[2], cam);
+    if (pa && pb) lines.push([pa, pb]);
+  }
+
+  function box(cam, faces, lines, cx, cy, cz, sx, sy, sz, fill) {
     const x0 = cx - sx / 2, x1 = cx + sx / 2;
     const y0 = cy - sy / 2, y1 = cy + sy / 2;
     const z0 = cz - sz / 2, z1 = cz + sz / 2;
-    const faces = [
+    const quads = [
       [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]],
       [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]],
       [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]],
@@ -110,64 +143,92 @@
       [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]],
       [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]]
     ];
-    return faces.map((verts) => face(verts, fill, '#d5ddd8'));
+    for (const verts of quads) {
+      const part = face(cam, verts, fill);
+      if (part) faces.push(part);
+    }
+    const corners = [
+      [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0],
+      [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]
+    ];
+    const edges = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+    for (const [i, j] of edges) wire(cam, corners[i], corners[j], lines);
   }
 
-  function plant(x, z, scale) {
-    const base = project(x, -1.45, z);
-    return { x: base[0], y: base[1], r: 18 * scale * base[2] / 80, a: Math.min(1, Math.max(0, (value - 0.45) / 0.4)) };
+  function plant(cam, x, z, scale, alpha) {
+    const base = project(x, -1.45, z, cam);
+    if (!base || alpha <= 0) return null;
+    return { x: base[0], y: base[1], r: 16 * scale * (Math.min(w, h) * 0.9) / (base[2] * 80), a: alpha };
   }
 
   function draw() {
+    const cam = camera();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     const sky = ctx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, '#1a2230');
-    sky.addColorStop(1, '#2a241e');
+    sky.addColorStop(0, '#1c2833');
+    sky.addColorStop(0.55, '#14181e');
+    sky.addColorStop(1, '#241c18');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
 
-    const solid = Math.min(1, Math.max(0, (value - 0.18) / 0.62));
-    const wire = 0.85 - solid * 0.62;
-    const concrete = `rgba(122, 112, 102, ${0.18 + solid * 0.82})`;
-    const floorFill = `rgba(78, 72, 66, ${0.45 + solid * 0.5})`;
-    const parts = [];
+    const solid = ramp(0.32, 0.88, value);
+    const wireA = 0.9 - solid * 0.62;
+    const concrete = `rgba(126, 116, 106, ${0.08 + solid * 0.86})`;
+    const faces = [];
+    const lines = [];
+    const rise = (a, b) => ramp(a, b, value);
 
-    parts.push(face([[-4.2, -1.55, 0.4], [4.2, -1.55, 0.4], [4.2, -1.55, 9.2], [-4.2, -1.55, 9.2]], floorFill, '#d5ddd8'));
-    parts.push(face([[-4.2, 2.35, 0.4], [4.2, 2.35, 0.4], [4.2, 2.35, 9.2], [-4.2, 2.35, 9.2]], `rgba(92, 96, 102, ${solid * 0.55})`, '#d5ddd8'));
-    parts.push(face([[-4.2, -1.55, 0.6], [-4.2, 2.35, 0.6], [-4.2, 2.35, 9.2], [-4.2, -1.55, 9.2]], concrete, '#d5ddd8'));
-    parts.push(face([[4.2, -1.55, 0.6], [4.2, 2.35, 0.6], [4.2, 2.35, 9.2], [4.2, -1.55, 9.2]], concrete, '#d5ddd8'));
-    parts.push(face([[-1.5, -1.55, 9.2], [1.5, -1.55, 9.2], [1.5, 2.35, 9.2], [-1.5, 2.35, 9.2]], `rgba(64, 60, 56, ${solid})`, null));
-    parts.push(face([[-4.2, -1.55, 9.2], [-1.5, -1.55, 9.2], [-1.5, 2.35, 9.2], [-4.2, 2.35, 9.2]], concrete, '#d5ddd8'));
-    parts.push(face([[1.5, -1.55, 9.2], [4.2, -1.55, 9.2], [4.2, 2.35, 9.2], [1.5, 2.35, 9.2]], concrete, '#d5ddd8'));
-    parts.push(face([[-1.5, 1.35, 9.2], [1.5, 1.35, 9.2], [1.5, 2.35, 9.2], [-1.5, 2.35, 9.2]], concrete, '#d5ddd8'));
+    box(cam, faces, lines, 0, -1.52, 4.4, 8.6, 0.08, 8.2, `rgba(78, 72, 66, ${0.25 + solid * 0.6})`);
 
-    for (const spot of [[-2.15, 2.4], [2.15, 2.4], [-2.15, 6.3], [2.15, 6.3]]) {
-      parts.push(...box(spot[0], 0.35, spot[1], 0.42, 3.5, 0.42, concrete));
+    const colH = 3.35 * rise(0.04, 0.42);
+    if (colH > 0.04) {
+      for (const spot of [[-2.35, 2.15], [2.35, 2.15], [-2.35, 6.35], [2.35, 6.35]]) {
+        box(cam, faces, lines, spot[0], -1.5 + colH / 2, spot[1], 0.38, colH, 0.38, concrete);
+      }
     }
-    parts.push(...box(0, 2.15, 4.8, 6.4, 0.18, 0.28, `rgba(168, 160, 150, ${0.2 + solid * 0.6})`));
-
-    const waterA = Math.min(1, Math.max(0, (value - 0.5) / 0.35));
-    if (waterA > 0) {
-      parts.push(face(
-        [[1.55, -1.5, 3.1], [1.85, -1.5, 6.6], [1.85, 1.7, 6.6], [1.55, 1.7, 3.1]],
-        `rgba(150, 196, 204, ${0.18 * waterA})`,
-        `rgba(214, 236, 238, ${0.7 * waterA})`
-      ));
+    const wallH = 3.5 * rise(0.12, 0.58);
+    if (wallH > 0.04) {
+      box(cam, faces, lines, -4.15, -1.5 + wallH / 2, 4.5, 0.22, wallH, 7.4, concrete);
+      box(cam, faces, lines, 4.15, -1.5 + wallH / 2, 4.5, 0.22, wallH, 7.4, concrete);
+      box(cam, faces, lines, -2.7, -1.5 + wallH / 2, 8.45, 2.7, wallH, 0.22, concrete);
+      box(cam, faces, lines, 2.7, -1.5 + wallH / 2, 8.45, 2.7, wallH, 0.22, concrete);
+    }
+    const plat = 0.28 * rise(0.22, 0.6);
+    if (plat > 0.03) {
+      box(cam, faces, lines, -2.85, -1.5 + plat / 2, 5.1, 2.3, plat, 3.2, concrete);
+      box(cam, faces, lines, 2.85, -1.5 + plat / 2, 5.1, 2.3, plat, 3.2, concrete);
+    }
+    const stepN = Math.ceil(rise(0.16, 0.5) * 3);
+    for (let i = 0; i < stepN; i++) {
+      const sh = 0.16 * (i + 1);
+      box(cam, faces, lines, 0, -1.5 + sh / 2, 1.15 + i * 0.42, 1.8 - i * 0.15, sh, 0.4, concrete);
+    }
+    const hang = 0.9 * rise(0.4, 0.74);
+    if (hang > 0.04) {
+      box(cam, faces, lines, 0, 2.15 - hang / 2, 4.6, 2.8, hang, 1.5, `rgba(168, 160, 150, ${0.15 + solid * 0.7})`);
     }
 
-    parts.sort((a, b) => b.depth - a.depth);
-    for (const part of parts) {
-      poly(part.pts, part.fill, part.stroke ? `rgba(213, 221, 216, ${wire})` : null, 1.25);
+    const gridA = wireA * (1 - solid * 0.45);
+    if (gridA > 0.04) {
+      for (let i = 0; i <= 8; i++) {
+        wire(cam, [-4.2, -1.47, i], [4.2, -1.47, i], lines);
+        wire(cam, [-4.2 + i * 1.05, -1.47, 0.2], [-4.2 + i * 1.05, -1.47, 8.4], lines);
+      }
     }
 
-    if (waterA > 0) {
-      ctx.strokeStyle = `rgba(214, 236, 238, ${0.45 * waterA})`;
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 8; i++) {
-        const y = -1.2 + i * 0.34;
-        const a = project(1.62, y, 3.3);
-        const b = project(1.78, y, 6.4);
+    faces.sort((a, b) => b.depth - a.depth);
+    for (const part of faces) {
+      ctx.beginPath();
+      ctx.moveTo(part.pts[0][0], part.pts[0][1]);
+      for (let i = 1; i < part.pts.length; i++) ctx.lineTo(part.pts[i][0], part.pts[i][1]);
+      ctx.closePath();
+      if (solid > 0.01) { ctx.fillStyle = part.fill; ctx.fill(); }
+    }
+    if (wireA > 0.03) {
+      ctx.strokeStyle = `rgba(214, 224, 220, ${wireA})`;
+      ctx.lineWidth = 1.15;
+      for (const [a, b] of lines) {
         ctx.beginPath();
         ctx.moveTo(a[0], a[1]);
         ctx.lineTo(b[0], b[1]);
@@ -175,40 +236,71 @@
       }
     }
 
-    for (const blob of [plant(-3.1, 3.2, 1), plant(3.05, 4.4, 0.8), plant(-2.7, 7.1, 1.15)]) {
-      if (blob.a <= 0) continue;
-      ctx.fillStyle = `rgba(62, 92, 72, ${0.85 * blob.a})`;
+    const waterA = ramp(0.55, 0.86, value);
+    if (waterA > 0) {
+      const sheet = face(cam, [[1.72, -1.45, 3.2], [1.92, -1.45, 6.5], [1.92, 1.65, 6.5], [1.72, 1.65, 3.2]], `rgba(150, 196, 204, ${0.22 * waterA})`);
+      if (sheet) {
+        ctx.beginPath();
+        ctx.moveTo(sheet.pts[0][0], sheet.pts[0][1]);
+        for (let i = 1; i < sheet.pts.length; i++) ctx.lineTo(sheet.pts[i][0], sheet.pts[i][1]);
+        ctx.closePath();
+        ctx.fillStyle = sheet.fill;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(214, 236, 238, ${0.55 * waterA})`;
+        ctx.stroke();
+      }
+      ctx.strokeStyle = `rgba(214, 236, 238, ${0.4 * waterA})`;
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 7; i++) {
+        const y = -1.2 + i * 0.38;
+        const a = project(1.78, y, 3.35, cam);
+        const b = project(1.86, y, 6.35, cam);
+        if (!a || !b) continue;
+        ctx.beginPath();
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+        ctx.stroke();
+      }
+    }
+
+    const plantA = ramp(0.48, 0.78, value);
+    for (const blob of [plant(cam, -3.2, 3.1, 1, plantA), plant(cam, 3.15, 4.2, 0.75, plantA), plant(cam, -2.6, 7.2, 1.1, plantA)]) {
+      if (!blob) continue;
+      ctx.fillStyle = `rgba(58, 92, 70, ${0.9 * blob.a})`;
       ctx.beginPath();
-      ctx.ellipse(blob.x, blob.y - blob.r, blob.r * 0.7, blob.r, 0, 0, Math.PI * 2);
+      ctx.ellipse(blob.x, blob.y - blob.r * 0.8, blob.r * 0.7, blob.r, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    const shaft = Math.min(1, Math.max(0, (value - 0.62) / 0.3));
+    const shaft = ramp(0.68, 0.95, value);
     if (shaft > 0 && !reduced) {
-      ctx.fillStyle = `rgba(255, 236, 214, ${0.16 * shaft})`;
-      for (const x of [-1.4, 0.2, 1.6]) {
-        const top = project(x, 2.3, 5);
-        const foot = project(x + 0.35, -1.5, 6.2);
+      ctx.fillStyle = `rgba(255, 236, 214, ${0.14 * shaft})`;
+      for (const x of [-1.5, 0.15, 1.55]) {
+        const top = project(x, 2.2, 4.8, cam);
+        const foot = project(x + 0.25, -1.45, 6.1, cam);
+        if (!top || !foot) continue;
         ctx.beginPath();
-        ctx.moveTo(top[0] - 10, top[1]);
-        ctx.lineTo(top[0] + 18, top[1]);
-        ctx.lineTo(foot[0] + 26, foot[1]);
-        ctx.lineTo(foot[0] - 8, foot[1]);
+        ctx.moveTo(top[0] - 8, top[1]);
+        ctx.lineTo(top[0] + 16, top[1]);
+        ctx.lineTo(foot[0] + 22, foot[1]);
+        ctx.lineTo(foot[0] - 6, foot[1]);
         ctx.fill();
       }
     }
 
-    const shown = Math.round(value * 100);
+    const shown = Math.round(Math.min(1, Math.max(0, value)) * 100);
     bar.style.width = shown + '%';
     const built = mode === 'built' || mode === 'settle';
-    label.textContent = built ? '返回线框' : (reduced ? '进入构筑' : '按住构筑');
-    hold.setAttribute('aria-label', label.textContent);
+    label.textContent = built ? '返回线框' : (reduced ? '进入构筑' : `按住进入 ${shown}%`);
+    hold.setAttribute('aria-label', built ? '返回线框' : (reduced ? '进入构筑' : '按住进入'));
     hold.setAttribute('aria-valuemin', '0');
     hold.setAttribute('aria-valuemax', '100');
     hold.setAttribute('aria-valuenow', String(shown));
     hint.textContent = reduced
       ? '已减少动态效果：点一次直接看到静止成稿，再点一次回到线框。'
-      : '松开即取消。空格或回车同样可用，Esc 回到线框。';
+      : built
+        ? '点一下、按空格、回车或 Esc，回到线框。'
+        : '在画面上按住。松开即取消。空格或回车同样可用，Esc 回到线框。';
   }
 
   function arm() {
@@ -217,97 +309,110 @@
     raf = requestAnimationFrame(frame);
   }
 
+  function begin(next, from, dur) {
+    mode = next;
+    phaseFrom = from;
+    phaseDur = dur;
+    phaseStart = performance.now();
+    arm();
+  }
+
   function frame(now) {
     raf = 0;
-    const dt = Math.min(32, now - last);
-    last = now;
-    step(dt);
+    step(now);
     draw();
     if (mode === 'hold' || mode === 'stall' || mode === 'letgo' || mode === 'settle') arm();
   }
 
-  function step(dt) {
+  function step(now) {
+    const t = phaseDur <= 0 ? 1 : Math.min(1, Math.max(0, (now - phaseStart) / phaseDur));
     if (mode === 'hold') {
-      modeT += dt;
-      const t = dur <= 0 ? 1 : Math.min(1, modeT / dur);
-      value = from + (1 - from) * t;
-      if (value >= 0.999) finish();
+      value = phaseFrom + (1 - phaseFrom) * t;
+      if (t >= 1) finish();
     } else if (mode === 'stall') {
-      modeT += dt;
-      if (modeT >= STALL_MS) {
-        mode = 'letgo';
-        modeT = 0;
-        from = value;
-        dur = Math.max(LETGO_MIN_MS, LETGO_MS * value);
-      }
+      if (now - phaseStart >= STALL_MS) begin('letgo', value, Math.max(LETGO_MIN_MS, LETGO_MS * value));
     } else if (mode === 'letgo') {
-      modeT += dt;
-      const t = Math.min(1, modeT / dur);
-      value = from * (1 - easeInOut2(t));
+      value = phaseFrom * (1 - easeInOut2(t));
       if (t >= 1) { value = 0; mode = 'idle'; }
     } else if (mode === 'settle') {
-      modeT += dt;
-      if (modeT >= SETTLE_MS) mode = 'built';
+      if (now - phaseStart >= SETTLE_MS) mode = 'built';
     }
   }
 
   function finish() {
     value = 1;
     mode = reduced ? 'built' : 'settle';
-    modeT = 0;
+    phaseStart = performance.now();
+    phaseDur = SETTLE_MS;
+    if (!reduced) arm();
   }
 
   function press() {
-    if (mode === 'built' || mode === 'settle') { reset(); return; }
+    if (mode === 'hold') return;
     if (reduced) { finish(); draw(); return; }
-    from = value;
-    dur = HOLD_MS * (1 - value);
-    mode = 'hold';
-    modeT = 0;
-    if (dur <= 0) finish();
-    arm();
+    const from = Math.min(1, Math.max(0, value));
+    const dur = HOLD_MS * (1 - from);
+    if (dur <= 0) { finish(); draw(); return; }
+    begin('hold', from, dur);
   }
 
   function release() {
-    if (reduced || mode === 'built' || mode === 'settle') return;
-    if (value <= 0) { mode = 'idle'; draw(); return; }
+    if (reduced || mode === 'built' || mode === 'settle' || mode === 'idle' || mode === 'letgo' || mode === 'stall') return;
+    if (pointers.size > 0 || keyHeld) return;
+    if (value <= 0.001) { value = 0; mode = 'idle'; draw(); return; }
     if (value >= 1) return;
-    mode = 'stall';
-    modeT = 0;
-    arm();
+    begin('stall', value, STALL_MS);
   }
 
   function reset() {
     value = 0;
     mode = 'idle';
-    modeT = 0;
+    phaseDur = 1;
     draw();
   }
 
-  hold.addEventListener('pointerdown', (event) => {
+  function holding() { return pointers.size > 0 || keyHeld; }
+
+  catcher.addEventListener('pointerdown', (event) => {
     if (!event.isPrimary || event.button !== 0) return;
-    hold.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    try { catcher.setPointerCapture(event.pointerId); } catch { /* 捕获失败时仍靠 pointerup */ }
+    if (mode === 'built' || mode === 'settle') { pointers.clear(); keyHeld = false; reset(); return; }
+    pointers.add(event.pointerId);
     press();
   });
-  hold.addEventListener('pointerup', (event) => { if (event.isPrimary) release(); });
-  hold.addEventListener('pointercancel', (event) => { if (event.isPrimary) release(); });
-  hold.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') { event.preventDefault(); reset(); return; }
+  catcher.addEventListener('pointerup', (event) => {
+    if (!event.isPrimary) return;
+    pointers.delete(event.pointerId);
+    if (!holding()) release();
+  });
+  catcher.addEventListener('pointercancel', (event) => {
+    pointers.delete(event.pointerId);
+    if (!holding()) release();
+  });
+  catcher.addEventListener('contextmenu', (event) => event.preventDefault());
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { event.preventDefault(); pointers.clear(); keyHeld = false; reset(); return; }
     if (event.key !== ' ' && event.key !== 'Enter') return;
     event.preventDefault();
-    if (event.repeat) return;
+    if (event.repeat || keyHeld) return;
     if (mode === 'built' || mode === 'settle') { reset(); return; }
+    keyHeld = true;
     press();
   });
-  hold.addEventListener('keyup', (event) => {
-    if (event.key === ' ' || event.key === 'Enter') release();
+  window.addEventListener('keyup', (event) => {
+    if (event.key !== ' ' && event.key !== 'Enter') return;
+    keyHeld = false;
+    if (!holding()) release();
   });
-  hold.addEventListener('blur', () => { if (mode === 'hold' || mode === 'stall') release(); });
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') reset();
+  hold.addEventListener('blur', () => {
+    if (!keyHeld) return;
+    keyHeld = false;
+    if (!holding()) release();
   });
-  motion.addEventListener('change', () => { reduced = motion.matches; reset(); });
+  motion.addEventListener('change', () => { reduced = motion.matches; pointers.clear(); keyHeld = false; reset(); });
   window.addEventListener('resize', resize);
+  catcher.tabIndex = 0;
   resize();
   hold.focus();
 })();
