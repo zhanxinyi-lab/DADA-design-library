@@ -5,7 +5,7 @@
 - 状态：ai_recreated
 - 原文：https://x.com/cssdesignawards/status/2117889962393891311
 - 素材 ID：2117889962393891311
-- 版本：1.0.0
+- 版本：1.0.1
 
 ## 复刻说明
 
