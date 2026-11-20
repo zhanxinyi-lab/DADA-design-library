@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<!-- AI 复刻：WebGL / WebGPU 切换时代码先故障再写清。clean-room，不是原站源码。 -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebGL / WebGPU 切换</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #090909; color: #d4d4d4; }
+  body {
+    padding: 14px;
+    font-family: system-ui, sans-serif;
+  }
+  .panel {
+    width: 100%;
+    height: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 22px;
+    background: #0b0b0b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+  }
+  .switch {
+    margin-top: 22px;
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 999px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+  }
+  .switch button {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: #8a8a8a;
+    border-radius: 999px;
+    padding: 7px 16px;
+    font: 500 13px/1 system-ui, sans-serif;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+  }
+  .switch button[aria-pressed="true"] {
+    background: #2c2c2c;
+    color: #f3f3f3;
+  }
+  .switch button:hover { color: #f3f3f3; }
+  .switch button:focus-visible { outline: 2px solid #9adfff; outline-offset: 2px; }
+  .stage {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .scan {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0 2px,
+      rgba(0, 0, 0, 0.28) 2px 3px
+    );
+    mix-blend-mode: multiply;
+  }
+  .scan.on { opacity: 0.8; }
+  .live {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: pre;
+    border: 0;
+  }
+  @media (max-width: 640px) {
+    body { padding: 8px; }
+    .panel { border-radius: 16px; min-height: 0; }
+    .switch { margin-top: 14px; }
+    .switch button { padding: 7px 12px; }
+  }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="switch" role="group" aria-label="着色器后端">
+      <button type="button" id="btn-gl" aria-pressed="true">WebGL</button>
+      <button type="button" id="btn-gpu" aria-pressed="false">WebGPU</button>
+    </div>
+    <div class="stage">
+      <canvas id="view" aria-hidden="true"></canvas>
+      <div class="scan" id="scan"></div>
+    </div>
+  </div>
+  <pre class="live" id="live" aria-live="polite"></pre>
+<script>
+'use strict';
+(function () {
+  var FAMILY = '"Cascadia Mono", "Segoe UI Mono", Consolas, ui-monospace, monospace';
+  var GLYPHS = '#@%&+=*x/<>{}[]~^01';
+  var GL = [
+    '#version 300 es',
+    'precision highp float;',
+    'uniform sampler2D page;',
+    'uniform float split;',
+    'in vec2 uv;',
+    'out vec4 color;',
+    '',
+    'void main() {',
+    '  vec2 offset = vec2(split, 0.0);',
+    '  float r = texture(page, uv + offset).r;',
+    '  float g = texture(page, uv).g;',
+    '  float b = texture(page, uv - offset).b;',
+    '  color = vec4(r, g, b, 1.0);',
+    '}'
+  ].join('\n');
+  var GPU = [
+    '@group(0) @binding(0) var page: texture_2d<f32>;',
+    '@group(0) @binding(1) var samp: sampler;',
+    '@group(0) @binding(2) var<uniform> split: f32;',
+    '',
+    '@fragment',
+    'fn main(@location(0) uv: vec2f)',
+    '    -> @location(0) vec4f {',
+    '  let offset = vec2f(split, 0.0);',
+    '  let r = textureSample(page, samp, uv + offset).r;',
+    '  let g = textureSample(page, samp, uv).g;',
+    '  let b = textureSample(page, samp, uv - offset).b;',
+    '  return vec4f(r, g, b, 1.0);',
+    '}'
+  ].join('\n');
+
+  var canvas = document.getElementById('view');
+  var scan = document.getElementById('scan');
+  var live = document.getElementById('live');
+  var btnGl = document.getElementById('btn-gl');
+  var btnGpu = document.getElementById('btn-gpu');
+  var buf = document.createElement('canvas');
+  var ctx = canvas.getContext('2d');
+  var bctx = buf.getContext('2d');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var mode = 'gl';
+  var shown = GL;
+  var animating = false;
+  var pending = null;
+  var auto = !reduce.matches;
+  var autoTimer = 0;
+  var raf = 0;
+
+  function hash(a, b, c) {
+    var n = Math.imul(a + 1, 374761393) + Math.imul(b + 1, 668265263) + Math.imul((c || 0) + 1, 1440671489);
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return (n >>> 0) / 4294967295;
+  }
+
+  function sourceOf(name) { return name === 'gpu' ? GPU : GL; }
+
+  function fit(lines, maxW) {
+    var longest = 8;
+    for (var i = 0; i < lines.length; i++) longest = Math.max(longest, lines[i].length + 5);
+    var size = 20;
+    while (size > 10) {
+      bctx.font = size + 'px ' + FAMILY;
+      if (bctx.measureText('0').width * longest < maxW) break;
+      size -= 1;
+    }
+    return size;
+  }
+
+  function maskFor(line, i, amount, tick) {
+    var mask = [];
+    var run = 0;
+    for (var c = 0; c < line.length; c++) {
+      if (line.charAt(c) === ' ') { mask.push(0); continue; }
+      if (run > 0) { mask.push(1); run -= 1; continue; }
+      var bias = (c + 1) / Math.max(1, line.length);
+      if (amount > 0.12 && hash(tick, i, c) < amount * (0.02 + bias * 0.62)) {
+        run = 1 + ((hash(tick, i, c + 5) * (2 + bias * 8)) | 0);
+        mask.push(1);
+        run -= 1;
+      } else mask.push(0);
+    }
+    return mask;
+  }
+
+  function paint(text, amount, tick) {
+    var lines = text.split('\n');
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var rect = canvas.getBoundingClientRect();
+    var w = Math.max(2, Math.round(rect.width * dpr));
+    var h = Math.max(2, Math.round(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+      buf.width = w;
+      buf.height = h;
+    }
+    var size = Math.round(fit(lines, (rect.width || w) * 0.84) * dpr);
+    var lh = size * 1.58;
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.clearRect(0, 0, w, h);
+    bctx.font = size + 'px ' + FAMILY;
+    bctx.textBaseline = 'middle';
+    var charW = bctx.measureText('0').width;
+    var gutter = charW * 3.4;
+    var maxChars = 0;
+    for (var n = 0; n < lines.length; n++) maxChars = Math.max(maxChars, lines[n].length);
+    var blockW = gutter + maxChars * charW;
+    var blockH = lines.length * lh;
+    var x0 = Math.round((w - blockW) / 2);
+    var y0 = Math.round((h - blockH) / 2 + lh * 0.5);
+    var split = amount * size * 0.42;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var jitter = 0;
+      if (amount > 0.2 && hash(tick, i, 1) < 0.4) {
+        jitter = Math.round((hash(tick, i, 2) - 0.5) * amount * size * 0.85);
+      }
+      var fade = amount > 0.3 && hash(tick, i, 4) < 0.16 ? 0.35 : 1;
+      var mask = maskFor(line, i, amount, tick);
+      bctx.globalAlpha = fade;
+      bctx.textAlign = 'right';
+      bctx.fillStyle = amount > 0.2 ? 'rgba(150, 220, 230, 0.9)' : 'rgba(88, 88, 88, 0.95)';
+      bctx.fillText(String(i + 1), x0 + gutter - charW * 0.85 + jitter, y0 + i * lh);
+      bctx.textAlign = 'left';
+      for (var c = 0; c < line.length; c++) {
+        var raw = line.charAt(c);
+        if (raw === ' ') continue;
+        var noisy = mask[c] === 1;
+        var glyph = noisy ? GLYPHS.charAt((hash(tick, i, c + 9) * GLYPHS.length) | 0) : raw;
+        var x = x0 + gutter + jitter + c * charW;
+        var y = y0 + i * lh;
+        if (amount > 0.06) {
+          bctx.fillStyle = 'rgba(255, 64, 92, ' + (0.38 * amount).toFixed(3) + ')';
+          bctx.fillText(glyph, x + split, y);
+          bctx.fillStyle = 'rgba(80, 236, 255, ' + (0.72 * amount).toFixed(3) + ')';
+          bctx.fillText(glyph, x - split, y);
+        }
+        if (noisy) bctx.fillStyle = '#e9fdff';
+        else if (amount > 0.04) bctx.fillStyle = 'rgb(150, 214, 226)';
+        else bctx.fillStyle = '#d0d0d0';
+        bctx.fillText(glyph, x, y);
+      }
+    }
+    bctx.globalAlpha = 1;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (amount < 0.05) {
+      ctx.drawImage(buf, 0, 0);
+      scan.classList.remove('on');
+      return;
+    }
+    scan.classList.add('on');
+    var slice = Math.max(3 * dpr, Math.round(size * 0.72));
+    for (var y = 0; y < h; y += slice) {
+      var band = Math.min(slice, h - y);
+      var kick = hash(tick, y, 7) < 0.18 ? Math.round((hash(tick, y, 8) - 0.5) * amount * size * 0.7) : 0;
+      ctx.drawImage(buf, 0, y, w, band, kick, y, w, band);
+    }
+    ctx.save();
+    ctx.filter = 'blur(' + (1 + amount * 5).toFixed(1) + 'px)';
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.55 * amount;
+    ctx.drawImage(buf, 0, 0);
+    ctx.restore();
+  }
+
+  function setPressed(name) {
+    btnGl.setAttribute('aria-pressed', name === 'gl' ? 'true' : 'false');
+    btnGpu.setAttribute('aria-pressed', name === 'gpu' ? 'true' : 'false');
+  }
+
+  function finish() {
+    animating = false;
+    shown = sourceOf(mode);
+    live.textContent = shown;
+    paint(shown, 0, 0);
+    if (pending && pending !== mode) {
+      var next = pending;
+      pending = null;
+      start(next);
+      return;
+    }
+    pending = null;
+    queueAuto();
+  }
+
+  function start(next) {
+    if (reduce.matches) {
+      mode = next;
+      setPressed(mode);
+      finish();
+      return;
+    }
+    var from = shown;
+    mode = next;
+    setPressed(mode);
+    var to = sourceOf(mode);
+    animating = true;
+    scan.classList.add('on');
+    var t0 = 0;
+    var dur = 980;
+    cancelAnimationFrame(raf);
+    function step(now) {
+      if (!t0) t0 = now;
+      var u = Math.min(1, (now - t0) / dur);
+      var corrupt = u < 0.4 ? u / 0.4 : 1 - (u - 0.4) / 0.6;
+      var text = u < 0.46 ? from : to;
+      var tick = (now / 48) | 0;
+      paint(text, corrupt, tick);
+      if (u < 1) raf = requestAnimationFrame(step);
+      else finish();
+    }
+    raf = requestAnimationFrame(step);
+  }
+
+  function go(next) {
+    if (animating) {
+      pending = next;
+      return;
+    }
+    if (next === mode) return;
+    clearTimeout(autoTimer);
+    start(next);
+  }
+
+  function queueAuto() {
+    if (!auto || reduce.matches) return;
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(function () {
+      go(mode === 'gl' ? 'gpu' : 'gl');
+    }, 1250);
+  }
+
+  btnGl.addEventListener('click', function () { auto = false; clearTimeout(autoTimer); go('gl'); });
+  btnGpu.addEventListener('click', function () { auto = false; clearTimeout(autoTimer); go('gpu'); });
+  window.addEventListener('resize', function () {
+    if (!animating) paint(shown, 0, 0);
+  });
+  if (reduce.addEventListener) {
+    reduce.addEventListener('change', function () {
+      if (reduce.matches) {
+        auto = false;
+        clearTimeout(autoTimer);
+        cancelAnimationFrame(raf);
+        finish();
+      }
+    });
+  }
+
+  live.textContent = shown;
+  paint(shown, 0, 0);
+  queueAuto();
+})();
+</script>
+</body>
+</html>
