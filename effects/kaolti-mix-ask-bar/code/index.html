@@ -55,6 +55,12 @@
         22px 16px 42px rgba(88, 70, 255, .16);
       -webkit-mask-image: radial-gradient(ellipse var(--rx) var(--ry) at var(--mx) var(--my), #000 0, #000 var(--cut), transparent 100%);
       mask-image: radial-gradient(ellipse var(--rx) var(--ry) at var(--mx) var(--my), #000 0, #000 var(--cut), transparent 100%);
+      transition: opacity .16s linear;
+    }
+    .bar.is-off {
+      opacity: 0;
+      -webkit-mask-image: linear-gradient(transparent, transparent);
+      mask-image: linear-gradient(transparent, transparent);
     }
     .bar::after {
       content: "";
@@ -235,7 +241,7 @@
       outline-offset: 3px;
     }
     @media (prefers-reduced-motion: reduce) {
-      .dial i { transition: none; }
+      .dial i, .bar { transition: none; }
     }
     @media (max-width: 720px) {
       .ask { font-size: 24px; }
@@ -277,6 +283,7 @@
       var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       var level = 1;
       var pointer = null;
+      var armed = false;
       var target = { x: 80, y: 40, rx: 420, ry: 220, cut: 0.62 };
       var shown = { x: 80, y: 40, rx: 420, ry: 220, cut: 0.62 };
       var traces = [];
@@ -320,16 +327,17 @@
         return Math.hypot(dx, dy);
       }
 
+      function off() {
+        return { off: true, x: shown.x, y: shown.y, rx: shown.rx, ry: shown.ry, cut: shown.cut };
+      }
+
       function measureTarget() {
         var br = bar.getBoundingClientRect();
-        if (document.activeElement === ask && !pointer) return wide(br);
-        if (!pointer) return wide(br);
-        var away = outsideDist(br, pointer.x, pointer.y);
-        if (away > 88) return { x: shown.x, y: shown.y, rx: 0, ry: 0, cut: 0.7 };
+        if (!pointer) return armed ? off() : wide(br);
+        if (outsideDist(br, pointer.x, pointer.y) > 1) return off();
         var ctl = controlAt(pointer.x, pointer.y);
         if (ctl) return tight(br, ctl);
-        if (away === 0 || document.activeElement === ask) return wide(br);
-        return { x: shown.x, y: shown.y, rx: 0, ry: 0, cut: 0.7 };
+        return wide(br);
       }
 
       function wide(br) {
@@ -569,11 +577,13 @@
         });
         var askR = ask.getBoundingClientRect();
         drawGlyph(askText(), askR.left, askR.top + 4, askR.height > 36 ? 28 : 20);
-        if (shown.rx > 2) noise(br, time / 1000);
+        if (!bar.classList.contains("is-off") && shown.rx > 2) noise(br, time / 1000);
       }
 
       function frame(now) {
         var next = measureTarget();
+        if (next.off) bar.classList.add("is-off");
+        else bar.classList.remove("is-off");
         var k = reduce ? 1 : 0.2;
         shown.x += (next.x - shown.x) * k;
         shown.y += (next.y - shown.y) * k;
@@ -646,6 +656,7 @@
 
       window.addEventListener("pointermove", function (e) {
         pointer = { x: e.clientX, y: e.clientY };
+        armed = true;
       });
       window.addEventListener("pointerleave", function () { pointer = null; });
       window.addEventListener("resize", function () {
