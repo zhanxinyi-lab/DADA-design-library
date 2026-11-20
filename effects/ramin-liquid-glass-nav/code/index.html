@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>液态玻璃导航</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow-x: hidden;
+      background: #d8d8d8;
+      color: #3a3a3a;
+      font-family: "Segoe UI", "PingFang SC", sans-serif;
+    }
+    .track {
+      position: relative;
+      display: flex;
+      width: min(720px, calc(100% - 32px));
+      min-width: 0;
+      height: 92px;
+      border-radius: 999px;
+      background: #d3d3d3;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .75),
+        inset 0 -1px 0 rgba(0, 0, 0, .07),
+        inset 0 0 0 1px rgba(255, 255, 255, .28);
+      touch-action: manipulation;
+    }
+    button {
+      position: relative;
+      z-index: 1;
+      flex: 1 1 0;
+      min-width: 0;
+      padding: 0 6px;
+      overflow: hidden;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: inherit;
+      font: 650 clamp(15px, 4.6vw, 22px) / 1 "Segoe UI", "PingFang SC", sans-serif;
+      letter-spacing: .01em;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:focus { outline: none; }
+    button:focus-visible {
+      z-index: 3;
+      outline: 2px solid #3a3a3a;
+      outline-offset: -6px;
+    }
+    .glass {
+      --hx: 82%;
+      --hy: 46%;
+      --cx: 16%;
+      --cy: 68%;
+      --wx: 78%;
+      --wy: 74%;
+      --spin: 18deg;
+      --streak: .35;
+      position: absolute;
+      z-index: 2;
+      top: 7px;
+      left: 7px;
+      height: calc(100% - 14px);
+      border-radius: 999px;
+      pointer-events: none;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .16) 34%, rgba(255, 255, 255, .1) 68%, rgba(255, 255, 255, .3));
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, .55),
+        0 10px 20px rgba(70, 70, 70, .07),
+        inset 0 1px 0 rgba(255, 255, 255, .95),
+        inset 0 -1px 0 rgba(255, 255, 255, .4),
+        inset 0 0 0 1px rgba(255, 255, 255, .35);
+      backdrop-filter: saturate(1.15);
+      -webkit-backdrop-filter: saturate(1.15);
+    }
+    .lens, .rim, .sheen, .caps, .streak {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+    }
+    .lens {
+      padding: 12px;
+      backdrop-filter: blur(2.4px) saturate(1.6);
+      -webkit-backdrop-filter: blur(2.4px) saturate(1.6);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask-composite: exclude;
+    }
+    .rim {
+      padding: 3px;
+      background: conic-gradient(from var(--spin),
+        rgba(255, 255, 255, .15) 0deg,
+        rgba(150, 205, 255, 1) 28deg,
+        rgba(255, 255, 255, .35) 70deg,
+        rgba(255, 186, 156, 1) 118deg,
+        rgba(255, 255, 255, .2) 170deg,
+        rgba(255, 160, 205, .95) 214deg,
+        rgba(255, 255, 255, .25) 260deg,
+        rgba(165, 215, 255, 1) 312deg,
+        rgba(255, 255, 255, .15) 360deg);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask-composite: exclude;
+    }
+    .caps {
+      background:
+        radial-gradient(34px 58px at 7% 50%, rgba(176, 216, 255, .85), transparent 70%),
+        radial-gradient(36px 60px at 94% 50%, rgba(255, 196, 164, .9), transparent 70%),
+        linear-gradient(180deg, rgba(255, 255, 255, .48), transparent 36%);
+      mix-blend-mode: screen;
+      -webkit-mask-image: radial-gradient(closest-side, transparent 62%, #000 80%);
+      mask-image: radial-gradient(closest-side, transparent 62%, #000 80%);
+    }
+    .sheen {
+      background:
+        radial-gradient(28px 22px at var(--hx) var(--hy), rgba(255, 255, 255, .95), transparent 70%),
+        radial-gradient(26px 18px at var(--cx) var(--cy), rgba(150, 205, 255, .95), transparent 72%),
+        radial-gradient(24px 16px at var(--wx) var(--wy), rgba(255, 186, 156, .9), transparent 72%);
+      mix-blend-mode: screen;
+      -webkit-mask-image: radial-gradient(closest-side, transparent 58%, #000 78%);
+      mask-image: radial-gradient(closest-side, transparent 58%, #000 78%);
+    }
+    .streak {
+      inset: auto 16% 12% 16%;
+      height: 5px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, rgba(176, 220, 255, .95), rgba(255, 255, 255, .75), transparent);
+      filter: blur(.6px);
+      opacity: var(--streak);
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .lens { display: none; }
+      .glass {
+        background: #f3f3f3;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="track" id="track" aria-label="栏目">
+    <button type="button" aria-current="true">Logo</button>
+    <button type="button">Branding</button>
+    <button type="button">UI/UX</button>
+    <div class="glass" id="glass" aria-hidden="true">
+      <span class="lens"></span>
+      <span class="rim"></span>
+      <span class="caps"></span>
+      <span class="sheen"></span>
+      <span class="streak"></span>
+    </div>
+  </nav>
+  <script>
+    const track = document.querySelector("#track");
+    const glass = document.querySelector("#glass");
+    const tabs = [...track.querySelectorAll("button")];
+    const fine = matchMedia("(hover: hover) and (pointer: fine)");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+    let selected = 0;
+    let pointerIndex = null;
+    let curL = 0;
+    let curR = 0;
+    let primed = false;
+    let last = 0;
+    let angle = 0.4;
+
+    function shown() {
+      if (pointerIndex != null && fine.matches) return pointerIndex;
+      const active = document.activeElement;
+      const index = tabs.indexOf(active);
+      if (index >= 0 && active.matches(":focus-visible")) return index;
+      return selected;
+    }
+
+    function targetOf(index) {
+      const nav = track.getBoundingClientRect();
+      const box = tabs[index].getBoundingClientRect();
+      const inset = 7;
+      return {
+        l: box.left - nav.left + inset,
+        r: box.right - nav.left - inset
+      };
+    }
+
+    function select(index) {
+      selected = index;
+      tabs.forEach((tab, i) => {
+        if (i === index) tab.setAttribute("aria-current", "true");
+        else tab.removeAttribute("aria-current");
+      });
+    }
+
+    function place(now) {
+      const goal = targetOf(shown());
+      const dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016);
+      last = now;
+      const prevMid = (curL + curR) / 2;
+      if (!primed || reduce.matches) {
+        curL = goal.l;
+        curR = goal.r;
+        primed = true;
+      } else {
+        const mid = (goal.l + goal.r) / 2;
+        const right = mid > prevMid + 0.4;
+        const left = mid < prevMid - 0.4;
+        const lead = 1 - Math.exp(-5.4 * dt);
+        const trail = 1 - Math.exp(-2.15 * dt);
+        const settle = 1 - Math.exp(-9 * dt);
+        curL += (goal.l - curL) * (left ? lead : right ? trail : settle);
+        curR += (goal.r - curR) * (right ? lead : left ? trail : settle);
+        const maxW = (goal.r - goal.l) * 1.58;
+        if (curR - curL > maxW) {
+          if (Math.abs(goal.r - curR) <= Math.abs(goal.l - curL)) curL = curR - maxW;
+          else curR = curL + maxW;
+        }
+      }
+      const natural = track.clientHeight - 14;
+      const stretch = (curR - curL) / Math.max(1, goal.r - goal.l);
+      const scaleY = stretch > 1 ? Math.max(0.88, 1 - (stretch - 1) * 0.2) : 1;
+      const height = natural * scaleY;
+      glass.style.left = curL.toFixed(2) + "px";
+      glass.style.width = Math.max(0, curR - curL).toFixed(2) + "px";
+      glass.style.height = height.toFixed(2) + "px";
+      glass.style.top = ((track.clientHeight - height) / 2).toFixed(2) + "px";
+      if (!reduce.matches) {
+        const speed = Math.abs((curL + curR) / 2 - prevMid);
+        angle += dt * (0.7 + Math.min(2.4, speed * 0.03));
+        const spot = (theta, rx, ry) => [
+          (50 + Math.cos(theta) * rx).toFixed(2) + "%",
+          (50 + Math.sin(theta) * ry).toFixed(2) + "%"
+        ];
+        const hi = spot(angle, 34, 30);
+        const cool = spot(angle + 2.3, 36, 28);
+        const warm = spot(angle + 4.0, 33, 27);
+        glass.style.setProperty("--hx", hi[0]);
+        glass.style.setProperty("--hy", hi[1]);
+        glass.style.setProperty("--cx", cool[0]);
+        glass.style.setProperty("--cy", cool[1]);
+        glass.style.setProperty("--wx", warm[0]);
+        glass.style.setProperty("--wy", warm[1]);
+        glass.style.setProperty("--spin", (angle * 180 / Math.PI).toFixed(2) + "deg");
+        glass.style.setProperty("--streak", Math.max(0, Math.sin(angle * 0.7)).toFixed(3));
+      }
+      requestAnimationFrame(place);
+    }
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("pointerenter", (event) => {
+        if (!fine.matches || event.pointerType === "touch") return;
+        pointerIndex = index;
+      });
+      tab.addEventListener("click", () => select(index));
+    });
+    track.addEventListener("pointerleave", (event) => {
+      if (event.pointerType === "touch") return;
+      pointerIndex = null;
+    });
+    track.addEventListener("focusout", (event) => {
+      if (!track.contains(event.relatedTarget)) pointerIndex = null;
+    });
+    track.addEventListener("keydown", (event) => {
+      if (event.key === "Tab") pointerIndex = null;
+      const current = tabs.indexOf(document.activeElement);
+      if (current < 0) return;
+      let next = null;
+      if (event.key === "ArrowRight") next = (current + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") next = (current - 1 + tabs.length) % tabs.length;
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = tabs.length - 1;
+      if (next == null) return;
+      event.preventDefault();
+      pointerIndex = null;
+      select(next);
+      tabs[next].focus();
+    });
+    window.addEventListener("resize", () => { primed = false; });
+    requestAnimationFrame(place);
+  </script>
+</body>
+</html>
