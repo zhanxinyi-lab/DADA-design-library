@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>搜索筛选与结果让位</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: #070708; color: #f4f4f5; }
+    body { font-family: "Segoe UI", "PingFang SC", "Helvetica Neue", sans-serif; }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    .intro, .board { min-height: 100vh; }
+    .intro {
+      position: relative; display: grid; place-items: center; padding: 28px 20px 40px; overflow: hidden;
+    }
+    .intro::before, .intro::after {
+      content: ""; position: absolute; top: 18%; width: min(180px, 24vw); height: 48%;
+      background: radial-gradient(circle, rgba(255,255,255,.72) 1px, transparent 1.5px) 0 0 / 11px 11px;
+      pointer-events: none;
+    }
+    .intro::before { left: 4%; }
+    .intro::after { right: 4%; }
+    .intro-copy { position: relative; width: min(760px, 100%); text-align: center; }
+    h1 { margin: 0; font-size: clamp(32px, 5vw, 56px); letter-spacing: -0.04em; line-height: 1.05; font-weight: 640; }
+    .lede { margin: 16px auto 0; max-width: 46ch; color: #c6c6cb; font-size: 16px; line-height: 1.5; }
+    .actions { display: flex; justify-content: center; gap: 10px; margin-top: 26px; flex-wrap: wrap; }
+    .solid, .ghost {
+      border-radius: 999px; padding: 12px 18px; border: 1px solid transparent;
+    }
+    .solid { background: #f4f4f5; color: #111; }
+    .ghost { background: #2a2a2e; color: #f4f4f5; }
+    .board { padding: 22px 20px 48px; }
+    .dock {
+      width: min(1080px, 100%); margin: 0 auto 18px; padding: 12px;
+      border: 1px solid rgba(255,255,255,.14); border-radius: 22px; background: #121216;
+      display: grid; gap: 10px;
+    }
+    .search {
+      display: flex; align-items: center; gap: 8px; padding: 4px 8px;
+    }
+    .search svg { flex: 0 0 auto; opacity: .8; }
+    .search input {
+      width: 100%; border: 0; background: transparent; padding: 8px 4px; font-size: 16px;
+    }
+    .search input::placeholder { color: #8d8d95; }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      border-radius: 999px; border: 1px solid rgba(255,255,255,.28);
+      background: transparent; padding: 7px 12px; font-size: 14px;
+    }
+    .chip[aria-pressed="true"] { background: #f4f1ea; color: #16161a; border-color: #f4f1ea; }
+    .mark { width: 1.1em; text-align: center; font-weight: 650; }
+    .status { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .count { margin: 0; color: #c2c2c8; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .texty {
+      border: 0; background: transparent; color: #bdbdc4; padding: 7px 4px; font-size: 13px;
+    }
+    .grid {
+      width: min(1080px, 100%); margin: 0 auto; padding: 0;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px;
+      list-style: none;
+    }
+    .card { position: relative; min-width: 0; }
+    .face {
+      height: 214px; border-radius: 18px; overflow: hidden; background: #f6f3ee; color: #1b1b1f;
+      box-shadow: 0 16px 40px rgba(0,0,0,.28);
+    }
+    .cap {
+      position: absolute; left: 12px; bottom: 12px; margin: 0;
+      padding: 6px 10px; border-radius: 999px; background: #141416; color: #fff; font-size: 12px;
+    }
+    .card.is-out { opacity: 0; transform: scale(.97) translateY(8px); }
+    .empty {
+      width: min(1080px, 100%); margin: 8px auto 0; color: #d0d0d5;
+    }
+    .empty[hidden], .board[hidden], .intro[hidden] { display: none; }
+    .m-type, .m-split, .m-orbs, .m-lines, .m-dots, .m-bars, .m-strips, .m-stack, .m-quote, .m-metal, .m-form {
+      height: 100%; padding: 16px 16px 52px;
+    }
+    .m-type { display: grid; align-content: center; background: #f3efe6; }
+    .m-type strong { font-family: Georgia, "Songti SC", serif; font-size: 28px; font-weight: 560; letter-spacing: -0.03em; line-height: 1.05; }
+    .m-split { display: grid; grid-template-columns: 1.1fr .9fr; gap: 8px; background: #eceae4; }
+    .m-split i { display: block; border-radius: 10px; background: #1d1e22; }
+    .m-split b { display: block; height: 10px; margin-top: 8px; border-radius: 99px; background: #c9c4ba; }
+    .m-orbs { display: flex; align-items: center; gap: 10px; background: linear-gradient(#f7f1e8, #efe4d4); }
+    .m-orbs i { width: 64px; height: 64px; border-radius: 50%; display: block; }
+    .m-lines { display: grid; align-content: center; gap: 8px; background: #f7f7f5; }
+    .m-lines i { height: 8px; border-radius: 99px; background: #2a2a2e; display: block; }
+    .m-dots { display: flex; align-items: end; gap: 8px; background: #e7f3ea; padding-bottom: 28px; }
+    .m-dots i { width: 28px; border-radius: 50%; background: #1f8a4c; display: block; }
+    .m-bars { display: grid; align-content: center; gap: 8px; background: #f4f0ea; }
+    .m-bars i { height: 14px; border-radius: 7px; background: #d9d1c6; display: block; }
+    .m-strips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: #211417; }
+    .m-strips i { border-radius: 8px; display: block; }
+    .m-stack { background: #ece7df; position: relative; }
+    .m-stack i { position: absolute; left: 18px; right: 18px; height: 46px; border-radius: 12px; background: #fff; box-shadow: 0 8px 16px rgba(0,0,0,.06); }
+    .m-quote { display: grid; align-content: center; background: #fbf7f1; }
+    .m-quote strong { font-family: Georgia, "Songti SC", serif; font-size: 26px; font-weight: 540; }
+    .m-metal { background: linear-gradient(160deg, #f2d2b0, #b87333 55%, #6e4420); }
+    .m-form { display: grid; align-content: center; gap: 8px; background: #f5f6f8; }
+    .m-form i { height: 28px; border-radius: 8px; background: #fff; border: 1px solid #ddd; display: block; }
+    .m-form b { width: 72px; height: 28px; border-radius: 8px; background: #202126; display: block; }
+    @media (prefers-reduced-motion: no-preference) {
+      .intro-copy { animation: rise .95s ease both; }
+      .card { transition: opacity .22s ease, transform .22s ease; }
+      body.can-animate .dock,
+      body.can-animate .card { animation: rise .45s ease backwards; }
+    }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @media (max-width: 640px) {
+      h1 { font-size: 32px; }
+      .status { align-items: flex-start; }
+      .face { height: 180px; }
+    }
+  </style>
+</head>
+<body>
+  <section class="intro" id="intro">
+    <div class="intro-copy">
+      <h1>先看画面，再留下对的几张。</h1>
+      <p class="lede">输入几个词，或加上一种结果。对得上的留在原地，其余让开。</p>
+      <div class="actions">
+        <button type="button" class="solid" id="open">打开搜索</button>
+        <button type="button" class="ghost" id="replay">再看一次入场</button>
+      </div>
+    </div>
+  </section>
+  <section class="board" id="board" hidden>
+    <div class="dock">
+      <label class="search">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+          <circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+          <path d="M12 12.2 L15.2 15.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+        </svg>
+        <span class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">搜索</span>
+        <input id="q" type="search" placeholder="试试「留白」或「铜色」" autocomplete="off" enterkeyhint="search">
+      </label>
+      <div class="filters" id="filters" role="group" aria-label="结果种类"></div>
+      <div class="status">
+        <p class="count" id="count" aria-live="polite"></p>
+        <button type="button" class="texty" id="back">返回开场</button>
+      </div>
+    </div>
+    <ul class="grid" id="grid"></ul>
+    <p class="empty" id="empty" hidden>没有对上的结果。去掉一个筛选，或少打几个字。</p>
+  </section>
+  <script>
+    const KINDS = [
+      { id: "block", label: "区块" },
+      { id: "page", label: "整页" },
+      { id: "mood", label: "气质" },
+      { id: "line", label: "句子" }
+    ];
+    const CARDS = [
+      { id: "north", title: "北线", part: "开场", kind: "block", words: "衬线 标题 留白 米色", motif: "type" },
+      { id: "harbor", title: "港湾账", part: "首页", kind: "page", words: "深色 分栏 导航", motif: "split" },
+      { id: "orchard", title: "纸园", part: "色块", kind: "mood", words: "圆 渐变 暖色", motif: "orbs" },
+      { id: "kiln", title: "窑记", part: "短句", kind: "line", words: "窄栏 黑体 句子", motif: "lines" },
+      { id: "tide", title: "退潮", part: "图表", kind: "block", words: "绿色 圆点 统计", motif: "dots" },
+      { id: "field", title: "田野报", part: "首页", kind: "page", words: "横条 页脚 浅底", motif: "bars" },
+      { id: "amber", title: "琥珀索引", part: "色板", kind: "mood", words: "红 色带 网格", motif: "strips" },
+      { id: "stack", title: "安静堆叠", part: "开场", kind: "block", words: "卡片 阴影 留白", motif: "stack" },
+      { id: "margin", title: "页边", part: "引文", kind: "line", words: "大字 留白 句子", motif: "quote" },
+      { id: "copper", title: "铜点", part: "色板", kind: "mood", words: "铜色 金属 渐变", motif: "metal" },
+      { id: "lantern", title: "灯桌", part: "首页", kind: "page", words: "表单 浅底 按钮", motif: "form" },
+      { id: "census", title: "轻普查", part: "图表", kind: "block", words: "柱状 冷静 留白", motif: "bars" }
+    ];
+    const intro = document.getElementById("intro");
+    const board = document.getElementById("board");
+    const grid = document.getElementById("grid");
+    const filters = document.getElementById("filters");
+    const count = document.getElementById("count");
+    const empty = document.getElementById("empty");
+    const q = document.getElementById("q");
+    const reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const active = new Set();
+    const els = new Map();
+    const pending = new Map();
+    let auto = 0;
+    let queryTimer = 0;
+    let motion = !reduceQuery.matches;
+
+    function kindLabel(id) {
+      return KINDS.find((item) => item.id === id).label;
+    }
+
+    function motif(card) {
+      const node = document.createElement("div");
+      node.className = "m-" + card.motif;
+      if (card.motif === "type") {
+        const strong = document.createElement("strong");
+        strong.textContent = "宽边距的开场";
+        node.append(strong);
+      } else if (card.motif === "split") {
+        const a = document.createElement("i");
+        const col = document.createElement("div");
+        const b1 = document.createElement("b");
+        const b2 = document.createElement("b");
+        b2.style.width = "70%";
+        col.append(b1, b2);
+        node.append(a, col);
+      } else if (card.motif === "orbs") {
+        ["#f3a25a", "#e25b45", "#f0c98a"].forEach((color) => {
+          const dot = document.createElement("i");
+          dot.style.background = color;
+          node.append(dot);
+        });
+      } else if (card.motif === "lines") {
+        ["92%", "78%", "64%"].forEach((width) => {
+          const line = document.createElement("i");
+          line.style.width = width;
+          node.append(line);
+        });
+      } else if (card.motif === "dots") {
+        ["28px", "44px", "22px", "36px"].forEach((size) => {
+          const dot = document.createElement("i");
+          dot.style.width = size;
+          dot.style.height = size;
+          node.append(dot);
+        });
+      } else if (card.motif === "bars") {
+        ["100%", "86%", "70%", "54%"].forEach((width) => {
+          const bar = document.createElement("i");
+          bar.style.width = width;
+          node.append(bar);
+        });
+      } else if (card.motif === "strips") {
+        ["#8d1d2c", "#d85a48", "#f0b429", "#5c1a24"].forEach((color) => {
+          const strip = document.createElement("i");
+          strip.style.background = color;
+          node.append(strip);
+        });
+      } else if (card.motif === "stack") {
+        [34, 58, 82].forEach((top) => {
+          const slab = document.createElement("i");
+          slab.style.top = top + "px";
+          node.append(slab);
+        });
+      } else if (card.motif === "quote") {
+        const strong = document.createElement("strong");
+        strong.textContent = "把句子留在页边。";
+        node.append(strong);
+      } else if (card.motif === "form") {
+        node.append(document.createElement("i"), document.createElement("i"), document.createElement("b"));
+      }
+      return node;
+    }
+
+    function matches(card) {
+      if (active.size && !active.has(card.kind)) return false;
+      const tokens = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      if (!tokens.length) return true;
+      const hay = (card.title + " " + card.part + " " + card.words + " " + kindLabel(card.kind)).toLowerCase();
+      return tokens.every((token) => hay.includes(token));
+    }
+
+    function settle(el, show) {
+      const id = el.dataset.id;
+      const waiting = pending.get(id);
+      if (waiting) {
+        clearTimeout(waiting);
+        pending.delete(id);
+      }
+      if (show) {
+        const wasHidden = el.hidden;
+        el.hidden = false;
+        if (motion && wasHidden) {
+          el.classList.add("is-out");
+          requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove("is-out")));
+        } else {
+          el.classList.remove("is-out");
+        }
+        return;
+      }
+      if (el.hidden) return;
+      if (!motion) {
+        el.hidden = true;
+        el.classList.remove("is-out");
+        return;
+      }
+      el.classList.add("is-out");
+      pending.set(id, setTimeout(() => {
+        el.hidden = true;
+        pending.delete(id);
+      }, 230));
+    }
+
+    function apply() {
+      const visible = CARDS.filter(matches);
+      const want = new Set(visible.map((card) => card.id));
+      CARDS.forEach((card) => settle(els.get(card.id), want.has(card.id)));
+      count.textContent = visible.length + " 条结果";
+      empty.hidden = visible.length !== 0;
+    }
+
+    function showBoard(fromUser) {
+      clearTimeout(auto);
+      intro.hidden = true;
+      board.hidden = false;
+      document.body.classList.toggle("can-animate", motion);
+      if (fromUser) q.focus();
+    }
+
+    function showIntro() {
+      clearTimeout(auto);
+      board.hidden = true;
+      intro.hidden = false;
+      document.body.classList.remove("can-animate");
+      if (!motion) return;
+      const copy = intro.querySelector(".intro-copy");
+      copy.style.animation = "none";
+      void copy.offsetWidth;
+      copy.style.animation = "";
+      auto = setTimeout(() => showBoard(false), 1700);
+    }
+
+    KINDS.forEach((kind) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "chip";
+      button.setAttribute("aria-pressed", "false");
+      const name = document.createElement("span");
+      name.textContent = kind.label;
+      const mark = document.createElement("span");
+      mark.className = "mark";
+      mark.setAttribute("aria-hidden", "true");
+      mark.textContent = "+";
+      button.append(name, mark);
+      button.addEventListener("click", () => {
+        const on = button.getAttribute("aria-pressed") !== "true";
+        button.setAttribute("aria-pressed", on ? "true" : "false");
+        mark.textContent = on ? "✓" : "+";
+        if (on) active.add(kind.id);
+        else active.delete(kind.id);
+        apply();
+      });
+      filters.append(button);
+    });
+
+    CARDS.forEach((card, index) => {
+      const item = document.createElement("li");
+      item.className = "card";
+      item.dataset.id = card.id;
+      const face = document.createElement("div");
+      face.className = "face";
+      face.append(motif(card));
+      const cap = document.createElement("p");
+      cap.className = "cap";
+      cap.textContent = card.title + " · " + card.part;
+      item.append(face, cap);
+      item.style.animationDelay = (index * 36) + "ms";
+      grid.append(item);
+      els.set(card.id, item);
+    });
+
+    q.addEventListener("input", () => {
+      clearTimeout(queryTimer);
+      queryTimer = setTimeout(apply, motion ? 160 : 0);
+    });
+    document.getElementById("open").addEventListener("click", () => showBoard(true));
+    document.getElementById("replay").addEventListener("click", showIntro);
+    document.getElementById("back").addEventListener("click", showIntro);
+    reduceQuery.addEventListener("change", () => {
+      motion = !reduceQuery.matches;
+      document.body.classList.toggle("can-animate", motion && !board.hidden);
+    });
+
+    apply();
+    if (motion) auto = setTimeout(() => showBoard(false), 1700);
+    else showBoard(false);
+  </script>
+</body>
+</html>
