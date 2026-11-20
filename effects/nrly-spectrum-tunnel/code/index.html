@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<!-- AI 复刻：光谱隧道。clean-room，不是原站脚本、着色器、字体或音轨。 -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>光谱隧道</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #071827; color: #f4f7fb; overflow: hidden; }
+  body { font-family: system-ui, sans-serif; }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #fallback { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  #fallback.show { display: flex; }
+  .hud { position: fixed; z-index: 2; pointer-events: none; letter-spacing: 0.14em; font-size: 11px; line-height: 1.45; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55); }
+  #brand { top: 18px; left: 20px; display: flex; align-items: center; gap: 8px; }
+  .logo { width: 14px; height: 14px; border: 1.5px solid #fff; border-radius: 50%; box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.15); }
+  #sound { top: 14px; right: 16px; pointer-events: auto; display: flex; align-items: center; gap: 8px; background: transparent; color: inherit; border: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; text-shadow: inherit; cursor: pointer; padding: 6px 4px; }
+  #sound:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  .bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 10px; }
+  .bars i { display: block; width: 2px; background: currentColor; }
+  .bars i:nth-child(1) { height: 4px; }
+  .bars i:nth-child(2) { height: 8px; }
+  .bars i:nth-child(3) { height: 6px; }
+  #state { left: 28px; top: 46%; transform: translateY(-50%); max-width: 46vw; }
+  #state .kicker { opacity: 0.72; font-size: 10px; letter-spacing: 0.18em; }
+  #state .name { margin-top: 6px; font-weight: 650; letter-spacing: 0.16em; }
+  #state .next { margin-top: 6px; opacity: 0.8; font-size: 10px; letter-spacing: 0.14em; }
+  .sq { display: inline-block; width: 7px; height: 7px; margin-right: 6px; background: #fff; vertical-align: 1px; }
+  #bottom { left: 16px; right: 16px; bottom: 14px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  #swatches { display: inline-flex; gap: 3px; vertical-align: middle; margin-left: 6px; }
+  #swatches i { width: 8px; height: 8px; display: block; }
+  #study { margin-left: auto; opacity: 0.85; }
+  #cursor { position: fixed; left: 0; top: 0; z-index: 3; width: 0; height: 0; pointer-events: none; display: none; }
+  #cursor.on { display: block; }
+  .ring { position: absolute; border: 1px solid rgba(255, 255, 255, 0.82); border-radius: 50%; transform: translate(-50%, -50%); }
+  .ring.a { width: 16px; height: 16px; }
+  .ring.b { width: 32px; height: 32px; opacity: 0.55; }
+  #pulseLabel { position: absolute; left: 22px; top: 14px; white-space: nowrap; font-size: 10px; letter-spacing: 0.16em; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55); }
+  #drop { position: fixed; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; padding: 28px; text-align: center; background: rgba(4, 10, 16, 0.46); letter-spacing: 0.18em; font-size: 13px; }
+  #drop.show { display: flex; }
+  @media (max-width: 720px) {
+    #state { left: 16px; top: auto; bottom: 78px; transform: none; }
+    #study { margin-left: 0; }
+    .hud { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl" aria-label="全屏光谱隧道，指针可扰动流向，点击发出脉冲"></canvas>
+<p id="fallback">这个浏览器没有可用的 WebGL，画面开不了。</p>
+<div id="brand" class="hud"><span class="logo" aria-hidden="true"></span><span>ENTER → SPECTRUM</span></div>
+<button id="sound" class="hud" type="button" aria-pressed="false">
+  <span class="bars" aria-hidden="true"><i></i><i></i><i></i></span>
+  <span>SOUND <span id="soundState">OFF</span></span>
+</button>
+<div id="state" class="hud">
+  <div class="kicker">CURRENT STATE</div>
+  <div class="name"><span class="sq" id="nameSq"></span><span id="stateName">INTO THE ABYSS</span></div>
+  <div class="next" id="nextLine">NEXT UP: IRIDESCENT MIST IN 36s</div>
+</div>
+<div id="bottom" class="hud">
+  <span id="velocity">VELOCITY 01.92 U/S</span>
+  <span id="depth">SPECTRUM DEPTH: 2</span>
+  <span>COLOUR SAMPLES:<span id="swatches"></span></span>
+  <span id="disrupt">FLUID DISRUPTION: 0%</span>
+  <span id="study">CLEAN-ROOM STUDY</span>
+</div>
+<div id="cursor" aria-hidden="true"><span class="ring a"></span><span class="ring b"></span><span id="pulseLabel">CLICK TO PULSE</span></div>
+<div id="drop">DROP AN IMAGE TO SAMPLE A NEW STATE</div>
+<script>
+'use strict';
+(function () {
+  var STATES = [
+    { name: 'INTO THE ABYSS', colors: ['#071827', '#0e4c56', '#1a8f8a', '#7ee7e2', '#f3fffd'] },
+    { name: 'IRIDESCENT MIST', colors: ['#163e4d', '#2c6fbe', '#8ed8cf', '#d2b45a', '#f7f6ea'] },
+    { name: 'SUNRISE', colors: ['#24386f', '#e1844e', '#f2c56a', '#f8e4cc', '#c9a4d6'] },
+    { name: 'SEA DRIFT', colors: ['#071f33', '#127896', '#5ed4ea', '#e7f8ff', '#16324a'] },
+    { name: 'AURORA BOREALIS', colors: ['#1a1036', '#6d3e9c', '#c49af8', '#3fbe7c', '#e7f0ff'] },
+    { name: 'SOLAR FLARE', colors: ['#3b1224', '#d04a32', '#f2893f', '#f6c9a4', '#e86aaf'] },
+    { name: 'PEACH NEBULA', colors: ['#4a2038', '#e07b8c', '#f3b48a', '#f8e3cc', '#8d5c9c'] }
+  ];
+  var DWELL = 36;
+  var FADE = 2.2;
+  var GRID = 48;
+
+  function hex(s) {
+    var n = parseInt(s.slice(1), 16);
+    return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  }
+  function mix(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+  function css(c) {
+    return 'rgb(' + (c[0] * 255 | 0) + ',' + (c[1] * 255 | 0) + ',' + (c[2] * 255 | 0) + ')';
+  }
+  function smooth(t) { return t * t * (3 - 2 * t); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
+  var palettes = STATES.map(function (s) {
+    return { name: s.name, colors: s.colors.map(hex) };
+  });
+
+  var canvas = document.getElementById('gl');
+  var fallback = document.getElementById('fallback');
+  var gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false });
+  if (!gl) {
+    fallback.className = 'show';
+    return;
+  }
+
+  var VS = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.0,1.0);}';
+  var FS = [
+    'precision highp float;',
+    'uniform vec2 uRes;',
+    'uniform float uTime;',
+    'uniform vec2 uPointer;',
+    'uniform vec2 uPulseAt;',
+    'uniform float uPulse;',
+    'uniform vec3 uC0,uC1,uC2,uC3,uC4;',
+    'uniform sampler2D uFluid;',
+    'vec2 safeN(vec2 v){float L=length(v);return L<0.0001?vec2(0.0):v/L;}',
+    'void main(){',
+    '  vec2 frag=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y);',
+    '  vec2 uv=frag/uRes;',
+    '  vec2 vel=texture2D(uFluid,uv).xy*2.0-1.0;',
+    '  vec2 p=(frag-0.5*uRes)/uRes.y;',
+    '  p+=vel*0.55;',
+    '  vec2 pulseP=(uPulseAt-0.5*uRes)/uRes.y;',
+    '  float pd=length(p-pulseP);',
+    '  float wave=abs(pd-uPulse*0.62);',
+    '  float ring=exp(-wave*wave*90.0)*exp(-uPulse*1.25);',
+    '  p+=safeN(p-pulseP)*ring*0.16;',
+    '  float flow=uTime*0.22;',
+    '  vec2 w=p;',
+    '  w+=0.28*vec2(sin(p.y*3.1+flow*1.25),sin(p.x*2.7-flow*1.1));',
+    '  w+=0.14*vec2(sin(p.x*4.6-p.y*1.6-flow*0.8),sin(p.y*4.2+p.x*1.1+flow));',
+    '  vec2 coreAt=vec2(sin(flow*0.62)*0.22,cos(flow*0.48)*0.14);',
+    '  vec2 d=w-coreAt;',
+    '  float r=length(d);',
+    '  float f1=0.5+0.5*sin(w.x*2.2+w.y*1.1+flow);',
+    '  float f2=0.5+0.5*sin(w.y*2.5-w.x*0.8-flow*0.9);',
+    '  float f3=0.5+0.5*sin((w.x+w.y)*1.8+flow*0.6);',
+    '  vec3 col=mix(uC0,uC1,smoothstep(0.2,0.78,f1)*0.9);',
+    '  col=mix(col,uC2,smoothstep(0.38,0.86,f2)*smoothstep(1.15,0.2,r));',
+    '  col=mix(col,uC3,smoothstep(0.5,0.92,f3)*exp(-r*1.15)*0.85);',
+    '  float halo=exp(-r*r*2.4);',
+    '  float core=exp(-r*r*7.5);',
+    '  col=mix(col,uC3,halo*0.35);',
+    '  col=mix(col,uC4,clamp(core,0.0,1.0));',
+    '  float edge=smoothstep(0.55,1.35,length(p));',
+    '  col=mix(col,col*vec3(0.55,0.62,0.72),edge);',
+    '  col+=uC4*ring*0.28;',
+    '  gl_FragColor=vec4(clamp(col,0.0,1.0),1.0);',
+    '}'
+  ].join('\n');
+
+  function compile(type, src) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      fallback.textContent = '画面着色没有编译成功。';
+      fallback.className = 'show';
+      return null;
+    }
+    return s;
+  }
+  var vs = compile(gl.VERTEX_SHADER, VS);
+  var fs = compile(gl.FRAGMENT_SHADER, FS);
+  if (!vs || !fs) return;
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.bindAttribLocation(prog, 0, 'p');
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    fallback.textContent = '画面着色没有链接成功。';
+    fallback.className = 'show';
+    return;
+  }
+  gl.useProgram(prog);
+  var buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+  var loc = {};
+  ['uRes', 'uTime', 'uPointer', 'uPulseAt', 'uPulse', 'uC0', 'uC1', 'uC2', 'uC3', 'uC4', 'uFluid'].forEach(function (n) {
+    loc[n] = gl.getUniformLocation(prog, n);
+  });
+
+  var fluidTex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fluidTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(loc.uFluid, 0);
+
+  var vel = new Float32Array(GRID * GRID * 2);
+  var texData = new Uint8Array(GRID * GRID * 4);
+  var reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var reduceOn = reduceQuery.matches;
+  var time = 0;
+  var stateT = 0;
+  var index = 0;
+  var sampled = false;
+  var lerpT = 1;
+  var fromCols = palettes[index].colors.map(function (c) { return c.slice(); });
+  var toCols = palettes[index].colors.map(function (c) { return c.slice(); });
+  var shownV = 1.92;
+  var depth = 2;
+  var speedInst = 0;
+  var pulseAge = 8;
+  var pulseX = 0;
+  var pulseY = 0;
+  var pointerX = window.innerWidth * 0.5;
+  var pointerY = window.innerHeight * 0.55;
+  var seenPointer = false;
+  var nameAge = 10;
+  var audio = null;
+  var soundOn = false;
+
+  var swatches = document.getElementById('swatches');
+  var dots = [];
+  for (var i = 0; i < 5; i++) {
+    var dot = document.createElement('i');
+    swatches.appendChild(dot);
+    dots.push(dot);
+  }
+  var stateNameEl = document.getElementById('stateName');
+  var nextLineEl = document.getElementById('nextLine');
+  var nameSq = document.getElementById('nameSq');
+  var velocityEl = document.getElementById('velocity');
+  var depthEl = document.getElementById('depth');
+  var disruptEl = document.getElementById('disrupt');
+  var cursorEl = document.getElementById('cursor');
+  var soundBtn = document.getElementById('sound');
+  var soundStateEl = document.getElementById('soundState');
+  var dropEl = document.getElementById('drop');
+
+  function colorsNow() {
+    var t = smooth(clamp(lerpT, 0, 1));
+    var out = [];
+    for (var k = 0; k < 5; k++) out.push(mix(fromCols[k], toCols[k], t));
+    return out;
+  }
+  function startLerp(next) {
+    fromCols = colorsNow();
+    toCols = next.map(function (c) { return c.slice(); });
+    lerpT = 0;
+    nameAge = 0;
+  }
+  function scramble(name) {
+    if (reduceOn || nameAge > 0.55) return name;
+    var keep = Math.floor((nameAge / 0.55) * name.length);
+    var alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    var out = '';
+    for (var n = 0; n < name.length; n++) {
+      if (name.charAt(n) === ' ' || n < keep) out += name.charAt(n);
+      else out += alphabet.charAt((n * 7 + Math.floor(nameAge * 30)) % 26);
+    }
+    return out;
+  }
+  function resize() {
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+    var h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  function uploadFluid() {
+    for (var i = 0; i < GRID * GRID; i++) {
+      var vx = clamp(vel[i * 2], -1, 1);
+      var vy = clamp(vel[i * 2 + 1], -1, 1);
+      texData[i * 4] = (vx * 0.5 + 0.5) * 255;
+      texData[i * 4 + 1] = (vy * 0.5 + 0.5) * 255;
+      texData[i * 4 + 2] = 128;
+      texData[i * 4 + 3] = 255;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, fluidTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, GRID, GRID, 0, gl.RGBA, gl.UNSIGNED_BYTE, texData);
+  }
+  function stamp(cx, cy, mode) {
+    var w = canvas.clientWidth || 1;
+    var h = canvas.clientHeight || 1;
+    var gx = cx / w * (GRID - 1);
+    var gy = cy / h * (GRID - 1);
+    var rad = mode === 'impulse' ? 8 : 4.2;
+    for (var y = 0; y < GRID; y++) {
+      for (var x = 0; x < GRID; x++) {
+        var dx = x - gx;
+        var dy = y - gy;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d > rad) continue;
+        var k = Math.exp(-d * (mode === 'impulse' ? 0.38 : 0.55));
+        var idx = (y * GRID + x) * 2;
+        if (mode === 'impulse') {
+          var len = d + 0.001;
+          vel[idx] = clamp(vel[idx] + (dx / len) * k * 0.85, -1, 1);
+          vel[idx + 1] = clamp(vel[idx + 1] + (dy / len) * k * 0.85, -1, 1);
+        }
+      }
+    }
+  }
+  function injectPointer(dx, dy) {
+    var w = canvas.clientWidth || 1;
+    var h = canvas.clientHeight || 1;
+    var gx = pointerX / w * (GRID - 1);
+    var gy = pointerY / h * (GRID - 1);
+    var px = clamp(dx * 0.0045, -0.8, 0.8);
+    var py = clamp(dy * 0.0045, -0.8, 0.8);
+    var rad = 4.2;
+    for (var y = 0; y < GRID; y++) {
+      for (var x = 0; x < GRID; x++) {
+        var ddx = x - gx;
+        var ddy = y - gy;
+        var d2 = ddx * ddx + ddy * ddy;
+        if (d2 > rad * rad) continue;
+        var k = Math.exp(-d2 / 6.5);
+        var idx = (y * GRID + x) * 2;
+        vel[idx] = clamp(vel[idx] * (1 - k) + px * k, -1, 1);
+        vel[idx + 1] = clamp(vel[idx + 1] * (1 - k) + py * k, -1, 1);
+      }
+    }
+  }
+  function stepFluid() {
+    var next = new Float32Array(vel.length);
+    for (var y = 0; y < GRID; y++) {
+      for (var x = 0; x < GRID; x++) {
+        var sx = 0;
+        var sy = 0;
+        var w = 0;
+        for (var oy = -1; oy <= 1; oy++) {
+          for (var ox = -1; ox <= 1; ox++) {
+            var xx = x + ox;
+            var yy = y + oy;
+            if (xx < 0 || yy < 0 || xx >= GRID || yy >= GRID) continue;
+            var weight = ox === 0 && oy === 0 ? 4 : 1;
+            var j = (yy * GRID + xx) * 2;
+            sx += vel[j] * weight;
+            sy += vel[j + 1] * weight;
+            w += weight;
+          }
+        }
+        var i = (y * GRID + x) * 2;
+        next[i] = sx / w * 0.94;
+        next[i + 1] = sy / w * 0.94;
+      }
+    }
+    vel = next;
+  }
+  function paint() {
+    resize();
+    var cols = colorsNow();
+    gl.uniform2f(loc.uRes, canvas.width, canvas.height);
+    gl.uniform1f(loc.uTime, time);
+    var sx = canvas.width / (canvas.clientWidth || 1);
+    var sy = canvas.height / (canvas.clientHeight || 1);
+    gl.uniform2f(loc.uPointer, pointerX * sx, pointerY * sy);
+    gl.uniform2f(loc.uPulseAt, pulseX * sx, pulseY * sy);
+    gl.uniform1f(loc.uPulse, pulseAge);
+    gl.uniform3fv(loc.uC0, cols[0]);
+    gl.uniform3fv(loc.uC1, cols[1]);
+    gl.uniform3fv(loc.uC2, cols[2]);
+    gl.uniform3fv(loc.uC3, cols[3]);
+    gl.uniform3fv(loc.uC4, cols[4]);
+    uploadFluid();
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    for (var s = 0; s < 5; s++) dots[s].style.background = css(cols[s]);
+    nameSq.style.background = css(cols[1]);
+  }
+  function hud() {
+    var current = sampled ? 'SAMPLED' : palettes[index].name;
+    var next = palettes[(index + 1) % palettes.length].name;
+    var left = Math.max(0, Math.ceil(DWELL - stateT));
+    stateNameEl.textContent = scramble(current);
+    nextLineEl.textContent = 'NEXT UP: ' + next + ' IN ' + left + 's';
+    var vText = shownV.toFixed(2);
+    var parts = vText.split('.');
+    velocityEl.textContent = 'VELOCITY ' + (parts[0].length < 2 ? '0' + vText : vText) + ' U/S';
+    depthEl.textContent = 'SPECTRUM DEPTH: ' + Math.floor(depth);
+    disruptEl.textContent = 'FLUID DISRUPTION: ' + Math.round(clamp(speedInst / 18, 0, 100)) + '%';
+  }
+  function ensureAudio() {
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx || audio) return;
+    var ctx = new Ctx();
+    var master = ctx.createGain();
+    master.gain.value = 0;
+    var filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 480;
+    var o1 = ctx.createOscillator();
+    var o2 = ctx.createOscillator();
+    o1.type = 'sine';
+    o2.type = 'sine';
+    o1.frequency.value = 76;
+    o2.frequency.value = 79.5;
+    o1.connect(filter);
+    o2.connect(filter);
+    filter.connect(master);
+    master.connect(ctx.destination);
+    o1.start();
+    o2.start();
+    audio = { ctx: ctx, master: master, o1: o1, o2: o2 };
+  }
+  function blip() {
+    if (!soundOn || !audio) return;
+    var t0 = audio.ctx.currentTime;
+    var o = audio.ctx.createOscillator();
+    var g = audio.ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(540, t0);
+    o.frequency.exponentialRampToValueAtTime(150, t0 + 0.18);
+    g.gain.setValueAtTime(0.045, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+    o.connect(g);
+    g.connect(audio.ctx.destination);
+    o.start(t0);
+    o.stop(t0 + 0.24);
+  }
+  function setSound(on) {
+    soundOn = on;
+    soundBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    soundStateEl.textContent = on ? 'ON' : 'OFF';
+    if (!on) {
+      if (audio) audio.master.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.04);
+      return;
+    }
+    ensureAudio();
+    if (!audio) return;
+    if (audio.ctx.state === 'suspended') audio.ctx.resume();
+    audio.master.gain.setTargetAtTime(0.028, audio.ctx.currentTime, 0.06);
+  }
+
+  soundBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setSound(!soundOn);
+  });
+
+  window.addEventListener('pointermove', function (e) {
+    var dx = e.clientX - pointerX;
+    var dy = e.clientY - pointerY;
+    var now = performance.now();
+    pointerX = e.clientX;
+    pointerY = e.clientY;
+    if (!pointerStamp) pointerStamp = now;
+    var dt = Math.max(0.008, (now - pointerStamp) / 1000);
+    pointerStamp = now;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 0.5) {
+      speedInst = Math.min(2500, dist / dt);
+      injectPointer(dx / dt, dy / dt);
+    }
+    seenPointer = true;
+    cursorEl.className = 'on';
+    cursorEl.style.transform = 'translate(' + pointerX + 'px,' + pointerY + 'px)';
+    if (reduceOn) paint();
+  });
+  var pointerStamp = 0;
+
+  window.addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('button')) return;
+    pulseAge = 0;
+    pulseX = e.clientX;
+    pulseY = e.clientY;
+    stamp(pulseX, pulseY, 'impulse');
+    blip();
+    if (reduceOn) paint();
+  });
+
+  var dragDepth = 0;
+  function hasFiles(e) {
+    var types = e.dataTransfer && e.dataTransfer.types;
+    if (!types) return false;
+    for (var t = 0; t < types.length; t++) if (types[t] === 'Files') return true;
+    return false;
+  }
+  window.addEventListener('dragenter', function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth += 1;
+    dropEl.className = 'show';
+  });
+  window.addEventListener('dragover', function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+  });
+  window.addEventListener('dragleave', function () {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) dropEl.className = '';
+  });
+  window.addEventListener('drop', function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    dropEl.className = '';
+    var file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!file || !file.type || file.type.indexOf('image/') !== 0) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        c.width = 24;
+        c.height = 24;
+        var g = c.getContext('2d');
+        g.drawImage(img, 0, 0, 24, 24);
+        var pts = [[4, 4], [18, 4], [12, 12], [4, 18], [18, 18]];
+        var next = pts.map(function (p) {
+          var d = g.getImageData(p[0], p[1], 1, 1).data;
+          return [d[0] / 255, d[1] / 255, d[2] / 255];
+        });
+        sampled = true;
+        startLerp(next);
+        hud();
+        paint();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  window.addEventListener('resize', function () {
+    resize();
+    paint();
+    hud();
+  });
+  if (reduceQuery.addEventListener) {
+    reduceQuery.addEventListener('change', function () {
+      reduceOn = reduceQuery.matches;
+      paint();
+    });
+  }
+
+  var last = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    speedInst *= Math.exp(-dt / 0.45);
+    if (!reduceOn) {
+      time += dt;
+      stateT += dt;
+      nameAge += dt;
+      pulseAge += dt;
+      shownV = Math.min(9.99, shownV + dt * 0.025 + Math.min(speedInst, 800) * dt * 0.00012);
+      depth += dt * 2.4;
+      if (lerpT < 1) lerpT = Math.min(1, lerpT + dt / FADE);
+      if (stateT >= DWELL) {
+        stateT = 0;
+        sampled = false;
+        index = (index + 1) % palettes.length;
+        startLerp(palettes[index].colors);
+      }
+      stepFluid();
+      if (audio && soundOn) {
+        var f = 72 + Math.min(36, shownV * 3.2);
+        audio.o1.frequency.setTargetAtTime(f, audio.ctx.currentTime, 0.25);
+        audio.o2.frequency.setTargetAtTime(f * 1.035, audio.ctx.currentTime, 0.25);
+      }
+    }
+    paint();
+    hud();
+    requestAnimationFrame(frame);
+  }
+  resize();
+  uploadFluid();
+  paint();
+  hud();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
