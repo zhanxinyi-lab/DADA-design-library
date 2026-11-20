@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>混合风格提问条</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: #000;
+      color: #f3f1f2;
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    .stage {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 24px 16px;
+    }
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .bar {
+      --mx: 18%;
+      --my: 38%;
+      --rx: 68%;
+      --ry: 80%;
+      --cut: 62%;
+      position: relative;
+      z-index: 1;
+      width: min(920px, 94vw);
+      min-height: 184px;
+      padding: 26px 28px 20px;
+      border-radius: 38px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+      background:
+        radial-gradient(90% 130% at 0% 42%, rgba(255, 122, 64, .42), transparent 46%),
+        radial-gradient(70% 120% at 100% 80%, rgba(126, 92, 255, .28), transparent 52%),
+        linear-gradient(180deg, #32282c 0%, #1a171b 46%, #0e0d10 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .22),
+        inset 0 -18px 28px rgba(255, 70, 120, .08),
+        -26px 0 36px rgba(255, 96, 48, .38),
+        22px 16px 42px rgba(88, 70, 255, .16);
+      -webkit-mask-image: radial-gradient(ellipse var(--rx) var(--ry) at var(--mx) var(--my), #000 0, #000 var(--cut), transparent 100%);
+      mask-image: radial-gradient(ellipse var(--rx) var(--ry) at var(--mx) var(--my), #000 0, #000 var(--cut), transparent 100%);
+    }
+    .bar::after {
+      content: "";
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 7px;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent, #ffb088 18%, #fff 48%, #d2c6ff 72%, transparent);
+      opacity: .8;
+      pointer-events: none;
+    }
+    .ask {
+      min-height: 40px;
+      padding: 0 8px;
+      font-size: 32px;
+      font-weight: 520;
+      letter-spacing: -.03em;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      outline: none;
+      caret-color: #fff;
+      cursor: text;
+    }
+    .ask:empty::before {
+      content: attr(data-placeholder);
+      color: rgba(255, 255, 255, .78);
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      user-select: none;
+    }
+    button, .knob {
+      font: inherit;
+      color: inherit;
+      appearance: none;
+      border: 0;
+      background: transparent;
+      padding: 0;
+    }
+    button {
+      cursor: pointer;
+    }
+    .plus, .seal, .dial, .knob, .pill {
+      flex: none;
+    }
+    .plus {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      position: relative;
+      background: radial-gradient(circle at 35% 30%, #ffb0b6, #ff314f 42%, #b10e2e);
+      box-shadow: 0 0 16px rgba(255, 48, 80, .72), inset 0 0 0 1px rgba(255, 255, 255, .28);
+    }
+    .plus::before, .plus::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      background: #fff;
+      border-radius: 2px;
+      transform: translate(-50%, -50%);
+    }
+    .plus::before { width: 18px; height: 3.5px; }
+    .plus::after { width: 3.5px; height: 18px; }
+    .knob, .pill {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 16px 0 6px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(0, 0, 0, .28));
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), 0 10px 18px rgba(0, 0, 0, .28);
+      cursor: pointer;
+      touch-action: none;
+    }
+    .knob { outline: none; }
+    .dial {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      position: relative;
+      background:
+        radial-gradient(circle at 34% 28%, #fff 0 7%, #f6d5df 16%, #d489a4 42%, #8a4a60 70%, #3a2430 100%);
+      box-shadow: 0 0 14px rgba(255, 90, 150, .55), inset 0 0 0 2px rgba(255, 255, 255, .22);
+    }
+    .dial i {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 3px;
+      height: 11px;
+      margin-left: -1.5px;
+      border-radius: 2px;
+      background: linear-gradient(#ffe0bf, #ff7a32);
+      transform-origin: 50% 0;
+      transform: translateY(-1px) rotate(var(--tick));
+    }
+    .name {
+      min-width: 4.5em;
+      font-size: 20px;
+      font-weight: 640;
+      letter-spacing: -.02em;
+    }
+    .pill span:last-child {
+      font-size: 20px;
+      font-weight: 640;
+      letter-spacing: -.02em;
+      padding-right: 6px;
+    }
+    .orb {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      position: relative;
+      background: radial-gradient(circle at 34% 32%, #fff 0 10%, #ffd5e4 28%, #ff7eae 62%, #d2456e);
+      box-shadow: 0 0 12px rgba(255, 120, 180, .85);
+    }
+    .orb::before {
+      content: "";
+      position: absolute;
+      inset: -6px -4px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 196, 220, .8);
+      transform: rotateX(68deg) rotate(-24deg);
+    }
+    .mic {
+      width: 18px;
+      height: 26px;
+      position: relative;
+    }
+    .mic::before {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 0;
+      width: 10px;
+      height: 15px;
+      border-radius: 8px;
+      background: linear-gradient(#fff, #ffb7d4);
+      box-shadow: 0 0 10px rgba(255, 110, 190, .9);
+    }
+    .mic::after {
+      content: "";
+      position: absolute;
+      left: 2px;
+      top: 12px;
+      width: 14px;
+      height: 8px;
+      border: 2px solid #ffe4f2;
+      border-top: 0;
+      border-radius: 0 0 9px 9px;
+    }
+    .voice {
+      box-shadow: inset 0 0 0 1px rgba(210, 180, 255, .18), 0 0 18px rgba(150, 90, 255, .18);
+    }
+    .seal {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 32% 30%, #fff 0 8%, #f3b6ff 26%, #a45bff 58%, #5a2d9a);
+      box-shadow: 0 0 16px rgba(176, 90, 255, .55), inset 0 0 0 1px rgba(255, 255, 255, .28);
+    }
+    .plus:active, .pill:active, .seal:active, .knob:active,
+    .down {
+      transform: scale(.96);
+      filter: brightness(1.28);
+    }
+    .knob:focus-visible, button:focus-visible, .ask:focus-visible {
+      outline: 1px solid rgba(255, 255, 255, .45);
+      outline-offset: 3px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .dial i { transition: none; }
+    }
+    @media (max-width: 720px) {
+      .ask { font-size: 24px; }
+      .name, .pill span:last-child { font-size: 15px; }
+      .plus, .knob, .pill { height: 46px; }
+      .plus { width: 46px; }
+      .dial { width: 36px; height: 36px; }
+      .bar { padding: 18px 14px 14px; gap: 12px; border-radius: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="field"></canvas>
+  <div class="stage">
+    <div class="bar" id="bar">
+      <div class="ask" id="ask" contenteditable="true" role="textbox" aria-multiline="false" aria-label="Ask anything" spellcheck="false" data-placeholder="Ask anything…"></div>
+      <div class="row">
+        <button class="plus" id="plus" type="button" aria-label="Add"></button>
+        <div class="knob" id="knob" role="slider" tabindex="0" aria-label="Level" aria-valuemin="0" aria-valuemax="2" aria-valuenow="1" aria-valuetext="Medium">
+          <span class="dial" aria-hidden="true"><i></i></span>
+          <span class="name" id="knob-name">Medium</span>
+        </div>
+        <button class="pill search" id="search" type="button" aria-label="Search"><span class="orb" aria-hidden="true"></span><span>Search</span></button>
+        <button class="pill voice" id="voice" type="button" aria-label="Voice"><span class="mic" aria-hidden="true"></span><span>Voice</span></button>
+        <button class="seal" id="seal" type="button" aria-label="Emblem"></button>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var LEVELS = ["Low", "Medium", "High"];
+      var TICKS = ["-42deg", "18deg", "68deg"];
+      var bar = document.getElementById("bar");
+      var ask = document.getElementById("ask");
+      var knob = document.getElementById("knob");
+      var knobName = document.getElementById("knob-name");
+      var canvas = document.getElementById("field");
+      var ctx = canvas.getContext("2d");
+      var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var level = 1;
+      var pointer = null;
+      var target = { x: 80, y: 40, rx: 420, ry: 220, cut: 0.62 };
+      var shown = { x: 80, y: 40, rx: 420, ry: 220, cut: 0.62 };
+      var traces = [];
+      var pluses = [];
+      var glyphCache = {};
+      var dragging = false;
+      var dragX = 0;
+      var dragLevel = 1;
+      var dragMoved = 0;
+
+      function mod(n, m) { return ((n % m) + m) % m; }
+
+      function paintLevel() {
+        knobName.textContent = LEVELS[level];
+        knob.setAttribute("aria-valuenow", String(level));
+        knob.setAttribute("aria-valuetext", LEVELS[level]);
+        knob.querySelector(".dial").style.setProperty("--tick", TICKS[level]);
+      }
+
+      function askText() {
+        var text = (ask.textContent || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+        return text || "Ask anything…";
+      }
+
+      function normalizeAsk() {
+        if (!(ask.textContent || "").replace(/\u00a0/g, "").trim()) ask.textContent = "";
+      }
+
+      function controlAt(x, y) {
+        var el = document.elementFromPoint(x, y);
+        return el && el.closest ? el.closest("#plus, #knob, #search, #voice, #seal") : null;
+      }
+
+      function inside(rect, x, y) {
+        return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+      }
+
+      function outsideDist(rect, x, y) {
+        var dx = Math.max(rect.left - x, 0, x - rect.right);
+        var dy = Math.max(rect.top - y, 0, y - rect.bottom);
+        return Math.hypot(dx, dy);
+      }
+
+      function measureTarget() {
+        var br = bar.getBoundingClientRect();
+        if (document.activeElement === ask && !pointer) return wide(br);
+        if (!pointer) return wide(br);
+        var away = outsideDist(br, pointer.x, pointer.y);
+        if (away > 88) return { x: shown.x, y: shown.y, rx: 0, ry: 0, cut: 0.7 };
+        var ctl = controlAt(pointer.x, pointer.y);
+        if (ctl) return tight(br, ctl);
+        if (away === 0 || document.activeElement === ask) return wide(br);
+        return { x: shown.x, y: shown.y, rx: 0, ry: 0, cut: 0.7 };
+      }
+
+      function wide(br) {
+        var askR = ask.getBoundingClientRect();
+        var search = document.getElementById("search").getBoundingClientRect();
+        var voice = document.getElementById("voice").getBoundingClientRect();
+        var x = askR.left - br.left + 8;
+        var y = (askR.top + askR.bottom) / 2 - br.top;
+        var fade = Math.max(180, voice.right - br.left - x + 28);
+        var solid = Math.max(120, search.right - br.left - x + 16);
+        return { x: x, y: y, rx: fade, ry: Math.max(br.height * 0.95, fade * 0.72), cut: Math.min(0.86, solid / fade) };
+      }
+
+      function tight(br, ctl) {
+        var r = ctl.getBoundingClientRect();
+        return {
+          x: r.left + r.width / 2 - br.left,
+          y: r.top + r.height / 2 - br.top,
+          rx: r.width * 0.72 + 28,
+          ry: r.height * 0.72 + 18,
+          cut: 0.62
+        };
+      }
+
+      function tone(x, alpha, br) {
+        var u = Math.min(1, Math.max(0, (x - (br.left - 80)) / (br.width + 160)));
+        var r = (255 * (1 - u) + 138 * u) | 0;
+        var g = (104 * (1 - u) + 164 * u) | 0;
+        var b = (138 * (1 - u) + 255 * u) | 0;
+        return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+      }
+
+      function buildField() {
+        var br = bar.getBoundingClientRect();
+        traces = [];
+        pluses = [];
+        var L = br.left, T = br.top, R = br.right, B = br.bottom, W = br.width;
+        traces.push([[L - 110, T - 28], [L + W * 0.22, T - 28], [L + W * 0.22, T - 52], [L + W * 0.48, T - 52]]);
+        traces.push([[L - 70, T - 64], [L + 30, T - 64], [L + 30, T - 92], [L + W * 0.3, T - 92]]);
+        traces.push([[L + W * 0.58, T - 40], [R + 30, T - 40], [R + 30, T + 10]]);
+        traces.push([[L - 90, B + 30], [L + W * 0.36, B + 30], [L + W * 0.36, B + 58], [L + W * 0.7, B + 58]]);
+        traces.push([[L + W * 0.2, B + 86], [L + W * 0.55, B + 86]]);
+        traces.push([[R - 20, T + 18], [R + 48, T + 18], [R + 48, B - 10], [R + 8, B - 10]]);
+        traces.push([[L - 48, T + 20], [L - 48, B - 16], [L - 8, B - 16]]);
+        var y, x, seed, dist;
+        for (y = T - 150; y < B + 150; y += 13) {
+          for (x = L - 170; x < R + 130; x += 13) {
+            if (x > L + 6 && x < R - 6 && y > T + 6 && y < B - 6) continue;
+            dist = outsideDist(br, x, y);
+            if (dist > 168) continue;
+            seed = Math.abs(Math.sin(x * 0.17 + y * 0.31) * 1000) % 1;
+            if (seed > 0.62 - (1 - dist / 168) * 0.2) continue;
+            pluses.push({ x: x, y: y, a: 0.18 + (1 - dist / 168) * 0.55 });
+          }
+        }
+      }
+
+      function roundRect(x, y, w, h, r) {
+        var rr = Math.min(r, w / 2, h / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.arcTo(x + w, y, x + w, y + h, rr);
+        ctx.arcTo(x + w, y + h, x, y + h, rr);
+        ctx.arcTo(x, y + h, x, y, rr);
+        ctx.arcTo(x, y, x + w, y, rr);
+        ctx.closePath();
+      }
+
+      function glyph(text, size) {
+        var key = text + "@" + size;
+        if (glyphCache[key]) return glyphCache[key];
+        var off = document.createElement("canvas");
+        var oc = off.getContext("2d");
+        oc.font = "600 " + size + "px Segoe UI, sans-serif";
+        var w = Math.max(4, Math.ceil(oc.measureText(text).width) + 8);
+        var h = Math.ceil(size * 1.35);
+        off.width = w;
+        off.height = h;
+        oc.font = "600 " + size + "px Segoe UI, sans-serif";
+        oc.fillStyle = "#fff";
+        oc.fillText(text, 2, size);
+        glyphCache[key] = off;
+        return off;
+      }
+
+      function drawGlyph(text, x, y, size) {
+        var src = glyph(text, size);
+        var data = src.getContext("2d").getImageData(0, 0, src.width, src.height).data;
+        var step = 3;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.strokeStyle = "rgba(236,236,242,.88)";
+        ctx.lineWidth = 1.15;
+        var py, px, a;
+        for (py = 0; py < src.height; py += step) {
+          for (px = 0; px < src.width; px += step) {
+            a = data[(py * src.width + px) * 4 + 3];
+            if (a < 90) continue;
+            ctx.beginPath();
+            ctx.moveTo(px - 2, py);
+            ctx.lineTo(px + 2, py);
+            if (((px / step) + (py / step)) % 3 === 0) {
+              ctx.moveTo(px, py - 2);
+              ctx.lineTo(px, py + 2);
+            }
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+      }
+
+      function icon(id, r) {
+        var cx = r.left + r.width / 2;
+        var cy = r.top + r.height / 2;
+        ctx.strokeStyle = tone(cx, 0.9, bar.getBoundingClientRect());
+        ctx.lineWidth = 1.4;
+        if (id === "plus") {
+          ctx.beginPath();
+          ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+          ctx.moveTo(cx - 7, cy); ctx.lineTo(cx + 7, cy);
+          ctx.moveTo(cx, cy - 7); ctx.lineTo(cx, cy + 7);
+          ctx.stroke();
+          return;
+        }
+        if (id === "knob") {
+          var dial = knob.querySelector(".dial").getBoundingClientRect();
+          ctx.beginPath();
+          ctx.arc(dial.left + dial.width / 2, dial.top + dial.height / 2, 15, 0, Math.PI * 2);
+          ctx.stroke();
+          roundRect(r.left + 28, r.top + 6, r.width - 36, r.height - 12, 16);
+          ctx.stroke();
+          return;
+        }
+        if (id === "search" || id === "voice") {
+          roundRect(r.left + 2, r.top + 6, r.width - 8, r.height - 12, 18);
+          ctx.stroke();
+          ctx.beginPath();
+          if (id === "search") {
+            ctx.arc(r.left + 28, cy, 9, 0, Math.PI * 2);
+            ctx.stroke();
+          } else {
+            var mx = r.left + 24;
+            ctx.strokeRect(mx, cy - 10, 8, 12);
+            ctx.beginPath();
+            ctx.arc(mx + 4, cy + 4, 7, 0, Math.PI);
+            ctx.moveTo(mx + 4, cy + 11);
+            ctx.lineTo(mx + 4, cy + 15);
+            ctx.stroke();
+          }
+          return;
+        }
+        ctx.beginPath();
+        var i, ang, gx, gy;
+        for (i = 0; i < 8; i++) {
+          ang = -Math.PI / 8 + i * Math.PI / 4;
+          ctx.lineTo(cx + Math.cos(ang) * 16, cy + Math.sin(ang) * 16);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        for (gy = -8; gy <= 8; gy += 4) {
+          for (gx = -8; gx <= 8; gx += 4) {
+            if (gx * gx + gy * gy > 70) continue;
+            ctx.fillStyle = tone(cx, 0.75, bar.getBoundingClientRect());
+            ctx.fillRect(cx + gx, cy + gy, 2, 2);
+          }
+        }
+      }
+
+      function noise(br, time) {
+        var i, u, v, px, py, dx, dy, d, band, n, s;
+        ctx.save();
+        for (i = 0; i < 1600; i++) {
+          u = Math.abs(Math.sin(i * 12.9898) * 43758.5453);
+          v = Math.abs(Math.sin(i * 78.233) * 12345.678);
+          u = u - Math.floor(u);
+          v = v - Math.floor(v);
+          px = br.left + u * br.width;
+          py = br.top + 10 + v * (br.height - 20);
+          dx = (px - (br.left + shown.x)) / Math.max(8, shown.rx);
+          dy = (py - (br.top + shown.y)) / Math.max(8, shown.ry);
+          d = Math.hypot(dx, dy);
+          if (d < shown.cut - 0.04) continue;
+          band = Math.min(1, (d - shown.cut) / Math.max(0.08, 1 - shown.cut));
+          n = Math.sin(i * 3.1 + time * (reduce ? 0 : 2.4));
+          if (n < band * 0.85 - 0.35) continue;
+          s = 3 + ((i + ((time * 6) | 0)) % 4);
+          ctx.fillStyle = i % 11 === 0 ? "rgba(255,170,220," + (0.35 + band * 0.4) + ")" : tone(px, 0.35 + (1 - band) * 0.5, br);
+          ctx.fillRect((px + n * 3) | 0, py | 0, s, s);
+        }
+        ctx.restore();
+      }
+
+      function draw(time) {
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var w = window.innerWidth;
+        var h = window.innerHeight;
+        if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+          canvas.width = Math.floor(w * dpr);
+          canvas.height = Math.floor(h * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          buildField();
+        }
+        ctx.clearRect(0, 0, w, h);
+        var br = bar.getBoundingClientRect();
+        ctx.fillStyle = "rgba(255,255,255,.075)";
+        var x, y, i, p, a;
+        for (y = 8; y < h; y += 16) {
+          for (x = 8; x < w; x += 16) ctx.fillRect(x, y, 1.2, 1.2);
+        }
+        ctx.lineWidth = 1.2;
+        for (i = 0; i < traces.length; i++) {
+          p = traces[i];
+          ctx.beginPath();
+          ctx.moveTo(p[0][0], p[0][1]);
+          for (a = 1; a < p.length; a++) ctx.lineTo(p[a][0], p[a][1]);
+          ctx.strokeStyle = tone(p[0][0], 0.75, br);
+          ctx.stroke();
+        }
+        for (i = 0; i < pluses.length; i++) {
+          p = pluses[i];
+          ctx.strokeStyle = tone(p.x, p.a, br);
+          ctx.beginPath();
+          ctx.moveTo(p.x - 3, p.y); ctx.lineTo(p.x + 3, p.y);
+          ctx.moveTo(p.x, p.y - 3); ctx.lineTo(p.x, p.y + 3);
+          ctx.stroke();
+        }
+        var grad = ctx.createLinearGradient(br.left, 0, br.right, 0);
+        grad.addColorStop(0, "rgba(255,122,86,.95)");
+        grad.addColorStop(0.55, "rgba(255,150,210,.45)");
+        grad.addColorStop(1, "rgba(132,168,255,.95)");
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1.6;
+        roundRect(br.left - 8, br.top - 8, br.width + 16, br.height + 16, 46);
+        ctx.stroke();
+        ["plus", "knob", "search", "voice", "seal"].forEach(function (id) {
+          icon(id, document.getElementById(id).getBoundingClientRect());
+        });
+        var askR = ask.getBoundingClientRect();
+        drawGlyph(askText(), askR.left, askR.top + 4, askR.height > 36 ? 28 : 20);
+        if (shown.rx > 2) noise(br, time / 1000);
+      }
+
+      function frame(now) {
+        var next = measureTarget();
+        var k = reduce ? 1 : 0.2;
+        shown.x += (next.x - shown.x) * k;
+        shown.y += (next.y - shown.y) * k;
+        shown.rx += (next.rx - shown.rx) * k;
+        shown.ry += (next.ry - shown.ry) * k;
+        shown.cut += (next.cut - shown.cut) * k;
+        bar.style.setProperty("--mx", shown.x.toFixed(1) + "px");
+        bar.style.setProperty("--my", shown.y.toFixed(1) + "px");
+        bar.style.setProperty("--rx", Math.max(0, shown.rx).toFixed(1) + "px");
+        bar.style.setProperty("--ry", Math.max(0, shown.ry).toFixed(1) + "px");
+        bar.style.setProperty("--cut", Math.round(Math.min(0.92, Math.max(0, shown.cut)) * 100) + "%");
+        draw(now || 0);
+        if (!reduce) requestAnimationFrame(frame);
+      }
+
+      ask.addEventListener("input", normalizeAsk);
+      ask.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") e.preventDefault();
+      });
+      ask.addEventListener("paste", function (e) {
+        e.preventDefault();
+        var text = (e.clipboardData || window.clipboardData).getData("text").replace(/\s+/g, " ").trim();
+        if (!text) return;
+        document.execCommand("insertText", false, text);
+        normalizeAsk();
+      });
+
+      knob.addEventListener("pointerdown", function (e) {
+        dragging = true;
+        dragMoved = 0;
+        dragX = e.clientX;
+        dragLevel = level;
+        knob.setPointerCapture(e.pointerId);
+      });
+      knob.addEventListener("pointermove", function (e) {
+        if (!dragging) return;
+        var dx = e.clientX - dragX;
+        dragMoved = Math.abs(dx);
+        level = mod(dragLevel + Math.trunc(dx / 42), 3);
+        paintLevel();
+      });
+      function endDrag() {
+        if (!dragging) return;
+        dragging = false;
+        if (dragMoved < 8) {
+          level = mod(level + 1, 3);
+          paintLevel();
+        }
+      }
+      knob.addEventListener("pointerup", endDrag);
+      knob.addEventListener("pointercancel", endDrag);
+      knob.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+          level = mod(level + 1, 3);
+          paintLevel();
+          e.preventDefault();
+        } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+          level = mod(level - 1, 3);
+          paintLevel();
+          e.preventDefault();
+        }
+      });
+
+      ["plus", "search", "voice", "seal"].forEach(function (id) {
+        var el = document.getElementById(id);
+        el.addEventListener("pointerdown", function () { el.classList.add("down"); });
+        el.addEventListener("pointerup", function () { el.classList.remove("down"); });
+        el.addEventListener("pointerleave", function () { el.classList.remove("down"); });
+      });
+
+      window.addEventListener("pointermove", function (e) {
+        pointer = { x: e.clientX, y: e.clientY };
+      });
+      window.addEventListener("pointerleave", function () { pointer = null; });
+      window.addEventListener("resize", function () {
+        glyphCache = {};
+        buildField();
+        if (reduce) frame(0);
+      });
+
+      paintLevel();
+      buildField();
+      var start = measureTarget();
+      shown.x = target.x = start.x;
+      shown.y = target.y = start.y;
+      shown.rx = target.rx = start.rx;
+      shown.ry = target.ry = start.ry;
+      shown.cut = target.cut = start.cut;
+      if (reduce) frame(0);
+      else requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
