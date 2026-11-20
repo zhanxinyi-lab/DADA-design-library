@@ -5,7 +5,7 @@
 - 状态：video_recreated
 - 原文：https://x.com/emilkowalski/status/2123029498694410401
 - 素材 ID：2123029498694410401
-- 版本：1.0.1
+- 版本：1.0.2
 
 ## 许可
 
