@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<!-- 原创预览：结冰支付卡。clean-room，不是上游 HTML-in-Canvas、着色器或媒体。 -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>结冰支付卡</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #000; color: #e8eef5; }
+  body {
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    overflow: hidden;
+  }
+  #view {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    display: block; touch-action: none; cursor: pointer;
+  }
+  #view:focus { outline: none; }
+  #view:focus-visible { outline: 2px solid rgba(190, 230, 255, 0.85); outline-offset: -6px; }
+  #pay, #again {
+    position: fixed; z-index: 3; border: 0; cursor: pointer;
+    font-family: inherit; font-weight: 650;
+  }
+  #pay {
+    display: grid; place-items: center; padding: 0 12px;
+    background: #f4f6f8; color: #14181d; border-radius: 999px;
+    letter-spacing: 0.01em; white-space: nowrap; line-height: 1;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  }
+  #pay:focus-visible, #again:focus-visible { outline: 2px solid #f4f6f8; outline-offset: 3px; }
+  #pay[hidden], #again[hidden], #receipt[hidden] { display: none; }
+  #again {
+    left: 50%; bottom: 16px; transform: translateX(-50%);
+    min-height: 44px; padding: 0 18px; border-radius: 999px;
+    background: #1a1e24; color: #f4f6f8; font-size: 14px;
+  }
+  #receipt {
+    position: fixed; z-index: 4; left: 50%; top: 46%;
+    width: min(300px, 88vw); max-height: 76vh; overflow: auto;
+    color: #1c1e22; filter: drop-shadow(0 22px 28px rgba(0, 0, 0, 0.5));
+    transform-origin: center center; pointer-events: none;
+  }
+  #receipt.on { pointer-events: auto; }
+  .paper {
+    position: relative;
+    padding: 22px 18px 28px;
+    background:
+      radial-gradient(circle at 18% 22%, rgba(176, 226, 255, 0.95), transparent 28%),
+      radial-gradient(circle at 78% 16%, rgba(255, 186, 214, 0.9), transparent 26%),
+      radial-gradient(circle at 62% 48%, rgba(255, 226, 160, 0.85), transparent 30%),
+      radial-gradient(circle at 28% 72%, rgba(176, 255, 220, 0.8), transparent 26%),
+      radial-gradient(circle at 80% 80%, rgba(186, 176, 255, 0.55), transparent 24%),
+      #f6f3ee;
+    clip-path: polygon(0 0, 100% 0, 100% 93%,
+      95% 100%, 90% 93.5%, 85% 100%, 80% 93.5%, 75% 100%, 70% 93.5%,
+      65% 100%, 60% 93.5%, 55% 100%, 50% 93.5%, 45% 100%, 40% 93.5%,
+      35% 100%, 30% 93.5%, 25% 100%, 20% 93.5%, 15% 100%, 10% 93.5%,
+      5% 100%, 0 93.5%);
+  }
+  .sheen {
+    position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    background: linear-gradient(115deg,
+      rgba(255, 90, 170, 0.28) 0%,
+      rgba(255, 214, 110, 0.32) 16%,
+      rgba(110, 255, 214, 0.34) 34%,
+      rgba(120, 160, 255, 0.34) 52%,
+      rgba(255, 130, 210, 0.3) 70%,
+      rgba(255, 236, 140, 0.28) 86%,
+      rgba(120, 255, 220, 0.3) 100%);
+    background-size: 220% 220%;
+    mix-blend-mode: color;
+    opacity: 0.72;
+  }
+  .sheet { position: relative; z-index: 1; }
+  .brand { text-align: center; letter-spacing: 0.14em; font-weight: 750; font-size: 15px; line-height: 1.25; }
+  .addr { text-align: center; margin-top: 4px; font-size: 10px; letter-spacing: 0.04em; opacity: 0.72; }
+  .rule { border: 0; border-top: 1px dashed rgba(20, 24, 29, 0.45); margin: 10px 0; }
+  .row, .split { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; line-height: 1.55; letter-spacing: 0.03em; }
+  .total { font-weight: 780; font-size: 14px; letter-spacing: 0.06em; margin-top: 4px; }
+  .split { font-size: 10px; letter-spacing: 0.04em; }
+  .split div { display: flex; flex-direction: column; gap: 2px; }
+  .split .right { text-align: right; }
+  .seal { width: 72px; height: 72px; margin: 12px auto 8px; display: block; }
+  .barcode { height: 42px; margin: 8px 8px 2px; background-repeat: no-repeat; background-size: 100% 100%; }
+  .code, .thanks { text-align: center; letter-spacing: 0.16em; }
+  .code { font-size: 9px; opacity: 0.7; margin-top: 4px; }
+  .thanks { margin-top: 10px; font-size: 12px; font-weight: 700; }
+  #hint {
+    position: fixed; z-index: 5; left: 16px; right: 16px; top: 14px;
+    font-size: 12px; line-height: 1.45; color: rgba(232, 238, 245, 0.62);
+    pointer-events: none; text-align: center;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #receipt { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<canvas id="view" tabindex="0" aria-label="结冰的支付卡。在冰面上点击，裂纹会从落点散开。"></canvas>
+<button id="pay" type="button">Pay €128.00 →</button>
+<article id="receipt" hidden aria-label="全息热敏小票">
+  <div class="paper">
+    <div class="sheen" id="sheen" aria-hidden="true"></div>
+    <div class="sheet">
+      <div class="brand">GLACIER<br>COFFEE ROASTERS</div>
+      <div class="addr">Prinsengracht 120 · Amsterdam</div>
+      <hr class="rule">
+      <div class="row"><span>19.11.2026</span><span>14:55</span></div>
+      <div class="row"><span>ORDER</span><span>#7282</span></div>
+      <hr class="rule">
+      <div class="row"><span>2x Single origin</span><span>64.00</span></div>
+      <div class="row"><span>1x Ice dripper</span><span>48.00</span></div>
+      <div class="row"><span>1x Espresso</span><span>16.00</span></div>
+      <hr class="rule">
+      <div class="row"><span>SUBTOTAL</span><span>117.43</span></div>
+      <div class="row"><span>VAT 9%</span><span>10.57</span></div>
+      <div class="row total"><span>TOTAL</span><span>EUR 128.00</span></div>
+      <hr class="rule">
+      <div class="split">
+        <div><span>CARD •••• 4417</span><span>AUTH 393316</span></div>
+        <div class="right"><span>CONTACTLESS</span><span>APPROVED</span></div>
+      </div>
+      <svg class="seal" viewBox="0 0 80 80" aria-hidden="true">
+        <defs>
+          <radialGradient id="seal-core" cx="50%" cy="42%" r="60%">
+            <stop offset="0%" stop-color="#fff6"/>
+            <stop offset="45%" stop-color="#7cf0ff"/>
+            <stop offset="100%" stop-color="#1a1030"/>
+          </radialGradient>
+        </defs>
+        <circle cx="40" cy="40" r="36" fill="url(#seal-core)"/>
+        <circle cx="40" cy="40" r="36" fill="none" stroke="#fff" stroke-opacity="0.55"/>
+        <path d="M40 14 L44 34 L64 28 L48 42 L62 58 L42 48 L40 68 L36 48 L16 56 L30 40 L14 26 L34 32 Z" fill="none" stroke="#fff" stroke-opacity="0.8" stroke-width="1.2"/>
+        <circle cx="40" cy="40" r="8" fill="#f6fbff" fill-opacity="0.85"/>
+      </svg>
+      <div class="barcode" id="barcode" aria-hidden="true"></div>
+      <div class="code">GLI-958415</div>
+      <div class="thanks">THANK YOU</div>
+    </div>
+  </div>
+</article>
+<button id="again" type="button" hidden>再结一张</button>
+<p id="hint">点冰面，裂纹从落点散开。点 Pay，整张卡碎落，掉出一张全息小票。</p>
+<script>
+'use strict';
+(function () {
+  var ASPECT = 1.62;
+  var FONT = '"Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif';
+  var view = document.getElementById('view');
+  var payBtn = document.getElementById('pay');
+  var againBtn = document.getElementById('again');
+  var receiptEl = document.getElementById('receipt');
+  var sheenEl = document.getElementById('sheen');
+  var hint = document.getElementById('hint');
+  var ctx = view.getContext('2d');
+  var reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var reduce = reduceQuery.matches;
+  var dpr = 1;
+  var box = { x: 0, y: 0, w: 320, h: 200, r: 18 };
+  var face = null;
+  var frost = null;
+  var impacts = [];
+  var chips = [];
+  var shards = [];
+  var phase = 'card';
+  var snap = null;
+  var audioCtx = null;
+  var sheenPhase = 0;
+  var pointer = { x: 0, y: 0, ready: false };
+  var last = 0;
+  var receiptAge = 0;
+  var receiptDelay = 0;
+
+  function reduced() { return reduce; }
+
+  function makeLayer(w, h) {
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * dpr));
+    c.height = Math.max(1, Math.round(h * dpr));
+    var g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { canvas: c, g: g };
+  }
+
+  function roundPath(g, x, y, w, h, r) {
+    var radius = Math.min(r, w * 0.5, h * 0.5);
+    g.beginPath();
+    g.moveTo(x + radius, y);
+    g.arcTo(x + w, y, x + w, y + h, radius);
+    g.arcTo(x + w, y + h, x, y + h, radius);
+    g.arcTo(x, y + h, x, y, radius);
+    g.arcTo(x, y, x + w, y, radius);
+    g.closePath();
+  }
+
+  function edgeDistance(x, y, w, h, r) {
+    if (x < 0 || y < 0 || x > w || y > h) return 0;
+    var corner = (x < r && y < r) || (x > w - r && y < r) || (x < r && y > h - r) || (x > w - r && y > h - r);
+    if (!corner) return Math.min(x, y, w - x, h - y);
+    var cx = x < r ? r : w - r;
+    var cy = y < r ? r : h - r;
+    return Math.max(0, r - Math.hypot(x - cx, y - cy));
+  }
+
+  function paintFace(w, h) {
+    face = makeLayer(w, h);
+    var g = face.g;
+    roundPath(g, 0, 0, w, h, box.r);
+    g.clip();
+    var grd = g.createLinearGradient(0, 0, w, h);
+    grd.addColorStop(0, '#1a283c');
+    grd.addColorStop(0.42, '#070b12');
+    grd.addColorStop(1, '#142033');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, w, h);
+    var i;
+    g.fillStyle = 'rgba(255,255,255,0.045)';
+    for (i = 0; i < 900; i++) {
+      var sx = Math.random() * w;
+      var sy = Math.random() * h;
+      g.fillRect(sx, sy, 1.2, 1.2);
+    }
+    var glow = g.createRadialGradient(w * 0.15, h * 0.1, 10, w * 0.2, 0, w * 0.7);
+    glow.addColorStop(0, 'rgba(120,170,220,0.18)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = glow;
+    g.fillRect(0, 0, w, h);
+  }
+
+  function paintFrost(w, h) {
+    frost = makeLayer(w, h);
+    var g = frost.g;
+    var pxW = frost.canvas.width;
+    var pxH = frost.canvas.height;
+    var cell = 7;
+    var cols = Math.ceil(pxW / cell) + 2;
+    var rows = Math.ceil(pxH / cell) + 2;
+    var grid = new Float32Array(cols * rows);
+    var i;
+    for (i = 0; i < grid.length; i++) grid[i] = Math.random();
+    var img = g.getImageData(0, 0, pxW, pxH);
+    var data = img.data;
+    var y;
+    var x;
+    for (y = 0; y < pxH; y++) {
+      var gy = y / cell;
+      var y0 = Math.floor(gy);
+      var ty = gy - y0;
+      var sy = ty * ty * (3 - 2 * ty);
+      for (x = 0; x < pxW; x++) {
+        var gx = x / cell;
+        var x0 = Math.floor(gx);
+        var tx = gx - x0;
+        var sxn = tx * tx * (3 - 2 * tx);
+        var i00 = grid[y0 * cols + x0];
+        var i10 = grid[y0 * cols + x0 + 1];
+        var i01 = grid[(y0 + 1) * cols + x0];
+        var i11 = grid[(y0 + 1) * cols + x0 + 1];
+        var noise = (i00 + (i10 - i00) * sxn) + ((i01 + (i11 - i01) * sxn) - (i00 + (i10 - i00) * sxn)) * sy;
+        var cx = x / dpr;
+        var cy = y / dpr;
+        var dist = edgeDistance(cx, cy, w, h, box.r);
+        var rim = dist <= 0 ? 1 : Math.max(0, 1 - dist / (w * 0.2));
+        var speck = Math.random();
+        var alpha = rim * rim * 200 + noise * 34 * (0.25 + rim);
+        if (speck > 0.988) alpha += 110;
+        if (speck > 0.997) alpha += 150;
+        if (dist <= 0) alpha = 0;
+        alpha = Math.max(0, Math.min(220, alpha));
+        var p = (y * pxW + x) * 4;
+        data[p] = 214;
+        data[p + 1] = 236;
+        data[p + 2] = 255;
+        data[p + 3] = alpha;
+      }
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.putImageData(img, 0, 0);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    roundPath(g, 1.2, 1.2, w - 2.4, h - 2.4, box.r - 1);
+    g.strokeStyle = 'rgba(214, 242, 255, 0.72)';
+    g.lineWidth = 1.6;
+    g.stroke();
+    g.save();
+    roundPath(g, 0, 0, w, h, box.r);
+    g.clip();
+    var lip = g.createLinearGradient(0, 0, 0, h);
+    lip.addColorStop(0, 'rgba(255,255,255,0.34)');
+    lip.addColorStop(0.09, 'rgba(255,255,255,0)');
+    lip.addColorStop(0.9, 'rgba(0,0,0,0)');
+    lip.addColorStop(1, 'rgba(0, 16, 32, 0.28)');
+    g.fillStyle = lip;
+    g.fillRect(0, 0, w, h);
+    g.restore();
+  }
+
+  function drawChip(g, x, y, w, h) {
+    var grd = g.createLinearGradient(x, y, x + w, y + h);
+    grd.addColorStop(0, '#f7f1df');
+    grd.addColorStop(0.4, '#c5b48a');
+    grd.addColorStop(1, '#efe6cf');
+    roundPath(g, x, y, w, h, Math.min(8, h * 0.22));
+    g.fillStyle = grd;
+    g.fill();
+    g.save();
+    roundPath(g, x + w * 0.08, y + h * 0.1, w * 0.84, h * 0.8, Math.min(4, h * 0.12));
+    g.clip();
+    g.fillStyle = 'rgba(92, 74, 40, 0.28)';
+    var col;
+    var row;
+    for (row = 0; row < 2; row++) {
+      for (col = 0; col < 3; col++) {
+        g.fillRect(x + w * (0.16 + col * 0.26), y + h * (0.22 + row * 0.36), w * 0.16, h * 0.2);
+      }
+    }
+    g.restore();
+  }
+
+  function drawContactless(g, x, y, s) {
+    g.strokeStyle = 'rgba(255,255,255,0.82)';
+    g.lineWidth = Math.max(1.25, s * 0.07);
+    g.lineCap = 'round';
+    var i;
+    for (i = 1; i <= 3; i++) {
+      g.beginPath();
+      g.arc(x, y + s * 0.28, s * 0.22 * i, -1.15, 1.15);
+      g.stroke();
+    }
+  }
+
+  function drawTypography(g, w, h) {
+    g.fillStyle = 'rgba(255,255,255,0.94)';
+    g.textBaseline = 'middle';
+    g.textAlign = 'left';
+    if ('letterSpacing' in g) g.letterSpacing = '0.18em';
+    g.font = '600 ' + Math.round(w * 0.048) + 'px ' + FONT;
+    g.fillText('GLACIER', w * 0.075, h * 0.16);
+    if ('letterSpacing' in g) g.letterSpacing = '0.22em';
+    g.fillStyle = 'rgba(255,255,255,0.62)';
+    g.font = '600 ' + Math.round(w * 0.016) + 'px ' + FONT;
+    g.fillText('RESERVE', w * 0.078, h * 0.235);
+    if ('letterSpacing' in g) g.letterSpacing = '0px';
+    drawChip(g, w * 0.075, h * 0.34, w * 0.11, h * 0.16);
+    drawContactless(g, w * 0.9, h * 0.15, w * 0.045);
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    var dotR = Math.max(2.1, w * 0.0075);
+    var dx = w * 0.078;
+    var dy = h * 0.6;
+    var group;
+    var n;
+    for (group = 0; group < 3; group++) {
+      for (n = 0; n < 4; n++) {
+        g.beginPath();
+        g.arc(dx, dy, dotR, 0, Math.PI * 2);
+        g.fill();
+        dx += dotR * 3.15;
+      }
+      dx += dotR * 2.4;
+    }
+    g.font = '600 ' + Math.round(w * 0.052) + 'px ' + FONT;
+    g.fillText('4417', dx + w * 0.02, dy + 1);
+    g.textAlign = 'right';
+    g.fillStyle = 'rgba(255,255,255,0.78)';
+    if ('letterSpacing' in g) g.letterSpacing = '0.12em';
+    g.font = '600 ' + Math.round(w * 0.018) + 'px ' + FONT;
+    g.fillText('GLACIER COFFEE ROASTERS', w * 0.945, h * 0.675);
+    if ('letterSpacing' in g) g.letterSpacing = '0.14em';
+    g.textAlign = 'left';
+    g.fillStyle = 'rgba(255,255,255,0.5)';
+    g.font = '600 ' + Math.round(w * 0.015) + 'px ' + FONT;
+    g.fillText('CARDHOLDER', w * 0.075, h * 0.785);
+    g.fillText('VALID THRU', w * 0.36, h * 0.785);
+    if ('letterSpacing' in g) g.letterSpacing = '0.04em';
+    g.fillStyle = 'rgba(255,255,255,0.94)';
+    g.font = '600 ' + Math.round(w * 0.03) + 'px ' + FONT;
+    g.fillText('JULES FROST', w * 0.075, h * 0.865);
+    g.fillText('11/29', w * 0.36, h * 0.865);
+    if ('letterSpacing' in g) g.letterSpacing = '0px';
+  }
+
+  function payRect(local) {
+    var w = box.w * 0.38;
+    var h = Math.max(44, box.h * 0.155);
+    var x = box.w - w - box.w * 0.055;
+    var y = box.h * 0.755;
+    if (!local) {
+      x += box.x;
+      y += box.y;
+    }
+    return { x: x, y: y, w: w, h: h };
+  }
+
+  function drawPayGraphic(g, local) {
+    var r = payRect(local);
+    roundPath(g, r.x, r.y, r.w, r.h, r.h * 0.5);
+    g.fillStyle = '#f4f6f8';
+    g.fill();
+    g.fillStyle = '#14181d';
+    g.font = '600 ' + Math.round(r.h * 0.36) + 'px ' + FONT;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('Pay €128.00  →', r.x + r.w * 0.5, r.y + r.h * 0.52);
+  }
+
+  function layout() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    view.width = Math.max(1, Math.round(window.innerWidth * dpr));
+    view.height = Math.max(1, Math.round(window.innerHeight * dpr));
+    view.style.width = window.innerWidth + 'px';
+    view.style.height = window.innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var maxW = Math.min(640, window.innerWidth - 36);
+    var maxH = Math.max(180, window.innerHeight - 150);
+    var w = maxW;
+    var h = w / ASPECT;
+    if (h > maxH) {
+      h = maxH;
+      w = h * ASPECT;
+    }
+    box.w = w;
+    box.h = h;
+    box.r = Math.max(16, w * 0.045);
+    box.x = (window.innerWidth - w) * 0.5;
+    box.y = (window.innerHeight - h) * 0.5 - 8;
+    paintFace(w, h);
+    paintFrost(w, h);
+    var r = payRect(false);
+    payBtn.style.left = r.x + 'px';
+    payBtn.style.top = r.y + 'px';
+    payBtn.style.width = r.w + 'px';
+    payBtn.style.height = r.h + 'px';
+    payBtn.style.fontSize = Math.max(12, Math.min(Math.round(r.h * 0.36), Math.round((r.w - 24) / 10.5))) + 'px';
+    if (phase === 'fall') finishToReceipt();
+  }
+
+  function walk(x, y, ang, len) {
+    var pts = [{ x: x, y: y }];
+    var cx = x;
+    var cy = y;
+    var a = ang;
+    var steps = 4 + (Math.random() * 3 | 0);
+    var s;
+    for (s = 0; s < steps; s++) {
+      a += (Math.random() - 0.5) * 1.35;
+      var step = (len / steps) * (0.72 + Math.random() * 0.55);
+      cx += Math.cos(a) * step;
+      cy += Math.sin(a) * step * ASPECT;
+      pts.push({ x: cx, y: cy });
+    }
+    return pts;
+  }
+
+  function addImpact(nx, ny) {
+    if (phase !== 'card') return;
+    var lines = [];
+    var flakes = [];
+    var base = Math.random() * Math.PI * 2;
+    var longOnes = 3 + (Math.random() * 2 | 0);
+    var i;
+    for (i = 0; i < longOnes; i++) {
+      var ang = base + i * (1.4 + Math.random() * 0.7);
+      var len = 0.28 + Math.random() * 0.42;
+      var line = walk(nx, ny, ang, len);
+      lines.push(line);
+      if (Math.random() < 0.7 && line.length > 2) {
+        var at = line[1 + (Math.random() * (line.length - 2) | 0)];
+        lines.push(walk(at.x, at.y, ang + (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.5), len * 0.45));
+      }
+    }
+    var stars = 11 + (Math.random() * 6 | 0);
+    for (i = 0; i < stars; i++) {
+      flakes.push({
+        ang: Math.random() * Math.PI * 2,
+        len: 0.045 + Math.random() * 0.09,
+        wide: 0.006 + Math.random() * 0.012
+      });
+    }
+    impacts.push({ born: performance.now(), nx: nx, ny: ny, lines: lines, flakes: flakes });
+    if (impacts.length > 14) impacts.shift();
+    var px = box.x + nx * box.w;
+    var py = box.y + ny * box.h;
+    if (!reduced()) {
+      for (i = 0; i < 10; i++) {
+        chips.push({
+          x: px,
+          y: py,
+          vx: (Math.random() - 0.5) * 220,
+          vy: -30 - Math.random() * 160,
+          r: 1.1 + Math.random() * 2.4,
+          age: 0,
+          life: 0.7 + Math.random() * 0.7
+        });
+      }
+    }
+    crackSound(0.09, 1800);
+  }
+
+  function growOf(impact, now) {
+    if (reduced()) return 1;
+    return Math.max(0, Math.min(1, (now - impact.born) / 240));
+  }
+
+  function polylineSlice(pts, f) {
+    if (pts.length < 2 || f >= 1) return pts;
+    var total = 0;
+    var lens = [];
+    var i;
+    for (i = 1; i < pts.length; i++) {
+      var dx = (pts[i].x - pts[i - 1].x) * box.w;
+      var dy = (pts[i].y - pts[i - 1].y) * box.h;
+      var L = Math.hypot(dx, dy);
+      lens.push(L);
+      total += L;
+    }
+    var target = total * f;
+    var acc = 0;
+    var out = [pts[0]];
+    for (i = 1; i < pts.length; i++) {
+      var seg = lens[i - 1];
+      if (acc + seg >= target) {
+        var t = seg ? (target - acc) / seg : 1;
+        out.push({
+          x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t,
+          y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * t
+        });
+        return out;
+      }
+      acc += seg;
+      out.push(pts[i]);
+    }
+    return out;
+  }
+
+  function drawCracks(g, now) {
+    g.save();
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    var i;
+    var k;
+    for (i = 0; i < impacts.length; i++) {
+      var impact = impacts[i];
+      var grow = growOf(impact, now);
+      var px = impact.nx * box.w;
+      var py = impact.ny * box.h;
+      for (k = 0; k < impact.lines.length; k++) {
+        var pts = polylineSlice(impact.lines[k], grow);
+        var seg;
+        if (pts.length < 2) continue;
+        for (seg = 1; seg < pts.length; seg++) {
+          var t = seg / pts.length;
+          var x0 = pts[seg - 1].x * box.w;
+          var y0 = pts[seg - 1].y * box.h;
+          var x1 = pts[seg].x * box.w;
+          var y1 = pts[seg].y * box.h;
+          g.beginPath();
+          g.moveTo(x0, y0);
+          g.lineTo(x1, y1);
+          g.strokeStyle = 'rgba(186, 230, 255,' + (0.45 * (1 - t * 0.35)) + ')';
+          g.lineWidth = 7 * (1 - t * 0.45);
+          g.stroke();
+          g.beginPath();
+          g.moveTo(x0, y0);
+          g.lineTo(x1, y1);
+          g.strokeStyle = 'rgba(255,255,255,' + (0.96 * (1 - t * 0.2)) + ')';
+          g.lineWidth = Math.max(1, 2.4 * (1 - t * 0.55));
+          g.stroke();
+        }
+      }
+      g.save();
+      g.translate(px, py);
+      for (k = 0; k < impact.flakes.length; k++) {
+        var flake = impact.flakes[k];
+        var len = flake.len * box.w * grow;
+        var wide = flake.wide * box.w;
+        g.save();
+        g.rotate(flake.ang);
+        var shade = g.createLinearGradient(0, 0, len, 0);
+        shade.addColorStop(0, 'rgba(255,255,255,0.98)');
+        shade.addColorStop(0.35, 'rgba(214,244,255,0.72)');
+        shade.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = shade;
+        g.beginPath();
+        g.moveTo(0, 0);
+        g.lineTo(len, wide);
+        g.lineTo(len * 0.55, 0);
+        g.lineTo(len, -wide * 0.7);
+        g.closePath();
+        g.fill();
+        g.restore();
+      }
+      g.restore();
+      var flash = 1 - grow;
+      g.fillStyle = 'rgba(255,255,255,' + (0.85 * (1 - grow * 0.35)) + ')';
+      g.beginPath();
+      g.arc(px, py, 2.2 + flash * 7, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.restore();
+  }
+
+  function drawCard(g, withButton, now) {
+    g.save();
+    g.translate(box.x, box.y);
+    g.drawImage(face.canvas, 0, 0, box.w, box.h);
+    g.drawImage(frost.canvas, 0, 0, box.w, box.h);
+    drawTypography(g, box.w, box.h);
+    g.save();
+    roundPath(g, 0, 0, box.w, box.h, box.r);
+    g.clip();
+    drawCracks(g, now);
+    g.restore();
+    if (withButton) drawPayGraphic(g, true);
+    g.restore();
+  }
+
+  function updateChips(dt) {
+    var i;
+    for (i = chips.length - 1; i >= 0; i--) {
+      var c = chips[i];
+      c.age += dt;
+      c.vy += 820 * dt;
+      c.x += c.vx * dt;
+      c.y += c.vy * dt;
+      if (c.age > c.life || c.y > window.innerHeight + 20) chips.splice(i, 1);
+    }
+  }
+
+  function drawChips(g) {
+    var i;
+    for (i = 0; i < chips.length; i++) {
+      var c = chips[i];
+      var alpha = Math.max(0, 1 - c.age / c.life);
+      g.fillStyle = 'rgba(226, 244, 255,' + (0.85 * alpha) + ')';
+      g.beginPath();
+      g.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+
+  function buildShards() {
+    snap = makeLayer(box.w, box.h);
+    snap.g.drawImage(face.canvas, 0, 0, box.w, box.h);
+    snap.g.drawImage(frost.canvas, 0, 0, box.w, box.h);
+    drawTypography(snap.g, box.w, box.h);
+    snap.g.save();
+    roundPath(snap.g, 0, 0, box.w, box.h, box.r);
+    snap.g.clip();
+    drawCracks(snap.g, performance.now() + 1000);
+    snap.g.restore();
+    drawPayGraphic(snap.g, true);
+    var cols = 10;
+    var rows = 6;
+    var pts = [];
+    var j;
+    var i;
+    for (j = 0; j <= rows; j++) {
+      for (i = 0; i <= cols; i++) {
+        var x = (i / cols) * box.w;
+        var y = (j / rows) * box.h;
+        if (i > 0 && i < cols && j > 0 && j < rows) {
+          x += (Math.random() - 0.5) * (box.w / cols) * 0.8;
+          y += (Math.random() - 0.5) * (box.h / rows) * 0.8;
+        }
+        pts.push({ x: x, y: y });
+      }
+    }
+    function at(ix, iy) { return pts[iy * (cols + 1) + ix]; }
+    shards = [];
+    for (j = 0; j < rows; j++) {
+      for (i = 0; i < cols; i++) {
+        var a = at(i, j);
+        var b = at(i + 1, j);
+        var c = at(i + 1, j + 1);
+        var d = at(i, j + 1);
+        pushShard(Math.random() < 0.5 ? [a, b, c] : [a, b, d]);
+        pushShard(Math.random() < 0.5 ? [a, c, d] : [b, c, d]);
+      }
+    }
+  }
+
+  function pushShard(tri) {
+    var cx = (tri[0].x + tri[1].x + tri[2].x) / 3;
+    var cy = (tri[0].y + tri[1].y + tri[2].y) / 3;
+    var ang = Math.atan2(cy - box.h * 0.62, cx - box.w * 0.55);
+    var speed = 70 + Math.random() * 240;
+    shards.push({
+      tri: tri,
+      cx: cx,
+      cy: cy,
+      x: 0,
+      y: 0,
+      rot: 0,
+      vx: Math.cos(ang) * speed * 0.55 + (Math.random() - 0.5) * 80,
+      vy: (Math.random() < 0.28 ? -70 : 50) + Math.random() * 160,
+      vr: (Math.random() - 0.5) * 3.2,
+      delay: Math.random() * 0.06,
+      age: 0
+    });
+  }
+
+  function updateShards(dt) {
+    var i;
+    for (i = 0; i < shards.length; i++) {
+      var s = shards[i];
+      s.age += dt;
+      if (s.age < s.delay) continue;
+      s.vy += 1500 * dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.rot += s.vr * dt;
+    }
+  }
+
+  function drawShards(g) {
+    var i;
+    var k;
+    for (i = 0; i < shards.length; i++) {
+      var s = shards[i];
+      if (s.age < s.delay) continue;
+      g.save();
+      g.translate(box.x + s.cx + s.x, box.y + s.cy + s.y);
+      g.rotate(s.rot);
+      g.beginPath();
+      for (k = 0; k < s.tri.length; k++) {
+        var px = s.tri[k].x - s.cx;
+        var py = s.tri[k].y - s.cy;
+        if (k === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      }
+      g.closePath();
+      g.save();
+      g.clip();
+      g.drawImage(snap.canvas, -s.cx, -s.cy, box.w, box.h);
+      g.restore();
+      g.strokeStyle = 'rgba(232, 248, 255, 0.82)';
+      g.lineWidth = 1.15;
+      g.stroke();
+      g.restore();
+    }
+  }
+
+  function localPoint(event) {
+    var nx = (event.clientX - box.x) / box.w;
+    var ny = (event.clientY - box.y) / box.h;
+    return { nx: nx, ny: ny };
+  }
+
+  function insideCard(nx, ny) {
+    if (nx < 0 || ny < 0 || nx > 1 || ny > 1) return false;
+    var x = nx * box.w;
+    var y = ny * box.h;
+    return edgeDistance(x, y, box.w, box.h, box.r) > 0;
+  }
+
+  function tone(duration, freq, gainValue) {
+    if (!audioCtx) return;
+    var frames = Math.floor(audioCtx.sampleRate * duration);
+    var buffer = audioCtx.createBuffer(1, frames, audioCtx.sampleRate);
+    var data = buffer.getChannelData(0);
+    var i;
+    for (i = 0; i < frames; i++) {
+      var t = i / frames;
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.4);
+    }
+    var src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    var filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = freq;
+    filter.Q.value = 0.7;
+    var gain = audioCtx.createGain();
+    gain.gain.value = gainValue;
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+    src.start();
+  }
+
+  function ensureAudio() {
+    if (audioCtx) return;
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    try { audioCtx = new Ctx(); } catch (err) { audioCtx = null; }
+  }
+
+  function crackSound(duration, freq) {
+    ensureAudio();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    tone(duration, freq, 0.05);
+  }
+
+  function showReceipt() {
+    receiptEl.hidden = false;
+    receiptEl.className = 'on';
+    receiptAge = reduced() ? 1 : 0;
+    receiptDelay = reduced() ? 0 : 0.2;
+    hint.textContent = '小票会跟着指针轻轻倾斜，虹彩从纸面扫过。';
+    againBtn.hidden = false;
+  }
+
+  function finishToReceipt() {
+    phase = 'receipt';
+    shards = [];
+    chips = [];
+    payBtn.hidden = true;
+    showReceipt();
+  }
+
+  function pay() {
+    if (phase !== 'card') return;
+    phase = 'fall';
+    payBtn.hidden = true;
+    buildShards();
+    crackSound(0.28, 520);
+    showReceipt();
+    if (reduced()) finishToReceipt();
+  }
+
+  function resetCard() {
+    phase = 'card';
+    impacts = [];
+    chips = [];
+    shards = [];
+    snap = null;
+    receiptAge = 0;
+    receiptDelay = 0;
+    receiptEl.hidden = true;
+    receiptEl.className = '';
+    againBtn.hidden = true;
+    payBtn.hidden = false;
+    hint.textContent = '点冰面，裂纹从落点散开。点 Pay，整张卡碎落，掉出一张全息小票。';
+    layout();
+  }
+
+  function placeReceipt(dt) {
+    if (receiptEl.hidden) return;
+    receiptAge += dt;
+    var shown = receiptAge - receiptDelay;
+    if (shown <= 0) {
+      receiptEl.style.opacity = '0';
+      return;
+    }
+    var k = reduced() ? 1 : Math.max(0, Math.min(1, shown / 0.62));
+    var ease = 1 - Math.pow(1 - k, 3);
+    var drop = (1 - ease) * -78;
+    var rx = 0;
+    var ry = 0;
+    var hx = 50;
+    var hy = 42;
+    if (pointer.ready) {
+      var rect = receiptEl.getBoundingClientRect();
+      var cx = rect.left + rect.width * 0.5;
+      var cy = rect.top + rect.height * 0.5;
+      var dx = Math.max(-1, Math.min(1, (pointer.x - cx) / 280));
+      var dy = Math.max(-1, Math.min(1, (pointer.y - cy) / 280));
+      ry = dx * 9;
+      rx = -dy * 7;
+      hx = 50 + dx * 28;
+      hy = 42 + dy * 22;
+    }
+    receiptEl.style.opacity = String(ease);
+    receiptEl.style.transform = 'translate(-50%, calc(-50% + ' + drop.toFixed(2) + 'px)) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+    if (!reduced()) sheenPhase += dt;
+    var shift = (sheenPhase * 22 + hx) % 100;
+    sheenEl.style.backgroundPosition = shift.toFixed(1) + '% ' + hy.toFixed(1) + '%';
+  }
+
+  function frame(now) {
+    var dt = Math.min(0.034, last ? (now - last) / 1000 : 0.016);
+    last = now;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    if (phase === 'card' && face) {
+      drawCard(ctx, false, now);
+      updateChips(dt);
+      drawChips(ctx);
+    } else if (phase === 'fall' && snap) {
+      if (!reduced()) {
+        updateShards(dt);
+        drawShards(ctx);
+        updateChips(dt);
+        drawChips(ctx);
+      }
+      placeReceipt(dt);
+      if (receiptAge > 1.7) phase = 'receipt';
+    } else if (phase === 'receipt') {
+      placeReceipt(dt);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function paintBarcode() {
+    var el = document.getElementById('barcode');
+    var stops = [];
+    var x = 0;
+    var seed = 958415;
+    function rnd() {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    }
+    while (x < 100) {
+      var w = 0.55 + rnd() * 2.1;
+      var gap = 0.35 + rnd() * 1.25;
+      var end = Math.min(100, x + w);
+      stops.push('#16181c ' + x.toFixed(2) + '%', '#16181c ' + end.toFixed(2) + '%');
+      x = end + gap;
+      if (x < 100) stops.push('transparent ' + end.toFixed(2) + '%', 'transparent ' + Math.min(100, x).toFixed(2) + '%');
+    }
+    el.style.backgroundImage = 'linear-gradient(90deg,' + stops.join(',') + ')';
+  }
+
+  view.addEventListener('pointerdown', function (event) {
+    if (phase !== 'card') return;
+    var p = localPoint(event);
+    if (!insideCard(p.nx, p.ny)) return;
+    addImpact(p.nx, p.ny);
+  });
+  view.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    addImpact(0.42, 0.48);
+  });
+  payBtn.addEventListener('click', pay);
+  againBtn.addEventListener('click', resetCard);
+  window.addEventListener('pointermove', function (event) {
+    pointer.x = event.clientX;
+    pointer.y = event.clientY;
+    pointer.ready = true;
+  });
+  window.addEventListener('resize', layout);
+  if (reduceQuery.addEventListener) {
+    reduceQuery.addEventListener('change', function () {
+      reduce = reduceQuery.matches;
+    });
+  }
+  paintBarcode();
+  if (!ctx) {
+    hint.textContent = '这块画布没有准备好，结冰的卡画不出来。';
+    return;
+  }
+  layout();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
