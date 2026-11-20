@@ -781,13 +781,14 @@
   canvas.addEventListener('keydown', (ev) => {
     const key = hover || drag || 'lHand';
     const step = ev.shiftKey ? 0.06 : 0.03;
+    const arrow = ev.key === 'ArrowLeft' || ev.key === 'ArrowRight' || ev.key === 'ArrowUp' || ev.key === 'ArrowDown';
+    if (arrow && lock[key]) return;
     let moved = false;
     if (ev.key === 'ArrowLeft') { pose[key].x -= step; moved = true; }
     if (ev.key === 'ArrowRight') { pose[key].x += step; moved = true; }
     if (ev.key === 'ArrowUp') { pose[key].y += step; moved = true; }
     if (ev.key === 'ArrowDown') { pose[key].y -= step; moved = true; }
     if (moved) {
-      if (lock[key]) return;
       ev.preventDefault();
       frames[frame] = clone(pose);
       shown = clone(pose);
