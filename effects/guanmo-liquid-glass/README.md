@@ -5,7 +5,7 @@
 - 状态：video_recreated
 - 原文：https://github.com/guanmo-ai/design-style/releases/tag/day-14
 - 素材 ID：guanmo-liquid-glass
-- 版本：1.0.0
+- 版本：1.0.1
 
 ## 复刻说明
 
