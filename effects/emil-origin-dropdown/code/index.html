@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>选项菜单从按钮底下长出来</title>
+  <style>
+    :root {
+      --bg: #fff;
+      --ink: #141414;
+      --line: #e6e6e6;
+      --menu: #0d0d0d;
+      --muted: #7a7a7a;
+      --label: #8a8a8a;
+      --from: 0.56;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --dur: 0.62s;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .stage {
+      min-height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: safe center;
+      padding: 36px 20px;
+    }
+    .pair {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 56px;
+    }
+    .demo { width: min(300px, 100%); }
+    .trigger {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 14px 34px;
+      font: 600 20px/1 "Segoe UI", system-ui, sans-serif;
+      cursor: pointer;
+    }
+    .trigger:hover { background: #fafafa; }
+    .trigger:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 3px;
+    }
+    .panel { margin-top: 12px; }
+    .menu {
+      width: 100%;
+      margin: 0;
+      padding: 22px 20px 16px;
+      border-radius: 20px;
+      background: var(--menu);
+      color: #fff;
+      transform: scale(var(--from));
+      transform-origin: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: transform var(--dur) var(--ease), opacity var(--dur) ease;
+    }
+    .demo[data-origin="trigger"] .menu { transform-origin: top left; }
+    .demo.is-open .menu {
+      transform: scale(1);
+      opacity: 1;
+    }
+    .who { margin: 0; }
+    .who strong {
+      display: block;
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .who span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 13.5px;
+      font-weight: 400;
+    }
+    .items {
+      list-style: none;
+      margin: 20px 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      font-size: 16.5px;
+      font-weight: 500;
+      letter-spacing: -0.011em;
+    }
+    .out {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #f2f2f2;
+    }
+    .out svg { color: #cfcfcf; display: block; }
+    .foot {
+      margin-top: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+    .badge { display: block; }
+    .label {
+      margin: 0;
+      color: var(--label);
+      font: 14px/1.3 ui-monospace, "Cascadia Mono", Consolas, monospace;
+      white-space: nowrap;
+      text-align: center;
+    }
+    @media (max-width: 680px) {
+      .pair { flex-direction: column; align-items: center; gap: 36px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .menu { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="pair" lang="en">
+      <section class="demo" data-origin="center" aria-label="Scales from the menu center">
+        <button type="button" class="trigger" aria-expanded="false" aria-controls="menu-center">Options</button>
+        <div class="panel">
+          <div class="menu" id="menu-center" aria-hidden="true">
+            <p class="who"><strong>William Clark</strong><span>contact@example.com</span></p>
+            <ul class="items">
+              <li>Dashboard</li>
+              <li>My Integrations</li>
+              <li>Billing &amp; Invoices</li>
+              <li>Account Settings</li>
+              <li class="out"><span>Log out</span>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <rect x="3.5" y="8" width="11" height="11" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                  <path d="M11 13.2 19.2 5M19.2 5h-5.4M19.2 5v5.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="foot">
+          <svg class="badge" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+            <circle cx="12" cy="12" r="12" fill="#3a3a3a"/>
+            <path d="M8 8l8 8M16 8L8 16" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <p class="label">transform-origin: center;</p>
+        </div>
+      </section>
+
+      <section class="demo" data-origin="trigger" aria-label="Scales from the trigger corner">
+        <button type="button" class="trigger" aria-expanded="false" aria-controls="menu-trigger">Options</button>
+        <div class="panel">
+          <div class="menu" id="menu-trigger" aria-hidden="true">
+            <p class="who"><strong>William Clark</strong><span>contact@example.com</span></p>
+            <ul class="items">
+              <li>Dashboard</li>
+              <li>My Integrations</li>
+              <li>Billing &amp; Invoices</li>
+              <li>Account Settings</li>
+              <li class="out"><span>Log out</span>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <rect x="3.5" y="8" width="11" height="11" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                  <path d="M11 13.2 19.2 5M19.2 5h-5.4M19.2 5v5.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="foot">
+          <svg class="badge" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+            <circle cx="12" cy="12" r="12" fill="#1070df"/>
+            <path d="M7.1 12.5l3.2 3.2 6.6-7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <p class="label">transform-origin: top left;</p>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const demos = [...document.querySelectorAll(".demo")];
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const OPEN_MS = 620;
+    const HOLD_OPEN_MS = 2600;
+    const CLOSE_MS = 620;
+    const HOLD_CLOSED_MS = 900;
+    let timers = [];
+    let stopped = false;
+
+    function clearTimers() {
+      for (const id of timers) clearTimeout(id);
+      timers = [];
+    }
+
+    function paint(open) {
+      for (const demo of demos) {
+        demo.classList.toggle("is-open", open);
+        const button = demo.querySelector("button");
+        const menu = demo.querySelector(".menu");
+        button.setAttribute("aria-expanded", open ? "true" : "false");
+        menu.setAttribute("aria-hidden", open ? "false" : "true");
+      }
+    }
+
+    function arm(fn, ms) {
+      timers.push(setTimeout(fn, ms));
+    }
+
+    function cycle() {
+      if (stopped || motion.matches) return;
+      paint(true);
+      arm(() => {
+        if (stopped || motion.matches) return;
+        paint(false);
+        arm(cycle, CLOSE_MS + HOLD_CLOSED_MS);
+      }, OPEN_MS + HOLD_OPEN_MS);
+    }
+
+    function hold(open) {
+      stopped = true;
+      clearTimers();
+      paint(open);
+    }
+
+    if (motion.matches) hold(true);
+    else cycle();
+
+    motion.addEventListener("change", () => {
+      clearTimers();
+      if (motion.matches) hold(true);
+    });
+
+    for (const demo of demos) {
+      demo.querySelector("button").addEventListener("click", () => {
+        const open = demo.querySelector("button").getAttribute("aria-expanded") !== "true";
+        hold(open);
+      });
+    }
+  </script>
+</body>
+</html>
