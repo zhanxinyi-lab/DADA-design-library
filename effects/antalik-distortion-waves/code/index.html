@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>扭曲波换卡</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: #050505;
+      color: #f4f4f5;
+      font-family: system-ui, sans-serif;
+    }
+    .stage {
+      min-height: 100%;
+      display: grid;
+      grid-template-columns: minmax(260px, 380px) minmax(260px, 380px);
+      grid-template-areas:
+        "send credits"
+        "usdc investor";
+      gap: 22px 28px;
+      justify-content: center;
+      align-content: center;
+      padding: 40px 20px 48px;
+    }
+    .send { grid-area: send; height: 520px; }
+    .credits { grid-area: credits; height: 468px; }
+    .usdc { grid-area: usdc; height: 88px; align-self: start; }
+    .investor { grid-area: investor; height: 248px; align-self: start; }
+    .card {
+      position: relative;
+      border-radius: 28px;
+      overflow: hidden;
+      background: #17171a;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .38);
+    }
+    .usdc { border-radius: 999px; }
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: none;
+    }
+    button {
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 3px;
+    }
+    .pill {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      z-index: 2;
+      height: 52px;
+      border: 0;
+      border-radius: 999px;
+      background: #f3f3f4;
+      color: #141414;
+      font-size: 16px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .pill:hover { background: #fff; }
+    .pill.is-busy { background: #dedee2; }
+    .pill .spin {
+      display: none;
+      width: 14px;
+      height: 14px;
+      margin-right: 8px;
+      border-radius: 50%;
+      border: 2px solid #b7b7bc;
+      border-top-color: #222;
+      vertical-align: -2px;
+    }
+    .pill.is-busy .spin { display: inline-block; animation: turn .8s linear infinite; }
+    .badge, .ok {
+      position: absolute;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .send .badge {
+      top: 22px;
+      left: 50%;
+      width: 56px;
+      height: 56px;
+      transform: translateX(-50%);
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: inherit;
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .send .badge .face, .send .badge .ok { pointer-events: none; }
+    .send .badge .ok, .credits .ok { opacity: 0; }
+    .send.show-ok .badge .face { opacity: 0; }
+    .send.show-ok .badge .ok, .credits.show-ok .ok { opacity: 1; }
+    .face, .send .badge .ok, .credits .ok { transition: opacity 160ms linear; }
+    .send .badge .ok, .credits .ok {
+      background: #22c55e;
+      color: #fff;
+    }
+    .send .badge .face, .send .badge .ok { position: absolute; inset: 0; }
+    .credits .ok {
+      top: 22px;
+      left: 50%;
+      width: 44px;
+      height: 44px;
+      transform: translateX(-50%);
+    }
+    .buck {
+      position: absolute;
+      z-index: 2;
+      left: 16px;
+      top: 50%;
+      width: 52px;
+      height: 52px;
+      transform: translateY(-50%);
+      border: 0;
+      border-radius: 50%;
+      background: #2f6fed;
+      color: #fff;
+      font-size: 22px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .buck.is-sent { background: #3a3a3e; font-size: 0; }
+    .buck .mark { display: none; }
+    .buck.is-sent .mark { display: grid; }
+    .buck:active { transform: translateY(-50%) scale(.96); }
+    .view {
+      position: absolute;
+      z-index: 2;
+      right: 16px;
+      top: 50%;
+      height: 36px;
+      padding: 0 14px;
+      transform: translateY(-50%);
+      border: 0;
+      border-radius: 999px;
+      background: #3a3a3e;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 650;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .usdc.is-sent .view { opacity: 1; pointer-events: auto; cursor: pointer; }
+    .view:active { transform: translateY(-50%) scale(.96); }
+    .view.is-down { background: #52525b; }
+    .ghost {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+    .ghost:focus-visible { outline-offset: -6px; }
+    @keyframes turn { to { transform: rotate(360deg); } }
+    @media (max-width: 760px) {
+      .stage {
+        grid-template-columns: minmax(0, 420px);
+        grid-template-areas: "send" "credits" "usdc" "investor";
+        align-content: start;
+      }
+      .send, .credits { height: auto; min-height: 460px; }
+      .send { min-height: 500px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .face, .send .badge .ok, .credits .ok, .view { transition: none; }
+      .pill.is-busy .spin { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <article class="card send">
+      <canvas></canvas>
+      <button type="button" class="badge" aria-label="从头像发出扭曲波">
+        <span class="face">
+          <svg viewBox="0 0 64 64" width="56" height="56">
+            <circle cx="32" cy="32" r="32" fill="#e0a080"/>
+            <circle cx="32" cy="32" r="24" fill="#2c211c"/>
+            <text x="32" y="40" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="700" fill="#f6d7c8">N</text>
+          </svg>
+        </span>
+        <span class="ok">
+          <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+            <path d="M5 12.5 10 17 19 7" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+      </button>
+      <button type="button" class="pill">Confirm</button>
+    </article>
+    <article class="card credits">
+      <canvas></canvas>
+      <div class="ok" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22">
+          <path d="M5 12.5 10 17 19 7" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <button type="button" class="pill"><span class="spin"></span><span class="label">Buy $20 tokens</span></button>
+    </article>
+    <article class="card usdc">
+      <canvas></canvas>
+      <button type="button" class="buck" aria-label="Sending 11.054 USDC">
+        <span class="dollar">$</span>
+        <span class="mark">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M5 12.5 10 17 19 7" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+      </button>
+      <button type="button" class="view">View</button>
+    </article>
+    <article class="card investor">
+      <canvas></canvas>
+      <button type="button" class="ghost" aria-label="Investor update. Q3 at a glance"></button>
+    </article>
+  </main>
+  <script>
+    const DUR = 1200;
+    const reducedQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const VERT = [
+      'attribute vec2 a;',
+      'varying vec2 vUv;',
+      'void main(){',
+      '  vUv = a * 0.5 + 0.5;',
+      '  gl_Position = vec4(a, 0.0, 1.0);',
+      '}'
+    ].join('\n');
+    const FRAG = [
+      'precision mediump float;',
+      'varying vec2 vUv;',
+      'uniform sampler2D uFrom;',
+      'uniform sampler2D uTo;',
+      'uniform vec2 uOrigin;',
+      'uniform float uT;',
+      'uniform vec3 uTint;',
+      'uniform float uActive;',
+      'uniform float uYScale;',
+      'uniform float uReach;',
+      'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
+      'vec2 safe(vec2 q){ return clamp(q, vec2(0.001), vec2(0.999)); }',
+      'vec3 take(sampler2D tex, vec2 uv, vec2 dir, float shift){',
+      '  return vec3(',
+      '    texture2D(tex, safe(uv + dir * shift)).r,',
+      '    texture2D(tex, safe(uv)).g,',
+      '    texture2D(tex, safe(uv - dir * shift)).b);',
+      '}',
+      'void main(){',
+      '  vec2 p = vec2(vUv.x, 1.0 - vUv.y);',
+      '  vec2 origin = uOrigin;',
+      '  float suck = smoothstep(0.0, 0.14, uT) * (1.0 - smoothstep(0.16, 0.40, uT));',
+      '  vec2 p2 = origin + (p - origin) * (1.0 + 0.09 * suck * uActive);',
+      '  float radius = mix(-0.03, uReach, smoothstep(0.30, 0.96, uT));',
+      '  vec2 delta = p2 - origin;',
+      '  delta.y *= uYScale;',
+      '  float dist = length(delta);',
+      '  vec2 dir = dist > 0.0008 ? delta / dist : vec2(0.0, -1.0);',
+      '  vec2 dirUv = vec2(dir.x, dir.y / max(uYScale, 0.2));',
+      '  float ring = exp(-pow((dist - radius) * 8.0, 2.0));',
+      '  float trail = exp(-pow((dist - radius) * 3.4, 2.0));',
+      '  float inside = 1.0 - smoothstep(radius - 0.01, radius + 0.06, dist);',
+      '  float settle = 1.0 - smoothstep(0.86, 1.0, uT);',
+      '  float amp = trail * 0.034 * settle * uActive;',
+      '  vec2 tang = vec2(-dirUv.y, dirUv.x);',
+      '  vec2 warped = p2 + dirUv * sin(dist * 28.0 - uT * 16.0) * amp + tang * sin(dist * 18.0 + uT * 8.0) * amp * 0.35;',
+      '  float shift = trail * 0.022 * settle * uActive;',
+      '  vec3 fromCol = take(uFrom, warped, dirUv, shift);',
+      '  vec3 toCol = take(uTo, warped, dirUv, shift);',
+      '  vec3 col = mix(fromCol, toCol, inside);',
+      '  col *= 1.0 - trail * 0.34 * uActive;',
+      '  float hue = fract(atan(dir.y, dir.x) / 6.28318 + dist * 1.3);',
+      '  vec3 rainbow = 0.55 + 0.45 * cos(6.28318 * (hue + vec3(0.0, 0.33, 0.67)));',
+      '  vec3 glow = mix(rainbow, uTint, 0.38);',
+      '  col += glow * ring * 0.95 * uActive;',
+      '  col += glow * trail * 0.22 * uActive;',
+      '  float spark = step(0.986, hash(floor(warped * vec2(120.0, 160.0))));',
+      '  col += vec3(spark) * ring * uActive;',
+      '  gl_FragColor = vec4(col, 1.0);',
+      '}'
+    ].join('\n');
+
+    function roundPath(ctx, x, y, w, h, r) {
+      const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + w, y, x + w, y + h, radius);
+      ctx.arcTo(x + w, y + h, x, y + h, radius);
+      ctx.arcTo(x, y + h, x, y, radius);
+      ctx.arcTo(x, y, x + w, y, radius);
+      ctx.closePath();
+    }
+    function fillFit(ctx, text, x, y, maxW, weight, size, align, color) {
+      let next = size;
+      ctx.textAlign = align || 'left';
+      ctx.fillStyle = color;
+      do {
+        ctx.font = weight + ' ' + next + 'px system-ui, sans-serif';
+        if (ctx.measureText(text).width <= maxW || next <= 11) break;
+        next -= 1;
+      } while (next > 11);
+      ctx.fillText(text, x, y);
+    }
+    function wrapFill(ctx, text, x, y, maxW, lineH, color) {
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left';
+      const words = text.split(' ');
+      let line = '';
+      let yy = y;
+      words.forEach((word) => {
+        const test = line ? line + ' ' + word : word;
+        if (line && ctx.measureText(test).width > maxW) {
+          ctx.fillText(line, x, yy);
+          line = word;
+          yy += lineH;
+        } else line = test;
+      });
+      if (line) ctx.fillText(line, x, yy);
+    }
+    function checkRow(ctx, x, y, label, maxW) {
+      ctx.beginPath();
+      ctx.arc(x + 8, y - 4, 8, 0, Math.PI * 2);
+      ctx.strokeStyle = '#8d8d95';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y - 4);
+      ctx.lineTo(x + 7.2, y - 1);
+      ctx.lineTo(x + 13, y - 8);
+      ctx.strokeStyle = '#e4e4e7';
+      ctx.stroke();
+      fillFit(ctx, label, x + 24, y, maxW, '500', 14, 'left', '#f4f4f5');
+    }
+    function paintSend(ctx, w, h, state) {
+      ctx.fillStyle = '#17171a';
+      ctx.fillRect(0, 0, w, h);
+      fillFit(ctx, state ? 'Sent to Nia Cole' : 'Sending to Nia Cole', w / 2, 112, w - 48, '600', 15, 'center', '#d4d4d8');
+      fillFit(ctx, '$1,250.00', w / 2, 158, w - 36, '700', 40, 'center', '#f7f7f8');
+      const x = 18;
+      const y = 180;
+      const pw = w - 36;
+      const ph = Math.max(120, h - 180 - 88);
+      roundPath(ctx, x, y, pw, ph, 18);
+      ctx.fillStyle = '#242428';
+      ctx.fill();
+      const rows = state
+        ? [['From', 'Harbor · 4821'], ['Arrived', '9:41 AM'], ['Fee', 'Free'], ['Note', 'Desk lease']]
+        : [['From', 'Harbor · 4821'], ['Arrives', 'In seconds'], ['Fee', 'Free'], ['Note', 'Desk lease']];
+      rows.forEach((row, i) => {
+        const ry = y + 36 + i * (ph - 28) / rows.length;
+        fillFit(ctx, row[0], x + 16, ry, pw * 0.42, '500', 15, 'left', '#9b9ba3');
+        fillFit(ctx, row[1], x + pw - 16, ry, pw * 0.5, '600', 15, 'right', '#f4f4f5');
+      });
+    }
+    function paintCredits(ctx, w, h, state) {
+      ctx.fillStyle = '#17171a';
+      ctx.fillRect(0, 0, w, h);
+      if (!state) {
+        roundPath(ctx, w / 2 - 18, 26, 36, 36, 18);
+        ctx.fillStyle = '#2a2a2e';
+        ctx.fill();
+        ctx.strokeStyle = '#e4e4e7';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(w / 2 - 7, 35, 10, 13);
+        ctx.strokeRect(w / 2 - 1, 39, 10, 13);
+      }
+      fillFit(ctx, state ? 'Credits added' : 'Add credits', w / 2, state ? 112 : 96, w - 40, '700', 28, 'center', '#f7f7f8');
+      fillFit(ctx, state ? 'Current balance: $85.73' : 'Current balance: $65.73', w / 2, state ? 142 : 124, w - 40, '500', 14, 'center', '#a1a1aa');
+      const boxY = state ? 166 : 148;
+      const boxH = Math.max(108, h - boxY - 88);
+      roundPath(ctx, 18, boxY, w - 36, boxH, 16);
+      ctx.fillStyle = '#242428';
+      ctx.fill();
+      const lines = ['Balance becomes $85.73 now', 'Credits cover rewrites', 'Credits do not expire'];
+      lines.forEach((line, i) => checkRow(ctx, 34, boxY + 36 + i * (boxH / 3.3), line, w - 110));
+    }
+    function paintUsdc(ctx, w, h, state) {
+      ctx.fillStyle = '#17171a';
+      ctx.fillRect(0, 0, w, h);
+      fillFit(ctx, state ? 'Sent 11.054 USDC' : 'Sending 11.054 USDC', 86, h / 2 - 2, w - 176, '700', 16, 'left', '#f4f4f5');
+      fillFit(ctx, 'To K4nQ...m8Lp', 86, h / 2 + 20, w - 176, '500', 13, 'left', '#9b9ba3');
+      if (!state) {
+        ctx.beginPath();
+        ctx.arc(w - 32, h / 2, 11, 0, Math.PI * 2);
+        ctx.strokeStyle = '#3f3f46';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+    function paintInvestor(ctx, w, h, state) {
+      ctx.fillStyle = '#17171a';
+      ctx.fillRect(0, 0, w, h);
+      roundPath(ctx, 20, 20, 26, 26, 8);
+      ctx.fillStyle = '#2a2a2e';
+      ctx.fill();
+      ctx.strokeStyle = '#e4e4e7';
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(27, 26, 12, 14);
+      ctx.beginPath();
+      ctx.moveTo(33, 26);
+      ctx.lineTo(39, 32);
+      ctx.lineTo(33, 32);
+      ctx.closePath();
+      ctx.stroke();
+      fillFit(ctx, 'Investor update', 56, 32, w - 76, '700', 15, 'left', '#f4f4f5');
+      fillFit(ctx, 'Draft · Edited 2 min ago', 56, 52, w - 76, '500', 13, 'left', '#9b9ba3');
+      fillFit(ctx, state ? 'A strong third quarter' : 'Q3 at a glance', 20, 108, w - 40, '700', 22, 'left', '#f7f7f8');
+      ctx.font = '500 15px system-ui, sans-serif';
+      wrapFill(
+        ctx,
+        state
+          ? 'Transfers cleared faster and cost less. Two new payout partners went live this week.'
+          : 'Volume held steady while payouts got shorter. The average fee on this book is $0.002.',
+        20,
+        140,
+        w - 40,
+        22,
+        '#c9c9cf'
+      );
+    }
+
+    const painters = { send: paintSend, credits: paintCredits, usdc: paintUsdc, investor: paintInvestor };
+    const root = document.querySelector('.stage');
+    const specs = [
+      { id: 'send', tint: [1.0, 0.4, 0.72], trigger: '.pill' },
+      { id: 'credits', tint: [0.35, 0.95, 0.48], trigger: '.pill' },
+      { id: 'usdc', tint: [0.3, 0.66, 1.0], trigger: '.buck' },
+      { id: 'investor', tint: [0.72, 0.5, 1.0], trigger: '.ghost' }
+    ];
+    const widgets = specs.map((spec) => {
+      const el = root.querySelector('.' + spec.id);
+      const canvas = el.querySelector('canvas');
+      const offFrom = document.createElement('canvas');
+      const offTo = document.createElement('canvas');
+      return {
+        ...spec,
+        el,
+        canvas,
+        trigger: el.querySelector(spec.trigger),
+        offFrom,
+        offTo,
+        state: 0,
+        fromState: 0,
+        toState: 0,
+        busy: false,
+        gl: null,
+        mode: 'gl'
+      };
+    });
+
+    function compile(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    }
+    function detachFlat(widget) {
+      const flat = document.createElement('canvas');
+      flat.setAttribute('aria-hidden', 'true');
+      widget.canvas.replaceWith(flat);
+      widget.canvas = flat;
+    }
+    function setupGL(widget) {
+      const gl = widget.canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false });
+      if (!gl) return false;
+      const vs = compile(gl, gl.VERTEX_SHADER, VERT);
+      const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
+      if (!vs || !fs) {
+        detachFlat(widget);
+        return false;
+      }
+      const prog = gl.createProgram();
+      gl.attachShader(prog, vs);
+      gl.attachShader(prog, fs);
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        detachFlat(widget);
+        return false;
+      }
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(prog, 'a');
+      function makeTex() {
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        return tex;
+      }
+      widget.gl = gl;
+      widget.prog = prog;
+      widget.buf = buf;
+      widget.loc = loc;
+      widget.texFrom = makeTex();
+      widget.texTo = makeTex();
+      widget.uFrom = gl.getUniformLocation(prog, 'uFrom');
+      widget.uTo = gl.getUniformLocation(prog, 'uTo');
+      widget.uOrigin = gl.getUniformLocation(prog, 'uOrigin');
+      widget.uT = gl.getUniformLocation(prog, 'uT');
+      widget.uTint = gl.getUniformLocation(prog, 'uTint');
+      widget.uActive = gl.getUniformLocation(prog, 'uActive');
+      widget.uYScale = gl.getUniformLocation(prog, 'uYScale');
+      widget.uReach = gl.getUniformLocation(prog, 'uReach');
+      widget.mode = 'gl';
+      return true;
+    }
+    function measure(widget) {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const cssW = Math.max(1, widget.canvas.clientWidth);
+      const cssH = Math.max(1, widget.canvas.clientHeight);
+      return { dpr, cssW, cssH, W: Math.round(cssW * dpr), H: Math.round(cssH * dpr) };
+    }
+    function paintOff(canvas, painter, state, box) {
+      canvas.width = box.W;
+      canvas.height = box.H;
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(box.dpr, 0, 0, box.dpr, 0, 0);
+      painter(ctx, box.cssW, box.cssH, state);
+    }
+    function upload(widget) {
+      const gl = widget.gl;
+      gl.bindTexture(gl.TEXTURE_2D, widget.texFrom);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, widget.offFrom);
+      gl.bindTexture(gl.TEXTURE_2D, widget.texTo);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, widget.offTo);
+    }
+    function originOf(widget, fromEl) {
+      const card = widget.el.getBoundingClientRect();
+      const trg = (fromEl || widget.trigger).getBoundingClientRect();
+      const w = card.width || 1;
+      const h = card.height || 1;
+      return {
+        x: (trg.left + trg.width / 2 - card.left) / w,
+        y: (trg.top + trg.height / 2 - card.top) / h
+      };
+    }
+    function reachOf(origin, yScale) {
+      let max = 0.2;
+      [[0, 0], [1, 0], [0, 1], [1, 1]].forEach(([x, y]) => {
+        max = Math.max(max, Math.hypot(x - origin.x, (y - origin.y) * yScale));
+      });
+      return max + 0.06;
+    }
+    function fitWave(widget, fromEl) {
+      widget.box = measure(widget);
+      widget.origin = originOf(widget, fromEl);
+      widget.yScale = widget.box.cssH / widget.box.cssW;
+      widget.reach = reachOf(widget.origin, widget.yScale);
+    }
+    function drawGL(widget, t, active) {
+      const gl = widget.gl;
+      const box = widget.box;
+      if (widget.canvas.width !== box.W || widget.canvas.height !== box.H) {
+        widget.canvas.width = box.W;
+        widget.canvas.height = box.H;
+      }
+      gl.useProgram(widget.prog);
+      gl.bindBuffer(gl.ARRAY_BUFFER, widget.buf);
+      gl.enableVertexAttribArray(widget.loc);
+      gl.vertexAttribPointer(widget.loc, 2, gl.FLOAT, false, 0, 0);
+      gl.viewport(0, 0, box.W, box.H);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, widget.texFrom);
+      gl.uniform1i(widget.uFrom, 0);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, widget.texTo);
+      gl.uniform1i(widget.uTo, 1);
+      const origin = widget.origin || { x: 0.5, y: 0.8 };
+      gl.uniform2f(widget.uOrigin, origin.x, origin.y);
+      gl.uniform1f(widget.uT, t);
+      gl.uniform3fv(widget.uTint, widget.tint);
+      gl.uniform1f(widget.uActive, active);
+      gl.uniform1f(widget.uYScale, widget.yScale || 1);
+      gl.uniform1f(widget.uReach, widget.reach || 1.4);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    function draw2D(widget, state) {
+      const box = widget.box;
+      widget.canvas.width = box.W;
+      widget.canvas.height = box.H;
+      const ctx = widget.canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.setTransform(box.dpr, 0, 0, box.dpr, 0, 0);
+      painters[widget.id](ctx, box.cssW, box.cssH, state);
+    }
+    function renderStill(widget) {
+      fitWave(widget);
+      if (widget.mode === 'gl') {
+        paintOff(widget.offFrom, painters[widget.id], widget.state, widget.box);
+        paintOff(widget.offTo, painters[widget.id], widget.state, widget.box);
+        upload(widget);
+        drawGL(widget, 1, 0);
+      } else draw2D(widget, widget.state);
+    }
+    function chrome(widget, which) {
+      if (widget.id === 'send') {
+        widget.trigger.textContent = which === 'b' ? 'Done' : 'Confirm';
+        widget.el.classList.toggle('show-ok', which === 'b');
+      } else if (widget.id === 'credits') {
+        const label = widget.trigger.querySelector('.label');
+        widget.trigger.classList.toggle('is-busy', which === 'busy');
+        widget.el.classList.toggle('show-ok', which === 'b');
+        label.textContent = which === 'b' ? 'Done' : which === 'busy' ? 'Processing…' : 'Buy $20 tokens';
+      } else if (widget.id === 'usdc') {
+        const sent = which === 'b';
+        widget.trigger.classList.toggle('is-sent', sent);
+        widget.el.classList.toggle('is-sent', sent);
+        widget.trigger.setAttribute('aria-label', sent ? 'Sent 11.054 USDC' : 'Sending 11.054 USDC');
+      } else {
+        widget.trigger.setAttribute('aria-label', which === 'b'
+          ? 'Investor update. A strong third quarter'
+          : 'Investor update. Q3 at a glance');
+      }
+    }
+    function chromeFor(widget, fromState, toState, t) {
+      if (widget.id === 'credits' && fromState === 0 && toState === 1 && t < 0.66) return 'busy';
+      const gate = widget.id === 'usdc' ? 0.48 : 0.66;
+      const shown = t < gate ? fromState : toState;
+      return shown ? 'b' : 'a';
+    }
+    let raf = 0;
+    function frame(now) {
+      let live = false;
+      widgets.forEach((widget) => {
+        if (!widget.busy) return;
+        live = true;
+        const t = Math.min(1, (now - widget.t0) / DUR);
+        chrome(widget, chromeFor(widget, widget.fromState, widget.toState, t));
+        if (widget.mode === 'gl') drawGL(widget, t, 1);
+        if (t >= 1) {
+          widget.busy = false;
+          widget.state = widget.toState;
+          chrome(widget, widget.state ? 'b' : 'a');
+          renderStill(widget);
+        }
+      });
+      raf = live ? requestAnimationFrame(frame) : 0;
+    }
+    function start(widget, fromEl) {
+      if (widget.busy) return;
+      const next = widget.state ? 0 : 1;
+      if (reducedQuery.matches || widget.mode !== 'gl') {
+        widget.state = next;
+        chrome(widget, next ? 'b' : 'a');
+        renderStill(widget);
+        return;
+      }
+      widget.fromState = widget.state;
+      widget.toState = next;
+      fitWave(widget, fromEl);
+      paintOff(widget.offFrom, painters[widget.id], widget.fromState, widget.box);
+      paintOff(widget.offTo, painters[widget.id], widget.toState, widget.box);
+      upload(widget);
+      widget.busy = true;
+      widget.t0 = performance.now();
+      chrome(widget, chromeFor(widget, widget.fromState, widget.toState, 0));
+      drawGL(widget, 0, 1);
+      if (!raf) raf = requestAnimationFrame(frame);
+    }
+
+    widgets.forEach((widget) => {
+      if (!setupGL(widget)) widget.mode = '2d';
+      chrome(widget, 'a');
+      widget.trigger.addEventListener('click', () => start(widget));
+      if (widget.id === 'send') {
+        widget.el.querySelector('.badge').addEventListener('click', (event) => {
+          event.stopPropagation();
+          start(widget, event.currentTarget);
+        });
+      }
+    });
+    const view = root.querySelector('.view');
+    view.addEventListener('click', (event) => {
+      event.stopPropagation();
+      view.classList.add('is-down');
+      window.setTimeout(() => view.classList.remove('is-down'), 160);
+    });
+    function settle() {
+      widgets.forEach((widget) => { if (!widget.busy) renderStill(widget); });
+    }
+    settle();
+    window.addEventListener('resize', settle);
+    if (window.ResizeObserver) new ResizeObserver(settle).observe(root);
+    reducedQuery.addEventListener?.('change', () => {
+      widgets.forEach((widget) => {
+        if (!widget.busy) return;
+        widget.busy = false;
+        widget.state = widget.toState;
+        chrome(widget, widget.state ? 'b' : 'a');
+        renderStill(widget);
+      });
+    });
+  </script>
+</body>
+</html>
