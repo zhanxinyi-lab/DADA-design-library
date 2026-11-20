@@ -3,7 +3,7 @@
 - 作者：@jesper_alpacka
 - 分类：品牌 · 网页交互
 - 状态：ai_recreated
-- 版本：1.0.0
+- 版本：1.0.1
 - 原文：https://x.com/jesper_alpacka/status/2123334184257089803
 - 素材 ID：2123334184257089803
 
