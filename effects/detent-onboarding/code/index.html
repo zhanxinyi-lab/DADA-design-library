@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Detent onboarding</title>
+  <style>
+    :root {
+      --bg: #f7f6f4;
+      --ink: #2a2a2a;
+      --muted: #8f8f8f;
+      --line: #eceae6;
+      --green: #1f9d55;
+      --black: #1c1c1c;
+      --soft: #f3f2f0;
+      --side: #f3f2ef;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color-scheme: light;
+    }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: default; }
+    .app {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 18px 28px 6px;
+      position: relative;
+      z-index: 2;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-self: start;
+      background: none;
+      border: 0;
+      padding: 0;
+      font-weight: 650;
+      letter-spacing: -0.03em;
+    }
+    .mark {
+      width: 22px;
+      height: 22px;
+      border-radius: 7px;
+      background: #161616;
+      display: grid;
+      place-items: center;
+    }
+    .mark i {
+      width: 4px;
+      height: 11px;
+      border-radius: 2px;
+      background: #fff;
+      display: block;
+    }
+    .route {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      justify-self: center;
+    }
+    .segs { display: flex; gap: 7px; }
+    .seg {
+      width: 26px;
+      height: 4px;
+      border-radius: 99px;
+      background: #e3e1dc;
+      display: block;
+      transition: background .35s ease;
+    }
+    .seg.now { background: var(--black); }
+    .seg.done { background: var(--green); }
+    .step-label { font-size: 13px; color: #8d8d8d; min-width: 72px; }
+    main {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(320px, 46%) 1fr;
+      grid-template-rows: minmax(0, 1fr);
+      position: relative;
+      z-index: 1;
+    }
+    .left {
+      display: flex;
+      align-items: center;
+      padding: 8px 28px 28px 48px;
+      transition: opacity .28s ease, transform .28s ease;
+    }
+    .left.out { opacity: 0; transform: translateY(8px); }
+    .panel { width: min(540px, 100%); }
+    h1 {
+      margin: 0 0 22px;
+      font-size: 28px;
+      font-weight: 600;
+      font-style: normal;
+      letter-spacing: -0.035em;
+      line-height: 1.28;
+      color: #2f2f2f;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .card, .person, .tmpl {
+      width: 100%;
+      text-align: left;
+      background: #fff;
+      border: 1px solid #eeeae4;
+      border-radius: 14px;
+      box-shadow: 0 1px 1px rgba(40, 30, 20, .03);
+    }
+    .card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      min-height: 58px;
+    }
+    .card.on { background: #f3fbf6; border-color: #e1f2e8; }
+    .card .nm { font-weight: 650; font-size: 14px; display: block; }
+    .card .sub {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 148px;
+    }
+    .tail { margin-left: auto; color: #b5b5b5; flex: none; }
+    .tile {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex: none;
+    }
+    .tile.sm { width: 18px; height: 18px; border-radius: 5px; font-size: 10px; }
+    .ok {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+    }
+    .spin {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 2px solid #e4e4e4;
+      border-top-color: #222;
+      display: block;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .actions { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+    .primary {
+      border: 0;
+      border-radius: 12px;
+      min-width: 148px;
+      height: 40px;
+      padding: 0 16px;
+      background: var(--black);
+      color: #fff;
+      font-weight: 600;
+    }
+    .primary:disabled { background: var(--soft); color: #c5c5c5; }
+    .texty {
+      border: 0;
+      background: none;
+      color: #6f6f6f;
+      padding: 8px;
+    }
+    .note { margin: 12px 0 0; color: #a0a0a0; font-size: 13px; }
+    .people { display: flex; flex-direction: column; gap: 8px; }
+    .person {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      min-height: 52px;
+    }
+    .person.pick { background: #f7f7f7; }
+    .blob {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      flex: none;
+      display: block;
+    }
+    .person .nm { font-weight: 650; font-size: 14px; display: block; }
+    .person .sub { color: var(--muted); font-size: 12px; }
+    .add { margin-left: auto; color: #9a9a9a; font-size: 13px; }
+    .invited { margin-left: auto; color: var(--green); font-size: 13px; font-weight: 650; }
+    .tick {
+      margin-left: auto;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #3d6bff;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+    }
+    .tmpls { display: flex; flex-direction: column; gap: 10px; }
+    .tmpl {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px;
+    }
+    .tmpl b { display: block; font-size: 14px; }
+    .tmpl small { display: block; margin-top: 3px; color: #9a9a9a; font-size: 12.5px; line-height: 1.35; }
+    .tmpl.on { background: #f6f6ff; border-color: #c9c6f5; box-shadow: 0 0 0 1px #c9c6f5; }
+    .meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+    .minis { display: flex; }
+    .minis .tile { margin-left: -4px; box-shadow: 0 0 0 2px #fff; }
+    .minis .tile:first-child { margin-left: 0; }
+    .meta small { margin: 0; font-size: 11px; }
+    .checks { list-style: none; margin: 0; padding: 0; max-width: 460px; }
+    .checks li {
+      display: grid;
+      grid-template-columns: 22px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 11px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 15px;
+    }
+    .checks small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+    .dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      margin-top: 1px;
+    }
+    .dot.yes { background: var(--green); color: #fff; font-size: 11px; }
+    .dot.mid { border: 2px solid #d5d5d5; }
+    .stage {
+      margin: 8px 22px 16px 4px;
+      position: relative;
+      min-height: 0;
+      align-self: stretch;
+      display: flex;
+    }
+    .window {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      height: auto;
+      min-height: 0;
+      background: #fff;
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 24px 70px rgba(60, 40, 20, .08);
+      display: flex;
+      flex-direction: column;
+      border: 1px solid rgba(255, 255, 255, .7);
+    }
+    .window::after {
+      content: "";
+      position: absolute;
+      left: -20px;
+      bottom: -60px;
+      width: 150px;
+      height: 120px;
+      background: radial-gradient(circle, rgba(255, 196, 170, .55), transparent 70%);
+      pointer-events: none;
+    }
+    .cap {
+      background: linear-gradient(100deg, #e4e1fb 0%, #ece7f8 48%, #f4ece8 100%);
+      color: #8b8796;
+      font-size: 13px;
+      padding: 16px 18px 10px;
+    }
+    .chrome {
+      position: relative;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      background: linear-gradient(#fff, #fff);
+    }
+    .dots { display: flex; gap: 6px; }
+    .dots i { width: 8px; height: 8px; border-radius: 50%; background: #e0dee6; display: block; }
+    .url {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #f2f1f5;
+      color: #9b98a4;
+      font-size: 12px;
+      border-radius: 999px;
+      padding: 4px 12px;
+    }
+    .body { flex: 1; min-height: 0; display: flex; }
+    .side {
+      width: 232px;
+      background: var(--side);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border-right: 1px solid #f0eeea;
+    }
+    .side-scroll { flex: 1; overflow: auto; padding: 16px 14px 8px; }
+    .harbor { display: flex; align-items: center; gap: 8px; font-weight: 650; margin-bottom: 16px; }
+    .harbor .blob { width: 18px; height: 18px; }
+    .k { color: #a3a3a3; font-size: 12px; margin: 12px 0 6px; }
+    .srow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 28px;
+      font-size: 13px;
+      padding: 3px 0;
+    }
+    .ghost { color: #c4c4c4; font-size: 13px; padding: 3px 0 3px 26px; }
+    .live {
+      margin-left: auto;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+    .foot {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px;
+      border-top: 1px solid #ebe8e3;
+      font-size: 13px;
+      color: #6f6f6f;
+    }
+    .stack { display: flex; }
+    .stack i {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      margin-left: -5px;
+      box-shadow: 0 0 0 2px var(--side);
+      display: block;
+    }
+    .stack i:first-child { margin-left: 0; }
+    .foot.pop .stack i { animation: pop .35s ease; }
+    @keyframes pop { from { transform: scale(.7); } to { transform: none; } }
+    .feed { flex: 1; min-width: 0; overflow: auto; padding: 18px 20px 24px; background: #fff; }
+    .feed h2 { margin: 0 0 8px; font-size: 14px; font-weight: 700; }
+    .arow {
+      display: grid;
+      grid-template-columns: 22px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 7px 0;
+      font-size: 13.5px;
+      line-height: 1.35;
+      position: relative;
+    }
+    .arow b { font-weight: 700; }
+    .bullet {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      position: relative;
+      z-index: 1;
+    }
+    .bullet.round { border-radius: 50%; }
+    .arow .stem {
+      position: absolute;
+      left: 8px;
+      top: 24px;
+      bottom: -8px;
+      width: 1px;
+      background: #e6e6e6;
+    }
+    .stem { display: none; }
+    #acts .slot { position: relative; }
+    #acts .slot:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      left: 8px;
+      top: 20px;
+      bottom: -4px;
+      width: 1px;
+      background: #e4e4e4;
+    }
+    .slot { display: grid; grid-template-rows: 0fr; opacity: 0; }
+    .slot.in { grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .46s ease, opacity .46s ease; }
+    .slot.instant { transition: none; }
+    .inn { overflow: hidden; min-height: 0; }
+    .slot.in:not(.instant) .inn { animation: wash .7s ease; }
+    @keyframes wash { from { background: #f4f7ff; } to { background: transparent; } }
+    .job {
+      margin-top: 14px;
+      border: 1px solid #eee;
+      border-radius: 16px;
+      padding: 14px 14px 12px;
+      box-shadow: 0 8px 24px rgba(30, 20, 10, .04);
+    }
+    .job-h { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; margin-bottom: 8px; }
+    .job-h p { margin: 0; line-height: 1.4; }
+    .job-h span { color: #666; font-weight: 400; }
+    .job ul { list-style: none; margin: 0; padding: 0; }
+    .job li {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: 8px;
+      align-items: center;
+      padding: 5px 0;
+      color: #8a8a8a;
+      font-size: 13px;
+    }
+    .job li.done { color: #2b2b2b; }
+    .pip { width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; }
+    .pip.done { background: var(--green); color: #fff; }
+    .pip.run { border: 2px solid #cfcfcf; }
+    .pip.wait { color: #ccc; }
+    .banner {
+      margin-top: 8px;
+      background: #e8f7ee;
+      color: #17864a;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 13px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      animation: rise .4s ease;
+    }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100%; overflow: auto; }
+      header { grid-template-columns: 1fr; gap: 10px; }
+      .route { justify-self: start; }
+      main { display: block; }
+      .left { padding: 12px 16px 8px; }
+      h1 { font-size: 22px; }
+      .stage { height: 560px; margin: 8px 12px 20px; }
+      .side { width: 42%; }
+      .card .sub { max-width: 92px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .slot, .left, .seg, .slot.in .inn { transition: none !important; animation: none !important; }
+      .spin { animation: none; border-top-color: #222; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <button class="brand" id="logo" type="button" aria-label="Detent, start over">
+        <span class="mark"><i></i></span>
+        <span id="brand-name">Detent</span>
+      </button>
+      <div class="route" aria-hidden="true">
+        <span class="segs" id="segs"></span>
+        <span class="step-label" id="step-label">Step 1 of 4</span>
+      </div>
+    </header>
+    <main>
+      <section class="left" id="left"></section>
+      <section class="stage">
+        <div class="window">
+          <div class="cap" id="cap-label">Your workspace, so far</div>
+          <div class="chrome">
+            <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="url" id="host-label">harbor.detent.app</span>
+          </div>
+          <div class="body">
+            <aside class="side">
+              <div class="side-scroll">
+                <div class="harbor"><i class="blob" id="ws-dot"></i><span id="ws-name">Harbor</span></div>
+                <div class="k">Tools</div>
+                <div id="tool-list"></div>
+                <div class="k">Agents</div>
+                <div id="agent-list"></div>
+              </div>
+              <div class="foot" id="foot"></div>
+            </aside>
+            <section class="feed">
+              <h2>Activity</h2>
+              <div id="acts"></div>
+              <div id="job-mount"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>
+    const BRAND = {
+      name: "Detent",
+      workspace: "Harbor",
+      host: "harbor.detent.app",
+      you: "#d28adf",
+      workspaceColor: "#4c8dff"
+    };
+
+    const TOOLS = [
+      { id: "github", name: "GitHub", resource: "harbor-labs", letter: "G", color: "#24292f" },
+      { id: "linear", name: "Linear", resource: "Harbor", letter: "L", color: "#5e6ad2" },
+      { id: "intercom", name: "Intercom", resource: "Harbor Support", letter: "I", color: "#2f80ed" },
+      { id: "notion", name: "Notion", resource: "Harbor Wiki", letter: "N", color: "#191919" },
+      { id: "pagerduty", name: "PagerDuty", resource: "Harbor On-call", letter: "P", color: "#06ac38" },
+      { id: "grafana", name: "Grafana", resource: "Harbor Graphs", letter: "G", color: "#f46800" }
+    ];
+
+    const PEOPLE = [
+      { id: "priya", name: "Priya Raman", first: "Priya", email: "priya@harbor.dev", color: "#3dbe8c" },
+      { id: "leo", name: "Leo Okafor", first: "Leo", email: "leo@harbor.dev", color: "#f08a82" },
+      { id: "jun", name: "Jun Park", first: "Jun", email: "jun@harbor.dev", color: "#5eb0f0" },
+      { id: "sam", name: "Sam Ortiz", first: "Sam", email: "sam@harbor.dev", color: "#f0b429" }
+    ];
+
+    const TEMPLATES = [
+      {
+        id: "triage",
+        name: "Support triage",
+        blurb: "Sorts new conversations and drafts replies from your docs.",
+        tools: ["intercom", "notion", "linear"],
+        jobTitle: "Sort the newest support conversations",
+        steps: [
+          "Reading 6 new conversations in Intercom",
+          "Checking the refund policy in Notion",
+          "Filing a bug in Linear",
+          "Drafting 4 replies"
+        ],
+        result: "Sorted 6 conversations, drafted 4 replies and filed 1 bug."
+      },
+      {
+        id: "incident",
+        name: "Incident responder",
+        blurb: "Joins incidents, reads the graphs and writes the timeline.",
+        tools: ["pagerduty", "grafana"],
+        jobTitle: "Open the newest incident",
+        steps: [
+          "Reading the latest page in PagerDuty",
+          "Checking the error graphs in Grafana",
+          "Noting when the spike started",
+          "Drafting the timeline"
+        ],
+        result: "Opened 1 incident and drafted the timeline."
+      },
+      {
+        id: "review",
+        name: "PR reviewer",
+        blurb: "Reviews pull requests and answers comments with fixes.",
+        tools: ["github", "linear"],
+        jobTitle: "Review the newest pull requests",
+        steps: [
+          "Reading 3 open pull requests in GitHub",
+          "Checking the failing test in GitHub",
+          "Drafting comments for Linear",
+          "Suggesting one fix"
+        ],
+        result: "Reviewed 3 pull requests and suggested 1 fix."
+      }
+    ];
+
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const WAIT = reduced ? 16 : 760;
+    const JOB = reduced ? 16 : 900;
+
+    const state = {
+      step: 1,
+      tools: Object.fromEntries(TOOLS.map((t) => [t.id, "idle"])),
+      order: [],
+      picked: {},
+      sent: [],
+      template: null,
+      created: false,
+      jobAt: 0,
+      jobDone: false
+    };
+    let epoch = 0;
+    let shownStep = 0;
+    let jobTimer = 0;
+
+    const $ = (id) => document.getElementById(id);
+    const toolBy = (id) => TOOLS.find((t) => t.id === id);
+    const personBy = (id) => PEOPLE.find((p) => p.id === id);
+    const templateBy = (id) => TEMPLATES.find((t) => t.id === id);
+    const connected = () => state.order.filter((id) => state.tools[id] === "connected");
+    const pickedIds = () => PEOPLE.filter((p) => state.picked[p.id]).map((p) => p.id);
+
+    function later(ms, fn) {
+      const e = epoch;
+      return setTimeout(() => { if (e === epoch) fn(); }, ms);
+    }
+
+    function names(ids) {
+      const list = ids.map((id) => personBy(id).first);
+      if (list.length <= 1) return list[0] || "";
+      if (list.length === 2) return list[0] + " and " + list[1];
+      return list.slice(0, -1).join(", ") + " and " + list[list.length - 1];
+    }
+
+    function countLabel(n, one, many) {
+      return n + " " + (n === 1 ? one : many);
+    }
+
+    function tile(letter, color, small) {
+      return '<span class="tile' + (small ? " sm" : "") + '" style="background:' + color + '">' + letter + "</span>";
+    }
+
+    function check() { return '<span class="ok">✓</span>'; }
+
+    function renderRoute() {
+      $("step-label").textContent = state.jobDone ? "All set" : "Step " + state.step + " of 4";
+      $("segs").innerHTML = [0, 1, 2, 3].map((i) => {
+        let cls = "seg";
+        if (state.jobDone || i < state.step - 1) cls += " done";
+        else if (i === state.step - 1) cls += " now";
+        return '<i class="' + cls + '"></i>';
+      }).join("");
+    }
+
+    function renderLeft(fade) {
+      const pane = $("left");
+      const paint = () => {
+        pane.innerHTML = '<div class="panel">' + leftHTML() + "</div>";
+        pane.classList.remove("out");
+      };
+      if (fade) {
+        pane.classList.add("out");
+        later(reduced ? 0 : 180, paint);
+      } else paint();
+    }
+
+    function leftHTML() {
+      if (state.step === 1) return stepTools();
+      if (state.step === 2) return stepPeople();
+      if (state.step === 3) return stepTemplates();
+      return stepJob();
+    }
+
+    function stepTools() {
+      const ready = connected().length > 0;
+      const cards = TOOLS.map((t) => {
+        const st = state.tools[t.id];
+        const sub = st === "connected" ? "Connected · " + t.resource
+          : st === "waiting" ? "Waiting for " + t.resource + "..."
+          : "Not connected";
+        const tail = st === "connected" ? check() : st === "waiting" ? '<i class="spin"></i>' : "+";
+        return '<button class="card' + (st === "connected" ? " on" : "") + '" type="button" data-act="tool" data-id="' + t.id + '"'
+          + (st === "idle" ? "" : " disabled") + ">"
+          + tile(t.letter, t.color)
+          + "<span><b class=\"nm\">" + t.name + "</b><span class=\"sub\">" + sub + "</span></span>"
+          + '<span class="tail">' + tail + "</span></button>";
+      }).join("");
+      return "<h1>Connect your tools. Detent works where your team already does. Add a few now, more any time.</h1>"
+        + '<div class="grid">' + cards + "</div>"
+        + '<div class="actions"><button class="primary" type="button" data-act="continue"' + (ready ? "" : " disabled") + ">"
+        + (ready ? "Continue →" : "Continue") + "</button></div>";
+    }
+
+    function stepPeople() {
+      const ids = pickedIds();
+      const sent = state.sent.length > 0;
+      const rows = PEOPLE.map((p) => {
+        const on = !!state.picked[p.id];
+        let tail = '<span class="add">+ Add</span>';
+        if (sent && on) tail = '<span class="invited">Invited</span>';
+        else if (on) tail = '<span class="tick">✓</span>';
+        return '<button class="person' + (on && !sent ? " pick" : "") + '" type="button" data-act="person" data-id="' + p.id + '"'
+          + (sent ? " disabled" : "") + ">"
+          + '<i class="blob" style="background:' + p.color + '"></i>'
+          + "<span><b class=\"nm\">" + p.name + "</b><span class=\"sub\">" + p.email + "</span></span>"
+          + tail + "</button>";
+      }).join("");
+      let primary;
+      if (sent) primary = '<button class="primary" type="button" data-act="continue">Continue →</button>';
+      else if (ids.length) primary = '<button class="primary" type="button" data-act="send">Send ' + ids.length + (ids.length === 1 ? " invite" : " invites") + " →</button>";
+      else primary = '<button class="primary" type="button" data-act="skip">Skip for now →</button>';
+      const note = sent
+        ? state.sent.length + (state.sent.length === 1 ? " invite sent. " : " invites sent. ") + "They'll show as pending until they join."
+        : "Or invite anyone by email later, from Settings.";
+      return "<h1>Invite your team. They're already in your GitHub organization. Pick who should join.</h1>"
+        + '<div class="people">' + rows + "</div>"
+        + '<p class="note">' + note + "</p>"
+        + '<div class="actions">' + primary + '<button class="texty" type="button" data-act="back">Back</button></div>';
+    }
+
+    function stepTemplates() {
+      const cards = TEMPLATES.map((t) => {
+        const have = t.tools.filter((id) => state.tools[id] === "connected").length;
+        const icons = t.tools.map((id) => {
+          const tool = toolBy(id);
+          return tile(tool.letter, tool.color, true);
+        }).join("");
+        const on = state.template === t.id;
+        return '<button class="tmpl' + (on ? " on" : "") + '" type="button" data-act="template" data-id="' + t.id + '"'
+          + (state.created ? " disabled" : "") + ">"
+          + "<span><b>" + t.name + "</b><small>" + t.blurb + "</small></span>"
+          + '<span class="meta"><span class="minis">' + icons + "</span><small>" + have + " of " + t.tools.length + " connected</small></span></button>";
+      }).join("");
+      const primary = state.created
+        ? '<button class="primary" type="button" data-act="continue">Continue →</button>'
+        : '<button class="primary" type="button" data-act="create"' + (state.template ? "" : " disabled") + ">"
+          + (state.template ? "Create agent →" : "Create agent") + "</button>";
+      return "<h1>Create your first agent. Start from a template. It works with the tools you connected.</h1>"
+        + '<div class="tmpls">' + cards + "</div>"
+        + '<div class="actions">' + primary + '<button class="texty" type="button" data-act="back">Back</button></div>';
+    }
+
+    function stepJob() {
+      const agent = templateBy(state.template);
+      const nTools = connected().length;
+      const nPeople = state.sent.length;
+      const peopleLine = nPeople === 0 ? "No teammates invited" : countLabel(nPeople, "teammate invited", "teammates invited");
+      const lines = [
+        [true, countLabel(nTools, "tool connected", "tools connected")],
+        [true, peopleLine],
+        [true, agent.name + " created"]
+      ];
+      let current = "";
+      if (state.jobDone) lines.push([true, "First job done"]);
+      else {
+        const at = Math.min(state.jobAt, agent.steps.length - 1);
+        current = agent.steps[at] + " · step " + (at + 1) + " of " + agent.steps.length;
+        lines.push([false, "Doing its first job"]);
+      }
+      const items = lines.map((row, i) => {
+        const last = !state.jobDone && i === lines.length - 1;
+        return "<li>" + (row[0] && !last ? '<span class="dot yes">✓</span>' : '<span class="dot mid"></span>')
+          + "<span>" + row[1] + (last ? "<small>" + current + "</small>" : "") + "</span></li>";
+      }).join("");
+      const title = state.jobDone
+        ? "You're set up. Detent did its first job. Hand it more whenever you're ready."
+        : "Try it out. Detent is doing its first job, so you can see how it works.";
+      const button = state.jobDone
+        ? '<button class="primary" type="button" data-act="open">Open Detent →</button>'
+        : '<button class="primary" type="button" disabled>Working...</button>';
+      return "<h1>" + title + "</h1><ul class=\"checks\">" + items + "</ul><div class=\"actions\">" + button + "</div>";
+    }
+
+    function ensure(parent, id, html, animate) {
+      let node = parent.querySelector('[data-id="' + id + '"]');
+      if (node) return node;
+      node = document.createElement("div");
+      node.dataset.id = id;
+      node.className = "slot" + (animate ? "" : " in instant");
+      node.innerHTML = '<div class="inn">' + html + "</div>";
+      parent.appendChild(node);
+      if (animate) requestAnimationFrame(() => node.classList.add("in"));
+      return node;
+    }
+
+    function syncTools() {
+      const list = $("tool-list");
+      const ids = state.order;
+      if (!ids.length) {
+        list.replaceChildren();
+        ensure(list, "ghost-tool", '<div class="ghost">A tool</div>', false);
+        return;
+      }
+      const ghost = list.querySelector('[data-id="ghost-tool"]');
+      if (ghost) ghost.remove();
+      ids.forEach((id) => {
+        const t = toolBy(id);
+        const waiting = state.tools[id] === "waiting";
+        const html = '<div class="srow">' + tile(t.letter, t.color, true) + "<span>" + t.name + "</span>"
+          + (waiting ? '<i class="spin" style="margin-left:auto"></i>' : "") + "</div>";
+        const node = list.querySelector('[data-id="tool-' + id + '"]');
+        if (!node) ensure(list, "tool-" + id, html, true);
+        else node.querySelector(".inn").innerHTML = html;
+      });
+    }
+
+    function syncAgents() {
+      const list = $("agent-list");
+      if (!state.created) {
+        list.replaceChildren();
+        ensure(list, "ghost-agent", '<div class="ghost">Your first agent</div>', false);
+        return;
+      }
+      const ghost = list.querySelector('[data-id="ghost-agent"]');
+      if (ghost) ghost.remove();
+      const agent = templateBy(state.template);
+      const html = '<div class="srow">' + tile(agent.name.slice(0, 1), "#191919", true) + "<span>" + agent.name + '</span><i class="live"></i></div>';
+      if (!list.querySelector('[data-id="agent"]')) ensure(list, "agent", html, true);
+    }
+
+    function syncFoot() {
+      const foot = $("foot");
+      let colors;
+      let label;
+      if (state.sent.length) {
+        colors = [BRAND.you].concat(state.sent.map((id) => personBy(id).color));
+        label = colors.length === 1 ? "Just you" : colors.length + " people";
+      } else if (pickedIds().length) {
+        colors = pickedIds().map((id) => personBy(id).color);
+        label = colors.length + " to invite";
+      } else {
+        colors = [BRAND.you];
+        label = "Just you";
+      }
+      const sig = colors.join(",") + "|" + label;
+      if (foot.dataset.sig === sig) return;
+      foot.dataset.sig = sig;
+      foot.innerHTML = '<span class="stack">' + colors.map((c) => '<i style="background:' + c + '"></i>').join("") + "</span><span>" + label + "</span>";
+      foot.classList.remove("pop");
+      void foot.offsetWidth;
+      foot.classList.add("pop");
+    }
+
+    function syncActivity() {
+      const list = $("acts");
+      const items = [{
+        id: "made",
+        html: '<div class="arow"><span class="bullet round" style="background:' + BRAND.workspaceColor + '"></span><i class="stem"></i><span>You created <b>' + BRAND.workspace + "</b></span></div>"
+      }];
+      connected().forEach((id) => {
+        const t = toolBy(id);
+        items.push({
+          id: "c-" + id,
+          html: '<div class="arow"><span class="bullet" style="background:' + t.color + '">' + t.letter + '</span><i class="stem"></i><span>You connected <b>' + t.name + "</b> · " + t.resource + "</span></div>"
+        });
+      });
+      if (state.sent.length) {
+        items.push({
+          id: "inv",
+          html: '<div class="arow"><span class="bullet round" style="background:#3dbe8c"></span><i class="stem"></i><span>You invited <b>' + names(state.sent) + "</b></span></div>"
+        });
+      }
+      if (state.created) {
+        const agent = templateBy(state.template);
+        const detail = agent.blurb.charAt(0).toLowerCase() + agent.blurb.slice(1);
+        items.push({
+          id: "agent",
+          html: '<div class="arow"><span class="bullet" style="background:#191919">' + agent.name.slice(0, 1) + '</span><i class="stem"></i><span>You created <b>' + agent.name + "</b> · " + detail + "</span></div>"
+        });
+      }
+      const animate = list.dataset.ready === "1";
+      items.forEach((item) => {
+        if (!list.querySelector('[data-id="' + item.id + '"]')) ensure(list, item.id, item.html, animate);
+      });
+      list.dataset.ready = "1";
+    }
+
+    function syncJob() {
+      const mount = $("job-mount");
+      if (state.step < 4 || !state.created) {
+        mount.replaceChildren();
+        return;
+      }
+      const agent = templateBy(state.template);
+      let slot = mount.querySelector(".slot");
+      if (!slot) {
+        mount.innerHTML = '<div class="slot" data-id="job"><div class="inn"><article class="job"></article></div></div>';
+        slot = mount.querySelector(".slot");
+        requestAnimationFrame(() => slot.classList.add("in"));
+      }
+      const rows = agent.steps.map((text, i) => {
+        const cls = i < state.jobAt || state.jobDone ? "done" : i === state.jobAt ? "run" : "wait";
+        const pip = cls === "done" ? "✓" : cls === "run" ? "" : "–";
+        return '<li class="' + cls + '"><span class="pip ' + cls + '">' + pip + "</span><span>" + text + "</span></li>";
+      }).join("");
+      const banner = state.jobDone
+        ? '<div class="banner"><span class="ok">✓</span><span>' + agent.result + "</span></div>"
+        : "";
+      slot.querySelector(".job").innerHTML = '<div class="job-h">' + tile(agent.name.slice(0, 1), "#191919", true)
+        + "<p><b>" + agent.name + "</b> <span>" + agent.jobTitle + "</span></p></div><ul>" + rows + "</ul>" + banner;
+    }
+
+    function syncRight() {
+      syncTools();
+      syncAgents();
+      syncFoot();
+      syncActivity();
+      syncJob();
+    }
+
+    function render(opts) {
+      const fade = !!(opts && opts.fade) || (shownStep && shownStep !== state.step);
+      shownStep = state.step;
+      renderRoute();
+      renderLeft(fade);
+      syncRight();
+    }
+
+    function connectTool(id) {
+      if (state.tools[id] !== "idle") return;
+      state.tools[id] = "waiting";
+      state.order.push(id);
+      render();
+      later(WAIT, () => {
+        if (state.tools[id] !== "waiting") return;
+        state.tools[id] = "connected";
+        render();
+      });
+    }
+
+    function startJob() {
+      clearTimeout(jobTimer);
+      const agent = templateBy(state.template);
+      const tick = () => {
+        if (epoch !== tick.epoch) return;
+        if (state.jobAt >= agent.steps.length) {
+          state.jobDone = true;
+          render();
+          return;
+        }
+        jobTimer = later(JOB, () => {
+          state.jobAt += 1;
+          render();
+          if (state.jobAt >= agent.steps.length) {
+            jobTimer = later(JOB, () => {
+              state.jobDone = true;
+              render();
+            });
+            return;
+          }
+          tick();
+        });
+      };
+      tick.epoch = epoch;
+      state.jobAt = 0;
+      state.jobDone = false;
+      tick();
+    }
+
+    function go(step) {
+      state.step = step;
+      render({ fade: true });
+      if (step === 4) startJob();
+    }
+
+    function reset() {
+      epoch += 1;
+      clearTimeout(jobTimer);
+      state.step = 1;
+      state.tools = Object.fromEntries(TOOLS.map((t) => [t.id, "idle"]));
+      state.order = [];
+      state.picked = {};
+      state.sent = [];
+      state.template = null;
+      state.created = false;
+      state.jobAt = 0;
+      state.jobDone = false;
+      shownStep = 0;
+      ["tool-list", "agent-list", "acts", "job-mount"].forEach((id) => {
+        $(id).replaceChildren();
+        delete $(id).dataset.ready;
+      });
+      $("foot").dataset.sig = "";
+      render();
+    }
+
+    $("left").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-act]");
+      if (!button || button.disabled) return;
+      const act = button.dataset.act;
+      const id = button.dataset.id;
+      if (act === "tool") connectTool(id);
+      else if (act === "continue" && state.step === 1 && connected().length) go(2);
+      else if (act === "person" && !state.sent.length) {
+        state.picked[id] = !state.picked[id];
+        render();
+      } else if (act === "send") {
+        state.sent = pickedIds();
+        render();
+      } else if (act === "skip") go(3);
+      else if (act === "back") go(state.step - 1);
+      else if (act === "continue" && state.step === 2) go(3);
+      else if (act === "template" && !state.created) {
+        state.template = id;
+        render();
+      } else if (act === "create" && state.template) {
+        state.created = true;
+        go(4);
+      } else if (act === "continue" && state.step === 3 && state.created) go(4);
+      else if (act === "open") reset();
+    });
+
+    $("logo").addEventListener("click", reset);
+
+    $("brand-name").textContent = BRAND.name;
+    $("ws-name").textContent = BRAND.workspace;
+    $("host-label").textContent = BRAND.host;
+    $("ws-dot").style.background = BRAND.workspaceColor;
+    render();
+  </script>
+</body>
+</html>
