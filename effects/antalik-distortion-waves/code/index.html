@@ -464,17 +464,29 @@
       }
       return shader;
     }
+    function detachFlat(widget) {
+      const flat = document.createElement('canvas');
+      flat.setAttribute('aria-hidden', 'true');
+      widget.canvas.replaceWith(flat);
+      widget.canvas = flat;
+    }
     function setupGL(widget) {
       const gl = widget.canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false });
       if (!gl) return false;
       const vs = compile(gl, gl.VERTEX_SHADER, VERT);
       const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
-      if (!vs || !fs) return false;
+      if (!vs || !fs) {
+        detachFlat(widget);
+        return false;
+      }
       const prog = gl.createProgram();
       gl.attachShader(prog, vs);
       gl.attachShader(prog, fs);
       gl.linkProgram(prog);
-      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        detachFlat(widget);
+        return false;
+      }
       const buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
@@ -580,6 +592,7 @@
       widget.canvas.width = box.W;
       widget.canvas.height = box.H;
       const ctx = widget.canvas.getContext('2d');
+      if (!ctx) return;
       ctx.setTransform(box.dpr, 0, 0, box.dpr, 0, 0);
       painters[widget.id](ctx, box.cssW, box.cssH, state);
     }

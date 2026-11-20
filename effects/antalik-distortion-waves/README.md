@@ -5,7 +5,7 @@
 - 状态：video_recreated
 - 原文：https://x.com/kombaiselects/status/2123400913314361760
 - 素材 ID：2123400913314361760
-- 版本：1.0.0
+- 版本：1.0.1
 
 自包含单文件，无外链。对照的是约 13 秒、1600×1080 的预览，以及作者页上能看到的说明（https://libraries.dev/waves ，https://x.com/Jakubantalik/status/2120204589131870610）。npm 上有 MIT 包 `distortion-waves`。这里没有安装、复制或内嵌该包，页面也不声明拥有该许可。
 
