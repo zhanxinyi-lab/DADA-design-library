@@ -635,19 +635,11 @@
 
     function check() { return '<span class="ok">✓</span>'; }
 
-    function satisfied(index) {
-      if (state.jobDone) return true;
-      if (index === 0) return connected().length > 0;
-      if (index === 1) return state.sent.length > 0 || state.step > 2;
-      if (index === 2) return state.created || state.step > 3;
-      return false;
-    }
-
     function renderRoute() {
       $("step-label").textContent = state.jobDone ? "All set" : "Step " + state.step + " of 4";
       $("segs").innerHTML = [0, 1, 2, 3].map((i) => {
         let cls = "seg";
-        if (i < state.step - 1 || satisfied(i) && i === state.step - 1 || state.jobDone) cls += " done";
+        if (state.jobDone || i < state.step - 1) cls += " done";
         else if (i === state.step - 1) cls += " now";
         return '<i class="' + cls + '"></i>';
       }).join("");
