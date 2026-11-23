@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>玻璃厚板标志</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #f3efe8;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+  button {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 1;
+    padding: 8px 16px;
+    border: 1px solid rgba(44, 36, 32, 0.28);
+    border-radius: 999px;
+    background: #fffdf9;
+    color: #2c2420;
+    font: 14px/1.2 system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    cursor: pointer;
+  }
+  button:focus {
+    outline: 2px solid #2c2420;
+    outline-offset: 3px;
+  }
+  button:focus:not(:focus-visible) {
+    outline: none;
+  }
+  button:focus-visible {
+    outline: 2px solid #2c2420;
+    outline-offset: 3px;
+  }
+  #fail {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    margin: 0;
+    padding: 32px 24px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: #f3efe8;
+    color: #2c2420;
+    font: 16px/1.6 system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  #fail.on { display: flex; }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="玻璃厚板标志。有色玻璃圆片叠在亮卡片上，点击可重播。"></canvas>
+<button type="button" id="replay">重播</button>
+<p id="fail" role="status"></p>
+<script>
+"use strict";
+
+(function () {
+  var canvas = document.getElementById("c");
+  var replayBtn = document.getElementById("replay");
+  var failEl = document.getElementById("fail");
+  var MARK_W = 280;
+  var MARK_H = 340;
+  var MAX_DISC = 64;
+  var PAPER = [0.952941, 0.937255, 0.909804];
+  var LOOK_AT = [0, 0.02, 0];
+  var CAM_OFFSET = [0, -1.25, 1.95];
+  var FOV_Y = 0.8;
+  var COLOR_STOPS = [
+    [0.00, 0.91, 0.20, 0.42],
+    [0.12, 0.98, 0.25, 0.32],
+    [0.32, 1.00, 0.42, 0.22],
+    [0.55, 1.00, 0.69, 0.18],
+    [0.78, 1.00, 0.83, 0.29],
+    [1.00, 0.97, 0.89, 0.48]
+  ];
+
+  function showFail(text) {
+    failEl.textContent = text;
+    failEl.classList.add("on");
+    replayBtn.style.display = "none";
+  }
+
+  function clamp(v, a, b) {
+    return Math.max(a, Math.min(b, v));
+  }
+
+  function smoothstep(a, b, x) {
+    var t = clamp((x - a) / (b - a), 0, 1);
+    return t * t * (3 - 2 * t);
+  }
+
+  function sampleColor(t) {
+    t = clamp(t, 0, 1);
+    var i = 0;
+    while (i < COLOR_STOPS.length - 2 && t > COLOR_STOPS[i + 1][0]) i += 1;
+    var a = COLOR_STOPS[i];
+    var b = COLOR_STOPS[i + 1];
+    var u = a[0] === b[0] ? 0 : (t - a[0]) / (b[0] - a[0]);
+    return [
+      a[1] + (b[1] - a[1]) * u,
+      a[2] + (b[2] - a[2]) * u,
+      a[3] + (b[3] - a[3]) * u
+    ];
+  }
+
+  function takeEven(list, n) {
+    if (list.length <= n) return list.slice();
+    if (n <= 0) return [];
+    if (n === 1) return [list[(list.length / 2) | 0]];
+    var out = [];
+    var last = -1;
+    for (var i = 0; i < n; i += 1) {
+      var idx = Math.round((i * (list.length - 1)) / (n - 1));
+      if (idx <= last) idx = last + 1;
+      if (idx >= list.length) idx = list.length - 1;
+      out.push(list[idx]);
+      last = idx;
+    }
+    return out;
+  }
+
+  function buildDiscs() {
+    var mark = document.createElement("canvas");
+    mark.width = MARK_W;
+    mark.height = MARK_H;
+    var ctx = mark.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.clearRect(0, 0, MARK_W, MARK_H);
+    ctx.fillStyle = "#ffffff";
+
+    var ringX = 136;
+    var ringY = 206;
+    var outer = 102;
+    var inner = outer * 0.56;
+    ctx.beginPath();
+    ctx.arc(ringX, ringY, outer, 0, Math.PI * 2, false);
+    ctx.arc(ringX, ringY, inner, 0, Math.PI * 2, true);
+    ctx.fill("evenodd");
+
+    var gemX = 208;
+    var gemY = 50;
+    var gemHX = 30;
+    var gemHY = 40;
+    ctx.beginPath();
+    ctx.moveTo(gemX, gemY - gemHY);
+    ctx.lineTo(gemX + gemHX, gemY);
+    ctx.lineTo(gemX, gemY + gemHY);
+    ctx.lineTo(gemX - gemHX, gemY);
+    ctx.closePath();
+    ctx.fill();
+
+    var pixels = ctx.getImageData(0, 0, MARK_W, MARK_H).data;
+    var countPx = MARK_W * MARK_H;
+    var solid = new Uint8Array(countPx);
+    for (var p = 0; p < countPx; p += 1) solid[p] = pixels[p * 4 + 3] > 140 ? 1 : 0;
+
+    var label = new Int16Array(countPx);
+    for (var n = 0; n < countPx; n += 1) label[n] = -1;
+    var comps = [];
+    var stack = [];
+    for (var y = 0; y < MARK_H; y += 1) {
+      for (var x = 0; x < MARK_W; x += 1) {
+        var start = y * MARK_W + x;
+        if (!solid[start] || label[start] !== -1) continue;
+        var id = comps.length;
+        var minX = x;
+        var maxX = x;
+        var minY = y;
+        var maxY = y;
+        var area = 0;
+        stack.push(start);
+        label[start] = id;
+        while (stack.length) {
+          var cur = stack.pop();
+          var cx = cur % MARK_W;
+          var cy = (cur / MARK_W) | 0;
+          area += 1;
+          if (cx < minX) minX = cx;
+          if (cx > maxX) maxX = cx;
+          if (cy < minY) minY = cy;
+          if (cy > maxY) maxY = cy;
+          if (cx > 0) pushNeighbor(cur - 1);
+          if (cx + 1 < MARK_W) pushNeighbor(cur + 1);
+          if (cy > 0) pushNeighbor(cur - MARK_W);
+          if (cy + 1 < MARK_H) pushNeighbor(cur + MARK_W);
+        }
+        comps.push({
+          id: id,
+          minX: minX,
+          maxX: maxX,
+          minY: minY,
+          maxY: maxY,
+          height: maxY - minY + 1,
+          area: area
+        });
+      }
+    }
+
+    function pushNeighbor(index) {
+      if (solid[index] && label[index] < 0) {
+        label[index] = id;
+        stack.push(index);
+      }
+    }
+
+    comps = comps.filter(function (comp) { return comp.area >= 40; });
+    if (!comps.length) return [];
+    var largest = 0;
+    var globalMinY = MARK_H;
+    var globalMaxY = 0;
+    for (var c = 0; c < comps.length; c += 1) {
+      if (comps[c].area > largest) largest = comps[c].area;
+      if (comps[c].minY < globalMinY) globalMinY = comps[c].minY;
+      if (comps[c].maxY > globalMaxY) globalMaxY = comps[c].maxY;
+    }
+
+    var worldPerPxY = 1.1 / MARK_H;
+    function worldX(px) { return px / MARK_W - 0.5; }
+    function worldY(py) { return 0.55 - (py / MARK_H) * 1.1; }
+    var yTop = worldY(globalMinY + 0.5);
+    var yBottom = worldY(globalMaxY + 0.5);
+    var span = Math.max(1e-5, yTop - yBottom);
+    var targetRy = 0.011;
+    var discs = [];
+
+    for (var k = 0; k < comps.length; k += 1) {
+      var comp = comps[k];
+      var dense = comp.area < largest * 0.5;
+      var layers = Math.round(comp.height / 7);
+      if (layers < 6) layers = 6;
+      if (layers > 20) layers = 20;
+      if (dense) layers = Math.max(layers, 8);
+      if (layers > comp.height) layers = comp.height;
+      var spacing = (comp.height / layers) * worldPerPxY;
+      var ry = Math.min(targetRy, spacing * 0.34 * 0.98);
+      while (layers > 1 && spacing < 2.5 * ry) {
+        layers -= 1;
+        spacing = (comp.height / layers) * worldPerPxY;
+        ry = Math.min(targetRy, spacing * 0.34 * 0.98);
+      }
+
+      var prevRow = -1;
+      for (var layer = 0; layer < layers; layer += 1) {
+        var mid = comp.minY + (layer + 0.5) * (comp.height / layers);
+        var row = Math.floor(mid);
+        if (row < comp.minY) row = comp.minY;
+        if (row > comp.maxY) row = comp.maxY;
+        if (row === prevRow) continue;
+        prevRow = row;
+        var scan = comp.minX;
+        while (scan <= comp.maxX) {
+          var sample = row * MARK_W + scan;
+          if (!solid[sample] || label[sample] !== comp.id) {
+            scan += 1;
+            continue;
+          }
+          var x0 = scan;
+          while (scan <= comp.maxX) {
+            var here = row * MARK_W + scan;
+            if (!solid[here] || label[here] !== comp.id) break;
+            scan += 1;
+          }
+          var x1 = scan - 1;
+          var run = x1 - x0 + 1;
+          if (run < 3) continue;
+          var cxPx = (x0 + x1 + 1) / 2;
+          var halfPx = run / 2;
+          var cy = worldY(row + 0.5);
+          var colorT = clamp((cy - yBottom) / span, 0, 1);
+          var heightRatio = 1 - colorT;
+          discs.push({
+            cx: worldX(cxPx),
+            cy: cy,
+            rx: (halfPx / MARK_W) * 0.96,
+            ry: ry,
+            rz: (halfPx / MARK_W) * 0.96 * 0.38,
+            tint: sampleColor(colorT),
+            delay: (1 - heightRatio) * 0.95,
+            dense: dense
+          });
+        }
+      }
+    }
+
+    if (discs.length > MAX_DISC) {
+      var gems = [];
+      var body = [];
+      for (var d = 0; d < discs.length; d += 1) {
+        if (discs[d].dense) gems.push(discs[d]);
+        else body.push(discs[d]);
+      }
+      if (gems.length >= MAX_DISC) discs = takeEven(gems, MAX_DISC);
+      else discs = gems.concat(takeEven(body, MAX_DISC - gems.length));
+    }
+    return discs;
+  }
+
+  var VERT = [
+    "#version 300 es",
+    "layout(location=0) in vec2 aPos;",
+    "void main() {",
+    "  gl_Position = vec4(aPos, 0.0, 1.0);",
+    "}"
+  ].join("\n");
+
+  var FRAG = [
+    "#version 300 es",
+    "precision highp float;",
+    "layout(std140) uniform DiscBlock {",
+    "  vec4 uCenter[64];",
+    "  vec4 uRadii[64];",
+    "  vec4 uTint[64];",
+    "};",
+    "uniform vec3 uCamPos;",
+    "uniform vec3 uRight;",
+    "uniform vec3 uUp;",
+    "uniform vec3 uFwd;",
+    "uniform vec2 uRes;",
+    "uniform float uTan;",
+    "uniform int uCount;",
+    "out vec4 fragColor;",
+    "const vec3 PAPER = vec3(0.952941, 0.937255, 0.909804);",
+    "const float CARD_Z = -0.22;",
+    "const vec2 CARD_HALF = vec2(0.62, 0.78);",
+    "const float CARD_R = 0.09;",
+    "const float IOR = 1.42;",
+    "float schlick(float cosTheta) {",
+    "  float m = clamp(1.0 - cosTheta, 0.0, 1.0);",
+    "  float m2 = m * m;",
+    "  return 0.04 + 0.96 * m2 * m2 * m;",
+    "}",
+    "vec3 studio(vec3 r) {",
+    "  vec3 downCol = vec3(0.43, 0.40, 0.37);",
+    "  vec3 sideCol = vec3(0.80, 0.78, 0.74);",
+    "  vec3 upCol = vec3(1.0, 0.965, 0.91);",
+    "  float sideMix = smoothstep(-0.55, 0.2, r.y);",
+    "  float upMix = smoothstep(0.0, 0.82, r.y);",
+    "  vec3 col = mix(downCol, sideCol, sideMix);",
+    "  col = mix(col, upCol, upMix);",
+    "  col *= 0.94 + 0.06 * r.x;",
+    "  return col;",
+    "}",
+    "bool rayDisc(int i, vec3 ro, vec3 rd, out float t0, out float t1) {",
+    "  t0 = 0.0;",
+    "  t1 = 0.0;",
+    "  float grow = uCenter[i].w;",
+    "  if (grow <= 0.001) return false;",
+    "  vec3 rad = vec3(uRadii[i].x * grow, uRadii[i].y, uRadii[i].z * grow);",
+    "  if (rad.x < 1e-5 || rad.y < 1e-5 || rad.z < 1e-5) return false;",
+    "  vec3 oc = (ro - uCenter[i].xyz) / rad;",
+    "  vec3 dc = rd / rad;",
+    "  float a = dot(dc, dc);",
+    "  float b = dot(oc, dc);",
+    "  float c = dot(oc, oc) - 1.0;",
+    "  float h = b * b - a * c;",
+    "  if (h < 0.0 || a < 1e-8) return false;",
+    "  h = sqrt(h);",
+    "  t0 = (-b - h) / a;",
+    "  t1 = (-b + h) / a;",
+    "  return true;",
+    "}",
+    "vec3 discNormal(int i, vec3 p) {",
+    "  float grow = max(uCenter[i].w, 0.001);",
+    "  vec3 rad = vec3(uRadii[i].x * grow, uRadii[i].y, uRadii[i].z * grow);",
+    "  vec3 n = (p - uCenter[i].xyz) / (rad * rad);",
+    "  float lenN = length(n);",
+    "  if (lenN < 1e-6) return vec3(0.0, 0.0, 1.0);",
+    "  return n / lenN;",
+    "}",
+    "vec3 refractRay(vec3 dir, vec3 normal, float eta) {",
+    "  float cosI = clamp(-dot(normal, dir), 0.0, 1.0);",
+    "  float sin2T = eta * eta * (1.0 - cosI * cosI);",
+    "  if (sin2T > 1.0) return vec3(0.0);",
+    "  float cosT = sqrt(1.0 - sin2T);",
+    "  return eta * dir + (eta * cosI - cosT) * normal;",
+    "}",
+    "float roundBox(vec2 p, vec2 halfSize, float rad) {",
+    "  vec2 q = abs(p) - halfSize + rad;",
+    "  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - rad;",
+    "}",
+    "vec3 shadeCard(vec3 ro, vec3 rd) {",
+    "  if (rd.z > -1e-4) return PAPER;",
+    "  float t = (CARD_Z - ro.z) / rd.z;",
+    "  if (t <= 0.0) return PAPER;",
+    "  vec3 p = ro + rd * t;",
+    "  vec2 local = p.xy - vec2(0.0, 0.03);",
+    "  float sd = roundBox(local, CARD_HALF, CARD_R);",
+    "  float cover = 1.0 - smoothstep(0.0, 0.012, sd);",
+    "  float field = clamp(length(local / CARD_HALF), 0.0, 1.0);",
+    "  float glow = 1.0 - smoothstep(0.0, 0.85, field);",
+    "  vec3 hot = vec3(1.18, 1.14, 1.06);",
+    "  vec3 card = mix(vec3(1.02, 0.99, 0.95), hot, glow);",
+    "  float shadow = (1.0 - cover) * (1.0 - smoothstep(0.0, 0.08, sd));",
+    "  vec3 paper = PAPER * (1.0 - shadow * 0.18);",
+    "  return mix(paper, card, cover);",
+    "}",
+    "void main() {",
+    "  vec2 ndc = (gl_FragCoord.xy / uRes) * 2.0 - 1.0;",
+    "  float aspect = uRes.x / max(uRes.y, 1.0);",
+    "  vec3 rd = normalize(uFwd + uRight * (ndc.x * aspect * uTan) + uUp * (ndc.y * uTan));",
+    "  vec3 ro = uCamPos;",
+    "  vec3 radiance = vec3(0.0);",
+    "  vec3 trans = vec3(1.0);",
+    "  int inside = -1;",
+    "  for (int event = 0; event < 10; event++) {",
+    "    if (inside < 0) {",
+    "      float bestT = 1e9;",
+    "      int best = -1;",
+    "      for (int i = 0; i < 64; i++) {",
+    "        if (i >= uCount) break;",
+    "        float a;",
+    "        float b;",
+    "        if (!rayDisc(i, ro, rd, a, b)) continue;",
+    "        if (a > 0.0006 && a < bestT) {",
+    "          bestT = a;",
+    "          best = i;",
+    "        }",
+    "      }",
+    "      if (best < 0) {",
+    "        radiance += trans * shadeCard(ro, rd);",
+    "        trans = vec3(0.0);",
+    "        break;",
+    "      }",
+    "      vec3 hit = ro + rd * bestT;",
+    "      vec3 N = discNormal(best, hit);",
+    "      float cosI = clamp(dot(-rd, N), 0.0, 1.0);",
+    "      float F = schlick(cosI);",
+    "      vec3 refl = reflect(rd, N);",
+    "      radiance += trans * F * studio(refl);",
+    "      vec3 tdir = refractRay(rd, N, 1.0 / IOR);",
+    "      if (dot(tdir, tdir) < 1e-10) break;",
+    "      trans *= (1.0 - F);",
+    "      float grow = max(uCenter[best].w, 0.001);",
+    "      float rx = max(uRadii[best].x * grow, 1e-4);",
+    "      float edge = smoothstep(0.28, 1.0, abs(hit.x - uCenter[best].x) / rx);",
+    "      float face = 1.0 - edge;",
+    "      radiance += trans * uTint[best].rgb * face * cosI * 0.16;",
+    "      ro = hit + tdir * 0.0008;",
+    "      rd = tdir;",
+    "      inside = best;",
+    "    } else {",
+    "      float a;",
+    "      float b;",
+    "      float exitT = -1.0;",
+    "      vec3 tint = vec3(1.0);",
+    "      bool found = false;",
+    "      for (int i = 0; i < 64; i++) {",
+    "        if (i != inside) continue;",
+    "        if (!rayDisc(i, ro, rd, a, b)) break;",
+    "        if (b > 0.0006) exitT = b;",
+    "        else if (a > 0.0006) exitT = a;",
+    "        tint = uTint[i].rgb;",
+    "        found = true;",
+    "        break;",
+    "      }",
+    "      if (!found || exitT < 0.0) {",
+    "        inside = -1;",
+    "        continue;",
+    "      }",
+    "      vec3 absorb = (vec3(1.0) - tint) * 16.0 + vec3(0.28);",
+    "      trans *= exp(-absorb * exitT);",
+    "      vec3 hit = ro + rd * exitT;",
+    "      vec3 Nin = -discNormal(inside, hit);",
+    "      float cosI = clamp(dot(-rd, Nin), 0.0, 1.0);",
+    "      float F = schlick(cosI);",
+    "      vec3 tdir = refractRay(rd, Nin, IOR);",
+    "      if (dot(tdir, tdir) < 1e-10) {",
+    "        radiance += trans * studio(reflect(rd, Nin));",
+    "        trans = vec3(0.0);",
+    "        break;",
+    "      }",
+    "      trans *= (1.0 - F);",
+    "      ro = hit + tdir * 0.0008;",
+    "      rd = tdir;",
+    "      inside = -1;",
+    "    }",
+    "  }",
+    "  if (dot(trans, trans) > 1e-8) radiance += trans * shadeCard(ro, rd);",
+    "  fragColor = vec4(clamp(radiance, 0.0, 1.0), 1.0);",
+    "}"
+  ].join("\n");
+
+  function compile(gl, type, source) {
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      console.error(gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
+  }
+
+  var gl = null;
+  var program = null;
+  var vao = null;
+  var ubo = null;
+  var blockSize = 0;
+  var arrayOffset = [0, 0, 0];
+  var arrayStride = [16, 16, 16];
+  var uboBytes = null;
+  var uboFloats = null;
+  var loc = {};
+  var discs = [];
+  var reduceMotion = false;
+  var elapsed = 0;
+  var yaw = 0;
+  var pitch = 0;
+  var ptrX = 0;
+  var ptrY = 0;
+  var rafId = 0;
+  var looping = false;
+  var lastNow = 0;
+  var lossTries = 0;
+  var motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  function resize() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+    var w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+    var h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+
+  function growOf(disc) {
+    if (reduceMotion) return 1;
+    return smoothstep(disc.delay, disc.delay + 0.45, elapsed);
+  }
+
+  function writeDisc(arrayIndex, i, x, y, z, w) {
+    var byteOff = arrayOffset[arrayIndex] + i * arrayStride[arrayIndex];
+    var f = byteOff >> 2;
+    uboFloats[f] = x;
+    uboFloats[f + 1] = y;
+    uboFloats[f + 2] = z;
+    uboFloats[f + 3] = w;
+  }
+
+  function uploadStatic() {
+    for (var i = 0; i < MAX_DISC; i += 1) {
+      if (i < discs.length) {
+        var d = discs[i];
+        writeDisc(0, i, d.cx, d.cy, 0, 0);
+        writeDisc(1, i, d.rx, d.ry, d.rz, 0);
+        writeDisc(2, i, d.tint[0], d.tint[1], d.tint[2], 1);
+      } else {
+        writeDisc(0, i, 0, 0, 0, 0);
+        writeDisc(1, i, 0, 0, 0, 0);
+        writeDisc(2, i, 0, 0, 0, 0);
+      }
+    }
+  }
+
+  function uploadGrow() {
+    for (var i = 0; i < discs.length; i += 1) {
+      var byteOff = arrayOffset[0] + i * arrayStride[0];
+      uboFloats[(byteOff >> 2) + 3] = growOf(discs[i]);
+    }
+    gl.bindBuffer(gl.UNIFORM_BUFFER, ubo);
+    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, uboBytes);
+  }
+
+  function sub3(a, b) {
+    return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  }
+
+  function dot3(a, b) {
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  }
+
+  function cross3(a, b) {
+    return [
+      a[1] * b[2] - a[2] * b[1],
+      a[2] * b[0] - a[0] * b[2],
+      a[0] * b[1] - a[1] * b[0]
+    ];
+  }
+
+  function norm3(a) {
+    var len = Math.hypot(a[0], a[1], a[2]) || 1;
+    return [a[0] / len, a[1] / len, a[2] / len];
+  }
+
+  function cameraFrame() {
+    var cp = Math.cos(pitch);
+    var sp = Math.sin(pitch);
+    var cy = Math.cos(yaw);
+    var sy = Math.sin(yaw);
+    var y = CAM_OFFSET[1] * cp + CAM_OFFSET[2] * sp;
+    var z = -CAM_OFFSET[1] * sp + CAM_OFFSET[2] * cp;
+    var x2 = CAM_OFFSET[0] * cy + z * sy;
+    var z2 = -CAM_OFFSET[0] * sy + z * cy;
+    var eye = [LOOK_AT[0] + x2, LOOK_AT[1] + y, LOOK_AT[2] + z2];
+    var back = norm3(sub3(eye, LOOK_AT));
+    var right = norm3(cross3([0, 1, 0], back));
+    var up = cross3(back, right);
+    return {
+      eye: eye,
+      right: right,
+      up: up,
+      fwd: [-back[0], -back[1], -back[2]]
+    };
+  }
+
+  function draw() {
+    if (!gl || gl.isContextLost()) return;
+    resize();
+    uploadGrow();
+    var cam = cameraFrame();
+    gl.useProgram(program);
+    gl.bindVertexArray(vao);
+    gl.uniform3f(loc.camPos, cam.eye[0], cam.eye[1], cam.eye[2]);
+    gl.uniform3f(loc.right, cam.right[0], cam.right[1], cam.right[2]);
+    gl.uniform3f(loc.up, cam.up[0], cam.up[1], cam.up[2]);
+    gl.uniform3f(loc.fwd, cam.fwd[0], cam.fwd[1], cam.fwd[2]);
+    gl.uniform2f(loc.res, canvas.width, canvas.height);
+    gl.uniform1f(loc.tan, Math.tan(FOV_Y * 0.5));
+    gl.uniform1i(loc.count, discs.length);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  function setupPipeline() {
+    if (program) gl.deleteProgram(program);
+    if (vao) gl.deleteVertexArray(vao);
+    if (ubo) gl.deleteBuffer(ubo);
+    program = null;
+    vao = null;
+    ubo = null;
+
+    var vs = compile(gl, gl.VERTEX_SHADER, VERT);
+    var fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
+    if (!vs || !fs) return false;
+    program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error(gl.getProgramInfoLog(program));
+      return false;
+    }
+
+    var block = gl.getUniformBlockIndex(program, "DiscBlock");
+    if (block === gl.INVALID_INDEX) return false;
+    gl.uniformBlockBinding(program, block, 0);
+    var names = ["uCenter[0]", "uRadii[0]", "uTint[0]"];
+    var indices = gl.getUniformIndices(program, names);
+    var offsets = gl.getActiveUniforms(program, indices, gl.UNIFORM_OFFSET);
+    var strides = gl.getActiveUniforms(program, indices, gl.UNIFORM_ARRAY_STRIDE);
+    for (var i = 0; i < 3; i += 1) {
+      if (indices[i] == null || indices[i] < 0) return false;
+      arrayOffset[i] = offsets[i];
+      arrayStride[i] = strides[i];
+      if (arrayStride[i] < 16 || (arrayStride[i] & 3) !== 0) return false;
+    }
+    blockSize = gl.getActiveUniformBlockParameter(program, block, gl.UNIFORM_BLOCK_DATA_SIZE);
+    uboBytes = new ArrayBuffer(blockSize);
+    uboFloats = new Float32Array(uboBytes);
+    uploadStatic();
+    ubo = gl.createBuffer();
+    gl.bindBuffer(gl.UNIFORM_BUFFER, ubo);
+    gl.bufferData(gl.UNIFORM_BUFFER, uboBytes, gl.DYNAMIC_DRAW);
+    gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, ubo);
+
+    vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    var buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+
+    loc.camPos = gl.getUniformLocation(program, "uCamPos");
+    loc.right = gl.getUniformLocation(program, "uRight");
+    loc.up = gl.getUniformLocation(program, "uUp");
+    loc.fwd = gl.getUniformLocation(program, "uFwd");
+    loc.res = gl.getUniformLocation(program, "uRes");
+    loc.tan = gl.getUniformLocation(program, "uTan");
+    loc.count = gl.getUniformLocation(program, "uCount");
+    gl.clearColor(PAPER[0], PAPER[1], PAPER[2], 1);
+    return true;
+  }
+
+  function obtainGL() {
+    var first = canvas.getContext("webgl2", {
+      alpha: false,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      powerPreference: "high-performance"
+    });
+    if (first) return first;
+    return canvas.getContext("webgl2", { alpha: false });
+  }
+
+  function stopLoop() {
+    looping = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+
+  function frame(now) {
+    if (!looping) return;
+    var dt = Math.min(0.05, Math.max(0, (now - lastNow) / 1000));
+    lastNow = now;
+    if (!reduceMotion && elapsed < 1.7) elapsed += dt;
+    var follow = 1 - Math.exp(-7 * dt);
+    var targetYaw = clamp(ptrX, -1, 1) * 0.06;
+    var targetPitch = clamp(-ptrY, -1, 1) * 0.045;
+    yaw += (targetYaw - yaw) * follow;
+    pitch += (targetPitch - pitch) * follow;
+    draw();
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function startLoop() {
+    if (looping || document.hidden || !gl || gl.isContextLost()) return;
+    looping = true;
+    lastNow = performance.now();
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function replay() {
+    elapsed = reduceMotion ? 1.7 : 0;
+  }
+
+  function applyMotion() {
+    reduceMotion = !!(motionQuery && motionQuery.matches);
+    if (reduceMotion) elapsed = 1.7;
+  }
+
+  function boot() {
+    discs = buildDiscs();
+    if (!discs || !discs.length) {
+      showFail("无法生成玻璃圆片。");
+      return;
+    }
+    gl = obtainGL();
+    if (!gl) {
+      showFail("当前浏览器不支持 WebGL2，无法显示玻璃厚板标志。");
+      return;
+    }
+    if (!setupPipeline()) {
+      showFail("无法初始化 WebGL2 画面。");
+      return;
+    }
+    applyMotion();
+    resize();
+    draw();
+    if (!document.hidden) startLoop();
+  }
+
+  canvas.addEventListener("webglcontextlost", function (event) {
+    stopLoop();
+    if (lossTries >= 1) {
+      showFail("图形上下文已丢失，无法继续显示玻璃厚板标志。");
+      return;
+    }
+    event.preventDefault();
+    lossTries += 1;
+  });
+
+  canvas.addEventListener("webglcontextrestored", function () {
+    if (lossTries > 1) return;
+    gl = canvas.getContext("webgl2", { alpha: false });
+    if (!gl || !setupPipeline()) {
+      showFail("图形上下文恢复失败，无法继续显示玻璃厚板标志。");
+      return;
+    }
+    resize();
+    draw();
+    startLoop();
+  });
+
+  window.addEventListener("resize", function () {
+    if (gl && !gl.isContextLost()) {
+      resize();
+      draw();
+    }
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) stopLoop();
+    else startLoop();
+  });
+
+  window.addEventListener("pointermove", function (event) {
+    var rect = canvas.getBoundingClientRect();
+    var nx = ((event.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+    var ny = ((event.clientY - rect.top) / Math.max(1, rect.height)) * 2 - 1;
+    ptrX = clamp(nx, -1, 1);
+    ptrY = clamp(ny, -1, 1);
+  });
+
+  canvas.addEventListener("click", replay);
+  replayBtn.addEventListener("click", replay);
+  window.addEventListener("keydown", function (event) {
+    if (event.repeat) return;
+    if (event.key !== "r" && event.key !== "R") return;
+    var tag = event.target && event.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    replay();
+  });
+
+  applyMotion();
+  if (motionQuery) {
+    if (typeof motionQuery.addEventListener === "function") {
+      motionQuery.addEventListener("change", applyMotion);
+    } else if (typeof motionQuery.addListener === "function") {
+      motionQuery.addListener(applyMotion);
+    }
+  }
+
+  try {
+    boot();
+  } catch (err) {
+    console.error(err);
+    showFail("页面初始化失败，无法显示玻璃厚板标志。");
+  }
+})();
+</script>
+</body>
+</html>
