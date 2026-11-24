@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>辐条高亮揭示</title>
+  <style>
+    :root {
+      --bg: #0c0a96;
+      --card: #16149a;
+      --ink: #f4f6ff;
+      --muted: rgba(244, 246, 255, .62);
+      --line: rgba(236, 240, 255, .72);
+      --hair: rgba(226, 230, 255, .42);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.45 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      padding: 32px 20px;
+    }
+    .stage {
+      position: relative;
+      width: min(920px, 100%);
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(148px, 188px) minmax(0, 1fr);
+      gap: 28px 52px;
+      align-items: center;
+    }
+    .rail {
+      position: relative;
+      z-index: 3;
+      display: grid;
+      gap: 2px;
+    }
+    .item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 44px;
+      padding: 6px 4px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .name { color: var(--muted); }
+    .item[aria-checked="true"] .name { color: var(--ink); }
+    .mark {
+      width: 8px;
+      height: 8px;
+      flex: none;
+      border: 1.5px solid rgba(255, 255, 255, .9);
+      background: transparent;
+    }
+    .item.is-shown .mark { background: #fff; }
+    .item:focus { outline: none; }
+    .item:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 3px;
+    }
+    .card {
+      position: relative;
+      z-index: 1;
+      min-height: 300px;
+      padding: 28px 32px 32px;
+      border: 1px solid var(--hair);
+      background: var(--card);
+    }
+    .copy h1 {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin: 0;
+      font-size: clamp(22px, 3vw, 32px);
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+    }
+    #heading { max-width: 10em; }
+    .hub {
+      width: 8px;
+      height: 8px;
+      margin-top: 0.42em;
+      flex: none;
+      border: 1.5px solid #fff;
+      background: transparent;
+      transform-origin: center;
+    }
+    .hub.is-lit { background: #fff; }
+    .copy p {
+      margin: 18px 0 0;
+      max-width: 28em;
+      color: rgba(244, 246, 255, .9);
+      font-size: clamp(16px, 2.1vw, 20px);
+      line-height: 1.45;
+    }
+    .copy a { color: inherit; }
+    .copy a:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 22px;
+      padding: 10px 18px;
+      border: 0;
+      border-radius: 999px;
+      background: #14122c;
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }
+    .pill:focus { outline: none; }
+    .pill:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    .spokes {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+    @media (max-width: 720px) {
+      body { align-items: flex-start; padding: 20px 14px 28px; }
+      .layout { grid-template-columns: 1fr; gap: 18px; align-items: stretch; }
+      .rail { grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+      .card { min-height: 240px; padding: 22px 18px 24px; }
+    }
+    @media (max-height: 700px) {
+      body { align-items: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hub { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" id="stage">
+    <div class="layout">
+      <div class="rail" id="rail" role="radiogroup" aria-label="目录"></div>
+      <article class="card" id="card">
+        <div class="copy">
+          <h1>
+            <span class="hub" id="hub" aria-hidden="true"></span>
+            <span id="heading"></span>
+          </h1>
+          <p id="blurb"></p>
+          <button type="button" class="pill" id="action"></button>
+        </div>
+      </article>
+    </div>
+    <svg class="spokes" id="spokes" aria-hidden="true"></svg>
+    <p class="sr" id="live" aria-live="polite"></p>
+  </main>
+  <script>
+    (function () {
+      var sections = [
+        { name: "开场", title: "先把这一季要收进目录的范围写清楚", before: "时间和负责人放在同一张卡片上，中间留一个", link: "入口", after: "，读完就能往下走。", action: "查看范围" },
+        { name: "材料", title: "布样和五金按批次摊开，不混名", before: "同名样品分开存放。点开", link: "批次", after: "就能看到数量和到货日。", action: "打开批次" },
+        { name: "工序", title: "从样品到成品，只记停留", before: "每一步写下开始和结束，避免把等待算进", link: "制作", after: "。", action: "对照工序" },
+        { name: "样品", title: "这一轮留下的三块样", before: "颜色、手感和边口写在一起。不满意的样不进", link: "下一轮", after: "。", action: "看样品" },
+        { name: "交付", title: "份数、节点和签收放在一处", before: "只保留能核对的三项。签收之后就不再改", link: "目录", after: "。", action: "核对交付" },
+        { name: "附录", title: "没进正文的备注", before: "尺寸换算和备用联系人放在这里，需要时再打开", link: "备忘", after: "。", action: "阅读备注" }
+      ];
+      var SPOKES = 12;
+      var DURATION = 1120;
+      var rail = document.getElementById("rail");
+      var card = document.getElementById("card");
+      var stage = document.getElementById("stage");
+      var hub = document.getElementById("hub");
+      var heading = document.getElementById("heading");
+      var blurb = document.getElementById("blurb");
+      var action = document.getElementById("action");
+      var live = document.getElementById("live");
+      var svg = document.getElementById("spokes");
+      var ns = "http://www.w3.org/2000/svg";
+      var trace = svgEl("path");
+      var hubDot = svgEl("circle");
+      var runner = svgEl("circle");
+      var lines = [];
+      var oldLines = [];
+      var i;
+      for (i = 0; i < SPOKES; i++) lines.push(svgEl("line"));
+      for (i = 0; i < SPOKES; i++) oldLines.push(svgEl("line"));
+      trace.setAttribute("fill", "none");
+      trace.setAttribute("stroke", "#fff");
+      trace.setAttribute("stroke-width", "2");
+      trace.setAttribute("stroke-linecap", "round");
+      hubDot.setAttribute("fill", "#fff");
+      hubDot.setAttribute("stroke", "none");
+      runner.setAttribute("fill", "#fff");
+      runner.setAttribute("stroke", "none");
+      svg.appendChild(trace);
+      oldLines.forEach(function (el) { svg.appendChild(el); });
+      lines.forEach(function (el) { svg.appendChild(el); });
+      svg.appendChild(hubDot);
+      svg.appendChild(runner);
+
+      var buttons = sections.map(function (section, index) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "item";
+        button.setAttribute("role", "radio");
+        button.setAttribute("aria-checked", "false");
+        button.tabIndex = -1;
+        button.innerHTML = '<span class="name"></span><span class="mark" aria-hidden="true"></span>';
+        button.querySelector(".name").textContent = section.name;
+        button.addEventListener("click", function () { choose(index, true); });
+        rail.appendChild(button);
+        return button;
+      });
+
+      var selected = 0;
+      var prevIndex = 0;
+      var animating = false;
+      var raf = 0;
+      var reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+      function svgEl(name) {
+        var el = document.createElementNS(ns, name);
+        el.setAttribute("stroke", "rgba(236,240,255,.78)");
+        el.setAttribute("stroke-width", "1.15");
+        el.setAttribute("stroke-linecap", "round");
+        return el;
+      }
+
+      function clamp(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+      function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+      function easeInOut(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+      function lerp(a, b, t) { return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; }
+      function reduced() { return reduceQuery.matches; }
+
+      function center(el) {
+        var s = stage.getBoundingClientRect();
+        var r = el.getBoundingClientRect();
+        return { x: r.left - s.left + r.width / 2, y: r.top - s.top + r.height / 2 };
+      }
+
+      function cardBox() {
+        var s = stage.getBoundingClientRect();
+        var r = card.getBoundingClientRect();
+        return { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height };
+      }
+
+      function anchorsOf(box) {
+        var per = 2 * (box.w + box.h);
+        var pts = [];
+        var k;
+        for (k = 0; k < SPOKES; k++) {
+          var d = ((k + 0.5) / SPOKES) * per;
+          pts.push(pointOnRect(box, d));
+        }
+        return pts;
+      }
+
+      function pointOnRect(box, dist) {
+        var w = box.w;
+        var h = box.h;
+        var per = 2 * (w + h);
+        var p = ((dist % per) + per) % per;
+        if (p <= w) return { x: box.x + p, y: box.y };
+        if (p <= w + h) return { x: box.x + w, y: box.y + (p - w) };
+        if (p <= 2 * w + h) return { x: box.x + w - (p - w - h), y: box.y + h };
+        return { x: box.x, y: box.y + h - (p - 2 * w - h) };
+      }
+
+      function setLine(el, a, b, alpha) {
+        if (!a || !b || alpha <= 0.01) {
+          el.setAttribute("opacity", "0");
+          return;
+        }
+        el.setAttribute("x1", a.x.toFixed(2));
+        el.setAttribute("y1", a.y.toFixed(2));
+        el.setAttribute("x2", b.x.toFixed(2));
+        el.setAttribute("y2", b.y.toFixed(2));
+        el.setAttribute("opacity", alpha.toFixed(3));
+      }
+
+      function paintCopy(index) {
+        var section = sections[index];
+        heading.textContent = section.title;
+        blurb.textContent = "";
+        blurb.appendChild(document.createTextNode(section.before));
+        var link = document.createElement("a");
+        link.href = "#rail";
+        link.textContent = section.link;
+        blurb.appendChild(link);
+        blurb.appendChild(document.createTextNode(section.after));
+        action.textContent = section.action;
+      }
+
+      function syncRadios(index) {
+        buttons.forEach(function (button, i) {
+          var on = i === index;
+          button.setAttribute("aria-checked", on ? "true" : "false");
+          button.tabIndex = on ? 0 : -1;
+        });
+      }
+
+      function markShown(index, showSelected) {
+        buttons.forEach(function (button, i) {
+          button.classList.toggle("is-shown", showSelected && i === index);
+        });
+      }
+
+      function choose(index, shouldFocus) {
+        if (index === selected && !animating) {
+          if (shouldFocus) buttons[index].focus();
+          return;
+        }
+        prevIndex = selected;
+        selected = index;
+        syncRadios(index);
+        paintCopy(index);
+        live.textContent = sections[index].name;
+        if (shouldFocus) buttons[index].focus();
+        if (reduced()) {
+          cancelAnimationFrame(raf);
+          animating = false;
+          markShown(index, true);
+          draw(1);
+          return;
+        }
+        animating = true;
+        var t0 = performance.now();
+        cancelAnimationFrame(raf);
+        var step = function (now) {
+          var t = clamp((now - t0) / DURATION);
+          draw(t);
+          if (t < 1) raf = requestAnimationFrame(step);
+          else { animating = false; raf = 0; draw(1); }
+        };
+        raf = requestAnimationFrame(step);
+      }
+
+      function draw(t) {
+        var box = cardBox();
+        if (box.w < 2 || box.h < 2) return;
+        var hubPt = center(hub);
+        var markPt = center(buttons[selected].querySelector(".mark"));
+        var prevPt = center(buttons[prevIndex].querySelector(".mark"));
+        var anchors = anchorsOf(box);
+        var per = 2 * (box.w + box.h);
+        var borderT = clamp(t / 0.40);
+        var borderFade = borderT <= 0 || borderT >= 1 ? 0 : borderT < 0.08 ? borderT / 0.08 : borderT > 0.9 ? (1 - borderT) / 0.1 : 1;
+        var arc = Math.max(42, per * 0.16);
+        trace.setAttribute("d", "M " + box.x + " " + box.y + " H " + (box.x + box.w) + " V " + (box.y + box.h) + " H " + box.x + " Z");
+        trace.setAttribute("stroke-dasharray", arc.toFixed(1) + " " + per.toFixed(1));
+        trace.setAttribute("stroke-dashoffset", (-borderT * per).toFixed(1));
+        trace.setAttribute("opacity", (animating ? borderFade : 0).toFixed(3));
+
+        var followP = easeInOut(clamp((t - 0.74) / 0.26));
+        var spokeSum = 0;
+        var k;
+        for (k = 0; k < SPOKES; k++) {
+          var local = easeOut(clamp((t - (0.32 + (k / SPOKES) * 0.12)) / 0.22));
+          spokeSum += local;
+          var inner = followP > 0 ? lerp(hubPt, markPt, followP) : lerp(anchors[k], hubPt, local);
+          var alpha = followP > 0 ? 0.8 : local < 0.04 ? 0 : 0.25 + 0.6 * local;
+          setLine(lines[k], anchors[k], inner, animating || t >= 1 ? alpha : 0);
+          var oldAlpha = t < 0.18 && prevIndex !== selected ? (1 - t / 0.18) * 0.5 : 0;
+          setLine(oldLines[k], anchors[k], prevPt, oldAlpha);
+        }
+        if (!animating) {
+          for (k = 0; k < SPOKES; k++) setLine(lines[k], anchors[k], markPt, 0.62);
+          oldLines.forEach(function (el) { el.setAttribute("opacity", "0"); });
+          trace.setAttribute("opacity", "0");
+        }
+        var arrived = spokeSum / SPOKES;
+        var pulseU = (t - 0.62) / 0.22;
+        var pulse = animating && pulseU > 0 && pulseU < 1 ? Math.sin(Math.PI * pulseU) : 0;
+        hub.classList.toggle("is-lit", !animating || arrived > 0.72 || followP > 0.05);
+        hub.style.transform = reduced() ? "none" : "scale(" + (1 + 0.55 * pulse).toFixed(3) + ")";
+        hubDot.setAttribute("cx", hubPt.x.toFixed(2));
+        hubDot.setAttribute("cy", hubPt.y.toFixed(2));
+        hubDot.setAttribute("r", (2.2 + 3.4 * pulse).toFixed(2));
+        hubDot.setAttribute("opacity", pulse.toFixed(3));
+        var run = animating && followP > 0 && followP < 0.98;
+        runner.setAttribute("cx", (hubPt.x + (markPt.x - hubPt.x) * followP).toFixed(2));
+        runner.setAttribute("cy", (hubPt.y + (markPt.y - hubPt.y) * followP).toFixed(2));
+        runner.setAttribute("r", run ? "3.4" : "0");
+        runner.setAttribute("opacity", run ? "1" : "0");
+        markShown(selected, !animating || followP > 0.9);
+      }
+
+      rail.addEventListener("keydown", function (event) {
+        var key = event.key;
+        if (key !== "ArrowUp" && key !== "ArrowDown" && key !== "ArrowLeft" && key !== "ArrowRight" && key !== "Home" && key !== "End") return;
+        event.preventDefault();
+        var next = selected;
+        if (key === "Home") next = 0;
+        else if (key === "End") next = sections.length - 1;
+        else if (key === "ArrowDown" || key === "ArrowRight") next = (selected + 1) % sections.length;
+        else next = (selected - 1 + sections.length) % sections.length;
+        choose(next, true);
+      });
+
+      action.addEventListener("click", function () {
+        live.textContent = sections[selected].name + "：" + action.textContent;
+      });
+
+      reduceQuery.addEventListener("change", function () {
+        cancelAnimationFrame(raf);
+        animating = false;
+        markShown(selected, true);
+        draw(1);
+      });
+
+      window.addEventListener("resize", function () {
+        if (!animating) draw(1);
+      });
+      if (window.ResizeObserver) {
+        var observer = new ResizeObserver(function () {
+          if (!animating) draw(1);
+        });
+        observer.observe(stage);
+      }
+
+      syncRadios(0);
+      paintCopy(0);
+      markShown(0, true);
+      draw(1);
+    })();
+  </script>
+</body>
+</html>
