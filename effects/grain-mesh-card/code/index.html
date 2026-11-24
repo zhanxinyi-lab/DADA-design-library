@@ -150,35 +150,62 @@
     }
 
     var ctx = null;
+    // 着色器 uv.y = 1 - fragCoord.y/height，0 在画面上方。2D 用同一套，不再翻成 1 - y。
+    var BLOBS = [
+      { x: 0.28, y: 0.52, r: 0.32, rgb: [107, 140, 250], speed: 0.36 },
+      { x: 0.56, y: 0.40, r: 0.36, rgb: [242, 237, 255], speed: 0.31 },
+      { x: 0.44, y: 0.68, r: 0.28, rgb: [173, 168, 247], speed: 0.24 },
+      { x: 0.72, y: 0.30, r: 0.20, rgb: [247, 209, 235], speed: 0.40 }
+    ];
     function boot2d() {
       mode = '2d';
       ctx = canvas.getContext('2d');
     }
-    function draw2d(time, seed) {
+    function roundPath(x, y, rw, rh, radius) {
+      var r = Math.max(0, Math.min(radius, rw / 2, rh / 2));
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + rw, y, x + rw, y + rh, r);
+      ctx.arcTo(x + rw, y + rh, x, y + rh, r);
+      ctx.arcTo(x, y + rh, x, y, r);
+      ctx.arcTo(x, y, x + rw, y, r);
+      ctx.closePath();
+    }
+    function draw2d(time) {
       var w = canvas.width;
       var h = canvas.height;
-      var breathe = 1 + 0.045 * Math.sin(time * 0.72);
-      var s = Math.min(w, h) * 0.57 * breathe;
-      var x = (w - s) / 2 + Math.sin(time * 0.41) * w * 0.012;
-      var y = (h - s) / 2 + Math.cos(time * 0.33) * h * 0.012;
-      var radius = s * (0.22 + 0.04 * Math.sin(time * 0.48));
+      var breathe = 1 + 0.05 * Math.sin(time * 0.72);
+      var fx = 0.01 * Math.sin(time * 0.41);
+      var fy = 0.01 * Math.cos(time * 0.33);
+      var half = 0.22 * breathe;
+      var corner = (0.085 + 0.03 * Math.sin(time * 0.48)) * Math.min(w, h);
+      var cx = (0.5 + fx) * w;
+      var cy = (0.5 + fy) * h;
+      var rw = half * 2 * w;
+      var rh = half * 2 * h;
+      var x = cx - rw / 2;
+      var y = cy - rh / 2;
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, w, h);
       ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(x + radius, y);
-      ctx.arcTo(x + s, y, x + s, y + s, radius);
-      ctx.arcTo(x + s, y + s, x, y + s, radius);
-      ctx.arcTo(x, y + s, x, y, radius);
-      ctx.arcTo(x, y, x + s, y, radius);
-      ctx.closePath();
+      roundPath(x, y, rw, rh, corner);
       ctx.clip();
-      var grad = ctx.createLinearGradient(x, y, x + s, y + s);
-      grad.addColorStop(0, '#8ea6f6');
-      grad.addColorStop(0.45, '#e7e4fb');
-      grad.addColorStop(1, '#b7b0f0');
-      ctx.fillStyle = grad;
-      ctx.fillRect(x, y, s, s);
+      ctx.fillStyle = 'rgb(204,209,250)';
+      ctx.fillRect(x, y, rw, rh);
+      for (var i = 0; i < BLOBS.length; i++) {
+        var blob = BLOBS[i];
+        var bx = blob.x + 0.06 * Math.sin(time * blob.speed);
+        var by = blob.y + 0.06 * Math.cos(time * blob.speed);
+        var px = ((bx - 0.5) * breathe + 0.5 + fx) * w;
+        var py = ((by - 0.5) * breathe + 0.5 + fy) * h;
+        var rad = blob.r * breathe * Math.min(w, h);
+        var grad = ctx.createRadialGradient(px, py, 0, px, py, rad);
+        var rgb = blob.rgb;
+        grad.addColorStop(0, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.92)');
+        grad.addColorStop(1, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, rw, rh);
+      }
       ctx.restore();
     }
 
@@ -197,9 +224,13 @@
       var time = reduced ? 0.35 : (now - started) / 1000;
       var seed = reduced ? 4 : Math.floor(time * 9);
       if (mode === 'gl') drawGL(time, seed);
-      else draw2d(time, seed);
+      else draw2d(time);
     }
     function loop(now) {
+      if (!canvas.clientWidth || !canvas.clientHeight) {
+        raf = 0;
+        return;
+      }
       render(now);
       if (!reduced && document.visibilityState === 'visible') raf = requestAnimationFrame(loop);
       else raf = 0;
@@ -213,7 +244,20 @@
       canvas.replaceWith(next);
       canvas = next;
       gl = null;
+      watchContext(canvas);
     }
+    function onContextLost(event) {
+      event.preventDefault();
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      resetCanvas();
+      boot2d();
+      kick();
+    }
+    function watchContext(node) {
+      node.addEventListener('webglcontextlost', onContextLost);
+    }
+    watchContext(canvas);
     try {
       if (!bootGL()) {
         if (gl) resetCanvas();
@@ -223,6 +267,7 @@
       if (gl) resetCanvas();
       boot2d();
     }
+    new ResizeObserver(function () { kick(); }).observe(canvas.parentNode);
     motionQuery.addEventListener('change', function () {
       reduced = motionQuery.matches;
       if (raf) cancelAnimationFrame(raf);
