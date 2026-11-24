@@ -92,6 +92,7 @@
       var layout = null;
       var born = 0;
       var raf = 0;
+      var resizeFrame = 0;
       var running = false;
       var px = 0;
       var py = 0;
@@ -421,8 +422,16 @@
       frame.addEventListener('pointerleave', function () {
         stirTarget = 0;
       });
+      function queueResize() {
+        if (resizeFrame) return;
+        resizeFrame = window.requestAnimationFrame(function () {
+          resizeFrame = 0;
+          resize();
+        });
+      }
+
       replay.addEventListener('click', replayPop);
-      window.addEventListener('resize', resize);
+      window.addEventListener('resize', queueResize);
       if (reduceQuery.addEventListener) {
         reduceQuery.addEventListener('change', function () {
           stirTarget = 0;
