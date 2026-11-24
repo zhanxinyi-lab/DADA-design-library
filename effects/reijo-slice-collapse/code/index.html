@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>环形切片发光体</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #030406; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .fallback {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 18px;
+    color: #9aa4b5;
+    font: 14px/1.5 sans-serif;
+    text-align: center;
+    padding: 24px;
+  }
+  .stack { width: min(46vw, 240px); height: min(52vw, 270px); position: relative; }
+  .stack i {
+    position: absolute;
+    left: 50%;
+    height: 8%;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse at 50% 40%, #2a3344, #0c1018 72%);
+    box-shadow: 0 0 0 1px rgba(120, 140, 170, 0.18);
+  }
+  p.sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+</style>
+</head>
+<body>
+<p class="sr">暗场中的球体由一叠水平环片组成。环片会撑开、发出蓝紫光，再逐层塌陷收回。</p>
+<canvas id="view" aria-label="环形切片发光体。水平环片堆成的球在暗场里循环撑开和塌陷。"></canvas>
+<div class="fallback" id="fallback">
+  <div class="stack" id="stack"></div>
+  <p>这个浏览器打不开 WebGL，环形切片无法显示。</p>
+</div>
+<script>
+(function () {
+  var canvas = document.getElementById("view");
+  var fallback = document.getElementById("fallback");
+  var stack = document.getElementById("stack");
+  var N = 16;
+  var CYCLE = 1.5;
+  var reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var reduce = reduceQuery.matches;
+  var gl = null;
+  var raf = 0;
+  var started = 0;
+  var resources = null;
+
+  for (var i = 0; i < 12; i++) {
+    var band = document.createElement("i");
+    var t = (i + 0.5) / 12;
+    var ny = (t - 0.5) * 2;
+    var rad = Math.sqrt(Math.max(0.08, 1 - ny * ny));
+    band.style.width = (rad * 100) + "%";
+    band.style.bottom = (t * 86) + "%";
+    stack.appendChild(band);
+  }
+
+  function showFallback() {
+    canvas.style.display = "none";
+    fallback.style.display = "flex";
+  }
+
+  function smooth(t) {
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    return t * t * (3 - 2 * t);
+  }
+
+  function layerGlow(index, u) {
+    var k = index / (N - 1);
+    var start = 0.08 + k * 0.32;
+    var peak = start + 0.17;
+    var fall = 0.62 + k * 0.1;
+    var end = 0.94;
+    if (u <= start || u >= end) return 0;
+    if (u < peak) return smooth((u - start) / (peak - start));
+    if (u < fall) return 1;
+    return 1 - smooth((u - fall) / (end - fall));
+  }
+
+  function buildLayers() {
+    var span = 1.8;
+    var pitch = span / N;
+    var thick = pitch * 0.8;
+    var list = [];
+    var minY = Infinity;
+    for (var i = 0; i < N; i++) {
+      var y = -span / 2 + (i + 0.5) * pitch;
+      var ny = y / (span / 2);
+      var rad = Math.sqrt(Math.max(0.045, 1 - ny * ny)) * 1.04;
+      list.push({ y: y, rad: rad, thick: thick, seed: i * 1.73 + 0.35 });
+      minY = Math.min(minY, y - thick / 2);
+    }
+    var lift = 0.02 - minY;
+    for (var j = 0; j < N; j++) list[j].y += lift;
+    return list;
+  }
+
+  var layers = buildLayers();
+
+  function pose(index, u) {
+    var g = layerGlow(index, u);
+    var mid = (N - 1) / 2;
+    var y = layers[index].y + (index - mid) * 0.034 * g;
+    var fall = 0.62 + (index / (N - 1)) * 0.1;
+    var dropT = (u - fall) / 0.16;
+    if (index < 2 && dropT > 0 && dropT < 1) {
+      y -= Math.sin(dropT * Math.PI) * (index === 0 ? 0.15 : 0.09);
+    }
+    return {
+      y: y,
+      glow: g,
+      amp: 0.2 * Math.pow(g, 0.65),
+      bulge: 0.055 * g
+    };
+  }
+
+  function buildDisc() {
+    var seg = 112;
+    var rings = 5;
+    var pos = [];
+    var kind = [];
+    var idx = [];
+    function vert(x, y, z, k) {
+      pos.push(x, y, z);
+      kind.push(k);
+    }
+    function cap(y, k) {
+      var base = pos.length / 3;
+      var row = seg + 1;
+      for (var r = 0; r <= rings; r++) {
+        var rad = r / rings;
+        for (var a = 0; a <= seg; a++) {
+          var ang = (a / seg) * Math.PI * 2;
+          vert(Math.cos(ang) * rad, y, Math.sin(ang) * rad, k);
+        }
+      }
+      for (var rr = 1; rr <= rings; rr++) {
+        for (var a2 = 0; a2 < seg; a2++) {
+          var i0 = base + (rr - 1) * row + a2;
+          var i1 = i0 + 1;
+          var i2 = base + rr * row + a2;
+          var i3 = i2 + 1;
+          if (k > 0) idx.push(i0, i2, i1, i1, i2, i3);
+          else idx.push(i0, i1, i2, i1, i3, i2);
+        }
+      }
+    }
+    cap(0.5, 1);
+    cap(-0.5, -1);
+    var wall = pos.length / 3;
+    for (var s = 0; s < 2; s++) {
+      var wy = s === 0 ? 0.5 : -0.5;
+      for (var a3 = 0; a3 <= seg; a3++) {
+        var ang3 = (a3 / seg) * Math.PI * 2;
+        vert(Math.cos(ang3), wy, Math.sin(ang3), 0);
+      }
+    }
+    for (var a4 = 0; a4 < seg; a4++) {
+      var w0 = wall + a4;
+      var w1 = w0 + 1;
+      var w2 = wall + (seg + 1) + a4;
+      var w3 = w2 + 1;
+      idx.push(w0, w1, w2, w1, w3, w2);
+    }
+    return { pos: new Float32Array(pos), kind: new Float32Array(kind), idx: new Uint16Array(idx) };
+  }
+
+  var sliceVS = [
+    "precision mediump float;",
+    "attribute vec3 aPos;",
+    "attribute float aKind;",
+    "uniform mat4 uVP;",
+    "uniform float uRadius;",
+    "uniform float uThick;",
+    "uniform float uY;",
+    "uniform float uAmp;",
+    "uniform float uBulge;",
+    "uniform float uTime;",
+    "uniform float uSeed;",
+    "uniform float uFlip;",
+    "varying vec3 vN;",
+    "varying vec3 vW;",
+    "varying float vRad;",
+    "varying float vFold;",
+    "float wave(float ang, float rad, float seed, float time) {",
+    "  float rim = smoothstep(0.22, 1.0, rad);",
+    "  float n = sin(ang * 2.4 + seed) * 0.48;",
+    "  n += sin(ang * 5.3 - seed * 1.61 + time * 0.66) * 0.3;",
+    "  n += sin(ang * 9.7 + seed * 0.83 - time * 0.9) * 0.18 * rim;",
+    "  n += sin(rad * 6.5 + ang * 1.35 + seed * 0.7) * 0.26;",
+    "  return n;",
+    "}",
+    "void main() {",
+    "  float rad = length(aPos.xz);",
+    "  vec2 dir = rad > 0.0008 ? aPos.xz / rad : vec2(1.0, 0.0);",
+    "  float ang = atan(dir.y, dir.x);",
+    "  float n = wave(ang, rad, uSeed, uTime);",
+    "  float dnA = wave(ang + 0.05, rad, uSeed, uTime) - n;",
+    "  float dnR = wave(ang, min(rad + 0.05, 1.0), uSeed, uTime) - n;",
+    "  float edge = mix(0.45, 1.0, smoothstep(0.0, 1.0, rad));",
+    "  float grow = 1.0 + uBulge + n * uAmp * edge;",
+    "  vec3 p;",
+    "  p.xz = dir * (uRadius * grow);",
+    "  p.y = aPos.y * uThick + uY + n * uAmp * 0.36 * edge;",
+    "  p.y *= uFlip;",
+    "  vec3 side = vec3(-dir.y, 0.0, dir.x);",
+    "  vec3 N;",
+    "  if (abs(aKind) > 0.5) {",
+    "    N = vec3(dir.x * (-dnR * uAmp * 5.0), aKind, dir.y * (-dnR * uAmp * 5.0));",
+    "    N += side * (-dnA * uAmp * 6.0);",
+    "  } else {",
+    "    N = vec3(dir.x, -dnR * uAmp * 2.4, dir.y);",
+    "    N += side * (-dnA * uAmp * 4.0);",
+    "  }",
+    "  N.y *= uFlip;",
+    "  vN = N;",
+    "  vW = p;",
+    "  vRad = rad;",
+    "  vFold = n;",
+    "  gl_Position = uVP * vec4(p, 1.0);",
+    "}"
+  ].join("\n");
+
+  var sliceFS = [
+    "precision mediump float;",
+    "varying vec3 vN;",
+    "varying vec3 vW;",
+    "varying float vRad;",
+    "varying float vFold;",
+    "uniform vec3 uEye;",
+    "uniform float uGlow;",
+    "uniform float uBelow;",
+    "uniform float uFlip;",
+    "void main() {",
+    "  if (uFlip < 0.0 && (uGlow < 0.025 || vW.y > -0.004)) discard;",
+    "  vec3 N = normalize(vN);",
+    "  if (!gl_FrontFacing) N = -N;",
+    "  vec3 V = normalize(uEye - vW);",
+    "  vec3 L = normalize(vec3(0.22, 0.86, 0.42));",
+    "  float ndv = max(dot(N, V), 0.0);",
+    "  float fres = pow(1.0 - ndv, 2.35);",
+    "  float hemi = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);",
+    "  float spec = pow(max(dot(N, normalize(L + V)), 0.0), 36.0);",
+    "  float wrap = max((dot(N, L) + 0.55) / 1.55, 0.0);",
+    "  vec3 dark = vec3(0.016, 0.018, 0.022) + vec3(0.05, 0.056, 0.07) * hemi * hemi;",
+    "  dark += vec3(0.16, 0.18, 0.24) * fres * 0.5;",
+    "  vec3 body = vec3(0.16, 0.46, 1.05);",
+    "  vec3 hot = vec3(0.58, 0.84, 1.08);",
+    "  vec3 violet = vec3(0.36, 0.2, 0.92);",
+    "  vec3 emit = mix(violet, body, 0.8);",
+    "  emit = mix(emit, hot, clamp(fres * 1.15, 0.0, 1.0));",
+    "  emit += hot * spec * 0.85;",
+    "  emit += body * wrap * 0.28;",
+    "  float g = clamp(uGlow, 0.0, 1.0);",
+    "  vec3 col = mix(dark, emit, g);",
+    "  float fold = clamp(vFold * 0.45 + 0.5, 0.0, 1.0);",
+    "  col *= mix(1.0, mix(0.84, 1.06, fold), g);",
+    "  col += hot * (1.0 - g) * uBelow * (0.18 + fres * 0.55);",
+    "  col = col / (1.0 + col * 0.22);",
+    "  col *= mix(mix(0.82, 1.0, smoothstep(0.05, 0.7, vRad)), 1.0, g);",
+    "  float alpha = 1.0;",
+    "  if (uFlip < 0.0) {",
+    "    float fade = smoothstep(-1.45, -0.03, vW.y) * exp(-dot(vW.xz, vW.xz) * 0.18);",
+    "    alpha = g * 0.24 * fade;",
+    "  }",
+    "  gl_FragColor = vec4(col, alpha);",
+    "}"
+  ].join("\n");
+
+  var floorVS = [
+    "precision mediump float;",
+    "attribute vec2 aXZ;",
+    "uniform mat4 uVP;",
+    "varying vec3 vW;",
+    "void main() {",
+    "  vW = vec3(aXZ.x, 0.0, aXZ.y);",
+    "  gl_Position = uVP * vec4(vW, 1.0);",
+    "}"
+  ].join("\n");
+
+  var floorFS = [
+    "precision mediump float;",
+    "varying vec3 vW;",
+    "uniform float uGlow;",
+    "uniform float uPix;",
+    "uniform float uGrid;",
+    "void main() {",
+    "  vec2 xz = vW.xz;",
+    "  float dist = length(xz);",
+    "  vec2 cell = abs(fract(xz * uGrid) - 0.5);",
+    "  float lineDist = 0.5 - max(cell.x, cell.y);",
+    "  float line = 1.0 - smoothstep(0.0, max(uPix * uGrid * 1.05, 0.0035), lineDist);",
+    "  float pool = exp(-dist * dist * mix(1.25, 0.48, uGlow));",
+    "  vec3 col = vec3(0.010, 0.011, 0.015);",
+    "  col = mix(col, vec3(0.006, 0.007, 0.010), smoothstep(1.6, 8.5, dist));",
+    "  float shade = exp(-dist * dist * 1.35);",
+    "  col *= mix(1.0, 0.45, shade * (1.0 - uGlow));",
+    "  vec3 poolCol = vec3(0.07, 0.28, 1.0) * pool * uGlow * 1.05;",
+    "  poolCol += vec3(0.45, 0.72, 1.0) * pow(pool, 2.6) * uGlow * 0.36;",
+    "  line *= smoothstep(10.0, 1.1, dist);",
+    "  vec3 lineCol = vec3(0.025, 0.034, 0.05) + vec3(0.28, 0.55, 1.0) * pool * uGlow * 1.35;",
+    "  col += poolCol + lineCol * line;",
+    "  float reveal = exp(-dist * dist * 0.36);",
+    "  float alpha = mix(0.93, 0.58, reveal * (0.30 + 0.70 * uGlow));",
+    "  gl_FragColor = vec4(col, alpha);",
+    "}"
+  ].join("\n");
+
+  function identity() {
+    return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+  }
+
+  function mul(a, b) {
+    var o = new Float32Array(16);
+    for (var c = 0; c < 4; c++) {
+      for (var r = 0; r < 4; r++) {
+        o[c * 4 + r] =
+          a[r] * b[c * 4] +
+          a[4 + r] * b[c * 4 + 1] +
+          a[8 + r] * b[c * 4 + 2] +
+          a[12 + r] * b[c * 4 + 3];
+      }
+    }
+    return o;
+  }
+
+  function perspective(fov, aspect, near, far) {
+    var f = 1 / Math.tan(fov / 2);
+    var nf = 1 / (near - far);
+    var m = identity();
+    m[0] = f / aspect;
+    m[5] = f;
+    m[10] = (far + near) * nf;
+    m[11] = -1;
+    m[14] = 2 * far * near * nf;
+    m[15] = 0;
+    return m;
+  }
+
+  function lookAt(eye, target, up) {
+    var zx = eye[0] - target[0];
+    var zy = eye[1] - target[1];
+    var zz = eye[2] - target[2];
+    var zl = Math.hypot(zx, zy, zz) || 1;
+    zx /= zl; zy /= zl; zz /= zl;
+    var xx = up[1] * zz - up[2] * zy;
+    var xy = up[2] * zx - up[0] * zz;
+    var xz = up[0] * zy - up[1] * zx;
+    var xl = Math.hypot(xx, xy, xz) || 1;
+    xx /= xl; xy /= xl; xz /= xl;
+    var yx = zy * xz - zz * xy;
+    var yy = zz * xx - zx * xz;
+    var yz = zx * xy - zy * xx;
+    return new Float32Array([
+      xx, yx, zx, 0,
+      xy, yy, zy, 0,
+      xz, yz, zz, 0,
+      -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
+      -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
+      -(zx * eye[0] + zy * eye[1] + zz * eye[2]),
+      1
+    ]);
+  }
+
+  function compile(vsSrc, fsSrc) {
+    function shader(type, src) {
+      var s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        gl.deleteShader(s);
+        return null;
+      }
+      return s;
+    }
+    var vs = shader(gl.VERTEX_SHADER, vsSrc);
+    var fs = shader(gl.FRAGMENT_SHADER, fsSrc);
+    if (!vs || !fs) return null;
+    var prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.bindAttribLocation(prog, 0, "aPos");
+    gl.bindAttribLocation(prog, 1, "aKind");
+    gl.bindAttribLocation(prog, 0, "aXZ");
+    gl.linkProgram(prog);
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      gl.deleteProgram(prog);
+      return null;
+    }
+    return prog;
+  }
+
+  function locs(prog, names) {
+    var out = {};
+    for (var i = 0; i < names.length; i++) out[names[i]] = gl.getUniformLocation(prog, names[i]);
+    return out;
+  }
+
+  function boot() {
+    if (resources) {
+      gl.deleteProgram(resources.sliceProg);
+      gl.deleteProgram(resources.floorProg);
+      gl.deleteBuffer(resources.posBuf);
+      gl.deleteBuffer(resources.kindBuf);
+      gl.deleteBuffer(resources.idxBuf);
+      gl.deleteBuffer(resources.floorBuf);
+    }
+    var sliceProg = compile(sliceVS, sliceFS);
+    var floorProg = compile(floorVS, floorFS);
+    if (!sliceProg || !floorProg) {
+      showFallback();
+      resources = null;
+      return false;
+    }
+    var disc = buildDisc();
+    var posBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, disc.pos, gl.STATIC_DRAW);
+    var kindBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, kindBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, disc.kind, gl.STATIC_DRAW);
+    var idxBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, disc.idx, gl.STATIC_DRAW);
+    var floorBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, floorBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+      -80, -80, 80, -80, -80, 80, 80, 80
+    ]), gl.STATIC_DRAW);
+    resources = {
+      sliceProg: sliceProg,
+      floorProg: floorProg,
+      posBuf: posBuf,
+      kindBuf: kindBuf,
+      idxBuf: idxBuf,
+      floorBuf: floorBuf,
+      count: disc.idx.length,
+      slice: locs(sliceProg, ["uVP", "uRadius", "uThick", "uY", "uAmp", "uBulge", "uTime", "uSeed", "uFlip", "uEye", "uGlow", "uBelow"]),
+      floor: locs(floorProg, ["uVP", "uGlow", "uPix", "uGrid"])
+    };
+    canvas.style.display = "block";
+    fallback.style.display = "none";
+    return true;
+  }
+
+  function cameraFor(aspect, time) {
+    var fov = 0.56;
+    var tanHalf = Math.tan(fov / 2);
+    var dist = 5.35;
+    var distW = (3.75 / Math.max(aspect, 0.28)) / (2 * tanHalf);
+    if (distW > dist) dist = distW;
+    var drift = reduce ? 0 : time * 0.16;
+    return {
+      fov: fov,
+      eye: [Math.sin(drift) * 0.16, 2.05, dist],
+      target: [0, 0.62, 0]
+    };
+  }
+
+  function draw(time) {
+    if (!resources || gl.isContextLost()) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var cssW = Math.max(1, canvas.clientWidth);
+    var cssH = Math.max(1, canvas.clientHeight);
+    var w = Math.round(cssW * dpr);
+    var h = Math.round(cssH * dpr);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    var aspect = w / h;
+    var u = reduce ? 0 : (time % CYCLE) / CYCLE;
+    var waveTime = reduce ? 0 : time;
+    var cam = cameraFor(aspect, time);
+    var view = lookAt(cam.eye, cam.target, [0, 1, 0]);
+    var proj = perspective(cam.fov, aspect, 0.08, 180);
+    var vp = mul(proj, view);
+    var glows = [];
+    var below = [];
+    var maxG = 0;
+    var sum = 0;
+    var under = 0;
+    for (var i = 0; i < N; i++) {
+      var g = reduce ? 0 : layerGlow(i, u);
+      glows.push(g);
+      below.push(under);
+      under = Math.max(under, g);
+      if (g > maxG) maxG = g;
+      sum += g;
+    }
+    var floorGlow = Math.max(maxG * 0.82, sum / N);
+
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(0.012, 0.014, 0.02, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
+    gl.disable(gl.CULL_FACE);
+
+    gl.useProgram(resources.sliceProg);
+    gl.bindBuffer(gl.ARRAY_BUFFER, resources.posBuf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, resources.kindBuf);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, resources.idxBuf);
+    gl.uniformMatrix4fv(resources.slice.uVP, false, vp);
+    gl.uniform3f(resources.slice.uEye, cam.eye[0], cam.eye[1], cam.eye[2]);
+    gl.uniform1f(resources.slice.uTime, waveTime);
+
+    function drawSlices(flip) {
+      gl.uniform1f(resources.slice.uFlip, flip);
+      var order = flip < 0 ? -1 : 1;
+      for (var n = 0; n < N; n++) {
+        var i = order < 0 ? N - 1 - n : n;
+        if (flip < 0 && glows[i] < 0.025) continue;
+        var p = pose(i, reduce ? 0 : u);
+        var cap = i === 0 || i === N - 1 ? 0.72 : 1;
+        gl.uniform1f(resources.slice.uRadius, layers[i].rad);
+        gl.uniform1f(resources.slice.uThick, layers[i].thick);
+        gl.uniform1f(resources.slice.uY, p.y);
+        gl.uniform1f(resources.slice.uAmp, p.amp * cap);
+        gl.uniform1f(resources.slice.uBulge, p.bulge);
+        gl.uniform1f(resources.slice.uSeed, layers[i].seed);
+        gl.uniform1f(resources.slice.uGlow, glows[i]);
+        gl.uniform1f(resources.slice.uBelow, below[i]);
+        gl.drawElements(gl.TRIANGLES, resources.count, gl.UNSIGNED_SHORT, 0);
+      }
+    }
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(true);
+    drawSlices(-1);
+
+    var worldH = 2 * cam.eye[2] * Math.tan(cam.fov / 2);
+    gl.useProgram(resources.floorProg);
+    gl.bindBuffer(gl.ARRAY_BUFFER, resources.floorBuf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.uniformMatrix4fv(resources.floor.uVP, false, vp);
+    gl.uniform1f(resources.floor.uGlow, floorGlow);
+    gl.uniform1f(resources.floor.uPix, worldH / h);
+    gl.uniform1f(resources.floor.uGrid, 8.2);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    gl.useProgram(resources.sliceProg);
+    gl.bindBuffer(gl.ARRAY_BUFFER, resources.posBuf);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, resources.kindBuf);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, resources.idxBuf);
+    drawSlices(1);
+  }
+
+  function stop() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+  }
+
+  function loop(now) {
+    if (!started) started = now;
+    try {
+      draw((now - started) / 1000);
+    } catch (err) {
+      stop();
+      showFallback();
+      return;
+    }
+    if (!reduce) raf = requestAnimationFrame(loop);
+  }
+
+  function start() {
+    stop();
+    started = 0;
+    if (reduce) {
+      draw(0);
+      return;
+    }
+    raf = requestAnimationFrame(loop);
+  }
+
+  try {
+    gl = canvas.getContext("webgl", {
+      alpha: false,
+      antialias: true,
+      depth: true,
+      premultipliedAlpha: false
+    });
+  } catch (err) {
+    gl = null;
+  }
+  var booted = false;
+  if (gl) {
+    try { booted = boot(); }
+    catch (err) { booted = false; }
+  }
+  if (!booted) {
+    showFallback();
+    return;
+  }
+
+  canvas.addEventListener("webglcontextlost", function (event) {
+    event.preventDefault();
+    stop();
+  }, false);
+  canvas.addEventListener("webglcontextrestored", function () {
+    if (boot()) start();
+    else showFallback();
+  }, false);
+  window.addEventListener("resize", function () {
+    if (reduce) draw(0);
+  });
+  function onReduce() {
+    reduce = reduceQuery.matches;
+    start();
+  }
+  if (reduceQuery.addEventListener) reduceQuery.addEventListener("change", onReduce);
+  else if (reduceQuery.addListener) reduceQuery.addListener(onReduce);
+  start();
+})();
+</script>
+</body>
+</html>
