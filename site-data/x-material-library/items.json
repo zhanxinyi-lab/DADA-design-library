@@ -7276,5 +7276,45 @@
     "record_type": "code_only_preview",
     "code_only_preview": true,
     "source_label": "DADA 效果代码目录"
+  },
+  {
+    "id": "forge-parametric-sprite-stacking",
+    "url": "https://forge.ui8.ai/share/collection/fcol_c7d61bf3-0419-423d-97d1-9573935abf65",
+    "author": "Forge",
+    "author_name": "Forge",
+    "created_at": "",
+    "lang": "zh",
+    "text": "一叠 2D 像素切片堆成可旋转的假 3D 像素物件。collection 里 2 个项目、33 个组件、1 个 skill；hero 项目带形状/配色控件和 1 秒 cycle 时间轴。",
+    "sources": [
+      "dada"
+    ],
+    "category": "AI工具/工作流",
+    "tags": [
+      "像素",
+      "sprite stacking",
+      "参数化",
+      "游戏素材"
+    ],
+    "metrics": {},
+    "links": [
+      "https://forge.ui8.ai/share/collection/fcol_c7d61bf3-0419-423d-97d1-9573935abf65"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [],
+    "poster": null,
+    "video": null,
+    "preview": null,
+    "duration_s": null,
+    "has_animation": false,
+    "code_status": "external_link",
+    "code": null,
+    "added_at": "2026-11-24T14:05:00+08:00",
+    "effect_zh": "一叠 2D 像素切片堆成可旋转的假 3D 像素物件。collection 里 2 个项目、33 个组件、1 个 skill；hero 项目带形状/配色控件和 1 秒 cycle 时间轴。只登记外链，不在本地复刻。",
+    "platform": "forge",
+    "title": "Parametric Sprite Stacking（Forge collection）",
+    "library_name": "Parametric Sprite Stacking（Forge collection）",
+    "source_label": "Forge",
+    "code_note": "外链登记，不复刻，不保存对方的视频或截图。"
   }
 ]
