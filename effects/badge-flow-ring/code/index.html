@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>徽章流光渐变环</title>
+  <style>
+    :root {
+      --page: #e8e8ec;
+      --badge: #a3a4ac;
+      --size: clamp(96px, 22vw, 172px);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--page);
+      color: #3a3a40;
+      font-family: system-ui, sans-serif;
+    }
+    .stage {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 28px 12px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(14px, 4vw, 68px);
+    }
+    .badge {
+      position: relative;
+      width: var(--size);
+      height: var(--size);
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .badge:focus { outline: none; }
+    .badge:focus-visible {
+      outline: 2px solid #6d6e76;
+      outline-offset: 8px;
+    }
+    .badge svg,
+    .badge canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+    .badge .icon { z-index: 2; }
+    @media (prefers-reduced-motion: reduce) {
+      .badge { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="row" id="row"></div>
+  </main>
+  <script>
+    (function () {
+      var VIEW = 260;
+      var CX = 130;
+      var CY = 130;
+      var STOPS = [
+        [0, [255, 64, 104]],
+        [0.13, [255, 132, 28]],
+        [0.27, [255, 214, 46]],
+        [0.40, [126, 226, 64]],
+        [0.52, [36, 214, 198]],
+        [0.64, [58, 148, 255]],
+        [0.76, [122, 92, 255]],
+        [0.89, [255, 64, 206]],
+        [1, [255, 64, 104]]
+      ];
+      var SPECS = [
+        { kind: 'seal', lobes: 10, amp: 7.6, radius: 74, phase: 0.03, icon: 'check', label: '对勾徽章' },
+        { kind: 'hex', radius: 78, corner: 20, phase: 0.41, icon: 'bolt', label: '闪电徽章' },
+        { kind: 'seal', lobes: 8, amp: 12, radius: 66, phase: 0.73, icon: 'star', label: '星形徽章' }
+      ];
+
+      function num(n) { return n.toFixed(2); }
+
+      function scallopPath(lobes, amp, radius) {
+        var steps = lobes * 36;
+        var d = '';
+        var i, t, rad, x, y;
+        for (i = 0; i <= steps; i++) {
+          t = -Math.PI / 2 + (Math.PI * 2 * i) / steps;
+          rad = radius + amp * Math.cos(lobes * t);
+          x = CX + rad * Math.cos(t);
+          y = CY + rad * Math.sin(t);
+          d += (i ? 'L ' : 'M ') + num(x) + ' ' + num(y) + ' ';
+        }
+        return d + 'Z';
+      }
+
+      function roundedHex(radius, corner) {
+        var verts = [];
+        var i, a, p0, p1, p2, v1x, v1y, v2x, v2y, l1, l2, dot, ang, dist, ar, cross;
+        var cuts = [];
+        var c, next, d;
+        for (i = 0; i < 6; i++) {
+          a = i * Math.PI / 3;
+          verts.push([CX + radius * Math.cos(a), CY + radius * Math.sin(a)]);
+        }
+        for (i = 0; i < 6; i++) {
+          p0 = verts[(i + 5) % 6];
+          p1 = verts[i];
+          p2 = verts[(i + 1) % 6];
+          v1x = p0[0] - p1[0];
+          v1y = p0[1] - p1[1];
+          v2x = p2[0] - p1[0];
+          v2y = p2[1] - p1[1];
+          l1 = Math.hypot(v1x, v1y);
+          l2 = Math.hypot(v2x, v2y);
+          v1x /= l1; v1y /= l1; v2x /= l2; v2y /= l2;
+          dot = Math.max(-1, Math.min(1, v1x * v2x + v1y * v2y));
+          ang = Math.acos(dot);
+          dist = corner / Math.tan(ang / 2);
+          dist = Math.min(dist, l1 * 0.45, l2 * 0.45);
+          ar = dist * Math.tan(ang / 2);
+          cross = v1x * v2y - v1y * v2x;
+          cuts.push({
+            t1: [p1[0] + v1x * dist, p1[1] + v1y * dist],
+            t2: [p1[0] + v2x * dist, p1[1] + v2y * dist],
+            ar: ar,
+            sweep: cross > 0 ? 1 : 0
+          });
+        }
+        d = 'M ' + num(cuts[0].t1[0]) + ' ' + num(cuts[0].t1[1]);
+        for (i = 0; i < 6; i++) {
+          c = cuts[i];
+          next = cuts[(i + 1) % 6];
+          d += ' A ' + num(c.ar) + ' ' + num(c.ar) + ' 0 0 ' + c.sweep + ' ' + num(c.t2[0]) + ' ' + num(c.t2[1]);
+          d += ' L ' + num(next.t1[0]) + ' ' + num(next.t1[1]);
+        }
+        return d + ' Z';
+      }
+
+      function starPath(outer, inner) {
+        var d = '';
+        var i, r, a, x, y;
+        for (i = 0; i < 10; i++) {
+          r = i % 2 === 0 ? outer : inner;
+          a = -Math.PI / 2 + i * Math.PI / 5;
+          x = CX + r * Math.cos(a);
+          y = CY + r * Math.sin(a);
+          d += (i ? 'L ' : 'M ') + num(x) + ' ' + num(y) + ' ';
+        }
+        return d + 'Z';
+      }
+
+      function shapePath(spec) {
+        if (spec.kind === 'hex') return roundedHex(spec.radius, spec.corner);
+        return scallopPath(spec.lobes, spec.amp, spec.radius);
+      }
+
+      function iconMarkup(kind) {
+        if (kind === 'check') {
+          return '<path d="M102 132 L124 156 L166 104" fill="none" stroke="#f7f7f8" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>';
+        }
+        if (kind === 'bolt') {
+          return '<path fill="#f7f7f8" d="M146 78 L112 136 H132 L116 184 L164 120 H142 Z"/>';
+        }
+        return '<path fill="#f7f7f8" d="' + starPath(46, 19) + '"/>';
+      }
+
+      function sample(t) {
+        var i, a, b, u, mix;
+        t = ((t % 1) + 1) % 1;
+        i = 0;
+        while (i < STOPS.length - 2 && STOPS[i + 1][0] < t) i++;
+        a = STOPS[i];
+        b = STOPS[i + 1];
+        u = (t - a[0]) / (b[0] - a[0] || 1);
+        mix = function (k) { return Math.round(a[1][k] + (b[1][k] - a[1][k]) * u); };
+        return 'rgb(' + mix(0) + ',' + mix(1) + ',' + mix(2) + ')';
+      }
+
+      function falloff(dist, inner, outer) {
+        var t;
+        if (dist <= inner) return 1;
+        if (dist >= outer) return 0;
+        t = (dist - inner) / (outer - inner);
+        return 1 - t * t * (3 - 2 * t);
+      }
+
+      var row = document.getElementById('row');
+      var reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      var reduce = reduceQuery.matches;
+      var finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+      var badges = [];
+      var pinned = -1;
+      var touchUntil = 0;
+      var pointer = { x: 0, y: 0, on: false };
+
+      SPECS.forEach(function (spec, index) {
+        var d = shapePath(spec);
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'badge';
+        button.setAttribute('aria-label', spec.label);
+        button.innerHTML =
+          '<svg class="base" viewBox="0 0 ' + VIEW + ' ' + VIEW + '" aria-hidden="true">' +
+            '<path fill="#a3a4ac" d="' + d + '"></path>' +
+          '</svg>' +
+          '<canvas aria-hidden="true"></canvas>' +
+          '<svg class="icon" viewBox="0 0 ' + VIEW + ' ' + VIEW + '" aria-hidden="true">' +
+            iconMarkup(spec.icon) +
+          '</svg>';
+        row.appendChild(button);
+        badges.push({
+          spec: spec,
+          button: button,
+          canvas: button.querySelector('canvas'),
+          path: new Path2D(d),
+          shown: 0,
+          lift: 0
+        });
+        button.addEventListener('click', function () {
+          if (finePointer) return;
+          pinned = pinned === index ? -1 : index;
+        });
+      });
+
+      var stage = document.querySelector('.stage');
+      stage.addEventListener('pointerdown', function (event) {
+        if (event.pointerType === 'touch') touchUntil = performance.now() + 900;
+      });
+      stage.addEventListener('pointermove', function (event) {
+        if (event.pointerType === 'touch' || performance.now() < touchUntil) return;
+        pointer.x = event.clientX;
+        pointer.y = event.clientY;
+        pointer.on = true;
+      });
+      stage.addEventListener('pointerleave', function () { pointer.on = false; });
+
+      if (reduceQuery.addEventListener) {
+        reduceQuery.addEventListener('change', function () { reduce = reduceQuery.matches; });
+      }
+
+      function fit(canvas) {
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var rect = canvas.getBoundingClientRect();
+        var w = Math.max(1, Math.round(rect.width * dpr));
+        var h = Math.max(1, Math.round(rect.height * dpr));
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+      }
+
+      function conic(ctx, angle, phase) {
+        var g = ctx.createConicGradient(angle + phase * Math.PI * 2, CX, CY);
+        var i;
+        for (i = 0; i < STOPS.length; i++) g.addColorStop(STOPS[i][0], sample(STOPS[i][0]));
+        return g;
+      }
+
+      function paint(item, angle, aim) {
+        var canvas = item.canvas;
+        var ctx = canvas.getContext('2d');
+        var shown = item.shown;
+        var s, hue, c1, c2, radial, x1, y1, x2, y2, mask, edge, soft;
+        fit(canvas);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.filter = 'none';
+        if (shown < 0.012) return;
+        s = canvas.width / VIEW;
+        ctx.setTransform(s, 0, 0, s, 0, 0);
+        hue = angle / (Math.PI * 2) + item.spec.phase;
+        c1 = sample(hue);
+        c2 = sample(hue + 0.16);
+
+        ctx.save();
+        ctx.filter = 'blur(22px)';
+        ctx.strokeStyle = conic(ctx, angle, item.spec.phase);
+        ctx.lineWidth = 36;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.globalAlpha = 1;
+        ctx.stroke(item.path);
+        ctx.restore();
+
+        ctx.save();
+        ctx.clip(item.path);
+        radial = ctx.createRadialGradient(CX - 6, CY - 8, 10, CX, CY + 4, item.spec.radius * 1.05);
+        radial.addColorStop(0, c1);
+        radial.addColorStop(1, c2);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = radial;
+        ctx.fill(item.path);
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = conic(ctx, angle, item.spec.phase);
+        ctx.fill(item.path);
+        ctx.globalAlpha = 0.42;
+        ctx.fillStyle = radial;
+        ctx.fill(item.path);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = conic(ctx, angle, item.spec.phase);
+        ctx.lineWidth = 18;
+        ctx.lineJoin = 'round';
+        ctx.stroke(item.path);
+        ctx.restore();
+
+        if (shown < 0.97) {
+          x1 = CX - Math.cos(aim) * 160;
+          y1 = CY - Math.sin(aim) * 160;
+          x2 = CX + Math.cos(aim) * 160;
+          y2 = CY + Math.sin(aim) * 160;
+          mask = ctx.createLinearGradient(x1, y1, x2, y2);
+          edge = 1 - shown * 0.85;
+          soft = Math.max(0, edge - 0.34);
+          mask.addColorStop(0, 'rgba(0,0,0,0)');
+          mask.addColorStop(soft, 'rgba(0,0,0,0)');
+          mask.addColorStop(Math.min(0.999, Math.max(soft + 0.04, edge)), 'rgba(0,0,0,' + shown + ')');
+          mask.addColorStop(1, 'rgba(0,0,0,' + shown + ')');
+          ctx.globalCompositeOperation = 'destination-in';
+          ctx.fillStyle = mask;
+          ctx.fillRect(0, 0, VIEW, VIEW);
+          ctx.globalCompositeOperation = 'source-over';
+        } else if (shown < 0.999) {
+          ctx.globalCompositeOperation = 'destination-in';
+          ctx.fillStyle = 'rgba(0,0,0,' + shown + ')';
+          ctx.fillRect(0, 0, VIEW, VIEW);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      }
+
+      var last = performance.now();
+      function frame(now) {
+        var dt = Math.min(48, now - last);
+        var ease = reduce ? 1 : (1 - Math.exp(-dt / 120));
+        var angle = reduce ? 0.65 : (now / 5400) * Math.PI * 2;
+        last = now;
+
+        badges.forEach(function (item, index) {
+          var rect = item.button.getBoundingClientRect();
+          var rad = rect.width * (item.spec.radius / VIEW);
+          var cx = rect.left + rect.width / 2;
+          var cy = rect.top + rect.height / 2;
+          var dist = pointer.on ? Math.hypot(pointer.x - cx, pointer.y - cy) : 1e6;
+          var keyed = document.activeElement === item.button && item.button.matches(':focus-visible');
+          var held = pinned === index || keyed;
+          var light = held ? 1 : (pointer.on ? falloff(dist, rad * 0.9, rad * 5.8) : 0);
+          var liftTarget = held ? 1 : (pointer.on ? falloff(dist, rad * 0.25, rad * 1.45) : 0);
+          var aim = pointer.on ? Math.atan2(pointer.y - cy, pointer.x - cx) : -Math.PI / 2;
+          item.shown += (light - item.shown) * ease;
+          item.lift += (liftTarget - item.lift) * ease;
+          if (item.shown < 0.004) item.shown = 0;
+          if (item.lift < 0.004) item.lift = 0;
+          item.button.style.transform =
+            'translateY(' + (-12 * item.lift).toFixed(2) + 'px) scale(' + (1 + 0.08 * item.lift).toFixed(4) + ')';
+          paint(item, angle, aim);
+        });
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
