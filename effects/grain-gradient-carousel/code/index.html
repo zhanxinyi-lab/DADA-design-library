@@ -653,11 +653,11 @@
     };
   }
 
-  function step(dir, instant) {
+  function step(dir) {
     var base = anim ? anim.target : Math.round(pos);
     var target = base + dir;
     announceIndex(target);
-    goTo(target, instant);
+    goTo(target, !autoplay);
     kick();
   }
 
@@ -746,13 +746,13 @@
     if (!dragMoved) {
       var settled = Math.round(pos);
       announceIndex(settled);
-      goTo(settled);
+      goTo(settled, !autoplay);
       kick();
       return;
     }
     var target = Math.round(pos);
     announceIndex(target);
-    goTo(target);
+    goTo(target, !autoplay);
     kick();
   }
   canvas.addEventListener("pointerup", endDrag);
@@ -760,10 +760,10 @@
   canvas.addEventListener("keydown", function (event) {
     if (event.key === "ArrowRight") {
       event.preventDefault();
-      step(1, !autoplay);
+      step(1);
     } else if (event.key === "ArrowLeft") {
       event.preventDefault();
-      step(-1, !autoplay);
+      step(-1);
     }
   });
   canvas.addEventListener("click", function (event) {
@@ -793,12 +793,12 @@
     var dist = wrapDist(hit, pos);
     var target = Math.round(pos + dist);
     announceIndex(target);
-    goTo(target, false);
+    goTo(target, !autoplay);
     kick();
   });
 
-  prevBtn.addEventListener("click", function () { step(-1, false); });
-  nextBtn.addEventListener("click", function () { step(1, false); });
+  prevBtn.addEventListener("click", function () { step(-1); });
+  nextBtn.addEventListener("click", function () { step(1); });
   pauseBtn.addEventListener("click", function () {
     autoplay = !autoplay;
     anim = null;
