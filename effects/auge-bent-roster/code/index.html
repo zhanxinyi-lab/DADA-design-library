@@ -270,13 +270,6 @@
         select(i);
       });
       btn.addEventListener("focus", function () { select(i); });
-      btn.addEventListener("pointerleave", function (e) {
-        if (!reduce) return;
-        var next = e.relatedTarget;
-        if (next && roster.contains(next)) return;
-        if (roster.contains(document.activeElement)) return;
-        clearActive();
-      });
       li.appendChild(btn);
       roster.appendChild(li);
       buttons.push(btn);
@@ -284,6 +277,13 @@
     roster.addEventListener("focusout", function (e) {
       var next = e.relatedTarget;
       if (next && roster.contains(next)) return;
+      clearActive();
+    });
+    roster.addEventListener("pointerout", function (e) {
+      if (!reduce) return;
+      var next = e.relatedTarget;
+      if (next && roster.contains(next)) return;
+      if (roster.contains(document.activeElement)) return;
       clearActive();
     });
     roster.addEventListener("keydown", function (e) {

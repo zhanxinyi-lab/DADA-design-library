@@ -3,7 +3,7 @@
 - 作者：AUGE Experience（帖子来自 @awwwards）
 - 分类：品牌 · 网页交互
 - 状态：video_recreated
-- 版本：1.0.1
+- 版本：1.0.2
 - 原文：https://x.com/awwwards/status/2120805352417472527
 - 素材 ID：2120805352417472527
 
