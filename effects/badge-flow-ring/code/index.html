@@ -8,7 +8,7 @@
     :root {
       --page: #e8e8ec;
       --badge: #a3a4ac;
-      --size: clamp(96px, 22vw, 172px);
+      --size: clamp(68px, 22vw, 172px);
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
@@ -20,19 +20,29 @@
     .stage {
       min-height: 100%;
       display: grid;
-      place-items: center;
+      grid-template-columns: minmax(0, 1fr);
+      align-items: center;
+      justify-items: center;
       padding: 28px 12px;
+      overflow-x: hidden;
     }
     .row {
+      position: relative;
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: center;
-      gap: clamp(14px, 4vw, 68px);
+      gap: clamp(10px, 3.5vw, 68px);
+      width: 100%;
+      max-width: 720px;
+      min-width: 0;
     }
     .badge {
       position: relative;
+      flex: 0 0 var(--size);
       width: var(--size);
       height: var(--size);
+      min-width: 0;
       padding: 0;
       border: 0;
       background: transparent;
@@ -83,7 +93,7 @@
       var SPECS = [
         { kind: 'seal', lobes: 10, amp: 7.6, radius: 74, phase: 0.03, icon: 'check', label: '对勾徽章' },
         { kind: 'hex', radius: 78, corner: 20, phase: 0.41, icon: 'bolt', label: '闪电徽章' },
-        { kind: 'seal', lobes: 8, amp: 12, radius: 66, phase: 0.73, icon: 'star', label: '星形徽章' }
+        { kind: 'star', outer: 80, inner: 46, corner: 7, radius: 80, phase: 0.73, icon: 'star', label: '星形徽章' }
       ];
 
       function num(n) { return n.toFixed(2); }
@@ -102,19 +112,14 @@
         return d + 'Z';
       }
 
-      function roundedHex(radius, corner) {
-        var verts = [];
-        var i, a, p0, p1, p2, v1x, v1y, v2x, v2y, l1, l2, dot, ang, dist, ar, cross;
+      function roundedPoly(verts, corner) {
+        var n = verts.length;
         var cuts = [];
-        var c, next, d;
-        for (i = 0; i < 6; i++) {
-          a = i * Math.PI / 3;
-          verts.push([CX + radius * Math.cos(a), CY + radius * Math.sin(a)]);
-        }
-        for (i = 0; i < 6; i++) {
-          p0 = verts[(i + 5) % 6];
+        var i, p0, p1, p2, v1x, v1y, v2x, v2y, l1, l2, dot, ang, dist, ar, cross, c, next, d;
+        for (i = 0; i < n; i++) {
+          p0 = verts[(i + n - 1) % n];
           p1 = verts[i];
-          p2 = verts[(i + 1) % 6];
+          p2 = verts[(i + 1) % n];
           v1x = p0[0] - p1[0];
           v1y = p0[1] - p1[1];
           v2x = p2[0] - p1[0];
@@ -132,17 +137,38 @@
             t1: [p1[0] + v1x * dist, p1[1] + v1y * dist],
             t2: [p1[0] + v2x * dist, p1[1] + v2y * dist],
             ar: ar,
-            sweep: cross > 0 ? 1 : 0
+            sweep: cross > 0 ? 0 : 1
           });
         }
         d = 'M ' + num(cuts[0].t1[0]) + ' ' + num(cuts[0].t1[1]);
-        for (i = 0; i < 6; i++) {
+        for (i = 0; i < n; i++) {
           c = cuts[i];
-          next = cuts[(i + 1) % 6];
+          next = cuts[(i + 1) % n];
           d += ' A ' + num(c.ar) + ' ' + num(c.ar) + ' 0 0 ' + c.sweep + ' ' + num(c.t2[0]) + ' ' + num(c.t2[1]);
           d += ' L ' + num(next.t1[0]) + ' ' + num(next.t1[1]);
         }
         return d + ' Z';
+      }
+
+      function roundedHex(radius, corner) {
+        var verts = [];
+        var i, a;
+        for (i = 0; i < 6; i++) {
+          a = i * Math.PI / 3;
+          verts.push([CX + radius * Math.cos(a), CY + radius * Math.sin(a)]);
+        }
+        return roundedPoly(verts, corner);
+      }
+
+      function pointedSeal(tips, outer, inner, corner) {
+        var verts = [];
+        var i, a, r;
+        for (i = 0; i < tips * 2; i++) {
+          a = -Math.PI / 2 + i * Math.PI / tips;
+          r = i % 2 === 0 ? outer : inner;
+          verts.push([CX + r * Math.cos(a), CY + r * Math.sin(a)]);
+        }
+        return roundedPoly(verts, corner);
       }
 
       function starPath(outer, inner) {
@@ -160,6 +186,7 @@
 
       function shapePath(spec) {
         if (spec.kind === 'hex') return roundedHex(spec.radius, spec.corner);
+        if (spec.kind === 'star') return pointedSeal(8, spec.outer, spec.inner, spec.corner);
         return scallopPath(spec.lobes, spec.amp, spec.radius);
       }
 
@@ -170,20 +197,25 @@
         if (kind === 'bolt') {
           return '<path fill="#f7f7f8" d="M146 78 L112 136 H132 L116 184 L164 120 H142 Z"/>';
         }
-        return '<path fill="#f7f7f8" d="' + starPath(46, 19) + '"/>';
+        return '<path fill="#f7f7f8" d="' + starPath(40, 16) + '"/>';
       }
 
-      function sample(t) {
-        var i, a, b, u, mix;
+      function sampleRgb(t) {
+        var i, a, b, u;
         t = ((t % 1) + 1) % 1;
         i = 0;
         while (i < STOPS.length - 2 && STOPS[i + 1][0] < t) i++;
         a = STOPS[i];
         b = STOPS[i + 1];
         u = (t - a[0]) / (b[0] - a[0] || 1);
-        mix = function (k) { return Math.round(a[1][k] + (b[1][k] - a[1][k]) * u); };
-        return 'rgb(' + mix(0) + ',' + mix(1) + ',' + mix(2) + ')';
+        return [
+          Math.round(a[1][0] + (b[1][0] - a[1][0]) * u),
+          Math.round(a[1][1] + (b[1][1] - a[1][1]) * u),
+          Math.round(a[1][2] + (b[1][2] - a[1][2]) * u)
+        ];
       }
+
+      function rgbCss(rgb) { return 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'; }
 
       function falloff(dist, inner, outer) {
         var t;
@@ -193,7 +225,10 @@
         return 1 - t * t * (3 - 2 * t);
       }
 
+      function mixByte(a, b, t) { return Math.round(a + (b - a) * t); }
+
       var row = document.getElementById('row');
+      var stage = document.querySelector('.stage');
       var reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
       var reduce = reduceQuery.matches;
       var finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -201,6 +236,16 @@
       var pinned = -1;
       var touchUntil = 0;
       var pointer = { x: 0, y: 0, on: false };
+      var rafId = 0;
+      var conicMode = null;
+      var last = 0;
+
+      function syncPressed() {
+        var i;
+        for (i = 0; i < badges.length; i++) {
+          badges[i].button.setAttribute('aria-pressed', pinned === i ? 'true' : 'false');
+        }
+      }
 
       SPECS.forEach(function (spec, index) {
         var d = shapePath(spec);
@@ -208,6 +253,7 @@
         button.type = 'button';
         button.className = 'badge';
         button.setAttribute('aria-label', spec.label);
+        button.setAttribute('aria-pressed', 'false');
         button.innerHTML =
           '<svg class="base" viewBox="0 0 ' + VIEW + ' ' + VIEW + '" aria-hidden="true">' +
             '<path fill="#a3a4ac" d="' + d + '"></path>' +
@@ -221,93 +267,137 @@
           spec: spec,
           button: button,
           canvas: button.querySelector('canvas'),
+          iconShape: button.querySelector('.icon path'),
           path: new Path2D(d),
           shown: 0,
-          lift: 0
+          lift: 0,
+          targetLight: 0,
+          targetLift: 0,
+          cssW: 0,
+          cssH: 0,
+          cx: 0,
+          cy: 0,
+          rad: 1
         });
         button.addEventListener('click', function () {
-          if (finePointer) return;
-          pinned = pinned === index ? -1 : index;
+          if (!finePointer) {
+            pinned = pinned === index ? -1 : index;
+            syncPressed();
+          }
+          kick();
         });
+        button.addEventListener('focus', kick);
+        button.addEventListener('blur', kick);
       });
 
-      var stage = document.querySelector('.stage');
-      stage.addEventListener('pointerdown', function (event) {
-        if (event.pointerType === 'touch') touchUntil = performance.now() + 900;
-      });
-      stage.addEventListener('pointermove', function (event) {
-        if (event.pointerType === 'touch' || performance.now() < touchUntil) return;
-        pointer.x = event.clientX;
-        pointer.y = event.clientY;
-        pointer.on = true;
-      });
-      stage.addEventListener('pointerleave', function () { pointer.on = false; });
-
-      if (reduceQuery.addEventListener) {
-        reduceQuery.addEventListener('change', function () { reduce = reduceQuery.matches; });
-      }
-
-      function fit(canvas) {
-        var dpr = Math.min(window.devicePixelRatio || 1, 2);
-        var rect = canvas.getBoundingClientRect();
-        var w = Math.max(1, Math.round(rect.width * dpr));
-        var h = Math.max(1, Math.round(rect.height * dpr));
-        if (canvas.width !== w || canvas.height !== h) {
-          canvas.width = w;
-          canvas.height = h;
+      function cacheLayout() {
+        var rowRect = row.getBoundingClientRect();
+        var i, item, w, h;
+        for (i = 0; i < badges.length; i++) {
+          item = badges[i];
+          w = item.button.offsetWidth;
+          h = item.button.offsetHeight;
+          item.cssW = w;
+          item.cssH = h;
+          item.cx = rowRect.left + item.button.offsetLeft + w / 2;
+          item.cy = rowRect.top + item.button.offsetTop + h / 2;
+          item.rad = Math.max(1, w * (item.spec.radius / VIEW));
+          item.bufW = 0;
         }
       }
 
-      function conic(ctx, angle, phase) {
-        var g = ctx.createConicGradient(angle + phase * Math.PI * 2, CX, CY);
-        var i;
-        for (i = 0; i < STOPS.length; i++) g.addColorStop(STOPS[i][0], sample(STOPS[i][0]));
+      function ensureBuffer(item) {
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var pw = Math.max(1, Math.round((item.cssW || 1) * dpr));
+        var ph = Math.max(1, Math.round((item.cssH || 1) * dpr));
+        if (item.canvas.width !== pw || item.canvas.height !== ph) {
+          item.canvas.width = pw;
+          item.canvas.height = ph;
+        }
+      }
+
+      function addStops(g) {
+        var i, rgb;
+        for (i = 0; i < STOPS.length; i++) {
+          rgb = sampleRgb(STOPS[i][0]);
+          g.addColorStop(STOPS[i][0], rgbCss(rgb));
+        }
         return g;
+      }
+
+      function ringStyle(ctx, angle, phase) {
+        var rot = angle + phase * Math.PI * 2;
+        var c, s, len, g;
+        if (conicMode !== false && typeof ctx.createConicGradient === 'function') {
+          try {
+            g = ctx.createConicGradient(rot, CX, CY);
+            conicMode = true;
+            return addStops(g);
+          } catch (err) {
+            conicMode = false;
+          }
+        }
+        c = Math.cos(rot);
+        s = Math.sin(rot);
+        len = 140;
+        g = ctx.createLinearGradient(CX - c * len, CY - s * len, CX + c * len, CY + s * len);
+        return addStops(g);
+      }
+
+      function iconInk(shown, rgb) {
+        var lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+        var t = lum > 0.72 ? Math.min(1, shown) : 0;
+        return 'rgb(' + mixByte(247, 42, t) + ',' + mixByte(247, 33, t) + ',' + mixByte(248, 28, t) + ')';
       }
 
       function paint(item, angle, aim) {
         var canvas = item.canvas;
         var ctx = canvas.getContext('2d');
         var shown = item.shown;
-        var s, hue, c1, c2, radial, x1, y1, x2, y2, mask, edge, soft;
-        fit(canvas);
+        var side, ox, oy, hue, c1, c2, radial, x1, y1, x2, y2, mask, edge, soft, ink;
+        ensureBuffer(item);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
         ctx.filter = 'none';
-        if (shown < 0.012) return;
-        s = canvas.width / VIEW;
-        ctx.setTransform(s, 0, 0, s, 0, 0);
         hue = angle / (Math.PI * 2) + item.spec.phase;
-        c1 = sample(hue);
-        c2 = sample(hue + 0.16);
+        c1 = sampleRgb(hue);
+        ink = iconInk(shown, c1);
+        if (item.spec.icon === 'check') item.iconShape.setAttribute('stroke', ink);
+        else item.iconShape.setAttribute('fill', ink);
+        if (shown < 0.012) return;
+        side = Math.min(canvas.width, canvas.height);
+        ox = (canvas.width - side) / 2;
+        oy = (canvas.height - side) / 2;
+        ctx.setTransform(side / VIEW, 0, 0, side / VIEW, ox, oy);
+        c2 = sampleRgb(hue + 0.16);
 
         ctx.save();
         ctx.filter = 'blur(22px)';
-        ctx.strokeStyle = conic(ctx, angle, item.spec.phase);
+        ctx.strokeStyle = ringStyle(ctx, angle, item.spec.phase);
         ctx.lineWidth = 36;
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
-        ctx.globalAlpha = 1;
         ctx.stroke(item.path);
         ctx.restore();
 
         ctx.save();
         ctx.clip(item.path);
         radial = ctx.createRadialGradient(CX - 6, CY - 8, 10, CX, CY + 4, item.spec.radius * 1.05);
-        radial.addColorStop(0, c1);
-        radial.addColorStop(1, c2);
+        radial.addColorStop(0, rgbCss(c1));
+        radial.addColorStop(1, rgbCss(c2));
         ctx.globalAlpha = 1;
         ctx.fillStyle = radial;
         ctx.fill(item.path);
         ctx.globalAlpha = 0.55;
-        ctx.fillStyle = conic(ctx, angle, item.spec.phase);
+        ctx.fillStyle = ringStyle(ctx, angle, item.spec.phase);
         ctx.fill(item.path);
         ctx.globalAlpha = 0.42;
         ctx.fillStyle = radial;
         ctx.fill(item.path);
         ctx.globalAlpha = 1;
-        ctx.strokeStyle = conic(ctx, angle, item.spec.phase);
+        ctx.strokeStyle = ringStyle(ctx, angle, item.spec.phase);
         ctx.lineWidth = 18;
         ctx.lineJoin = 'round';
         ctx.stroke(item.path);
@@ -327,45 +417,106 @@
           mask.addColorStop(1, 'rgba(0,0,0,' + shown + ')');
           ctx.globalCompositeOperation = 'destination-in';
           ctx.fillStyle = mask;
-          ctx.fillRect(0, 0, VIEW, VIEW);
-          ctx.globalCompositeOperation = 'source-over';
-        } else if (shown < 0.999) {
-          ctx.globalCompositeOperation = 'destination-in';
-          ctx.fillStyle = 'rgba(0,0,0,' + shown + ')';
-          ctx.fillRect(0, 0, VIEW, VIEW);
+          ctx.fillRect(-20, -20, VIEW + 40, VIEW + 40);
           ctx.globalCompositeOperation = 'source-over';
         }
       }
 
-      var last = performance.now();
+      function settled() {
+        var i, item;
+        for (i = 0; i < badges.length; i++) {
+          item = badges[i];
+          if (Math.abs(item.shown - item.targetLight) > 0.004) return false;
+          if (Math.abs(item.lift - item.targetLift) > 0.004) return false;
+        }
+        return true;
+      }
+
+      function anyLit() {
+        var i;
+        for (i = 0; i < badges.length; i++) {
+          if (badges[i].shown > 0.02 || badges[i].lift > 0.02) return true;
+        }
+        return false;
+      }
+
       function frame(now) {
-        var dt = Math.min(48, now - last);
+        var dt = last ? Math.min(48, now - last) : 16;
         var ease = reduce ? 1 : (1 - Math.exp(-dt / 120));
         var angle = reduce ? 0.65 : (now / 5400) * Math.PI * 2;
+        var i, item, dist, keyed, held, light, liftTarget, aim, transform;
+        rafId = 0;
         last = now;
-
-        badges.forEach(function (item, index) {
-          var rect = item.button.getBoundingClientRect();
-          var rad = rect.width * (item.spec.radius / VIEW);
-          var cx = rect.left + rect.width / 2;
-          var cy = rect.top + rect.height / 2;
-          var dist = pointer.on ? Math.hypot(pointer.x - cx, pointer.y - cy) : 1e6;
-          var keyed = document.activeElement === item.button && item.button.matches(':focus-visible');
-          var held = pinned === index || keyed;
-          var light = held ? 1 : (pointer.on ? falloff(dist, rad * 0.9, rad * 5.8) : 0);
-          var liftTarget = held ? 1 : (pointer.on ? falloff(dist, rad * 0.25, rad * 1.45) : 0);
-          var aim = pointer.on ? Math.atan2(pointer.y - cy, pointer.x - cx) : -Math.PI / 2;
+        for (i = 0; i < badges.length; i++) {
+          item = badges[i];
+          dist = pointer.on ? Math.hypot(pointer.x - item.cx, pointer.y - item.cy) : 1e6;
+          keyed = document.activeElement === item.button && item.button.matches(':focus-visible');
+          held = pinned === i || keyed;
+          light = held ? 1 : (pointer.on ? falloff(dist, item.rad * 0.9, item.rad * 5.8) : 0);
+          liftTarget = held ? 1 : (pointer.on ? falloff(dist, item.rad * 0.25, item.rad * 1.45) : 0);
+          aim = pointer.on ? Math.atan2(pointer.y - item.cy, pointer.x - item.cx) : -Math.PI / 2;
+          item.targetLight = light;
+          item.targetLift = liftTarget;
           item.shown += (light - item.shown) * ease;
           item.lift += (liftTarget - item.lift) * ease;
           if (item.shown < 0.004) item.shown = 0;
           if (item.lift < 0.004) item.lift = 0;
-          item.button.style.transform =
-            'translateY(' + (-12 * item.lift).toFixed(2) + 'px) scale(' + (1 + 0.08 * item.lift).toFixed(4) + ')';
-          paint(item, angle, aim);
-        });
-        requestAnimationFrame(frame);
+          transform = 'translateY(' + (-12 * item.lift).toFixed(2) + 'px) scale(' + (1 + 0.08 * item.lift).toFixed(4) + ')';
+          if (item.button.style.transform !== transform) item.button.style.transform = transform;
+          try {
+            paint(item, angle, aim);
+          } catch (err) {
+            conicMode = false;
+          }
+        }
+        if (reduce) {
+          if (!settled()) rafId = requestAnimationFrame(frame);
+          return;
+        }
+        if (!settled() || anyLit() || pointer.on) rafId = requestAnimationFrame(frame);
       }
-      requestAnimationFrame(frame);
+
+      function kick() {
+        if (rafId) return;
+        rafId = requestAnimationFrame(frame);
+      }
+
+      stage.addEventListener('pointerdown', function (event) {
+        var badge = event.target.closest ? event.target.closest('.badge') : null;
+        if (event.pointerType === 'touch') touchUntil = performance.now() + 900;
+        if (!badge && pinned !== -1) {
+          pinned = -1;
+          syncPressed();
+        }
+        cacheLayout();
+        kick();
+      });
+      stage.addEventListener('pointermove', function (event) {
+        if (event.pointerType === 'touch' || performance.now() < touchUntil) return;
+        pointer.x = event.clientX;
+        pointer.y = event.clientY;
+        pointer.on = true;
+        kick();
+      });
+      stage.addEventListener('pointerleave', function () {
+        pointer.on = false;
+        kick();
+      });
+      window.addEventListener('scroll', function () { cacheLayout(); kick(); }, true);
+      window.addEventListener('resize', function () { cacheLayout(); kick(); });
+      if (window.ResizeObserver) {
+        var observer = new ResizeObserver(function () { cacheLayout(); kick(); });
+        observer.observe(row);
+      }
+      if (reduceQuery.addEventListener) {
+        reduceQuery.addEventListener('change', function () {
+          reduce = reduceQuery.matches;
+          kick();
+        });
+      }
+
+      cacheLayout();
+      kick();
     })();
   </script>
 </body>
