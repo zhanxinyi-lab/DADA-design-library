@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>云层托出的预测看板</title>
+  <script>
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.documentElement.classList.add("settled");
+    }
+  </script>
+  <style>
+    :root { --p: 0; }
+    html.settled { --p: 1; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: auto; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #041433;
+      color: #142033;
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    .sky {
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(90% 55% at 50% 18%, rgba(120, 176, 255, 0.35), transparent 60%),
+        linear-gradient(180deg, #082fbe 0%, #0d46e4 42%, #3c86ff 74%, #b7d7ff 100%);
+      height: 100%;
+      height: 100dvh;
+      touch-action: none;
+      perspective: 1200px;
+    }
+    .clouds {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .clouds.far {
+      z-index: 1;
+      transform: translate3d(0, calc((1 - var(--p)) * 36px), 0);
+    }
+    .clouds.near {
+      z-index: 4;
+      transform: translate3d(0, calc((1 - var(--p)) * -28px), 0);
+    }
+    .lift {
+      --rise: clamp(0, var(--p) / 0.56, 1);
+      position: relative;
+      z-index: 2;
+      width: min(880px, calc(100% - 20px));
+      margin: 0 auto 6vh;
+      transform-origin: 50% 100%;
+      transform:
+        translate3d(0, calc((1 - var(--rise)) * 52%), 0)
+        rotateX(calc((1 - var(--rise)) * 16deg))
+        scale(calc(0.92 + var(--rise) * 0.08));
+    }
+    .sky-inner {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    .eyebrow {
+      margin: 0 8px 12px;
+      color: #fff;
+      font-size: clamp(20px, 4.6vw, 36px);
+      font-weight: 680;
+      letter-spacing: -0.035em;
+      line-height: 1.1;
+      text-align: center;
+      text-shadow: 0 10px 28px rgba(6, 32, 120, 0.35);
+    }
+    .board {
+      display: grid;
+      grid-template-columns: 148px minmax(0, 1fr);
+      background: #f5f7fb;
+      border-radius: 18px;
+      box-shadow:
+        0 28px 60px rgba(7, 32, 110, calc(0.12 + var(--p) * 0.22)),
+        0 0 0 1px rgba(255, 255, 255, 0.7);
+      overflow: hidden;
+    }
+    .rail {
+      padding: 14px 12px;
+      background: #e8eef8;
+      border-right: 1px solid rgba(20, 40, 80, 0.06);
+    }
+    .mark {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .mark i {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      background:
+        radial-gradient(circle at 30% 30%, #fff, transparent 40%),
+        linear-gradient(135deg, #123a9a, #3d7dff);
+    }
+    .rail nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 16px;
+    }
+    .rail span {
+      padding: 7px 8px;
+      border-radius: 8px;
+      color: #5c6b82;
+      font-size: 13px;
+    }
+    .rail span.on {
+      background: #fff;
+      color: #142033;
+      font-weight: 650;
+    }
+    .main { min-width: 0; padding: 12px 12px 10px; }
+    .head, .balance, .legend, .pair, .note li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .head h1, .note h2, .k, .pair dt {
+      margin: 0;
+      font-weight: 650;
+    }
+    .head h1 { font-size: 15px; }
+    .range, .k, .legend, .col b, .pair dt, .note p, .note li {
+      color: #66758a;
+      font-size: 11px;
+      font-weight: 550;
+    }
+    .range {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid #e1e7f0;
+    }
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(108px, 0.7fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .panel {
+      min-width: 0;
+      padding: 10px;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid #e6ecf4;
+    }
+    .money {
+      margin: 2px 0 0;
+      font-size: clamp(20px, 4vw, 28px);
+      font-weight: 720;
+      letter-spacing: -0.04em;
+    }
+    .pill {
+      flex: none;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #e8f7ee;
+      color: #157a42;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .legend { justify-content: flex-start; gap: 12px; margin: 6px 0; }
+    .legend i, .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      background: #2450d4;
+    }
+    .legend i.proj {
+      background: repeating-linear-gradient(-45deg, #d5e0f4, #d5e0f4 2px, #f7f9fc 2px, #f7f9fc 4px);
+    }
+    .chart {
+      height: 112px;
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 3px;
+    }
+    .col {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      height: 100%;
+    }
+    .bar {
+      --g: clamp(0, (var(--p) - 0.34 - var(--lag, 0)) / 0.22, 1);
+      display: block;
+      width: 74%;
+      height: var(--h);
+      max-height: calc(100% - 14px);
+      margin: 0 auto;
+      border-radius: 3px 3px 1px 1px;
+      background: #2450d4;
+      transform: scaleY(var(--g));
+      transform-origin: 50% 100%;
+    }
+    .bar.proj {
+      background: repeating-linear-gradient(-45deg, #d5e0f4, #d5e0f4 2px, #f7f9fc 2px, #f7f9fc 4px);
+    }
+    .col b {
+      display: block;
+      margin-top: 3px;
+      overflow: hidden;
+      font-size: 8px;
+      font-weight: 600;
+      text-align: center;
+      letter-spacing: -0.03em;
+      white-space: nowrap;
+    }
+    .axis {
+      display: none;
+      margin: 4px 0 0;
+      color: #66758a;
+      font-size: 10px;
+    }
+    .gauge-card { text-align: center; }
+    .gauge {
+      width: min(132px, 100%);
+      height: auto;
+      margin: 0 auto;
+      display: block;
+    }
+    .gauge .track { fill: none; stroke: #e4eaf3; stroke-width: 10; stroke-linecap: round; }
+    .gauge .value {
+      --arc: clamp(0, (var(--p) - 0.5) / 0.28, 1);
+      fill: none;
+      stroke: #163ea8;
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-dasharray: 100;
+      stroke-dashoffset: calc(100 - var(--arc) * 76);
+    }
+    .mo {
+      margin: -8px 0 0;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .mo strong { font-size: 22px; letter-spacing: -0.04em; }
+    .until { margin: 0 0 6px; color: #66758a; font-size: 11px; }
+    .pair {
+      padding: 4px 0;
+      border-top: 1px solid #eef2f7;
+    }
+    .pair dd, .note li b { margin: 0; font-size: 12px; font-weight: 720; white-space: nowrap; }
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .note {
+      --n: clamp(0, (var(--p) - 0.62 - var(--lag, 0)) / 0.18, 1);
+      min-width: 0;
+      padding: 8px;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid #e6ecf4;
+      opacity: var(--n);
+      transform: translateY(calc((1 - var(--n)) * 14px));
+    }
+    .note h2 { font-size: 12px; }
+    .note p { margin: 6px 0 0; line-height: 1.35; }
+    .note ul { margin: 6px 0 0; padding: 0; list-style: none; }
+    .note li + li { margin-top: 4px; }
+    .hint {
+      position: absolute;
+      z-index: 5;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      margin: 0;
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 13px;
+      text-align: center;
+      pointer-events: none;
+      opacity: clamp(0, 1 - var(--p) * 1.6, 1);
+    }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+    @media (max-width: 760px) {
+      .board { grid-template-columns: 1fr; }
+      .rail { display: none; }
+      .chart { height: 96px; }
+    }
+    @media (max-width: 420px) {
+      .lift { width: calc(100% - 12px); margin-bottom: 8vh; }
+      .eyebrow { margin-bottom: 8px; }
+      .split { grid-template-columns: minmax(0, 1fr) 108px; gap: 6px; }
+      .main, .panel, .note { padding: 8px; }
+      .notes { gap: 6px; }
+      .chart { height: 84px; gap: 2px; }
+      .col b { display: none; }
+      .axis { display: block; }
+      .balance { flex-wrap: wrap; align-items: flex-start; }
+      .note p { font-size: 10px; }
+      .note li { display: block; }
+      .note li b { display: block; margin-top: 1px; }
+      .pair { display: block; text-align: left; }
+      .pair dd { margin-top: 1px; }
+    }
+    @media (max-height: 640px) {
+      .eyebrow { font-size: 18px; margin-bottom: 6px; }
+      .chart { height: 72px; }
+      .note p { margin-top: 3px; }
+      .lift { margin-bottom: 6vh; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :root { --p: 1; }
+      html { scroll-behavior: auto; }
+      .lift, .clouds, .bar, .note, .gauge .value, .hint {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="sky" id="sky">
+        <svg class="clouds far" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+          <filter id="farBlur" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="6"/>
+          </filter>
+          <g fill="#d9ebff" filter="url(#farBlur)" opacity="0.95">
+            <circle cx="90" cy="640" r="54"/><circle cx="150" cy="612" r="42"/><circle cx="210" cy="648" r="48"/>
+            <circle cx="1180" cy="628" r="58"/><circle cx="1260" cy="600" r="44"/><circle cx="1330" cy="652" r="50"/>
+            <circle cx="680" cy="690" r="36"/><circle cx="740" cy="676" r="28"/>
+          </g>
+        </svg>
+        <div class="sky-inner">
+          <div class="lift">
+            <p class="eyebrow">Cash, looked at from above.</p>
+            <article class="board" aria-label="现金展望，自绘示意">
+              <aside class="rail">
+                <div class="mark"><i></i> Outlook</div>
+                <nav aria-label="看板分区">
+                  <span class="on">Overview</span>
+                  <span>Ledger</span>
+                  <span>Plan</span>
+                  <span>Alerts</span>
+                </nav>
+              </aside>
+              <div class="main">
+                <header class="head">
+                  <h1>Cash outlook</h1>
+                  <span class="range">Apr 2026 – Mar 2027</span>
+                </header>
+                <div class="split">
+                  <section class="panel">
+                    <div class="balance">
+                      <div>
+                        <p class="k">On hand</p>
+                        <p class="money">$2,186,400</p>
+                      </div>
+                      <span class="pill">+2.4% last month</span>
+                    </div>
+                    <p class="legend"><i></i> Booked <i class="proj"></i> Projected</p>
+                    <div class="chart" id="chart" aria-hidden="true">
+                      <div class="col"><i class="bar" style="--h:48%;--lag:0"></i><b>Apr</b></div>
+                      <div class="col"><i class="bar" style="--h:64%;--lag:0.015"></i><b>May</b></div>
+                      <div class="col"><i class="bar" style="--h:42%;--lag:0.03"></i><b>Jun</b></div>
+                      <div class="col"><i class="bar" style="--h:76%;--lag:0.045"></i><b>Jul</b></div>
+                      <div class="col"><i class="bar" style="--h:58%;--lag:0.06"></i><b>Aug</b></div>
+                      <div class="col"><i class="bar" style="--h:81%;--lag:0.075"></i><b>Sep</b></div>
+                      <div class="col"><i class="bar" style="--h:63%;--lag:0.09"></i><b>Oct</b></div>
+                      <div class="col"><i class="bar proj" style="--h:70%;--lag:0.105"></i><b>Nov</b></div>
+                      <div class="col"><i class="bar proj" style="--h:74%;--lag:0.12"></i><b>Dec</b></div>
+                      <div class="col"><i class="bar proj" style="--h:52%;--lag:0.135"></i><b>Jan</b></div>
+                      <div class="col"><i class="bar proj" style="--h:86%;--lag:0.15"></i><b>Feb</b></div>
+                      <div class="col"><i class="bar proj" style="--h:90%;--lag:0.165"></i><b>Mar</b></div>
+                    </div>
+                    <p class="axis">Apr through Mar</p>
+                  </section>
+                  <section class="panel gauge-card">
+                    <p class="k">Still covered</p>
+                    <svg class="gauge" viewBox="0 0 160 96" aria-hidden="true">
+                      <path class="track" d="M16 78 A64 64 0 0 1 144 78" pathLength="100"/>
+                      <path class="value" d="M16 78 A64 64 0 0 1 144 78" pathLength="100"/>
+                    </svg>
+                    <p class="mo"><strong>15</strong> mo</p>
+                    <p class="until">through Nov 2027</p>
+                    <div class="pair"><dt>Change</dt><dd>−$164K</dd></div>
+                    <div class="pair"><dt>Aim</dt><dd>18 mo</dd></div>
+                  </section>
+                </div>
+                <div class="notes">
+                  <section class="note" style="--lag:0">
+                    <h2>Accounts</h2>
+                    <ul>
+                      <li><span>Operating</span><b>$1.04M</b></li>
+                      <li><span>Reserve</span><b>$0.62M</b></li>
+                      <li><span>Tax</span><b>$0.31M</b></li>
+                    </ul>
+                  </section>
+                  <section class="note" style="--lag:0.06">
+                    <h2>Watch</h2>
+                    <p>Two renewals share one October week.</p>
+                    <p>January spending goes quiet for a week.</p>
+                  </section>
+                  <section class="note" style="--lag:0.12">
+                    <h2>Coming up</h2>
+                    <ul>
+                      <li><span>Jun 3</span><b>−$210K</b></li>
+                      <li><span>Jun 18</span><b>−$46K</b></li>
+                      <li><span>Jun 27</span><b>+$128K</b></li>
+                    </ul>
+                  </section>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+        <svg class="clouds near" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+          <filter id="nearBlur" x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur stdDeviation="2.2"/>
+          </filter>
+          <g fill="#f8fbff" filter="url(#nearBlur)">
+            <circle cx="40" cy="860" r="78"/><circle cx="120" cy="828" r="64"/><circle cx="190" cy="868" r="72"/><circle cx="250" cy="820" r="48"/>
+            <circle cx="1180" cy="850" r="70"/><circle cx="1260" cy="812" r="66"/><circle cx="1340" cy="858" r="80"/><circle cx="1120" cy="888" r="46"/>
+            <circle cx="560" cy="910" r="70"/><circle cx="680" cy="928" r="64"/><circle cx="800" cy="916" r="72"/>
+          </g>
+        </svg>
+        <p class="hint">滚动或上下移动指针，把看板从云里托出来</p>
+  </div>
+  <table class="sr">
+    <caption>自绘现金展望，不是原仪表盘</caption>
+    <tbody>
+      <tr><th scope="row">On hand</th><td>$2,186,400，较上月 +2.4%</td></tr>
+      <tr><th scope="row">Still covered</th><td>15 个月，到 2027 年 11 月；每月净变化 −$164K；目标 18 个月</td></tr>
+    </tbody>
+  </table>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var sky = document.getElementById("sky");
+      var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      var progress = motion.matches ? 1 : 0;
+      var auto = !motion.matches;
+      var frame = 0;
+
+      function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+      function paint(next) {
+        progress = clamp(next, 0, 1);
+        root.style.setProperty("--p", String(progress));
+      }
+      function stopAuto() {
+        auto = false;
+        if (frame) {
+          window.cancelAnimationFrame(frame);
+          frame = 0;
+        }
+      }
+      function settle() {
+        stopAuto();
+        paint(1);
+      }
+
+      if (motion.matches) {
+        settle();
+      } else {
+        var t0 = 0;
+        function tick(now) {
+          if (!auto) return;
+          if (!t0) t0 = now;
+          var t = Math.min(1, (now - t0) / 2600);
+          var eased = t * t * (3 - 2 * t);
+          paint(eased);
+          if (t < 1) frame = window.requestAnimationFrame(tick);
+          else frame = 0;
+        }
+        frame = window.requestAnimationFrame(tick);
+      }
+
+      window.addEventListener("wheel", function (e) {
+        if (motion.matches) return;
+        e.preventDefault();
+        stopAuto();
+        paint(progress + e.deltaY / 880);
+      }, { passive: false });
+
+      var lastY = null;
+      window.addEventListener("touchstart", function (e) {
+        if (motion.matches) return;
+        stopAuto();
+        lastY = e.touches[0].clientY;
+      }, { passive: true });
+      window.addEventListener("touchmove", function (e) {
+        if (motion.matches || lastY == null) return;
+        e.preventDefault();
+        var y = e.touches[0].clientY;
+        paint(progress + (lastY - y) / 460);
+        lastY = y;
+      }, { passive: false });
+      window.addEventListener("touchend", function () { lastY = null; });
+
+      window.addEventListener("keydown", function (e) {
+        if (motion.matches) return;
+        var step = { ArrowDown: 0.08, ArrowUp: -0.08, PageDown: 0.2, PageUp: -0.2, " ": 0.16, Home: -1, End: 1 };
+        if (!(e.key in step)) return;
+        e.preventDefault();
+        stopAuto();
+        paint(e.key === "Home" ? 0 : e.key === "End" ? 1 : progress + step[e.key]);
+      });
+
+      sky.addEventListener("pointermove", function (e) {
+        if (motion.matches || e.pointerType === "touch") return;
+        stopAuto();
+        var rect = sky.getBoundingClientRect();
+        var y = (e.clientY - rect.top) / Math.max(1, rect.height);
+        paint((0.92 - y) / 0.64);
+      });
+
+      motion.addEventListener("change", function () {
+        if (motion.matches) settle();
+      });
+    }());
+  </script>
+</body>
+</html>
