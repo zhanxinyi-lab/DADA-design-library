@@ -5,7 +5,7 @@
 - 状态：ai_recreated
 - 原文：https://x.com/x6sense/status/2124975539291377894
 - 素材 ID：2124975539291377894
-- 版本：1.0.0
+- 版本：1.0.1
 
 ## 复刻说明
 
@@ -16,5 +16,5 @@
 ## 自查
 
 - [x] 本地打开 code/index.html，对照第 1 段原片看过位置、颗粒和漂移
-- [x] README 版本是 1.0.0，CHANGELOG.md 有这一节
+- [x] README 版本是 1.0.1，CHANGELOG.md 有这一节
 - [x] 没有引用外网资源（CDN、字体、图片）
