@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pop 字母镭射渐变</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #000;
+    color: #fff;
+  }
+  body {
+    height: 100dvh;
+    overflow: hidden;
+  }
+  #frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+  canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  #cpu { visibility: hidden; }
+  #cpu.live { visibility: visible; }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+  <h1 class="sr">make it pop</h1>
+  <p class="sr">黑色背景上两行字。make 和 it 是白色。pop 三个字母里面是流动的彩虹镭射，指针靠近时颜色在字母内部搅动。</p>
+  <div id="frame">
+    <canvas id="stage" aria-hidden="true"></canvas>
+    <canvas id="cpu" aria-hidden="true"></canvas>
+  </div>
+  <script>
+    (function () {
+      var frame = document.getElementById('frame');
+      var canvas = document.getElementById('stage');
+      var cpu = document.getElementById('cpu');
+      var cpuCtx = cpu.getContext('2d');
+      var reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      var gl = null;
+      var mode = '2d';
+      var program = null;
+      var noiseTex = null;
+      var popTex = null;
+      var inkTex = null;
+      var buffers = null;
+      var locs = null;
+      var noisePx = null;
+      var noiseSize = 256;
+      var inkCanvas = document.createElement('canvas');
+      var popCanvas = document.createElement('canvas');
+      var foilCanvas = document.createElement('canvas');
+      var flatCanvas = document.createElement('canvas');
+      var inkCtx = inkCanvas.getContext('2d', { willReadFrequently: true });
+      var popCtx = popCanvas.getContext('2d', { willReadFrequently: true });
+      var foilCtx = foilCanvas.getContext('2d', { willReadFrequently: true });
+      var flatCtx = flatCanvas.getContext('2d');
+      var layout = null;
+      var raf = 0;
+      var running = false;
+      var tx = 0;
+      var ty = 0;
+      var px = 0;
+      var py = 0;
+      var near = 0;
+      var nearTarget = 0;
+      var pointerSeen = false;
+
+      var VERT = [
+        'attribute vec2 a;',
+        'varying vec2 v;',
+        'void main(){',
+        '  v = a * 0.5 + 0.5;',
+        '  gl_Position = vec4(a, 0.0, 1.0);',
+        '}'
+      ].join('\n');
+
+      var FRAG = [
+        'precision mediump float;',
+        'uniform sampler2D uNoise;',
+        'uniform sampler2D uPop;',
+        'uniform sampler2D uInk;',
+        'uniform vec2 uRes;',
+        'uniform float uTime;',
+        'uniform vec2 uPointer;',
+        'uniform float uNear;',
+        'varying vec2 v;',
+        'float ntex(vec2 p){ return texture2D(uNoise, fract(p)).r; }',
+        'float fbm(vec2 p){',
+        '  float v = 0.0;',
+        '  v += 0.50 * ntex(p); p = p * 2.02 + vec2(1.7, 9.2);',
+        '  v += 0.25 * ntex(p); p = p * 2.03 + vec2(8.3, 2.8);',
+        '  v += 0.125 * ntex(p); p = p * 2.01 + vec2(3.1, 7.7);',
+        '  v += 0.0625 * ntex(p);',
+        '  return v;',
+        '}',
+        'vec3 hsv(float h, float s, float val){',
+        '  vec3 rgb = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);',
+        '  return val * mix(vec3(1.0), rgb, s);',
+        '}',
+        'void main(){',
+        '  float popA = smoothstep(0.28, 0.62, texture2D(uPop, v).a);',
+        '  float inkA = smoothstep(0.28, 0.62, texture2D(uInk, v).a);',
+        '  if (popA < 0.004 && inkA < 0.004) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }',
+        '  vec2 pix = vec2(v.x * uRes.x, (1.0 - v.y) * uRes.y);',
+        '  vec2 p = (pix - 0.5 * uRes) / max(uRes.y, 1.0);',
+        '  vec2 m = (uPointer - 0.5 * uRes) / max(uRes.y, 1.0);',
+        '  vec2 d = p - m;',
+        '  float dist = length(d);',
+        '  float stir = uNear * (1.0 - smoothstep(0.0, 0.58, dist));',
+        '  vec2 radial = dist > 0.0008 ? d / dist : vec2(0.0, 1.0);',
+        '  vec2 tangent = vec2(-radial.y, radial.x);',
+        '  vec2 q = p + tangent * stir * 0.09;',
+        '  q += radial * stir * 0.035 * sin(dist * 8.0 - uTime * 2.2);',
+        '  q += vec2(0.04 * sin(uTime * 0.55), -uTime * 0.085);',
+        '  float n1 = fbm(q * 0.72 + vec2(0.0, uTime * 0.012));',
+        '  float n2 = fbm(q * 1.15 + vec2(n1 * 0.85, -n1 * 0.4) + vec2(2.2, 0.4));',
+        '  vec2 warp = vec2(',
+        '    fbm(q * 0.9 + vec2(n2, uTime * 0.02)),',
+        '    fbm(q * 0.9 + vec2(3.2, n2) - vec2(0.0, uTime * 0.03))',
+        '  );',
+        '  float field = fbm(q * 0.8 + warp * (0.65 + stir * 1.5));',
+        '  float drip = fbm(vec2(q.x * 1.8 + n1, q.y * 0.42 - uTime * 0.1));',
+        '  float phase = field * 3.3 + drip * 1.6 + n2 * 0.85 + stir * sin(atan(d.y, d.x) + uTime) * 0.08;',
+        '  float band = sin(phase * 6.28318);',
+        '  float hue = fract(0.08 + phase * 0.28 + q.x * 1.15 + drip * 0.45);',
+        '  float light = smoothstep(-0.25, 0.92, band);',
+        '  float caustic = smoothstep(0.78, 0.98, band);',
+        '  vec3 col = hsv(hue, 0.9, mix(0.02, 1.0, light));',
+        '  col += vec3(0.75, 0.98, 1.0) * caustic * 0.75;',
+        '  float hot = exp(-dist * dist * 90.0) * uNear;',
+        '  col += vec3(0.9, 0.98, 1.0) * hot * 0.55;',
+        '  col = clamp(col, 0.0, 1.0);',
+        '  float cover = max(popA, inkA);',
+        '  vec3 letter = mix(vec3(1.0), col, popA);',
+        '  gl_FragColor = vec4(letter * cover, 1.0);',
+        '}'
+      ].join('\n');
+
+      function reduced() { return reduceQuery.matches; }
+
+      function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+      function applyFont(ctx, size) {
+        ctx.font = '900 ' + size.toFixed(2) + 'px "Arial Black", "Segoe UI", Impact, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#fff';
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+      }
+
+      function measureRun(ctx, text, size) {
+        applyFont(ctx, size);
+        var tracking = -size * 0.055;
+        var widths = [];
+        var w = 0;
+        var ascent = 0;
+        var descent = 0;
+        for (var i = 0; i < text.length; i++) {
+          var m = ctx.measureText(text.charAt(i));
+          widths.push(m.width);
+          w += m.width;
+          ascent = Math.max(ascent, m.actualBoundingBoxAscent || 0);
+          descent = Math.max(descent, m.actualBoundingBoxDescent || 0);
+        }
+        if (text.length > 1) w += tracking * (text.length - 1);
+        if (ascent <= 0) ascent = size * 0.76;
+        if (descent <= 0) descent = size * 0.02;
+        return { text: text, w: w, widths: widths, tracking: tracking, ascent: ascent, descent: descent };
+      }
+
+      function fillRun(ctx, run, x, y) {
+        var cx = x;
+        for (var i = 0; i < run.text.length; i++) {
+          ctx.fillText(run.text.charAt(i), cx, y);
+          cx += run.widths[i] + run.tracking;
+        }
+      }
+
+      function fit(w, h) {
+        var pad = clamp(Math.min(w, h) * 0.06, 12, 56);
+        var lo = 18;
+        var hi = Math.min(w, h);
+        var best = measureBlock(lo);
+        for (var i = 0; i < 16; i++) {
+          var mid = (lo + hi) * 0.5;
+          var block = measureBlock(mid);
+          if (block.w <= w - pad * 2 && block.h <= h - pad * 2) {
+            best = block;
+            lo = mid;
+          } else {
+            hi = mid;
+          }
+        }
+        best.x = (w - best.w) * 0.5;
+        best.y = (h - best.h) * 0.5;
+        best.base1 = best.y + best.make.ascent;
+        best.base2 = best.base1 + best.make.descent + best.gapY + best.pop.ascent;
+        best.popX = best.x + best.it.w + best.gapX;
+        best.popBox = {
+          x: best.popX,
+          y: best.base2 - best.pop.ascent,
+          w: best.pop.w,
+          h: best.pop.ascent + best.pop.descent
+        };
+        return best;
+      }
+
+      function measureBlock(size) {
+        var make = measureRun(inkCtx, 'make', size);
+        var it = measureRun(inkCtx, 'it', size);
+        var pop = measureRun(inkCtx, 'pop', size);
+        var gapX = -size * 0.02;
+        var gapY = size * 0.07;
+        var width = Math.max(make.w, it.w + gapX + pop.w);
+        var height = make.ascent + make.descent + gapY + pop.ascent + Math.max(it.descent, pop.descent);
+        return { size: size, make: make, it: it, pop: pop, gapX: gapX, gapY: gapY, w: width, h: height };
+      }
+
+      function paintMasks() {
+        var w = canvas.width;
+        var h = canvas.height;
+        inkCanvas.width = w;
+        inkCanvas.height = h;
+        popCanvas.width = w;
+        popCanvas.height = h;
+        inkCtx.clearRect(0, 0, w, h);
+        popCtx.clearRect(0, 0, w, h);
+        if (!layout) return;
+        applyFont(inkCtx, layout.size);
+        applyFont(popCtx, layout.size);
+        fillRun(inkCtx, layout.make, layout.x, layout.base1);
+        fillRun(inkCtx, layout.it, layout.x, layout.base2);
+        fillRun(popCtx, layout.pop, layout.popX, layout.base2);
+      }
+
+      function sampleNoise(u, v) {
+        var x = ((u % 1) + 1) % 1;
+        var y = ((v % 1) + 1) % 1;
+        var fx = x * noiseSize;
+        var fy = y * noiseSize;
+        var x0 = Math.floor(fx) % noiseSize;
+        var y0 = Math.floor(fy) % noiseSize;
+        var x1 = (x0 + 1) % noiseSize;
+        var y1 = (y0 + 1) % noiseSize;
+        var tx = fx - Math.floor(fx);
+        var ty = fy - Math.floor(fy);
+        function at(ix, iy) { return noisePx[(iy * noiseSize + ix) * 4] / 255; }
+        var a = at(x0, y0);
+        var b = at(x1, y0);
+        var c = at(x0, y1);
+        var d = at(x1, y1);
+        return a * (1 - tx) * (1 - ty) + b * tx * (1 - ty) + c * (1 - tx) * ty + d * tx * ty;
+      }
+
+      function fbmCpu(x, y) {
+        var v = 0;
+        v += 0.5 * sampleNoise(x, y); x = x * 2.02 + 1.7; y = y * 2.02 + 9.2;
+        v += 0.25 * sampleNoise(x, y); x = x * 2.03 + 8.3; y = y * 2.03 + 2.8;
+        v += 0.125 * sampleNoise(x, y); x = x * 2.01 + 3.1; y = y * 2.01 + 7.7;
+        v += 0.0625 * sampleNoise(x, y);
+        return v;
+      }
+
+      function hsvCpu(h, s, val) {
+        var r = Math.min(1, Math.max(0, Math.abs((h * 6) % 6 - 3) - 1));
+        var g = Math.min(1, Math.max(0, Math.abs((h * 6 + 4) % 6 - 3) - 1));
+        var b = Math.min(1, Math.max(0, Math.abs((h * 6 + 2) % 6 - 3) - 1));
+        return [
+          Math.round(255 * val * (1 - s + s * r)),
+          Math.round(255 * val * (1 - s + s * g)),
+          Math.round(255 * val * (1 - s + s * b))
+        ];
+      }
+
+      function buildNoise() {
+        var cells = 6;
+        var lattice = new Float32Array(cells * cells);
+        for (var i = 0; i < lattice.length; i++) lattice[i] = Math.random();
+        noisePx = new Uint8Array(noiseSize * noiseSize * 4);
+        function fade(t) { return t * t * (3 - 2 * t); }
+        for (var y = 0; y < noiseSize; y++) {
+          for (var x = 0; x < noiseSize; x++) {
+            var fx = (x / noiseSize) * cells;
+            var fy = (y / noiseSize) * cells;
+            var x0 = Math.floor(fx) % cells;
+            var y0 = Math.floor(fy) % cells;
+            var x1 = (x0 + 1) % cells;
+            var y1 = (y0 + 1) % cells;
+            var tx = fade(fx - Math.floor(fx));
+            var ty = fade(fy - Math.floor(fy));
+            var a = lattice[y0 * cells + x0];
+            var b = lattice[y0 * cells + x1];
+            var c = lattice[y1 * cells + x0];
+            var d = lattice[y1 * cells + x1];
+            var val = a * (1 - tx) * (1 - ty) + b * tx * (1 - ty) + c * (1 - tx) * ty + d * tx * ty;
+            var p = (y * noiseSize + x) * 4;
+            var byte = Math.max(0, Math.min(255, Math.round(val * 255)));
+            noisePx[p] = noisePx[p + 1] = noisePx[p + 2] = byte;
+            noisePx[p + 3] = 255;
+          }
+        }
+      }
+
+      function makeTex(wrap) {
+        var tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+        return tex;
+      }
+
+      function uploadCanvas(tex, source) {
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+      }
+
+      function compile(type, src) {
+        var shader = gl.createShader(type);
+        gl.shaderSource(shader, src);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          gl.deleteShader(shader);
+          return null;
+        }
+        return shader;
+      }
+
+      function initGl() {
+        gl = canvas.getContext('webgl', {
+          alpha: false,
+          antialias: false,
+          depth: false,
+          stencil: false,
+          preserveDrawingBuffer: false,
+          failIfMajorPerformanceCaveat: false
+        });
+        if (!gl) return false;
+        var vs = compile(gl.VERTEX_SHADER, VERT);
+        var fs = compile(gl.FRAGMENT_SHADER, FRAG);
+        if (!vs || !fs) return false;
+        program = gl.createProgram();
+        gl.attachShader(program, vs);
+        gl.attachShader(program, fs);
+        gl.bindAttribLocation(program, 0, 'a');
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return false;
+        gl.useProgram(program);
+        locs = {
+          noise: gl.getUniformLocation(program, 'uNoise'),
+          pop: gl.getUniformLocation(program, 'uPop'),
+          ink: gl.getUniformLocation(program, 'uInk'),
+          res: gl.getUniformLocation(program, 'uRes'),
+          time: gl.getUniformLocation(program, 'uTime'),
+          pointer: gl.getUniformLocation(program, 'uPointer'),
+          near: gl.getUniformLocation(program, 'uNear')
+        };
+        var buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+        noiseTex = makeTex(gl.REPEAT);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, noiseSize, noiseSize, 0, gl.RGBA, gl.UNSIGNED_BYTE, noisePx);
+        popTex = makeTex(gl.CLAMP_TO_EDGE);
+        inkTex = makeTex(gl.CLAMP_TO_EDGE);
+        buffers = true;
+        gl.disable(gl.DEPTH_TEST);
+        gl.disable(gl.BLEND);
+        return true;
+      }
+
+      function uploadMasks() {
+        if (mode !== 'gl' || !gl || gl.isContextLost()) return;
+        uploadCanvas(popTex, popCanvas);
+        uploadCanvas(inkTex, inkCanvas);
+      }
+
+      function proximity(x, y) {
+        if (!layout) return 0;
+        var b = layout.popBox;
+        var dx = Math.max(b.x - x, 0, x - (b.x + b.w));
+        var dy = Math.max(b.y - y, 0, y - (b.y + b.h));
+        var dist = Math.hypot(dx, dy);
+        var reach = Math.max(b.h * 0.95, 72);
+        return clamp(1 - dist / reach, 0, 1);
+      }
+
+      function drawGl(time, pointerX, pointerY, stir) {
+        if (!gl || gl.isContextLost() || !program) return false;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.useProgram(program);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, noiseTex);
+        gl.uniform1i(locs.noise, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, popTex);
+        gl.uniform1i(locs.pop, 1);
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, inkTex);
+        gl.uniform1i(locs.ink, 2);
+        gl.uniform2f(locs.res, canvas.width, canvas.height);
+        gl.uniform1f(locs.time, time);
+        gl.uniform2f(locs.pointer, pointerX, pointerY);
+        gl.uniform1f(locs.near, stir);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        return true;
+      }
+
+      function showCpu(on) {
+        if (on) cpu.classList.add('live');
+        else cpu.classList.remove('live');
+      }
+
+      function draw2d(time, pointerX, pointerY, stir) {
+        var w = canvas.width;
+        var h = canvas.height;
+        if (cpu.width !== w || cpu.height !== h) {
+          cpu.width = w;
+          cpu.height = h;
+        }
+        cpuCtx.setTransform(1, 0, 0, 1, 0, 0);
+        cpuCtx.fillStyle = '#000';
+        cpuCtx.fillRect(0, 0, w, h);
+        cpuCtx.drawImage(inkCanvas, 0, 0);
+        if (!layout) return;
+        var box = layout.popBox;
+        var scale = Math.min(1, 420 / Math.max(box.w, 1));
+        var bw = Math.max(2, Math.round(box.w * scale));
+        var bh = Math.max(2, Math.round(box.h * scale));
+        foilCanvas.width = bw;
+        foilCanvas.height = bh;
+        var img = foilCtx.createImageData(bw, bh);
+        var data = img.data;
+        var resY = Math.max(h, 1);
+        for (var y = 0; y < bh; y++) {
+          for (var x = 0; x < bw; x++) {
+            var pixX = box.x + (x + 0.5) / bw * box.w;
+            var pixY = box.y + (y + 0.5) / bh * box.h;
+            var pxx = (pixX - w * 0.5) / resY;
+            var pyy = (pixY - h * 0.5) / resY;
+            var mx = (pointerX - w * 0.5) / resY;
+            var my = (pointerY - h * 0.5) / resY;
+            var dx = pxx - mx;
+            var dy = pyy - my;
+            var dist = Math.hypot(dx, dy) || 0.0001;
+            var local = stir * clamp(1 - dist / 0.58, 0, 1);
+            var rx = dx / dist;
+            var ry = dy / dist;
+            var qx = pxx + (-ry) * local * 0.09;
+            var qy = pyy + rx * local * 0.09;
+            qx += rx * local * 0.035 * Math.sin(dist * 8 - time * 2.2);
+            qy += ry * local * 0.035 * Math.sin(dist * 8 - time * 2.2);
+            qx += 0.04 * Math.sin(time * 0.55);
+            qy += -time * 0.085;
+            var n1 = fbmCpu(qx * 0.72, qy * 0.72 + time * 0.012);
+            var n2 = fbmCpu(qx * 1.15 + n1 * 0.85 + 2.2, qy * 1.15 - n1 * 0.4 + 0.4);
+            var warpX = fbmCpu(qx * 0.9 + n2, qy * 0.9 + time * 0.02);
+            var warpY = fbmCpu(qx * 0.9 + 3.2, qy * 0.9 + n2 - time * 0.03);
+            var field = fbmCpu(qx * 0.8 + warpX * (0.65 + local * 1.5), qy * 0.8 + warpY * (0.65 + local * 1.5));
+            var drip = fbmCpu(qx * 1.8 + n1, qy * 0.42 - time * 0.1);
+            var phase = field * 3.3 + drip * 1.6 + n2 * 0.85 + local * Math.sin(Math.atan2(dy, dx) + time) * 0.08;
+            var band = Math.sin(phase * 6.28318);
+            var hue = (0.08 + phase * 0.28 + qx * 1.15 + drip * 0.45) % 1;
+            if (hue < 0) hue += 1;
+            var light = clamp((band + 0.25) / 1.17, 0, 1);
+            var caustic = clamp((band - 0.78) / 0.2, 0, 1);
+            var col = hsvCpu(hue, 0.9, 0.02 + 0.98 * light);
+            var hot = Math.exp(-dist * dist * 90) * stir;
+            col[0] = Math.min(255, col[0] + (0.75 * caustic * 0.75 + 0.9 * hot * 0.55) * 255);
+            col[1] = Math.min(255, col[1] + (0.98 * caustic * 0.75 + 0.98 * hot * 0.55) * 255);
+            col[2] = Math.min(255, col[2] + (1 * caustic * 0.75 + 1 * hot * 0.55) * 255);
+            var p = (y * bw + x) * 4;
+            data[p] = col[0];
+            data[p + 1] = col[1];
+            data[p + 2] = col[2];
+            data[p + 3] = 255;
+          }
+        }
+        foilCtx.putImageData(img, 0, 0);
+        flatCanvas.width = w;
+        flatCanvas.height = h;
+        flatCtx.setTransform(1, 0, 0, 1, 0, 0);
+        flatCtx.clearRect(0, 0, w, h);
+        flatCtx.drawImage(foilCanvas, box.x, box.y, box.w, box.h);
+        flatCtx.globalCompositeOperation = 'destination-in';
+        flatCtx.drawImage(popCanvas, 0, 0);
+        flatCtx.globalCompositeOperation = 'source-over';
+        cpuCtx.drawImage(flatCanvas, 0, 0);
+      }
+
+      function draw(time, pointerX, pointerY, stir) {
+        if (mode === 'gl' && drawGl(time, pointerX, pointerY, stir)) {
+          showCpu(false);
+          return;
+        }
+        mode = '2d';
+        showCpu(true);
+        draw2d(time, pointerX, pointerY, stir);
+      }
+
+      function drawStill() {
+        var box = layout && layout.popBox;
+        var cx = box ? box.x + box.w * 0.5 : canvas.width * 0.5;
+        var cy = box ? box.y + box.h * 0.5 : canvas.height * 0.5;
+        draw(0.42, cx, cy, 0);
+      }
+
+      function rebuild() {
+        var w = canvas.width;
+        var h = canvas.height;
+        layout = fit(w, h);
+        if (!pointerSeen && layout) {
+          tx = px = layout.popBox.x + layout.popBox.w * 0.5;
+          ty = py = layout.popBox.y + layout.popBox.h * 0.5;
+        }
+        paintMasks();
+        uploadMasks();
+      }
+
+      function resize() {
+        var rect = frame.getBoundingClientRect();
+        var cssW = rect.width || window.innerWidth || 2;
+        var cssH = rect.height || window.innerHeight || 2;
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var w = Math.max(2, Math.round(cssW * dpr));
+        var h = Math.max(2, Math.round(cssH * dpr));
+        if (w === canvas.width && h === canvas.height && layout) return;
+        canvas.width = w;
+        canvas.height = h;
+        if (mode === 'gl' && gl && !gl.isContextLost()) gl.viewport(0, 0, w, h);
+        rebuild();
+        if (reduced()) drawStill();
+      }
+
+      function tick(now) {
+        if (!running) return;
+        raf = window.requestAnimationFrame(tick);
+        px += (tx - px) * 0.2;
+        py += (ty - py) * 0.2;
+        near += (nearTarget - near) * 0.14;
+        draw((now || 0) / 1000, px, py, near);
+      }
+
+      function start() {
+        if (running || reduced()) return;
+        running = true;
+        raf = window.requestAnimationFrame(tick);
+      }
+
+      function stopStill() {
+        running = false;
+        if (raf) window.cancelAnimationFrame(raf);
+        raf = 0;
+        drawStill();
+      }
+
+      function setPointer(clientX, clientY) {
+        if (!layout) return;
+        var rect = frame.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        pointerSeen = true;
+        tx = (clientX - rect.left) * (canvas.width / rect.width);
+        ty = (clientY - rect.top) * (canvas.height / rect.height);
+        nearTarget = reduced() ? 0 : proximity(tx, ty);
+      }
+
+      frame.addEventListener('pointermove', function (event) {
+        setPointer(event.clientX, event.clientY);
+      });
+      frame.addEventListener('pointerdown', function (event) {
+        setPointer(event.clientX, event.clientY);
+      });
+      frame.addEventListener('pointerleave', function () {
+        nearTarget = 0;
+      });
+      canvas.addEventListener('webglcontextlost', function (event) {
+        event.preventDefault();
+        mode = '2d';
+        showCpu(true);
+        gl = null;
+        if (reduced()) drawStill();
+      });
+      canvas.addEventListener('webglcontextrestored', function () {
+        if (initGl()) {
+          mode = 'gl';
+          showCpu(false);
+          uploadMasks();
+        } else {
+          mode = '2d';
+          showCpu(true);
+        }
+        if (reduced()) drawStill();
+      });
+
+      if (typeof reduceQuery.addEventListener === 'function') {
+        reduceQuery.addEventListener('change', function () {
+          nearTarget = 0;
+          if (reduced()) stopStill();
+          else start();
+        });
+      }
+
+      buildNoise();
+      if (initGl()) mode = 'gl';
+      window.addEventListener('resize', resize);
+      if (typeof window.ResizeObserver === 'function') new window.ResizeObserver(resize).observe(document.body);
+      resize();
+      if (reduced()) drawStill();
+      else start();
+    })();
+  </script>
+</body>
+</html>
