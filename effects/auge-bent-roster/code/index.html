@@ -270,9 +270,21 @@
         select(i);
       });
       btn.addEventListener("focus", function () { select(i); });
+      btn.addEventListener("pointerleave", function (e) {
+        if (!reduce) return;
+        var next = e.relatedTarget;
+        if (next && roster.contains(next)) return;
+        if (roster.contains(document.activeElement)) return;
+        clearActive();
+      });
       li.appendChild(btn);
       roster.appendChild(li);
       buttons.push(btn);
+    });
+    roster.addEventListener("focusout", function (e) {
+      var next = e.relatedTarget;
+      if (next && roster.contains(next)) return;
+      clearActive();
     });
     roster.addEventListener("keydown", function (e) {
       var i = buttons.indexOf(document.activeElement);
@@ -319,7 +331,7 @@
       bend = 1;
       scroll = i;
       theme = WORKS[i].dark ? 1 : 0;
-      pull = pointer.inside ? 1 : 0;
+      pull = 0;
     }
     buttons.forEach(function (btn, n) {
       var on = n === i;
@@ -331,18 +343,41 @@
     if (reduce) draw();
   }
 
+  function clearActive() {
+    if (active < 0) return;
+    active = -1;
+    buttons.forEach(function (btn) {
+      btn.classList.remove("is-on");
+      btn.removeAttribute("aria-current");
+    });
+    card.dataset.active = "";
+    if (reduce) {
+      stretch = 1;
+      bend = 1;
+      pull = 0;
+    }
+    draw();
+  }
+
   function damp(cur, target, rate, dt) {
     return cur + (target - cur) * (1 - Math.exp(-rate * dt));
   }
 
   function step(dt) {
+    if (active < 0) {
+      pull = reduce ? 0 : damp(pull, pointer.inside ? 1 : 0, 8, dt);
+      card.dataset.active = "";
+      card.dataset.stretch = stretch.toFixed(3);
+      card.dataset.bend = bend.toFixed(3);
+      return;
+    }
     var themeTarget = WORKS[active].dark ? 1 : 0;
     if (reduce) {
       stretch = 1;
       bend = 1;
       scroll = active;
       theme = themeTarget;
-      pull = pointer.inside ? 1 : 0;
+      pull = 0;
     } else {
       stretch = damp(stretch, 1, 5.4, dt);
       bend = damp(bend, 1, 3.6, dt);
@@ -650,9 +685,11 @@
         }, textures[i]);
       });
     }
-    drawMesh(programs.plane, 32, 16, function (u, v) {
-      return projectPlane(u, v, rect, sx, sy, bend);
-    }, textures[active]);
+    if (active >= 0) {
+      drawMesh(programs.plane, 32, 16, function (u, v) {
+        return projectPlane(u, v, rect, sx, sy, bend);
+      }, textures[active]);
+    }
   }
 
   function splitY(u, sheetBend) {
@@ -688,7 +725,7 @@
         blit(paints[n], r, 1, 1, 1);
       });
     }
-    blit(paints[active], rect, sx, sy, bend);
+    if (active >= 0) blit(paints[active], rect, sx, sy, bend);
   }
 
   function blit(source, rect, sx, sy, bendNow) {
@@ -713,7 +750,7 @@
   }
 
   function draw() {
-    if (cssW < 2 || cssH < 2 || active < 0) return;
+    if (cssW < 2 || cssH < 2) return;
     placeNames();
     if (gl && programs) drawGL();
     else if (ctx2d) draw2D();
@@ -766,22 +803,16 @@
       }).observe(card);
     }
     card.addEventListener("pointermove", function (e) {
+      if (reduce) return;
       notePointer(e);
       var r = card.getBoundingClientRect();
       pointer.x = e.clientX - r.left;
       pointer.y = e.clientY - r.top;
       pointer.inside = true;
-      if (reduce) {
-        pull = 1;
-        draw();
-      }
     });
     card.addEventListener("pointerleave", function () {
+      if (reduce) return;
       pointer.inside = false;
-      if (reduce) {
-        pull = 0;
-        draw();
-      }
     });
     function onMotion() {
       reduce = motion.matches;
@@ -789,9 +820,9 @@
         looping = false;
         stretch = 1;
         bend = 1;
-        scroll = active;
-        theme = WORKS[active].dark ? 1 : 0;
-        pull = pointer.inside ? 1 : 0;
+        if (active >= 0) scroll = active;
+        theme = active < 0 ? theme : (WORKS[active].dark ? 1 : 0);
+        pull = 0;
         step(0);
         draw();
       } else if (!looping) {
