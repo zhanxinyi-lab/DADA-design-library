@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>液态细颈</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; background: #070608; color: #fff; }
+    body {
+      min-height: 100%;
+      overflow: hidden;
+      font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    }
+    .stage { position: fixed; inset: 0; background: #09080a; overflow: hidden; }
+    .fold { position: absolute; pointer-events: none; border-radius: 120px; }
+    .f1 {
+      width: 36vw; height: 160vh; left: -10vw; top: -32vh; transform: rotate(20deg);
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.2), transparent 22%),
+        linear-gradient(90deg, #5c5358, #2a2428 46%, #110e11);
+    }
+    .f2 {
+      width: 16vw; height: 150vh; left: 16vw; top: -24vh; transform: rotate(12deg);
+      background: linear-gradient(90deg, #3a3338, #161316 68%);
+    }
+    .f3 {
+      width: 20vw; height: 140vh; left: 32vw; top: -20vh; transform: rotate(7deg);
+      background: linear-gradient(90deg, #282226, #0d0b0d 74%);
+    }
+    .f4 {
+      width: 40vw; height: 160vh; right: -14vw; top: -18vh; transform: rotate(-18deg);
+      background: linear-gradient(90deg, #221e21, #050405 78%);
+    }
+    .sheen-bg {
+      position: absolute; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(80% 58% at 40% 44%, transparent 0%, rgba(0,0,0,0.3) 74%, #000 100%),
+        linear-gradient(118deg, rgba(255,255,255,0.06), transparent 26%);
+    }
+    .grain {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      pointer-events: none; opacity: 0.68; mix-blend-mode: overlay;
+    }
+    .dock {
+      position: absolute; left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(440px, calc(100% - 16px));
+      padding: 36px 10px 40px;
+    }
+    #ink {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      overflow: visible; pointer-events: none; z-index: 1;
+    }
+    .row {
+      position: relative; z-index: 2;
+      display: flex; align-items: center; gap: 14px;
+    }
+    button {
+      --mark: 0;
+      position: relative; flex: 1 1 0; min-width: 0;
+      height: 52px; padding: 0 6px;
+      border: 0; border-radius: 999px;
+      background: transparent; color: #fff;
+      font: 600 15px/1 "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0.01em;
+      cursor: pointer; user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    button:focus { outline: none; }
+    button:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+    .face { display: grid; place-items: center; height: 100%; }
+    .label, .tick { grid-area: 1 / 1; }
+    .label { opacity: calc(1 - var(--mark)); }
+    .tick { width: 22px; height: 22px; opacity: var(--mark); }
+    .tick path {
+      fill: none; stroke: #fff; stroke-width: 2.4;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    @media (max-width: 420px) {
+      .dock { width: calc(100% - 12px); padding: 26px 6px 30px; }
+      .row { gap: 7px; }
+      button { height: 46px; font-size: 12px; }
+      .tick { width: 18px; height: 18px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .label, .tick { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="fold f1" aria-hidden="true"></div>
+    <div class="fold f2" aria-hidden="true"></div>
+    <div class="fold f3" aria-hidden="true"></div>
+    <div class="fold f4" aria-hidden="true"></div>
+    <div class="sheen-bg" aria-hidden="true"></div>
+    <svg class="grain" aria-hidden="true">
+      <filter id="grain" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/>
+        <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.7 0"/>
+      </filter>
+      <rect width="100%" height="100%" filter="url(#grain)"/>
+    </svg>
+    <div class="dock" id="dock">
+      <svg id="ink" aria-hidden="true">
+        <defs>
+          <linearGradient id="glassFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0.2"/>
+            <stop offset="0.42" stop-color="#322c30" stop-opacity="0.72"/>
+            <stop offset="1" stop-color="#000000" stop-opacity="0.55"/>
+          </linearGradient>
+          <linearGradient id="inkFill" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#ff3ec8"/>
+            <stop offset="0.55" stop-color="#ff5adf"/>
+            <stop offset="1" stop-color="#f2b4ff"/>
+          </linearGradient>
+          <filter id="goo" x="-60%" y="-120%" width="220%" height="340%" color-interpolation-filters="sRGB">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3.4" result="blur"/>
+            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -10" result="goo"/>
+            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="2" result="noise"/>
+            <feColorMatrix in="noise" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.5 0" result="n"/>
+            <feComposite in="n" in2="goo" operator="in" result="grain"/>
+            <feBlend in="goo" in2="grain" mode="overlay" result="body"/>
+            <feDropShadow in="body" dx="0" dy="0" stdDeviation="5" flood-color="#ff2a9a" flood-opacity="0.9" result="glow"/>
+            <feMerge>
+              <feMergeNode in="glow"/>
+              <feMergeNode in="body"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <g id="glasses" fill="url(#glassFill)" stroke="rgba(255,255,255,0.16)" stroke-width="1"></g>
+        <g id="inkg" filter="url(#goo)" fill="url(#inkFill)"></g>
+        <g id="specs" fill="#fff"></g>
+      </svg>
+      <div class="row" role="group" aria-label="液态步骤" aria-describedby="hint">
+        <button type="button" aria-pressed="true">
+          <span class="face"><span class="label">Payment</span><svg class="tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg></span>
+        </button>
+        <button type="button" aria-pressed="false">
+          <span class="face"><span class="label">Review</span><svg class="tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg></span>
+        </button>
+        <button type="button" aria-pressed="false">
+          <span class="face"><span class="label">Confirm</span><svg class="tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7"/></svg></span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <p id="hint" class="sr-only">滑过或聚焦某一步，液体会拉出越来越细的颈，断开时两边各自回抽。指针还在上面时保留文字，离开后变成对勾。鼠标离开这排后缩回第一步。触屏点在某一步上松手会停在那一步，点到胶囊外面才缩回。减少动态时停在所点的那一帧。</p>
+  <script>
+    const dock = document.getElementById('dock');
+    const row = dock.querySelector('.row');
+    const svg = document.getElementById('ink');
+    const glassG = document.getElementById('glasses');
+    const inkG = document.getElementById('inkg');
+    const specG = document.getElementById('specs');
+    const buttons = [...row.querySelectorAll('button')];
+    const NS = 'http://www.w3.org/2000/svg';
+    const node = (name, parent) => parent.appendChild(document.createElementNS(NS, name));
+    const glasses = buttons.map(() => node('rect', glassG));
+    const blobs = buttons.map(() => node('rect', inkG));
+    const necks = [0, 1].map(() => ({ left: node('path', inkG), right: node('path', inkG) }));
+    const specs = buttons.map(() => node('ellipse', specG));
+
+    const reduceMq = matchMedia('(prefers-reduced-motion: reduce)');
+    let reduce = reduceMq.matches;
+    let mode = 'idle';
+    let pointer = null;
+    let keyIndex = -1;
+    let pointerFocus = false;
+    let latched = -1;
+    let touching = false;
+    let lead = 0;
+    let leadV = 0;
+    let fills = [1, 0, 0];
+    let marks = [1, 0, 0];
+    let running = false;
+    let last = 0;
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const smooth = (t) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+    const set = (el, attrs) => { for (const k in attrs) el.setAttribute(k, attrs[k]); };
+
+    function metrics() {
+      const dockR = dock.getBoundingClientRect();
+      const rowR = row.getBoundingClientRect();
+      if (dockR.width < 40 || rowR.width < 40) return null;
+      const pills = buttons.map((el) => {
+        const r = el.getBoundingClientRect();
+        return {
+          el,
+          x: r.left - dockR.left,
+          y: r.top - dockR.top,
+          w: r.width,
+          h: r.height,
+          cx: r.left - dockR.left + r.width / 2,
+          cy: r.top - dockR.top + r.height / 2,
+          screenLeft: r.left,
+          screenRight: r.right,
+          screenTop: r.top,
+          screenBottom: r.bottom,
+        };
+      });
+      return { dockR, rowR, pills };
+    }
+
+    function resize() {
+      const w = Math.max(1, dock.clientWidth);
+      const h = Math.max(1, dock.clientHeight);
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      svg.setAttribute('width', w);
+      svg.setAttribute('height', h);
+    }
+
+    function paint(m) {
+      if (!m) return;
+      m.pills.forEach((p, i) => {
+        const radius = p.h / 2;
+        set(glasses[i], { x: p.x, y: p.y, width: p.w, height: p.h, rx: radius });
+        const fill = fills[i];
+        let w = fill < 0.02 ? 0 : p.h + (p.w - p.h) * smooth(fill);
+        let h = p.h;
+        let y = p.y;
+        if (i === 0 && leadV < -90) {
+          const s = clamp(-leadV / 3800, 0, 0.08);
+          w *= 1 + s;
+          h *= 1 - s * 0.5;
+          y = p.cy - h / 2;
+        }
+        set(blobs[i], {
+          x: p.x,
+          y,
+          width: Math.max(0, w),
+          height: h,
+          rx: h / 2,
+          opacity: w > 0 ? 1 : 0,
+        });
+        const show = fill > 0.62;
+        set(specs[i], {
+          cx: p.x + Math.max(w, p.h) * 0.5,
+          cy: p.y + p.h * 0.28,
+          rx: Math.max(0, w * 0.22),
+          ry: p.h * 0.07,
+          opacity: show ? (fill - 0.62) * 0.55 : 0,
+        });
+        const pressed = fill > 0.8 ? 'true' : 'false';
+        p.el.style.setProperty('--mark', marks[i].toFixed(3));
+        if (p.el.getAttribute('aria-pressed') !== pressed) p.el.setAttribute('aria-pressed', pressed);
+      });
+
+      for (let i = 0; i < 2; i++) drawNeck(m.pills[i], m.pills[i + 1], fills[i], fills[i + 1], necks[i]);
+    }
+
+    function showPath(el, d) {
+      el.setAttribute('d', d || '');
+      el.setAttribute('opacity', d ? '1' : '0');
+    }
+
+    function filament(x0, x1, y, r0, r1) {
+      if (!(x1 > x0 + 0.6) || r0 < 0.4) return '';
+      const tip = Math.max(0, r1);
+      const mid = x0 + (x1 - x0) * 0.55;
+      if (tip < 0.45) {
+        return `M ${x0} ${y - r0} C ${mid} ${y - r0 * 0.42}, ${x1 - 0.4} ${y}, ${x1} ${y} C ${x1 - 0.4} ${y}, ${mid} ${y + r0 * 0.42}, ${x0} ${y + r0} Z`;
+      }
+      return `M ${x0} ${y - r0} C ${mid} ${y - tip}, ${x1 - tip} ${y - tip}, ${x1} ${y - tip} A ${tip} ${tip} 0 0 1 ${x1} ${y + tip} C ${x1 - tip} ${y + tip}, ${mid} ${y + tip}, ${x0} ${y + r0} Z`;
+    }
+
+    function drawNeck(a, b, left, right, parts) {
+      const lip = a.x + (left < 0.02 ? 0 : a.h + (a.w - a.h) * smooth(left));
+      const gapL = Math.min(a.x + a.w, Math.max(a.x + a.h * 0.5, lip));
+      const gapR = b.x;
+      const gap = Math.max(1, gapR - gapL);
+      const y = a.cy;
+      const h = a.h;
+      if (left < 0.4 || lead < gapL - 2) {
+        showPath(parts.left, '');
+        showPath(parts.right, '');
+        return;
+      }
+      const reach = (lead - gapL) / gap;
+      const tension = leadV < -40 ? clamp(-leadV / 650, 0, 9) : 0;
+      if (right > 0.42 && reach > 0.7) {
+        const depth = clamp((reach - 0.7) / 0.9, 0, 1);
+        const pinch = clamp(right, 0, 1) * depth;
+        const waist = h * (0.38 * (1 - pinch) + 0.07 * pinch);
+        const root = h * 0.4;
+        const x0 = gapL - h * 0.08;
+        const x1 = gapR + h * (0.05 + 0.12 * right);
+        const mid = (x0 + x1) / 2;
+        showPath(parts.left, filament(x0, mid, y, root, waist));
+        showPath(parts.right, filament(mid - 0.8, x1, y, waist, root * (0.35 + 0.45 * right)));
+        return;
+      }
+      const breakX = clamp(lead, gapL, gapR + h * 0.15);
+      const stretch = clamp((breakX - gapL) / gap, 0, 1.2);
+      const along = Math.min(stretch, 1);
+      const root = h * (0.44 - 0.18 * along);
+      const tip = h * (0.32 * Math.pow(1 - along, 1.35) + 0.006);
+      const split = tip < h * 0.05 ? (1 - tip / (h * 0.05)) * (6 + tension) : tension * 0.35;
+      const x0 = gapL - h * 0.06;
+      const x1 = Math.max(x0 + 0.8, breakX - split);
+      showPath(parts.left, filament(x0, x1, y, root, tip));
+      if (right > 0.025) {
+        const fade = clamp(right / 0.22, 0, 1);
+        const mouth = h * (0.12 + 0.26 * right) * fade;
+        const stubTip = Math.max(0.35, tip * fade);
+        const stubEnd = gapR + Math.max(b.h * 0.2, b.w * smooth(right) * 0.45);
+        const stubStart = clamp(breakX + split, gapL, stubEnd - 0.8);
+        showPath(parts.right, filament(stubStart, stubEnd, y, stubTip, mouth));
+      } else showPath(parts.right, '');
+    }
+
+    function hoverIndex(m) {
+      if (mode === 'key') return keyIndex;
+      if (mode !== 'pointer' || !pointer) return -1;
+      return m.pills.findIndex((p) => pointer.x >= p.screenLeft && pointer.x <= p.screenRight
+        && pointer.y >= p.screenTop - 8 && pointer.y <= p.screenBottom + 8);
+    }
+
+    function nearRow(m) {
+      if (!pointer) return false;
+      const r = m.rowR;
+      return pointer.x >= r.left - 18 && pointer.x <= r.right + 18
+        && pointer.y >= r.top - 40 && pointer.y <= r.bottom + 52;
+    }
+
+    function restPose(m) {
+      lead = m.pills[0].cx;
+      leadV = 0;
+      fills = [1, 0, 0];
+      marks = [1, 0, 0];
+    }
+
+    function poseAt(m, index) {
+      lead = m.pills[index].cx;
+      leadV = 0;
+      fills = m.pills.map((_, i) => (i <= index ? 1 : 0));
+      marks = m.pills.map((_, i) => (i < index ? 1 : 0));
+    }
+
+    function pillAt(x, y, m) {
+      if (!m) return -1;
+      return m.pills.findIndex((p) => x >= p.screenLeft && x <= p.screenRight
+        && y >= p.screenTop - 8 && y <= p.screenBottom + 8);
+    }
+
+    function applyReduced(m) {
+      if (mode === 'key' && keyIndex >= 0) { poseAt(m, keyIndex); return; }
+      if (latched >= 0) { poseAt(m, latched); return; }
+      if (pointer && nearRow(m)) {
+        const hit = pillAt(pointer.x, pointer.y, m);
+        poseAt(m, hit >= 0 ? hit : 0);
+        return;
+      }
+      restPose(m);
+    }
+
+    function step(m, dt) {
+      const home = m.pills[0].cx;
+      let target = home;
+      const follow = pointer && nearRow(m) && (pointer.type === 'mouse' || touching);
+      if (mode === 'key' && keyIndex >= 0) target = m.pills[keyIndex].cx;
+      else if (follow) target = clamp(pointer.x - m.dockR.left, m.pills[0].x, m.pills[2].x + m.pills[2].w);
+      else if (latched >= 0) target = m.pills[latched].cx;
+      const advancing = target > lead + 0.5;
+      const k = advancing ? 42 : 18;
+      const c = advancing ? 12 : 5.6;
+      leadV = clamp(leadV + ((target - lead) * k - leadV * c) * dt, -2200, 2200);
+      lead += leadV * dt;
+      if (Math.abs(target - lead) < 0.45 && Math.abs(leadV) < 12) {
+        lead = target;
+        leadV = 0;
+      }
+      const hover = hoverIndex(m);
+      m.pills.forEach((p, i) => {
+        const start = i === 0 ? p.x - p.h : p.x - p.w * 0.2;
+        const full = p.cx;
+        const tf = smooth((lead - start) / (full - start));
+        const rate = tf < fills[i] ? 3.4 : 2.4;
+        fills[i] += (tf - fills[i]) * (1 - Math.exp(-dt * rate));
+        if (Math.abs(fills[i] - tf) < 0.004) fills[i] = tf;
+        const tm = fills[i] > 0.8 && hover !== i ? 1 : 0;
+        marks[i] += (tm - marks[i]) * (1 - Math.exp(-dt * 14));
+        if (Math.abs(marks[i] - tm) < 0.004) marks[i] = tm;
+      });
+    }
+
+    function calm(m) {
+      if (touching || mode === 'key') return false;
+      if (pointer && pointer.type === 'mouse' && mode === 'pointer') return false;
+      const index = mode === 'idle' ? 0 : latched;
+      if (index < 0) return false;
+      if (Math.abs(leadV) > 2 || Math.abs(lead - m.pills[index].cx) > 0.8) return false;
+      for (let i = 0; i < 3; i++) {
+        const tf = i <= index ? 1 : 0;
+        const hover = mode === 'idle' ? -1 : index;
+        const tm = tf > 0.8 && hover !== i ? 1 : 0;
+        if (Math.abs(fills[i] - tf) > 0.012) return false;
+        if (Math.abs(marks[i] - tm) > 0.012) return false;
+      }
+      return true;
+    }
+
+    function kick() {
+      const m = metrics();
+      if (!m) return;
+      if (reduce) {
+        running = false;
+        applyReduced(m);
+        paint(m);
+        return;
+      }
+      if (running) return;
+      running = true;
+      last = performance.now();
+      requestAnimationFrame(frame);
+    }
+
+    function frame(now) {
+      const dt = Math.min(0.032, (now - last) / 1000) || 0.016;
+      last = now;
+      const m = metrics();
+      if (!m || reduce) { running = false; return; }
+      step(m, dt);
+      paint(m);
+      if (calm(m)) { running = false; return; }
+      requestAnimationFrame(frame);
+    }
+
+    function onPointer(e) {
+      mode = 'pointer';
+      keyIndex = -1;
+      pointer = { x: e.clientX, y: e.clientY, type: e.pointerType };
+      if (e.pointerType === 'mouse') latched = -1;
+      else {
+        const hit = pillAt(e.clientX, e.clientY, metrics());
+        if (hit >= 0) latched = hit;
+      }
+      kick();
+    }
+    function idle() {
+      if (mode === 'key') return;
+      mode = 'idle';
+      pointer = null;
+      latched = -1;
+      touching = false;
+      kick();
+    }
+
+    dock.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('button');
+      if (btn) {
+        pointerFocus = true;
+        btn.focus({ preventScroll: true });
+      }
+      touching = e.pointerType !== 'mouse';
+      if (touching) {
+        try { dock.setPointerCapture(e.pointerId); }
+        catch { /* 这次点按没有可捕获的指针，仍然按落点处理 */ }
+      }
+      onPointer(e);
+    });
+    dock.addEventListener('pointermove', onPointer);
+    dock.addEventListener('pointerleave', (e) => {
+      if (e.pointerType && e.pointerType !== 'mouse') return;
+      idle();
+    });
+    dock.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'mouse') return;
+      touching = false;
+      const hit = pillAt(e.clientX, e.clientY, metrics());
+      if (hit >= 0) {
+        latched = hit;
+        mode = 'pointer';
+        pointer = { x: e.clientX, y: e.clientY, type: e.pointerType };
+        kick();
+        return;
+      }
+      idle();
+    });
+    dock.addEventListener('pointercancel', (e) => {
+      touching = false;
+      if (e.pointerType !== 'mouse' && latched >= 0) { kick(); return; }
+      idle();
+    });
+    dock.addEventListener('focusin', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      if (pointerFocus) { pointerFocus = false; return; }
+      mode = 'key';
+      pointer = null;
+      keyIndex = buttons.indexOf(btn);
+      kick();
+    });
+    dock.addEventListener('focusout', (e) => {
+      if (!dock.contains(e.relatedTarget) && mode === 'key') {
+        mode = 'idle';
+        keyIndex = -1;
+        latched = -1;
+        kick();
+      }
+    });
+    dock.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const cur = buttons.indexOf(document.activeElement);
+      const base = cur >= 0 ? cur : Math.max(0, keyIndex);
+      const next = clamp(base + (e.key === 'ArrowRight' ? 1 : -1), 0, buttons.length - 1);
+      buttons[next].focus({ preventScroll: true });
+      e.preventDefault();
+    });
+    reduceMq.addEventListener('change', () => { reduce = reduceMq.matches; kick(); });
+    new ResizeObserver(() => {
+      resize();
+      const m = metrics();
+      if (!m) return;
+      if (!running) {
+        if (reduce) applyReduced(m);
+        else if (mode === 'idle' && Math.abs(fills[0] - 1) > 0.2) restPose(m);
+        paint(m);
+      }
+    }).observe(dock);
+
+    resize();
+    {
+      const m = metrics();
+      if (m) { restPose(m); paint(m); }
+    }
+  </script>
+</body>
+</html>
