@@ -103,14 +103,16 @@
   function deformOutPoint(nx, ny, L, pose) {
     const rest = restOf(nx, ny, L);
     if (pose.pull <= 0.001) return rest;
-    const gMag = Math.hypot(pose.gx, pose.gy);
-    const glide = smoothstep(0, 0.22, gMag);
-    if (glide <= 0) return rest;
-    const ux = pose.gx / gMag;
-    const uy = pose.gy / gMag;
+    const span = 0.24;
+    const tx = Math.tanh(pose.gx / span);
+    const ty = Math.tanh(pose.gy / span);
+    const tlen = Math.hypot(tx, ty);
+    if (tlen <= 1e-6) return rest;
+    const ux = tx / tlen;
+    const uy = ty / tlen;
     const proj = (nx * L.eyeRx * ux + (-ny) * L.eyeRy * uy) / L.eyeRx;
     const along = smoothstep(0.05, 0.48, proj);
-    const stretch = pose.pull * along * glide * L.eyeRx * 0.1;
+    const stretch = pose.pull * along * Math.min(1, tlen) * L.eyeRx * 0.1;
     return { x: rest.x + ux * stretch, y: rest.y + uy * stretch };
   }
 

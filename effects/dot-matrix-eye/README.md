@@ -3,7 +3,7 @@
 - 作者：Naved (@Navedux)
 - 分类：品牌 · 网页交互
 - 状态：video_recreated
-- 版本：1.0.6
+- 版本：1.0.7
 - 原文：https://x.com/Navedux/status/2120873281226146285
 - 素材 ID：2120873281226146285
 
