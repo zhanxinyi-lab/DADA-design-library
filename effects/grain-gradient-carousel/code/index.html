@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>颗粒渐变轮播瓦片</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+  }
+  canvas:active { cursor: grabbing; }
+  .bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 16px;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    pointer-events: none;
+  }
+  button {
+    pointer-events: auto;
+    padding: 8px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font: 14px/1.2 system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    cursor: pointer;
+  }
+  button:focus {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+  button:focus:not(:focus-visible) { outline: none; }
+  button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  #fail {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    margin: 0;
+    padding: 32px 24px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: #000;
+    color: #fff;
+    font: 16px/1.6 system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  #fail.on { display: flex; }
+</style>
+</head>
+<body>
+<canvas id="c" tabindex="0" role="img" aria-label="颗粒渐变轮播。当前是 Product&amp;Design。可以拖动，或用左右方向键切换。"></canvas>
+<div class="bar">
+  <button type="button" id="prev">上一张</button>
+  <button type="button" id="pause" aria-pressed="false">暂停</button>
+  <button type="button" id="next">下一张</button>
+</div>
+<p id="live" class="sr" aria-live="polite"></p>
+<p id="fail" role="status"></p>
+<script>
+"use strict";
+
+(function () {
+  var STAGE_W = 720;
+  var STAGE_H = 900;
+  var PITCH = 336;
+  var FOCUS_W = 424;
+  var FOCUS_H = 286;
+  var SIDE_W = 214;
+  var SIDE_H = 248;
+  var HOLD = 1780;
+  var SLIDE = 720;
+  var PERIOD = HOLD + SLIDE;
+
+  var canvas = document.getElementById("c");
+  var live = document.getElementById("live");
+  var failEl = document.getElementById("fail");
+  var prevBtn = document.getElementById("prev");
+  var nextBtn = document.getElementById("next");
+  var pauseBtn = document.getElementById("pause");
+  var ctx = canvas.getContext("2d", { alpha: false });
+  if (!ctx) {
+    failEl.textContent = "这个浏览器打不开画布，轮播显示不了。";
+    failEl.className = "on";
+    return;
+  }
+
+  var reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var reduced = reducedQuery.matches;
+  var autoplay = !reduced;
+  var pos = 0;
+  var elapsed = 0;
+  var lastNow = 0;
+  var dragging = false;
+  var dragMoved = false;
+  var lastX = 0;
+  var anim = null;
+  var shown = -1;
+  var stageScale = 1;
+  var dpr = 1;
+  var noise = makeNoise();
+  var binary = makeBinary();
+  var cards = [
+    { label: "Product&Design", name: "Product&Design", paint: paintProduct, motif: motifProduct, textY: 0.67 },
+    { label: "Engineering", name: "Engineering", paint: paintEngineering, motif: motifFlare, textY: 0.52 },
+    { label: "Data", name: "Data", paint: paintData, motif: motifBinary, textY: 0.54 },
+    { label: "", name: "暖色光斑", paint: paintWarm, motif: motifCross, textY: 0.5 },
+    { label: "Business", name: "Business", paint: paintBusiness, motif: motifGrid, textY: 0.48 },
+    { label: "Security", name: "Security", paint: paintSecurity, motif: motifStreaks, textY: 0.52 }
+  ];
+
+  function makeNoise() {
+    var c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 128;
+    var g = c.getContext("2d");
+    var img = g.createImageData(128, 128);
+    var d = img.data;
+    var i;
+    for (i = 0; i < d.length; i += 4) {
+      var v = 118 + Math.random() * 80;
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+
+  function makeBinary() {
+    var c = document.createElement("canvas");
+    c.width = 520;
+    c.height = 340;
+    var g = c.getContext("2d");
+    g.font = "13px ui-monospace, Consolas, monospace";
+    g.fillStyle = "rgba(18, 78, 28, 0.62)";
+    var n = 19;
+    var y;
+    for (y = 26; y < 320; y += 24) {
+      var chunk = "";
+      var k;
+      for (k = 0; k < 6; k++) {
+        var bits = "";
+        var b;
+        for (b = 0; b < 8; b++) {
+          n = (n * 1103515245 + 12345) & 0x7fffffff;
+          bits += (n >>> 16) & 1;
+        }
+        chunk += bits + " ";
+      }
+      g.fillText(chunk, 16, y);
+    }
+    g.globalCompositeOperation = "destination-in";
+    var fade = g.createLinearGradient(0, 0, 0, 340);
+    fade.addColorStop(0, "rgba(0,0,0,0)");
+    fade.addColorStop(0.22, "rgba(0,0,0,0.55)");
+    fade.addColorStop(0.72, "rgba(0,0,0,0.4)");
+    fade.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = fade;
+    g.fillRect(0, 0, 520, 340);
+    return c;
+  }
+
+  function roundPath(g, x, y, w, h, r) {
+    var rr = Math.max(0, Math.min(r, w / 2, h / 2));
+    g.beginPath();
+    g.moveTo(x + rr, y);
+    g.arcTo(x + w, y, x + w, y + h, rr);
+    g.arcTo(x + w, y + h, x, y + h, rr);
+    g.arcTo(x, y + h, x, y, rr);
+    g.arcTo(x, y, x + w, y, rr);
+    g.closePath();
+  }
+
+  function ease(t) {
+    return t * t * (3 - 2 * t);
+  }
+
+  function wrapDist(i, at) {
+    var d = i - at;
+    var n = cards.length;
+    d -= n * Math.round(d / n);
+    return d;
+  }
+
+  function focusOf(d) {
+    var ad = Math.abs(d);
+    if (ad >= 1) return 0;
+    return ease(1 - ad);
+  }
+
+  function posAt(ms) {
+    var n = cards.length;
+    var span = PERIOD * n;
+    var t = ((ms % span) + span) % span;
+    var i = Math.floor(t / PERIOD);
+    var local = t - i * PERIOD;
+    var u = local <= HOLD ? 0 : ease((local - HOLD) / SLIDE);
+    return i + u;
+  }
+
+  function paintProduct(g, w, h) {
+    var bg = g.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#ffd0e4");
+    bg.addColorStop(0.38, "#ff4d98");
+    bg.addColorStop(0.72, "#ff7eb8");
+    bg.addColorStop(1, "#9ebfff");
+    g.fillStyle = bg;
+    g.fillRect(0, 0, w, h);
+    var hot = g.createRadialGradient(w * 0.5, h * 0.36, 6, w * 0.5, h * 0.4, w * 0.36);
+    hot.addColorStop(0, "rgba(255, 186, 78, 1)");
+    hot.addColorStop(0.22, "rgba(255, 120, 86, 0.72)");
+    hot.addColorStop(1, "rgba(255, 80, 140, 0)");
+    g.fillStyle = hot;
+    g.fillRect(0, 0, w, h);
+    beam(g, w, h, -0.5);
+    beam(g, w, h, 0.5);
+  }
+
+  function beam(g, w, h, rot) {
+    g.save();
+    g.translate(w * 0.5, h * 0.43);
+    g.rotate(rot);
+    g.scale(0.2, 1.45);
+    var rad = g.createRadialGradient(0, h * 0.16, 0, 0, h * 0.2, h * 0.58);
+    rad.addColorStop(0, "rgba(255, 236, 214, 0.78)");
+    rad.addColorStop(0.42, "rgba(255, 176, 196, 0.28)");
+    rad.addColorStop(1, "rgba(255, 176, 196, 0)");
+    g.fillStyle = rad;
+    g.beginPath();
+    g.arc(0, h * 0.16, h * 0.58, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+
+  function motifProduct(g, w, h) {
+    var cx = w * 0.5;
+    var cy = h * 0.4;
+    var span = w * 0.34;
+    g.save();
+    g.strokeStyle = "rgba(255,255,255,0.94)";
+    g.fillStyle = "rgba(255,255,255,0.94)";
+    g.lineWidth = Math.max(1.2, w * 0.0035);
+    g.lineJoin = "round";
+    g.lineCap = "round";
+    g.beginPath();
+    var y0 = cy - h * 0.01;
+    var y1 = cy + h * 0.02;
+    g.moveTo(cx - span, y0);
+    g.quadraticCurveTo(cx, y1, cx + span, y0);
+    g.stroke();
+    diamond(g, cx - span, y0, Math.max(3.5, w * 0.012));
+    diamond(g, cx + span, y0, Math.max(3.5, w * 0.012));
+    g.beginPath();
+    g.arc(cx, (y0 + y1) * 0.5, Math.max(4.5, w * 0.016), 0, Math.PI * 2);
+    g.stroke();
+    g.restore();
+  }
+
+  function diamond(g, x, y, s) {
+    g.beginPath();
+    g.moveTo(x, y - s);
+    g.lineTo(x + s * 0.72, y);
+    g.lineTo(x, y + s);
+    g.lineTo(x - s * 0.72, y);
+    g.closePath();
+    g.stroke();
+  }
+
+  function paintEngineering(g, w, h) {
+    var bg = g.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#9fd4ff");
+    bg.addColorStop(0.45, "#3d7dff");
+    bg.addColorStop(1, "#1d4fe0");
+    g.fillStyle = bg;
+    g.fillRect(0, 0, w, h);
+    var core = g.createRadialGradient(w * 0.32, h * 0.5, 2, w * 0.32, h * 0.5, w * 0.28);
+    core.addColorStop(0, "rgba(186, 244, 255, 0.95)");
+    core.addColorStop(0.4, "rgba(80, 190, 255, 0.35)");
+    core.addColorStop(1, "rgba(80, 190, 255, 0)");
+    g.fillStyle = core;
+    g.fillRect(0, 0, w, h);
+  }
+
+  function motifFlare(g, w, h) {
+    g.save();
+    g.translate(w * 0.5, h * 0.5);
+    g.scale(1.15, 0.16);
+    var rad = g.createRadialGradient(0, 0, 0, 0, 0, w * 0.48);
+    rad.addColorStop(0, "rgba(255,255,255,0.92)");
+    rad.addColorStop(0.35, "rgba(170, 230, 255, 0.45)");
+    rad.addColorStop(1, "rgba(170, 230, 255, 0)");
+    g.fillStyle = rad;
+    g.beginPath();
+    g.arc(0, 0, w * 0.48, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+
+  function paintData(g, w, h) {
+    var bg = g.createRadialGradient(w * 0.5, h * 0.5, h * 0.1, w * 0.5, h * 0.5, w * 0.72);
+    bg.addColorStop(0, "#3fbf45");
+    bg.addColorStop(0.55, "#7dff62");
+    bg.addColorStop(1, "#d4ff9a");
+    g.fillStyle = bg;
+    g.fillRect(0, 0, w, h);
+  }
+
+  function motifBinary(g, w, h) {
+    g.save();
+    g.globalAlpha = 0.7;
+    g.drawImage(binary, 0, h * 0.12, w, h * 0.76);
+    g.restore();
+  }
+
+  function paintWarm(g, w, h) {
+    var bg = g.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#fff8ea");
+    bg.addColorStop(0.5, "#ffe39a");
+    bg.addColorStop(1, "#fff3d2");
+    g.fillStyle = bg;
+    g.fillRect(0, 0, w, h);
+  }
+
+  function motifCross(g, w, h) {
+    var rad = g.createRadialGradient(w * 0.5, h * 0.52, 0, w * 0.5, h * 0.52, w * 0.42);
+    rad.addColorStop(0, "rgba(255,255,255,0.95)");
+    rad.addColorStop(0.22, "rgba(255, 206, 80, 0.75)");
+    rad.addColorStop(1, "rgba(255, 206, 80, 0)");
+    g.fillStyle = rad;
+    g.fillRect(0, 0, w, h);
+    softBand(g, w, h, 1.4, 0.13);
+    softBand(g, w, h, 0.1, 0.55);
+  }
+
+  function softBand(g, w, h, sx, sy) {
+    g.save();
+    g.translate(w * 0.5, h * 0.52);
+    g.scale(sx, sy);
+    var rad = g.createRadialGradient(0, 0, 0, 0, 0, w * 0.5);
+    rad.addColorStop(0, "rgba(255,255,255,0.88)");
+    rad.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = rad;
+    g.beginPath();
+    g.arc(0, 0, w * 0.5, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+
+  function paintBusiness(g, w, h) {
+    var bg = g.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#f0b6ff");
+    bg.addColorStop(0.42, "#8a48ff");
+    bg.addColorStop(1, "#3a208c");
+    g.fillStyle = bg;
+    g.fillRect(0, 0, w, h);
+  }
+
+  function motifGrid(g, w, h) {
+    g.save();
+    g.strokeStyle = "rgba(255,255,255,0.2)";
+    g.lineWidth = 1;
+    g.beginPath();
+    var top = h * 0.28;
+    var i;
+    for (i = 0; i <= 6; i++) {
+      var t = i / 6;
+      var y = top + Math.pow(t, 1.45) * h * 0.78;
+      var inset = (1 - t) * w * 0.22;
+      g.moveTo(inset, y);
+      g.lineTo(w - inset, y);
+    }
+    for (i = 0; i <= 8; i++) {
+      var u = i / 8;
+      g.moveTo(w * 0.18 + u * w * 0.64, top);
+      g.lineTo(u * w, h * 1.02);
+    }
+    g.stroke();
+    g.restore();
+  }
+
+  function paintSecurity(g, w, h) {
+    var bg = g.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#ffc27a");
+    bg.addColorStop(0.4, "#ff7a22");
+    bg.addColorStop(1, "#ff5a18");
+    g.fillStyle = bg;
+    g.fillRect(0, 0, w, h);
+  }
+
+  function motifStreaks(g, w, h) {
+    var xs = [0.22, 0.36, 0.5, 0.63, 0.76];
+    var i;
+    for (i = 0; i < xs.length; i++) {
+      var band = g.createLinearGradient(w * xs[i] - 22, 0, w * xs[i] + 22, 0);
+      band.addColorStop(0, "rgba(255, 226, 186, 0)");
+      band.addColorStop(0.5, "rgba(255, 236, 210, 0.62)");
+      band.addColorStop(1, "rgba(255, 226, 186, 0)");
+      g.fillStyle = band;
+      g.fillRect(w * xs[i] - 22, 0, 44, h);
+    }
+  }
+
+  function grain(g, w, h) {
+    g.save();
+    g.globalAlpha = 0.34;
+    g.globalCompositeOperation = "overlay";
+    var shift = (Math.floor(elapsed / 80) % 9) * 4;
+    var y;
+    var x;
+    for (y = -128; y < h; y += 128) {
+      for (x = -128; x < w; x += 128) {
+        g.drawImage(noise, x + shift, y + (shift % 16));
+      }
+    }
+    g.restore();
+  }
+
+  function drawCard(card, x, y, w, h, f) {
+    var bw = Math.max(2, Math.round(w));
+    var bh = Math.max(2, Math.round(h));
+    if (!card.buf) {
+      card.buf = document.createElement("canvas");
+      card.bctx = card.buf.getContext("2d");
+    }
+    if (card.buf.width !== bw || card.buf.height !== bh) {
+      card.buf.width = bw;
+      card.buf.height = bh;
+    } else {
+      card.bctx.clearRect(0, 0, bw, bh);
+    }
+    var g = card.bctx;
+    var radius = 46 + (72 - 46) * f;
+    g.clearRect(0, 0, bw, bh);
+    roundPath(g, 1, 1, bw - 2, bh - 2, radius);
+    g.save();
+    g.clip();
+    card.paint(g, bw, bh);
+    card.motif(g, bw, bh);
+    grain(g, bw, bh);
+    g.restore();
+    roundPath(g, 1.5, 1.5, bw - 3, bh - 3, radius - 1);
+    g.strokeStyle = "rgba(255,255,255," + (0.18 + 0.22 * f) + ")";
+    g.lineWidth = 1.5;
+    g.stroke();
+    if (card.label && f > 0.56) {
+      g.save();
+      g.globalAlpha = Math.max(0, Math.min(1, (f - 0.56) / 0.3));
+      g.fillStyle = "#fff";
+      g.font = "500 " + Math.max(16, Math.round(23 * (bh / FOCUS_H))) + "px system-ui, \"Segoe UI\", sans-serif";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      if ("letterSpacing" in g) g.letterSpacing = "0.4px";
+      g.fillText(card.label, bw / 2, bh * card.textY);
+      g.restore();
+    }
+    ctx.save();
+    var blur = (1 - f) * (1 - f) * 18;
+    if (blur > 0.45) ctx.filter = "blur(" + blur.toFixed(2) + "px)";
+    ctx.drawImage(card.buf, x, y, w, h);
+    ctx.restore();
+  }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(window.innerWidth * dpr));
+    canvas.height = Math.max(1, Math.round(window.innerHeight * dpr));
+  }
+
+  function currentIndex() {
+    var n = cards.length;
+    return ((Math.round(pos) % n) + n) % n;
+  }
+
+  function updateLive() {
+    var i = currentIndex();
+    if (i === shown) return;
+    shown = i;
+    var name = cards[i].name;
+    live.textContent = name;
+    canvas.setAttribute("aria-label", "颗粒渐变轮播。当前是 " + name + "。可以拖动，或用左右方向键切换。");
+  }
+
+  function goTo(target) {
+    if (reduced) {
+      pos = target;
+      elapsed = target * PERIOD;
+      anim = null;
+      updateLive();
+      return;
+    }
+    anim = {
+      from: pos,
+      target: target,
+      start: performance.now(),
+      dur: 680
+    };
+  }
+
+  function step(dir) {
+    var base = anim ? anim.target : Math.round(pos);
+    goTo(base + dir);
+  }
+
+  function frame(now) {
+    if (!lastNow) lastNow = now;
+    var dt = Math.min(40, now - lastNow);
+    lastNow = now;
+    if (anim) {
+      var t = (now - anim.start) / anim.dur;
+      if (t >= 1) {
+        pos = anim.target;
+        elapsed = anim.target * PERIOD;
+        anim = null;
+      } else {
+        pos = anim.from + (anim.target - anim.from) * ease(t);
+      }
+    } else if (!dragging && autoplay && !reduced) {
+      elapsed += dt;
+      pos = posAt(elapsed);
+    }
+    draw();
+    updateLive();
+    requestAnimationFrame(frame);
+  }
+
+  function draw() {
+    var viewW = window.innerWidth;
+    var viewH = window.innerHeight;
+    stageScale = Math.min(viewW / STAGE_W, viewH / STAGE_H);
+    var ox = (viewW - STAGE_W * stageScale) / 2;
+    var oy = (viewH - STAGE_H * stageScale) / 2;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.translate(ox, oy);
+    ctx.scale(stageScale, stageScale);
+
+    var order = [];
+    var i;
+    for (i = 0; i < cards.length; i++) {
+      var d = wrapDist(i, pos);
+      if (Math.abs(d) > 1.65) continue;
+      order.push({ i: i, d: d, f: focusOf(d) });
+    }
+    order.sort(function (a, b) { return Math.abs(b.d) - Math.abs(a.d); });
+    for (i = 0; i < order.length; i++) {
+      var item = order[i];
+      var w = SIDE_W + (FOCUS_W - SIDE_W) * item.f;
+      var h = SIDE_H + (FOCUS_H - SIDE_H) * item.f;
+      var x = STAGE_W / 2 + item.d * PITCH - w / 2;
+      var y = 430 - h / 2;
+      drawCard(cards[item.i], x, y, w, h, item.f);
+    }
+  }
+
+  function pointerX(event) {
+    return event.clientX;
+  }
+
+  canvas.addEventListener("pointerdown", function (event) {
+    if (event.button !== undefined && event.button !== 0) return;
+    dragging = true;
+    dragMoved = false;
+    lastX = pointerX(event);
+    anim = null;
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener("pointermove", function (event) {
+    if (!dragging) return;
+    var x = pointerX(event);
+    var dx = x - lastX;
+    if (Math.abs(dx) > 2) dragMoved = true;
+    lastX = x;
+    if (!stageScale) return;
+    pos -= dx / stageScale / PITCH;
+    elapsed = pos * PERIOD;
+  });
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    if (!dragMoved) return;
+    goTo(Math.round(pos));
+  }
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+  canvas.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      step(1);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      step(-1);
+    }
+  });
+  canvas.addEventListener("click", function (event) {
+    if (dragMoved) return;
+    var rect = canvas.getBoundingClientRect();
+    var viewX = event.clientX - rect.left;
+    var scale = Math.min(rect.width / STAGE_W, rect.height / STAGE_H);
+    var ox = (rect.width - STAGE_W * scale) / 2;
+    var stageX = (viewX - ox) / scale;
+    var hit = null;
+    var best = 1.2;
+    var i;
+    for (i = 0; i < cards.length; i++) {
+      var d = wrapDist(i, pos);
+      var ad = Math.abs(d);
+      if (ad < 0.25 || ad > best) continue;
+      var f = focusOf(d);
+      var w = SIDE_W + (FOCUS_W - SIDE_W) * f;
+      var x = STAGE_W / 2 + d * PITCH - w / 2;
+      if (stageX >= x && stageX <= x + w) {
+        hit = i;
+        best = ad;
+      }
+    }
+    if (hit === null) return;
+    var dist = wrapDist(hit, pos);
+    goTo(Math.round(pos + dist));
+  });
+
+  prevBtn.addEventListener("click", function () { step(-1); });
+  nextBtn.addEventListener("click", function () { step(1); });
+  pauseBtn.addEventListener("click", function () {
+    autoplay = !autoplay;
+    if (autoplay && reduced) reduced = false;
+    pauseBtn.textContent = autoplay ? "暂停" : "继续";
+    pauseBtn.setAttribute("aria-pressed", autoplay ? "false" : "true");
+    if (autoplay) elapsed = pos * PERIOD;
+  });
+
+  function onReduce(event) {
+    reduced = event.matches;
+    if (reduced) {
+      autoplay = false;
+      anim = null;
+      pos = Math.round(pos);
+      elapsed = pos * PERIOD;
+      pauseBtn.textContent = "继续";
+      pauseBtn.setAttribute("aria-pressed", "true");
+    }
+  }
+  if (reducedQuery.addEventListener) reducedQuery.addEventListener("change", onReduce);
+  else if (reducedQuery.addListener) reducedQuery.addListener(onReduce);
+  if (reduced) {
+    pauseBtn.textContent = "继续";
+    pauseBtn.setAttribute("aria-pressed", "true");
+  }
+
+  window.addEventListener("resize", resize);
+  resize();
+  updateLive();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
