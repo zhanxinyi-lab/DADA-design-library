@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>标题逐个弹起</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #000;
+    color: #fff;
+  }
+  body {
+    height: 100dvh;
+    overflow: hidden;
+  }
+  #frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+  canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  #replay {
+    position: absolute;
+    z-index: 2;
+    top: 12px;
+    left: 12px;
+    max-width: calc(100% - 24px);
+    padding: 6px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font: 600 14px/1.2 "Segoe UI", sans-serif;
+    cursor: pointer;
+  }
+  #replay:focus {
+    outline: none;
+  }
+  #replay:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+  <h1 class="sr">make it pop</h1>
+  <p class="sr">两行标题从下方弹起后落定。make 和 it 是白色。pop 按屏幕位置铺彩虹，指针靠近时只改变附近的颜色。键盘不能带动颜色，可以聚焦重放再看弹起。</p>
+  <div id="frame">
+    <canvas id="stage" aria-hidden="true"></canvas>
+    <button id="replay" type="button">重放</button>
+  </div>
+  <script>
+    (function () {
+      var frame = document.getElementById('frame');
+      var canvas = document.getElementById('stage');
+      var ctx = canvas.getContext('2d', { willReadFrequently: true });
+      var mask = document.createElement('canvas');
+      var maskCtx = mask.getContext('2d', { willReadFrequently: true });
+      var replay = document.getElementById('replay');
+      var reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      var glyphs = [
+        { ch: 'm', line: 0, foil: false },
+        { ch: 'a', line: 0, foil: false },
+        { ch: 'k', line: 0, foil: false },
+        { ch: 'e', line: 0, foil: false },
+        { ch: 'i', line: 1, foil: false },
+        { ch: 't', line: 1, foil: false },
+        { ch: 'p', line: 1, foil: true },
+        { ch: 'o', line: 1, foil: true },
+        { ch: 'p', line: 1, foil: true }
+      ];
+      var layout = null;
+      var born = 0;
+      var raf = 0;
+      var running = false;
+      var px = 0;
+      var py = 0;
+      var tx = 0;
+      var ty = 0;
+      var stir = 0;
+      var stirTarget = 0;
+      var pointerSeen = false;
+      var STAGGER = 0.032;
+      var DURATION = 0.4;
+
+      function reduced() { return reduceQuery.matches; }
+      function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+      function smoothstep(e0, e1, x) {
+        var t = clamp((x - e0) / (e1 - e0), 0, 1);
+        return t * t * (3 - 2 * t);
+      }
+      function settle(t) {
+        if (t <= 0) return 0;
+        if (t >= 1) return 1;
+        return 1 - Math.pow(2, -10 * t);
+      }
+      function hash2(ix, iy) {
+        var n = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453;
+        return n - Math.floor(n);
+      }
+      function noise(x, y) {
+        var x0 = Math.floor(x);
+        var y0 = Math.floor(y);
+        var tx = x - x0;
+        var ty = y - y0;
+        tx = tx * tx * (3 - 2 * tx);
+        ty = ty * ty * (3 - 2 * ty);
+        var a = hash2(x0, y0);
+        var b = hash2(x0 + 1, y0);
+        var c = hash2(x0, y0 + 1);
+        var d = hash2(x0 + 1, y0 + 1);
+        return a * (1 - tx) * (1 - ty) + b * tx * (1 - ty) + c * (1 - tx) * ty + d * tx * ty;
+      }
+      function hsv(h, s, val) {
+        var r = clamp(Math.abs((h * 6) % 6 - 3) - 1, 0, 1);
+        var g = clamp(Math.abs((h * 6 + 4) % 6 - 3) - 1, 0, 1);
+        var b = clamp(Math.abs((h * 6 + 2) % 6 - 3) - 1, 0, 1);
+        return [
+          255 * val * (1 - s + s * r),
+          255 * val * (1 - s + s * g),
+          255 * val * (1 - s + s * b)
+        ];
+      }
+
+      function applyFont(context, size) {
+        context.font = '900 ' + size.toFixed(2) + 'px "Arial Black", "Segoe UI", Impact, sans-serif';
+        context.textAlign = 'left';
+        context.textBaseline = 'alphabetic';
+        context.fillStyle = '#fff';
+        if ('letterSpacing' in context) context.letterSpacing = '0px';
+      }
+
+      function measureRun(text, size) {
+        applyFont(ctx, size);
+        var tracking = -size * 0.055;
+        var widths = [];
+        var w = 0;
+        var ascent = 0;
+        var descent = 0;
+        for (var i = 0; i < text.length; i++) {
+          var m = ctx.measureText(text.charAt(i));
+          widths.push(m.width);
+          w += m.width;
+          ascent = Math.max(ascent, m.actualBoundingBoxAscent || 0);
+          descent = Math.max(descent, m.actualBoundingBoxDescent || 0);
+        }
+        if (text.length > 1) w += tracking * (text.length - 1);
+        if (ascent <= 0) ascent = size * 0.76;
+        if (descent <= 0) descent = size * 0.04;
+        return { w: w, widths: widths, tracking: tracking, ascent: ascent, descent: descent };
+      }
+
+      function measureBlock(size) {
+        var make = measureRun('make', size);
+        var it = measureRun('it', size);
+        var pop = measureRun('pop', size);
+        var gapX = -size * 0.02;
+        var gapY = size * 0.02;
+        var width = Math.max(make.w, it.w + gapX + pop.w);
+        var height = make.ascent + make.descent + gapY + Math.max(it.ascent, pop.ascent) + Math.max(it.descent, pop.descent);
+        return { size: size, make: make, it: it, pop: pop, gapX: gapX, gapY: gapY, w: width, h: height };
+      }
+
+      function fit(w, h) {
+        var pad = clamp(Math.min(w, h) * 0.08, 16, 64);
+        var lo = 12;
+        var hi = Math.min(w, h);
+        var best = measureBlock(lo);
+        for (var i = 0; i < 18; i++) {
+          var mid = (lo + hi) * 0.5;
+          var block = measureBlock(mid);
+          if (block.w <= w - pad * 2 && block.h <= h - pad * 2) {
+            best = block;
+            lo = mid;
+          } else hi = mid;
+        }
+        best.x = (w - best.w) * 0.5;
+        best.y = (h - best.h) * 0.5;
+        best.base1 = best.y + best.make.ascent;
+        best.base2 = best.base1 + best.make.descent + best.gapY + best.pop.ascent;
+        best.cx = best.x + best.w * 0.5;
+        var cursor = best.x;
+        var line2 = best.x;
+        var placed = [];
+        for (var g = 0; g < glyphs.length; g++) {
+          var glyph = glyphs[g];
+          var run = glyph.line === 0 ? best.make : (glyph.foil ? best.pop : best.it);
+          var indexInRun = glyph.line === 0 ? g : (glyph.foil ? g - 6 : g - 4);
+          var restX = glyph.line === 0 ? cursor : line2;
+          if (glyph.line === 1 && glyph.foil && indexInRun === 0) restX = best.x + best.it.w + best.gapX;
+          placed.push({
+            ch: glyph.ch,
+            line: glyph.line,
+            foil: glyph.foil,
+            restX: restX,
+            restY: glyph.line === 0 ? best.base1 : best.base2,
+            width: run.widths[indexInRun],
+            fromY: best.size * (glyph.line === 0 ? 0.55 : 0.28)
+          });
+          if (glyph.line === 0) cursor += run.widths[indexInRun] + run.tracking;
+          else if (!glyph.foil) line2 += run.widths[indexInRun] + run.tracking;
+          else line2 = restX + run.widths[indexInRun] + run.tracking;
+        }
+        best.glyphs = placed;
+        return best;
+      }
+
+      function progressOf(index, now) {
+        if (reduced()) return 1;
+        var t = ((now || 0) - born) / 1000;
+        return clamp((t - index * STAGGER) / DURATION, 0, 1);
+      }
+
+      function pose(glyph, index, now) {
+        var u = settle(progressOf(index, now));
+        var left = 1 - u;
+        var mid = glyph.restX + glyph.width * 0.5;
+        return {
+          x: glyph.restX + (layout.cx - mid) * 0.22 * left,
+          y: glyph.restY + glyph.fromY * left,
+          scale: 0.66 + 0.34 * u
+        };
+      }
+
+      function drawGlyph(context, glyph, pose) {
+        context.save();
+        context.translate(pose.x + glyph.width * 0.5, pose.y);
+        context.scale(pose.scale, pose.scale);
+        context.fillText(glyph.ch, -glyph.width * 0.5, 0);
+        context.restore();
+      }
+
+      function foilAt(x, y, time) {
+        var resY = Math.max(canvas.height, 1);
+        var pxx = (x - canvas.width * 0.5) / resY;
+        var pyy = (y - canvas.height * 0.5) / resY;
+        var mx = (px - canvas.width * 0.5) / resY;
+        var my = (py - canvas.height * 0.5) / resY;
+        var dx = pxx - mx;
+        var dy = pyy - my;
+        var dist = Math.hypot(dx, dy) || 0.0001;
+        var local = stir * (1 - smoothstep(0.045, 0.2, dist));
+        var rx = dx / dist;
+        var ry = dy / dist;
+        var qx = pxx + (-ry) * local * 0.08 + 0.03 * Math.sin(time * 0.55);
+        var qy = pyy + rx * local * 0.08 - time * 0.07;
+        var n = noise(qx * 1.7, qy * 1.7);
+        var drip = noise(qx * 2.5 + n, qy * 0.5 - time * 0.08);
+        var hue = 0.08 + qx * 1.15 + drip * 0.55 + n * 0.35 + local * Math.sin(Math.atan2(dy, dx) + time) * 0.12;
+        hue = hue - Math.floor(hue);
+        var band = Math.sin((n * 3.2 + drip * 2.1 + qx * 2.0) * 6.283185);
+        var light = clamp((band + 0.22) / 1.15, 0, 1);
+        var caustic = clamp((band - 0.72) / 0.22, 0, 1);
+        var hot = Math.exp(-dist * dist * 140) * stir;
+        var col = hsv(hue, 0.88, 0.03 + 0.97 * light);
+        col[0] = Math.min(255, col[0] + (caustic * 0.55 + hot * 0.65) * 255);
+        col[1] = Math.min(255, col[1] + (caustic * 0.7 + hot * 0.7) * 255);
+        col[2] = Math.min(255, col[2] + (caustic * 0.75 + hot * 0.75) * 255);
+        return col;
+      }
+
+      function popBounds(now) {
+        var x0 = Infinity;
+        var y0 = Infinity;
+        var x1 = -Infinity;
+        var y1 = -Infinity;
+        for (var i = 0; i < layout.glyphs.length; i++) {
+          var glyph = layout.glyphs[i];
+          if (!glyph.foil) continue;
+          var p = pose(glyph, i, now);
+          var half = glyph.width * p.scale * 0.5;
+          var ascent = layout.pop.ascent * p.scale;
+          var descent = layout.pop.descent * p.scale;
+          x0 = Math.min(x0, p.x + glyph.width * 0.5 - half);
+          x1 = Math.max(x1, p.x + glyph.width * 0.5 + half);
+          y0 = Math.min(y0, p.y - ascent);
+          y1 = Math.max(y1, p.y + descent);
+        }
+        var pad = 8;
+        return {
+          x: Math.max(0, Math.floor(x0 - pad)),
+          y: Math.max(0, Math.floor(y0 - pad)),
+          w: Math.min(canvas.width, Math.ceil(x1 + pad)) - Math.max(0, Math.floor(x0 - pad)),
+          h: Math.min(canvas.height, Math.ceil(y1 + pad)) - Math.max(0, Math.floor(y0 - pad))
+        };
+      }
+
+      function paintPop(now, time) {
+        var box = popBounds(now);
+        if (!(box.w > 1 && box.h > 1)) return box;
+        maskCtx.setTransform(1, 0, 0, 1, 0, 0);
+        maskCtx.clearRect(box.x, box.y, box.w, box.h);
+        applyFont(maskCtx, layout.size);
+        for (var i = 0; i < layout.glyphs.length; i++) {
+          var glyph = layout.glyphs[i];
+          if (!glyph.foil) continue;
+          drawGlyph(maskCtx, glyph, pose(glyph, i, now));
+        }
+        var img = maskCtx.getImageData(box.x, box.y, box.w, box.h);
+        var data = img.data;
+        for (var y = 0; y < box.h; y++) {
+          for (var x = 0; x < box.w; x++) {
+            var p = (y * box.w + x) * 4;
+            var a = data[p + 3];
+            if (a < 12) continue;
+            var col = foilAt(box.x + x, box.y + y, time);
+            data[p] = col[0];
+            data[p + 1] = col[1];
+            data[p + 2] = col[2];
+          }
+        }
+        maskCtx.putImageData(img, box.x, box.y);
+        ctx.drawImage(mask, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h);
+        return box;
+      }
+
+      function draw(now) {
+        if (!layout) return;
+        var time = reduced() ? 0.4 : (now || 0) / 1000;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        paintPop(now, time);
+        applyFont(ctx, layout.size);
+        for (var i = 0; i < layout.glyphs.length; i++) {
+          var glyph = layout.glyphs[i];
+          if (glyph.foil) continue;
+          drawGlyph(ctx, glyph, pose(glyph, i, now));
+        }
+      }
+
+      function tick(now) {
+        if (!running) return;
+        px += (tx - px) * 0.22;
+        py += (ty - py) * 0.22;
+        stir += (stirTarget - stir) * 0.16;
+        draw(now);
+        if (!reduced()) raf = window.requestAnimationFrame(tick);
+        else running = false;
+      }
+
+      function start(now) {
+        if (running) return;
+        running = true;
+        raf = window.requestAnimationFrame(tick);
+      }
+
+      function replayPop() {
+        born = performance.now();
+        if (reduced()) {
+          draw(born);
+          return;
+        }
+        start(born);
+      }
+
+      function resize() {
+        var rect = frame.getBoundingClientRect();
+        var cssW = rect.width || window.innerWidth || 2;
+        var cssH = rect.height || window.innerHeight || 2;
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var w = Math.max(2, Math.round(cssW * dpr));
+        var h = Math.max(2, Math.round(cssH * dpr));
+        if (w === canvas.width && h === canvas.height && layout) return;
+        canvas.width = w;
+        canvas.height = h;
+        mask.width = w;
+        mask.height = h;
+        layout = fit(w, h);
+        if (!pointerSeen && layout) {
+          tx = px = layout.cx;
+          ty = py = layout.base2;
+        }
+        draw(performance.now());
+      }
+
+      function setPointer(clientX, clientY) {
+        var rect = frame.getBoundingClientRect();
+        if (!rect.width || !rect.height || !layout) return;
+        pointerSeen = true;
+        tx = (clientX - rect.left) * (canvas.width / rect.width);
+        ty = (clientY - rect.top) * (canvas.height / rect.height);
+        if (reduced()) {
+          stirTarget = 0;
+          return;
+        }
+        var box = popBounds(performance.now());
+        var cx = clamp(tx, box.x, box.x + box.w);
+        var cy = clamp(ty, box.y, box.y + box.h);
+        var d = Math.hypot(tx - cx, ty - cy) / Math.max(canvas.height, 1);
+        stirTarget = 1 - smoothstep(0, 0.08, d);
+        start(performance.now());
+      }
+
+      frame.addEventListener('pointermove', function (event) {
+        setPointer(event.clientX, event.clientY);
+      });
+      frame.addEventListener('pointerdown', function (event) {
+        setPointer(event.clientX, event.clientY);
+      });
+      frame.addEventListener('pointerleave', function () {
+        stirTarget = 0;
+      });
+      replay.addEventListener('click', replayPop);
+      window.addEventListener('resize', resize);
+      if (reduceQuery.addEventListener) {
+        reduceQuery.addEventListener('change', function () {
+          stirTarget = 0;
+          stir = 0;
+          if (reduced()) born = 0;
+          resize();
+          if (!reduced()) replayPop();
+        });
+      }
+      born = performance.now();
+      resize();
+      if (!reduced()) start(born);
+    })();
+  </script>
+</body>
+</html>
