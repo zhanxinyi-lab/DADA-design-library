@@ -86,7 +86,7 @@
     const dist = Math.hypot(dx, dy) || 1;
     const align = clamp(nx * pose.gx + (-ny) * pose.gy, 0, 1);
     const rim = clamp(Math.hypot(nx, ny / 0.68), 0, 1);
-    const mag = pose.pull * Math.pow(align, 1.2) * Math.pow(rim, 1.35) * L.eyeRx * 0.5;
+    const mag = pose.pull * Math.pow(align, 1.2) * Math.pow(rim, 1.35) * L.eyeRx * 0.36;
     return { x: rest.x + (dx / dist) * mag, y: rest.y + (dy / dist) * mag };
   }
 
@@ -148,12 +148,16 @@
     const pDist = Math.hypot(dx, dy);
     state.px = px;
     state.py = py;
-    state.tx = clamp(dx / (L.eyeRx * 1.15), -1, 1);
-    state.ty = clamp(dy / (L.eyeRy * 2.5), -1, 1);
+    const dead = L.eyeRx * 0.028;
+    const gazeBlend = smoothstep(dead, dead * 2.4, pDist);
+    state.tx = clamp((dx / (L.eyeRx * 1.15)) * gazeBlend, -1, 1);
+    state.ty = clamp((dy / (L.eyeRy * 2.5)) * gazeBlend, -1, 1);
     const rim = Math.exp(-Math.pow((pDist / L.eyeRx - 1.0) / 0.55, 2));
     const onRim = 1 - smoothstep(1.2, 2.6, Math.abs(dy) / L.eyeRy);
     state.ts = rim * onRim * 0.72;
-    state.tp = smoothstep(L.eyeRx * 0.62, L.eyeRx * 1.25, pDist);
+    const rise = smoothstep(L.eyeRx * 0.62, L.eyeRx * 1.08, pDist);
+    const fade = 1 - smoothstep(L.eyeRx * 1.25, L.eyeRx * 2.8, pDist);
+    state.tp = rise * (0.32 + 0.68 * fade);
     state.has = true;
   }
 
