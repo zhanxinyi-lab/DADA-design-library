@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASCII 星图</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+  </style>
+</head>
+<body>
+<canvas id="map" aria-label="等宽字符排成的星图，几处字符团块沿弧线缓缓移动"></canvas>
+<script>
+(function () {
+  "use strict";
+
+  var FONT = 'ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace';
+  var HOLD = 4.2;
+  var YAW = 0.055;
+  var TILT = 0.38;
+  var COVER = 1.72;
+
+  var BODIES = [
+    [
+      "     | |",
+      "    .+#+.",
+      "  .+%@@@%+.",
+      " -+#@8*0@#+-",
+      "--+%@@#@@%+--",
+      " -+#@*8@#+-",
+      "   .+| |+.",
+      "     | |",
+      "     |||"
+    ],
+    [
+      "  |||",
+      " -8#8-",
+      ".+#@@@#+.",
+      " -%#*#%-",
+      "  | | |",
+      "   |||"
+    ],
+    [
+      "  |   |",
+      " .+0@0+.",
+      "-+#*X*#+-",
+      " .+%@@%+.",
+      "  | | |",
+      "   |||",
+      "    |"
+    ],
+    [
+      " |     |",
+      ".+#@@@#+.",
+      "-+%*@*%+-",
+      " .+#8#+.",
+      "  |   |",
+      "   |||"
+    ],
+    [
+      " .|#|.",
+      "-+0@0+-",
+      ".+%#+%.",
+      "  |||",
+      "   |"
+    ]
+  ];
+
+  // 团块在前半球里来回漂移，8 秒内能看出换位置，但不会一下子滑出画面。
+  var VESSELS = [
+    { body: 0, lat0: 0.5, lat1: -0.32, lon0: -0.58, lon1: 0.12, period: 18, phase: 0.4, spin: 0.25, spinV: 0.18, scale: 1.72 },
+    { body: 1, lat0: -0.7, lat1: -0.34, lon0: 0.52, lon1: 0.08, period: 20, phase: 3.2, spin: 1.1, spinV: -0.14, scale: 1.22 },
+    { body: 2, lat0: 0.18, lat1: -0.46, lon0: 0.28, lon1: -0.36, period: 17, phase: 5.5, spin: -0.45, spinV: 0.16, scale: 1.42 },
+    { body: 3, lat0: 0.58, lat1: 0.12, lon0: -0.08, lon1: 0.5, period: 22, phase: 1.4, spin: 0.7, spinV: 0.11, scale: 1.12 },
+    { body: 4, lat0: -0.12, lat1: 0.42, lon0: 0.02, lon1: -0.55, period: 16, phase: 8.0, spin: 1.7, spinV: -0.17, scale: 1.02 }
+  ];
+
+  var INK = {
+    ".": 78, "'": 90, "|": 168, "-": 168, "/": 160, "\\": 160,
+    "+": 196, "=": 188, "x": 184, "X": 214,
+    "*": 226, "#": 236, "%": 232, "8": 240, "0": 228, "@": 252
+  };
+  var FAM = {
+    "@": "@#8",
+    "#": "#%X",
+    "*": "*+x",
+    "+": "+=x",
+    "%": "%#8",
+    "8": "8#%",
+    "0": "0#@"
+  };
+
+  var canvas = document.getElementById("map");
+  var ctx = canvas.getContext("2d", { alpha: false });
+  var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  var viewW = 0;
+  var viewH = 0;
+  var cols = 0;
+  var rows = 0;
+  var cellW = 8;
+  var cellH = 14;
+  var fontPx = 14;
+  var ox = 0;
+  var oy = 0;
+  var buf = [];
+  var reduced = motion.matches;
+  var raf = 0;
+  var origin = 0;
+  var shown = 0;
+  var sprites = BODIES.map(parseSprite);
+  var arcs = buildArcs();
+  var chart = buildChart();
+
+  function parseSprite(lines) {
+    var w = 0;
+    var y;
+    for (y = 0; y < lines.length; y++) if (lines[y].length > w) w = lines[y].length;
+    var h = lines.length;
+    var cells = [];
+    for (y = 0; y < h; y++) {
+      var row = lines[y];
+      var shift = (w - row.length) / 2;
+      for (var x = 0; x < row.length; x++) {
+        var ch = row.charAt(x);
+        if (ch === " ") continue;
+        cells.push({ x: shift + x - (w - 1) / 2, y: y - (h - 1) / 2, ch: ch });
+      }
+    }
+    return cells;
+  }
+
+  function latlon(lat, lon) {
+    return [
+      Math.cos(lat) * Math.sin(lon),
+      Math.sin(lat),
+      Math.cos(lat) * Math.cos(lon)
+    ];
+  }
+
+  function wave(latOf, lonOf, steps) {
+    var pts = [];
+    for (var i = 0; i <= steps; i++) {
+      var u = i / steps;
+      pts.push(latlon(latOf(u), lonOf(u)));
+    }
+    return pts;
+  }
+
+  function buildArcs() {
+    var list = [];
+    var k;
+    for (k = 0; k < 10; k++) {
+      var base = (k - 4.5) * 0.15;
+      var amp = 0.16 + (k % 3) * 0.08;
+      var freq = 1.15 + (k % 4) * 0.42;
+      var phase = k * 0.85;
+      list.push(wave(function (u) {
+        return base + Math.sin(u * Math.PI * freq + phase) * amp;
+      }, function (u) {
+        return -1.2 + u * 2.4 + Math.sin(u * Math.PI * 2 + phase) * 0.06;
+      }, 110));
+    }
+    for (k = 0; k < 8; k++) {
+      var baseL = (k - 3.5) * 0.18;
+      var ampL = 0.2 + (k % 3) * 0.07;
+      var freqL = 1.1 + (k % 3) * 0.5;
+      var phaseL = k * 1.15;
+      list.push(wave(function (u) {
+        return -1.05 + u * 2.1 + Math.sin(u * Math.PI * 2.2 + phaseL) * 0.05;
+      }, function (u) {
+        return baseL + Math.sin(u * Math.PI * freqL + phaseL) * ampL;
+      }, 110));
+    }
+    for (k = 0; k < 7; k++) {
+      var ang = -0.4 + k * 0.55;
+      var bend = 0.12 * ((k % 2) * 2 - 1);
+      list.push(wave(function (u) {
+        var t = u * 2 - 1;
+        return Math.sin(ang) * t * 0.95 + bend * Math.sin(u * Math.PI);
+      }, function (u) {
+        var t = u * 2 - 1;
+        return Math.cos(ang) * t * 0.85 + 0.08;
+      }, 70));
+    }
+    for (k = 0; k < 26; k++) {
+      var lat = -0.8 + (k * 0.47) % 1.6;
+      var lon = -0.85 + (k * 0.31) % 1.7;
+      var dlat = Math.sin(k * 1.9) * 0.55;
+      var dlon = Math.cos(k * 1.3) * 0.5;
+      list.push(wave(function (u) {
+        return lat + dlat * u + Math.sin(u * Math.PI) * 0.06;
+      }, function (u) {
+        return lon + dlon * u;
+      }, 36));
+    }
+    return list;
+  }
+
+  function buildChart() {
+    var n = 40;
+    var ga = Math.PI * (3 - Math.sqrt(5));
+    var stars = [];
+    var i;
+    for (i = 0; i < n; i++) {
+      var y = 1 - (i / (n - 1)) * 2;
+      var rad = Math.sqrt(Math.max(0, 1 - y * y));
+      var th = ga * i;
+      stars.push([Math.cos(th) * rad, y, Math.sin(th) * rad]);
+    }
+    var seen = {};
+    var links = [];
+    function addLink(a, b) {
+      var lo = a < b ? a : b;
+      var hi = a < b ? b : a;
+      var key = lo + ":" + hi;
+      if (seen[key]) return;
+      seen[key] = 1;
+      links.push([lo, hi]);
+    }
+    for (i = 0; i < n; i++) {
+      var near = [];
+      var j;
+      for (j = 0; j < n; j++) {
+        if (i === j) continue;
+        var d = Math.hypot(stars[i][0] - stars[j][0], stars[i][1] - stars[j][1], stars[i][2] - stars[j][2]);
+        if (d > 0.38 && d < 0.95) near.push([d, j]);
+      }
+      near.sort(function (p, q) { return p[0] - q[0]; });
+      var take = Math.min(2, near.length);
+      for (j = 0; j < take; j++) addLink(i, near[j][1]);
+    }
+    var specks = [];
+    for (i = 0; i < 16; i++) {
+      var y2 = 1 - (i / 15) * 2;
+      var rad2 = Math.sqrt(Math.max(0, 1 - y2 * y2));
+      var th2 = ga * (i + 0.37) * 2.1;
+      specks.push([Math.cos(th2) * rad2 * 0.92, y2 * 0.92, Math.sin(th2) * rad2 * 0.92]);
+    }
+    return { stars: stars, links: links, specks: specks };
+  }
+
+  function slerp(a, b) {
+    var dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    if (dot > 1) dot = 1;
+    if (dot < -1) dot = -1;
+    var omega = Math.acos(dot);
+    var steps = Math.max(8, Math.round(omega * 26));
+    var pts = [];
+    var so = Math.sin(omega) || 1;
+    for (var i = 0; i <= steps; i++) {
+      var t = i / steps;
+      var p = omega < 1e-3 ? 1 - t : Math.sin((1 - t) * omega) / so;
+      var q = omega < 1e-3 ? t : Math.sin(t * omega) / so;
+      pts.push([a[0] * p + b[0] * q, a[1] * p + b[1] * q, a[2] * p + b[2] * q]);
+    }
+    return pts;
+  }
+
+  function spin(dir, time) {
+    var yaw = time * YAW;
+    var c = Math.cos(yaw);
+    var s = Math.sin(yaw);
+    var x = dir[0] * c + dir[2] * s;
+    var z = -dir[0] * s + dir[2] * c;
+    var y = dir[1];
+    var ct = Math.cos(TILT);
+    var st = Math.sin(TILT);
+    return [x, y * ct - z * st, y * st + z * ct];
+  }
+
+  function fit() {
+    viewW = Math.max(1, window.innerWidth);
+    viewH = Math.max(1, window.innerHeight);
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(viewW * dpr);
+    canvas.height = Math.round(viewH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fontPx = Math.round(Math.max(11, Math.min(14, Math.min(viewW, viewH) / 56)));
+    ctx.font = fontPx + "px " + FONT;
+    cellW = ctx.measureText("0").width || fontPx * 0.62;
+    if (cellW < 4) cellW = fontPx * 0.62;
+    cellH = Math.ceil(fontPx * 1.16);
+    cols = Math.max(8, Math.floor(viewW / cellW));
+    rows = Math.max(8, Math.floor(viewH / cellH));
+    ox = Math.floor((viewW - cols * cellW) / 2);
+    oy = Math.floor((viewH - rows * cellH) / 2);
+    buf = new Array(cols * rows);
+  }
+
+  function project(dir) {
+    var z = dir[2];
+    if (z < 0.02) return null;
+    var camZ = z + 2.05;
+    var cover = Math.max(viewW, viewH);
+    var px = viewW / 2 + (dir[0] / camZ) * COVER * cover;
+    var py = viewH / 2 - (dir[1] / camZ) * COVER * cover;
+    return {
+      col: (px - ox) / cellW,
+      row: (py - oy) / cellH,
+      depth: camZ,
+      facing: z
+    };
+  }
+
+  function plot(col, row, depth, ch, rgb) {
+    var c = Math.round(col);
+    var r = Math.round(row);
+    if (c < 0 || r < 0 || c >= cols || r >= rows) return;
+    var i = r * cols + c;
+    var prev = buf[i];
+    if (prev && prev.depth <= depth) return;
+    buf[i] = { depth: depth, ch: ch, rgb: rgb };
+  }
+
+  function lineColor(facing) {
+    var lit = (facing - 0.02) / 0.75;
+    if (lit < 0) lit = 0;
+    if (lit > 1) lit = 1;
+    var v = Math.round(118 + 96 * lit);
+    return [v, v, Math.min(255, v + 10)];
+  }
+
+  function bodyColor(ch) {
+    if (ch === "8") return [236, 223, 146];
+    if (ch === "0") return [154, 214, 208];
+    if (ch === "%") return [216, 176, 152];
+    if (ch === "@") return [244, 244, 246];
+    var ink = INK[ch] || 180;
+    var v = Math.round(176 + (ink / 255) * 72);
+    return [v, v, Math.min(255, v + 4)];
+  }
+
+  function shimmer(ch, x, y, time) {
+    var fam = FAM[ch];
+    if (!fam || reduced) return ch;
+    if (((x * 3 + y * 5) & 3) !== 0) return ch;
+    var phase = Math.floor(time * 1.2 + ((x * 13 + y * 7) & 7));
+    var pick = phase % fam.length;
+    if (pick < 0) pick += fam.length;
+    return fam.charAt(pick);
+  }
+
+  function glyph(dx, dy) {
+    var adx = Math.abs(dx);
+    var ady = Math.abs(dy);
+    if (adx + ady < 0.001) return ".";
+    if (adx > ady * 1.65) return "-";
+    if (ady > adx * 1.65) return "|";
+    return dx * dy > 0 ? "\\" : "/";
+  }
+
+  function dash(points) {
+    var last = null;
+    var dist = 0;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!last) {
+        last = p;
+        continue;
+      }
+      var dx = p.col - last.col;
+      var dy = p.row - last.row;
+      var len = Math.hypot(dx, dy);
+      if (len < 0.2) continue;
+      if (len > 8) {
+        last = p;
+        continue;
+      }
+      var steps = Math.ceil(len);
+      var ch = glyph(dx, dy);
+      for (var s = 1; s <= steps; s++) {
+        dist += len / steps;
+        if ((Math.floor(dist) & 1) !== 0) continue;
+        var u = s / steps;
+        var col = last.col + dx * u;
+        var row = last.row + dy * u;
+        var facing = last.facing + (p.facing - last.facing) * u;
+        var depth = last.depth + (p.depth - last.depth) * u;
+        plot(col, row, depth, ch, lineColor(facing));
+      }
+      last = p;
+    }
+  }
+
+  function projectPath(points, time) {
+    var out = [];
+    for (var i = 0; i < points.length; i++) {
+      var p = project(spin(points[i], time));
+      if (!p) {
+        if (out.length) out.push(null);
+        continue;
+      }
+      out.push(p);
+    }
+    var run = [];
+    for (i = 0; i < out.length; i++) {
+      if (!out[i]) {
+        if (run.length > 1) dash(run);
+        run = [];
+        continue;
+      }
+      run.push(out[i]);
+    }
+    if (run.length > 1) dash(run);
+  }
+
+  function blit(sprite, angle, scale, col, row, depth, time) {
+    var c = Math.cos(angle);
+    var s = Math.sin(angle);
+    for (var i = 0; i < sprite.length; i++) {
+      var cell = sprite[i];
+      var x = cell.x * scale;
+      var y = cell.y * scale;
+      var rx = x * c - y * s;
+      var ry = x * s + y * c;
+      var cc = col + rx;
+      var rr = row + ry;
+      plot(cc, rr, depth - 0.08, shimmer(cell.ch, Math.round(cc), Math.round(rr), time), bodyColor(cell.ch));
+    }
+  }
+
+  function swing(time, period, from, to, phase) {
+    var u = ((time + phase) % period) / period;
+    var tri = u < 0.5 ? u * 2 : 2 - u * 2;
+    return from + (to - from) * tri;
+  }
+
+  function draw(time) {
+    shown = time;
+    buf = new Array(cols * rows);
+    var i;
+    for (i = 0; i < arcs.length; i++) projectPath(arcs[i], time);
+    for (i = 0; i < chart.links.length; i++) {
+      var link = chart.links[i];
+      projectPath(slerp(chart.stars[link[0]], chart.stars[link[1]]), time);
+      var node = project(spin(chart.stars[link[0]], time));
+      if (node) plot(node.col, node.row, node.depth - 0.02, "+", [214, 214, 222]);
+    }
+    var speckCh = "+x*.+";
+    for (i = 0; i < chart.specks.length; i++) {
+      var sp = project(spin(chart.specks[i], time));
+      if (!sp) continue;
+      plot(sp.col, sp.row, sp.depth - 0.015, speckCh.charAt(i % speckCh.length), [198, 198, 206]);
+    }
+    for (i = 0; i < VESSELS.length; i++) {
+      var v = VESSELS[i];
+      var lat = swing(time, v.period, v.lat0, v.lat1, v.phase);
+      var lon = swing(time, v.period, v.lon0, v.lon1, v.phase * 0.37);
+      var dir = spin([
+        Math.cos(lat) * Math.sin(lon),
+        Math.sin(lat),
+        Math.cos(lat) * Math.cos(lon)
+      ], time);
+      var place = project(dir);
+      if (!place) continue;
+      var depthScale = 2.15 / place.depth;
+      if (depthScale < 0.82) depthScale = 0.82;
+      if (depthScale > 1.35) depthScale = 1.35;
+      blit(sprites[v.body], v.spin + time * v.spinV, v.scale * depthScale, place.col, place.row, place.depth, time);
+    }
+
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.font = fontPx + "px " + FONT;
+    ctx.textBaseline = "top";
+    ctx.textAlign = "left";
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var cell = buf[r * cols + c];
+        if (!cell) continue;
+        var rgb = cell.rgb;
+        ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+        ctx.fillText(cell.ch, ox + c * cellW, oy + r * cellH);
+      }
+    }
+  }
+
+  function loop(now) {
+    if (reduced) return;
+    draw((now - origin) / 1000);
+    raf = window.requestAnimationFrame(loop);
+  }
+
+  function boot() {
+    if (raf) window.cancelAnimationFrame(raf);
+    raf = 0;
+    reduced = motion.matches;
+    fit();
+    if (reduced) {
+      draw(HOLD);
+      return;
+    }
+    origin = performance.now() - shown * 1000;
+    raf = window.requestAnimationFrame(loop);
+  }
+
+  if (motion.addEventListener) motion.addEventListener("change", boot);
+  window.addEventListener("resize", function () {
+    fit();
+    draw(reduced ? HOLD : shown);
+  });
+  boot();
+})();
+</script>
+</body>
+</html>
