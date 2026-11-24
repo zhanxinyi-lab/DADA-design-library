@@ -151,7 +151,7 @@
       </div>
     </div>
   </div>
-  <p id="hint" class="sr-only">滑过或聚焦某一步，液体会黏过去并拉出细颈。指针还在上面时保留文字，离开后变成对勾。移开后液体缩回第一步。减少动态时画面停住，点按仍可切换。</p>
+  <p id="hint" class="sr-only">滑过或聚焦某一步，液体会拉出越来越细的颈，断开时两边各自回抽。指针还在上面时保留文字，离开后变成对勾。鼠标离开这排后缩回第一步。触屏点在某一步上松手会停在那一步，点到胶囊外面才缩回。减少动态时停在所点的那一帧。</p>
   <script>
     const dock = document.getElementById('dock');
     const row = dock.querySelector('.row');
@@ -164,8 +164,7 @@
     const node = (name, parent) => parent.appendChild(document.createElementNS(NS, name));
     const glasses = buttons.map(() => node('rect', glassG));
     const blobs = buttons.map(() => node('rect', inkG));
-    const bridges = [0, 1].map(() => node('rect', inkG));
-    const tails = [0, 1, 2, 3].map(() => node('circle', inkG));
+    const necks = [0, 1].map(() => ({ left: node('path', inkG), right: node('path', inkG) }));
     const specs = buttons.map(() => node('ellipse', specG));
 
     const reduceMq = matchMedia('(prefers-reduced-motion: reduce)');
@@ -174,6 +173,8 @@
     let pointer = null;
     let keyIndex = -1;
     let pointerFocus = false;
+    let latched = -1;
+    let touching = false;
     let lead = 0;
     let leadV = 0;
     let fills = [1, 0, 0];
@@ -252,37 +253,67 @@
         if (p.el.getAttribute('aria-pressed') !== pressed) p.el.setAttribute('aria-pressed', pressed);
       });
 
-      let tailFrom = null;
-      for (let i = 0; i < 2; i++) {
-        const a = m.pills[i];
-        const b = m.pills[i + 1];
-        const left = fills[i];
-        const right = fills[i + 1];
-        const gapL = a.x + a.w;
-        const gapR = b.x;
-        const reaching = left > 0.55 && right < 0.14 && lead > gapL - 4 && lead < gapR + b.h * 0.5;
-        const wet = left > 0.45 && right > 0.03;
-        const neck = wet ? Math.max(13, a.h * 0.26) : 0;
-        set(bridges[i], {
-          x: gapL - 8,
-          y: a.cy - neck / 2,
-          width: wet ? Math.max(16, gapR - gapL + 16) : 0,
-          height: neck,
-          rx: neck / 2,
-          opacity: wet ? 1 : 0,
-        });
-        if (reaching) tailFrom = { x: gapL - a.h * 0.15, y: a.cy, h: a.h, tip: Math.min(lead, gapR + b.h * 0.35) };
+      for (let i = 0; i < 2; i++) drawNeck(m.pills[i], m.pills[i + 1], fills[i], fills[i + 1], necks[i]);
+    }
+
+    function showPath(el, d) {
+      el.setAttribute('d', d || '');
+      el.setAttribute('opacity', d ? '1' : '0');
+    }
+
+    function filament(x0, x1, y, r0, r1) {
+      if (!(x1 > x0 + 0.6) || r0 < 0.4) return '';
+      const tip = Math.max(0, r1);
+      const mid = x0 + (x1 - x0) * 0.55;
+      if (tip < 0.45) {
+        return `M ${x0} ${y - r0} C ${mid} ${y - r0 * 0.42}, ${x1 - 0.4} ${y}, ${x1} ${y} C ${x1 - 0.4} ${y}, ${mid} ${y + r0 * 0.42}, ${x0} ${y + r0} Z`;
       }
-      tails.forEach((c, i) => {
-        if (!tailFrom) { c.setAttribute('r', 0); return; }
-        const t = (i + 1) / tails.length;
-        const taper = tailFrom.h * (0.15 * (1 - t) + 0.075);
-        set(c, {
-          cx: tailFrom.x + (tailFrom.tip - tailFrom.x) * t,
-          cy: tailFrom.y,
-          r: tailFrom.tip > tailFrom.x + 4 ? taper : 0,
-        });
-      });
+      return `M ${x0} ${y - r0} C ${mid} ${y - tip}, ${x1 - tip} ${y - tip}, ${x1} ${y - tip} A ${tip} ${tip} 0 0 1 ${x1} ${y + tip} C ${x1 - tip} ${y + tip}, ${mid} ${y + tip}, ${x0} ${y + r0} Z`;
+    }
+
+    function drawNeck(a, b, left, right, parts) {
+      const lip = a.x + (left < 0.02 ? 0 : a.h + (a.w - a.h) * smooth(left));
+      const gapL = Math.min(a.x + a.w, Math.max(a.x + a.h * 0.5, lip));
+      const gapR = b.x;
+      const gap = Math.max(1, gapR - gapL);
+      const y = a.cy;
+      const h = a.h;
+      if (left < 0.4 || lead < gapL - 2) {
+        showPath(parts.left, '');
+        showPath(parts.right, '');
+        return;
+      }
+      const reach = (lead - gapL) / gap;
+      const tension = leadV < -40 ? clamp(-leadV / 650, 0, 9) : 0;
+      if (right > 0.42 && reach > 0.7) {
+        const depth = clamp((reach - 0.7) / 0.9, 0, 1);
+        const pinch = clamp(right, 0, 1) * depth;
+        const waist = h * (0.38 * (1 - pinch) + 0.07 * pinch);
+        const root = h * 0.4;
+        const x0 = gapL - h * 0.08;
+        const x1 = gapR + h * (0.05 + 0.12 * right);
+        const mid = (x0 + x1) / 2;
+        showPath(parts.left, filament(x0, mid, y, root, waist));
+        showPath(parts.right, filament(mid - 0.8, x1, y, waist, root * (0.35 + 0.45 * right)));
+        return;
+      }
+      const breakX = clamp(lead, gapL, gapR + h * 0.15);
+      const stretch = clamp((breakX - gapL) / gap, 0, 1.2);
+      const along = Math.min(stretch, 1);
+      const root = h * (0.44 - 0.18 * along);
+      const tip = h * (0.32 * Math.pow(1 - along, 1.35) + 0.006);
+      const split = tip < h * 0.05 ? (1 - tip / (h * 0.05)) * (6 + tension) : tension * 0.35;
+      const x0 = gapL - h * 0.06;
+      const x1 = Math.max(x0 + 0.8, breakX - split);
+      showPath(parts.left, filament(x0, x1, y, root, tip));
+      if (right > 0.025) {
+        const fade = clamp(right / 0.22, 0, 1);
+        const mouth = h * (0.12 + 0.26 * right) * fade;
+        const stubTip = Math.max(0.35, tip * fade);
+        const stubEnd = gapR + Math.max(b.h * 0.2, b.w * smooth(right) * 0.45);
+        const stubStart = clamp(breakX + split, gapL, stubEnd - 0.8);
+        showPath(parts.right, filament(stubStart, stubEnd, y, stubTip, mouth));
+      } else showPath(parts.right, '');
     }
 
     function hoverIndex(m) {
@@ -313,26 +344,30 @@
       marks = m.pills.map((_, i) => (i < index ? 1 : 0));
     }
 
+    function pillAt(x, y, m) {
+      if (!m) return -1;
+      return m.pills.findIndex((p) => x >= p.screenLeft && x <= p.screenRight
+        && y >= p.screenTop - 8 && y <= p.screenBottom + 8);
+    }
+
     function applyReduced(m) {
-      if (mode === 'key' && keyIndex >= 0) poseAt(m, keyIndex);
-      else if (mode === 'pointer' && pointer && nearRow(m)) {
-        let best = 0;
-        let dist = Infinity;
-        m.pills.forEach((p, i) => {
-          const d = Math.abs(pointer.x - (p.screenLeft + p.w / 2));
-          if (d < dist) { dist = d; best = i; }
-        });
-        poseAt(m, best);
-      } else restPose(m);
+      if (mode === 'key' && keyIndex >= 0) { poseAt(m, keyIndex); return; }
+      if (latched >= 0) { poseAt(m, latched); return; }
+      if (pointer && nearRow(m)) {
+        const hit = pillAt(pointer.x, pointer.y, m);
+        poseAt(m, hit >= 0 ? hit : 0);
+        return;
+      }
+      restPose(m);
     }
 
     function step(m, dt) {
       const home = m.pills[0].cx;
       let target = home;
+      const follow = pointer && nearRow(m) && (pointer.type === 'mouse' || touching);
       if (mode === 'key' && keyIndex >= 0) target = m.pills[keyIndex].cx;
-      else if (mode === 'pointer' && pointer && nearRow(m)) {
-        target = clamp(pointer.x - m.dockR.left, m.pills[0].x, m.pills[2].x + m.pills[2].w);
-      }
+      else if (follow) target = clamp(pointer.x - m.dockR.left, m.pills[0].x, m.pills[2].x + m.pills[2].w);
+      else if (latched >= 0) target = m.pills[latched].cx;
       const advancing = target > lead + 0.5;
       const k = advancing ? 42 : 18;
       const c = advancing ? 12 : 5.6;
@@ -357,11 +392,17 @@
     }
 
     function calm(m) {
-      if (mode !== 'idle') return false;
-      if (Math.abs(leadV) > 2 || Math.abs(lead - m.pills[0].cx) > 0.8) return false;
+      if (touching || mode === 'key') return false;
+      if (pointer && pointer.type === 'mouse' && mode === 'pointer') return false;
+      const index = mode === 'idle' ? 0 : latched;
+      if (index < 0) return false;
+      if (Math.abs(leadV) > 2 || Math.abs(lead - m.pills[index].cx) > 0.8) return false;
       for (let i = 0; i < 3; i++) {
-        if (Math.abs(fills[i] - (i === 0 ? 1 : 0)) > 0.012) return false;
-        if (Math.abs(marks[i] - (i === 0 ? 1 : 0)) > 0.012) return false;
+        const tf = i <= index ? 1 : 0;
+        const hover = mode === 'idle' ? -1 : index;
+        const tm = tf > 0.8 && hover !== i ? 1 : 0;
+        if (Math.abs(fills[i] - tf) > 0.012) return false;
+        if (Math.abs(marks[i] - tm) > 0.012) return false;
       }
       return true;
     }
@@ -395,13 +436,20 @@
     function onPointer(e) {
       mode = 'pointer';
       keyIndex = -1;
-      pointer = { x: e.clientX, y: e.clientY };
+      pointer = { x: e.clientX, y: e.clientY, type: e.pointerType };
+      if (e.pointerType === 'mouse') latched = -1;
+      else {
+        const hit = pillAt(e.clientX, e.clientY, metrics());
+        if (hit >= 0) latched = hit;
+      }
       kick();
     }
     function idle() {
       if (mode === 'key') return;
       mode = 'idle';
       pointer = null;
+      latched = -1;
+      touching = false;
       kick();
     }
 
@@ -411,7 +459,11 @@
         pointerFocus = true;
         btn.focus({ preventScroll: true });
       }
-      if (e.pointerType !== 'mouse') dock.setPointerCapture(e.pointerId);
+      touching = e.pointerType !== 'mouse';
+      if (touching) {
+        try { dock.setPointerCapture(e.pointerId); }
+        catch { /* 这次点按没有可捕获的指针，仍然按落点处理 */ }
+      }
       onPointer(e);
     });
     dock.addEventListener('pointermove', onPointer);
@@ -419,8 +471,24 @@
       if (e.pointerType && e.pointerType !== 'mouse') return;
       idle();
     });
-    dock.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') idle(); });
-    dock.addEventListener('pointercancel', idle);
+    dock.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'mouse') return;
+      touching = false;
+      const hit = pillAt(e.clientX, e.clientY, metrics());
+      if (hit >= 0) {
+        latched = hit;
+        mode = 'pointer';
+        pointer = { x: e.clientX, y: e.clientY, type: e.pointerType };
+        kick();
+        return;
+      }
+      idle();
+    });
+    dock.addEventListener('pointercancel', (e) => {
+      touching = false;
+      if (e.pointerType !== 'mouse' && latched >= 0) { kick(); return; }
+      idle();
+    });
     dock.addEventListener('focusin', (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
@@ -434,6 +502,7 @@
       if (!dock.contains(e.relatedTarget) && mode === 'key') {
         mode = 'idle';
         keyIndex = -1;
+        latched = -1;
         kick();
       }
     });
