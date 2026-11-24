@@ -85,10 +85,11 @@
 <canvas id="c" tabindex="0" role="group" aria-roledescription="轮播" aria-label="颗粒渐变轮播。当前是 Product&amp;Design。可以拖动，或用左右方向键切换。"></canvas>
 <div class="bar">
   <button type="button" id="prev">上一张</button>
-  <button type="button" id="pause" aria-pressed="false">暂停</button>
+  <button type="button" id="pause" aria-pressed="false" aria-describedby="motion-note">暂停</button>
   <button type="button" id="next">下一张</button>
 </div>
 <p id="live" class="sr" aria-live="polite"></p>
+<p id="motion-note" class="sr"></p>
 <p id="fail" role="status"></p>
 <script>
 "use strict";
@@ -120,8 +121,8 @@
 
   var reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   var reduced = reducedQuery.matches;
-  var userOverride = false;
   var autoplay = !reduced;
+  var beatTimer = 0;
   var pos = 0;
   var elapsed = 0;
   var dragging = false;
@@ -587,12 +588,30 @@
     else elapsed = i * PERIOD + HOLD + SLIDE * easeInv(u);
   }
 
-  function prefersStill() {
-    return reduced && !userOverride;
+  function clearBeat() {
+    if (!beatTimer) return;
+    clearTimeout(beatTimer);
+    beatTimer = 0;
+  }
+
+  function armBeat() {
+    clearBeat();
+    if (!autoplay || !reduced || dragging || anim) return;
+    var local = ((elapsed % PERIOD) + PERIOD) % PERIOD;
+    var wait = local <= HOLD ? HOLD - local : PERIOD - local;
+    if (wait < 32) wait = 32;
+    beatTimer = setTimeout(function () {
+      beatTimer = 0;
+      if (!autoplay || !reduced) return;
+      pos = Math.round(pos) + 1;
+      elapsed = pos * PERIOD;
+      draw();
+      armBeat();
+    }, wait);
   }
 
   function needsFrame() {
-    return !!(dragging || anim || (autoplay && !prefersStill()));
+    return !!(dragging || anim || (autoplay && !reduced));
   }
 
   function kick() {
@@ -617,13 +636,15 @@
     };
   }
 
-  function goTo(target) {
-    if (prefersStill()) {
+  function goTo(target, instant) {
+    if (instant || reduced) {
       pos = target;
       elapsed = target * PERIOD;
       anim = null;
+      armBeat();
       return;
     }
+    clearBeat();
     anim = {
       from: pos,
       target: target,
@@ -632,11 +653,11 @@
     };
   }
 
-  function step(dir) {
+  function step(dir, instant) {
     var base = anim ? anim.target : Math.round(pos);
     var target = base + dir;
     announceIndex(target);
-    goTo(target);
+    goTo(target, instant);
     kick();
   }
 
@@ -654,7 +675,7 @@
       } else {
         pos = anim.from + (anim.target - anim.from) * ease(t);
       }
-    } else if (!dragging && autoplay && !prefersStill()) {
+    } else if (!dragging && autoplay && !reduced) {
       elapsed += dt;
       pos = posAt(elapsed);
     }
@@ -701,6 +722,7 @@
     dragging = true;
     dragMoved = false;
     lastX = pointerX(event);
+    clearBeat();
     anim = null;
     pos = Math.round(pos);
     syncElapsed();
@@ -738,10 +760,10 @@
   canvas.addEventListener("keydown", function (event) {
     if (event.key === "ArrowRight") {
       event.preventDefault();
-      step(1);
+      step(1, !autoplay);
     } else if (event.key === "ArrowLeft") {
       event.preventDefault();
-      step(-1);
+      step(-1, !autoplay);
     }
   });
   canvas.addEventListener("click", function (event) {
@@ -771,37 +793,49 @@
     var dist = wrapDist(hit, pos);
     var target = Math.round(pos + dist);
     announceIndex(target);
-    goTo(target);
+    goTo(target, false);
     kick();
   });
 
-  prevBtn.addEventListener("click", function () { step(-1); });
-  nextBtn.addEventListener("click", function () { step(1); });
+  prevBtn.addEventListener("click", function () { step(-1, false); });
+  nextBtn.addEventListener("click", function () { step(1, false); });
   pauseBtn.addEventListener("click", function () {
     autoplay = !autoplay;
-    if (autoplay) userOverride = true;
     anim = null;
     pos = Math.round(pos);
-    syncElapsed();
+    elapsed = pos * PERIOD;
     pauseBtn.setAttribute("aria-pressed", autoplay ? "false" : "true");
+    if (autoplay && reduced) armBeat();
+    else clearBeat();
     kick();
   });
+
+  function syncMotionNote() {
+    motionNote.textContent = reduced
+      ? "系统正在减少动态。暂停键只决定是否按节奏跳到下一张，不会滑动。前后按钮和方向键都是立刻换卡。"
+      : "";
+  }
 
   function onReduce(event) {
     reduced = event.matches;
+    anim = null;
+    pos = Math.round(pos);
+    elapsed = pos * PERIOD;
     if (reduced) {
-      userOverride = false;
       autoplay = false;
-      anim = null;
-      pos = Math.round(pos);
-      elapsed = pos * PERIOD;
+      clearBeat();
       pauseBtn.setAttribute("aria-pressed", "true");
+    } else {
+      clearBeat();
     }
+    syncMotionNote();
     kick();
   }
   if (reducedQuery.addEventListener) reducedQuery.addEventListener("change", onReduce);
   else if (reducedQuery.addListener) reducedQuery.addListener(onReduce);
+  var motionNote = document.getElementById("motion-note");
   if (reduced) pauseBtn.setAttribute("aria-pressed", "true");
+  syncMotionNote();
 
   window.addEventListener("resize", function () {
     resize();
