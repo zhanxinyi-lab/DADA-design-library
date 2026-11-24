@@ -287,16 +287,10 @@
       return "freezing";
     }
     function setTemp(next) {
-      var t = clamp(Math.round(next), 0, 100);
-      goalPos = posFromTemp(t);
-      duck.setAttribute("aria-valuenow", String(t));
-      duck.setAttribute("aria-valuetext", t + "°C, " + describe(t));
+      goalPos = posFromTemp(clamp(Math.round(next), 0, 100));
     }
     function setPos(p) {
       goalPos = clamp(p, 0, 1);
-      var t = Math.round(tempFromPos(goalPos));
-      duck.setAttribute("aria-valuenow", String(t));
-      duck.setAttribute("aria-valuetext", t + "°C, " + describe(t));
     }
     function posFromEvent(e) {
       var rect = water.getBoundingClientRect();
@@ -352,6 +346,8 @@
       num.textContent = shown + "°C";
       num.style.color = shown >= 60 ? "#e24b4b" : "#2a3340";
       word.textContent = describe(shown);
+      duck.setAttribute("aria-valuenow", String(shown));
+      duck.setAttribute("aria-valuetext", shown + "°C, " + describe(shown));
       var lift = clamp((visual - 93) / 7, 0, 1);
       var bob = !reduced() && lift > 0 ? Math.sin(sim * 9) * 5 * lift : 0;
       var face = shownPos < 0.48 ? "left" : "right";
