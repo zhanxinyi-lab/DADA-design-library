@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>名单浮出弯曲面</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #c8c7c1;
+      color: #141414;
+      font: 16px/1.15 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .stage {
+      width: min(1080px, calc(100% - 28px));
+    }
+    .card {
+      --cream: #f4f1e7;
+      position: relative;
+      width: 100%;
+      height: min(740px, calc(100svh - 64px));
+      min-height: 520px;
+      border-radius: 18px;
+      overflow: hidden;
+      background: var(--cream);
+      color: #141414;
+    }
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: none;
+    }
+    .roster {
+      position: absolute;
+      inset: 0;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      pointer-events: none;
+    }
+    .roster button {
+      position: absolute;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-height: 44px;
+      padding: 2px 6px;
+      border: 0;
+      background: transparent;
+      color: #5e5c56;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .card.is-narrow .roster button { justify-content: center; text-align: center; }
+    .roster button.is-on { color: #141414; }
+    .roster button.on-dark { color: #f3efe6; }
+    .roster button.on-dark.is-on { color: #f7f4ee; }
+    .roster button.on-cross {
+      border-radius: 8px;
+      background: #f4f1e7;
+      box-shadow: 0 0 0 5px #f4f1e7;
+    }
+    .roster button.on-cross.on-dark {
+      background: #0e0e0e;
+      box-shadow: 0 0 0 5px #0e0e0e;
+      color: #f7f4ee;
+    }
+    .idx {
+      flex: none;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      font-variant-numeric: tabular-nums;
+    }
+    .nm {
+      display: flex;
+      flex-direction: column;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 0.9;
+      font-size: 15px;
+    }
+    .nm span { display: block; }
+    .roster button.is-on .nm { font-size: clamp(22px, 2.5vw, 34px); }
+    .roster button:focus { outline: none; }
+    .roster button:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 3px;
+    }
+    .mark {
+      position: absolute;
+      top: 22px;
+      right: 22px;
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid #141414;
+      transform: rotate(45deg);
+      pointer-events: none;
+    }
+    .hint {
+      margin: 10px 0 0;
+      font-size: 12px;
+      color: #3f3e3a;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 720px) {
+      .stage { width: calc(100% - 16px); }
+      .card {
+        height: min(820px, calc(100svh - 48px));
+        min-height: 680px;
+      }
+      .roster button.is-on .nm { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <h1 class="sr-only">名单浮出弯曲面</h1>
+  <main class="stage">
+    <article class="card" id="card" data-theme="light">
+      <canvas id="view" width="800" height="560" aria-hidden="true"></canvas>
+      <ol class="roster" id="roster" aria-label="作品名单"></ol>
+      <span class="mark" aria-hidden="true"></span>
+    </article>
+    <p class="hint">划过名单，或用 Tab、方向键。作品贴在弯曲并拉伸的面上。</p>
+  </main>
+  <script>
+(function () {
+  var WORKS = [
+    { idx: "001", lines: ["北窗", "玻璃"], dark: false },
+    { idx: "002", lines: ["港湾", "纸厂"], dark: true },
+    { idx: "003", lines: ["盐田", "工作室"], dark: false },
+    { idx: "004", lines: ["低潮", "线"], dark: true },
+    { idx: "005", lines: ["杉木", "行列"], dark: false },
+    { idx: "006", lines: ["静压", "印刷"], dark: true },
+    { idx: "007", lines: ["空地", "轨道"], dark: false },
+    { idx: "008", lines: ["纸样", "回声"], dark: true }
+  ];
+
+  var card = document.getElementById("card");
+  var canvas = document.getElementById("view");
+  var roster = document.getElementById("roster");
+  var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var reduce = motion.matches;
+  var cssW = 800;
+  var cssH = 560;
+  var narrow = false;
+  var active = -1;
+  var scroll = 0;
+  var theme = 0;
+  var stretch = 1;
+  var bend = 1;
+  var pull = 0;
+  var pointer = { x: -9999, y: -9999, inside: false };
+  var lastPX = 0;
+  var lastPY = 0;
+  var hoverGate = { on: false, x: 0, y: 0 };
+  var looping = false;
+  var lastTick = 0;
+  var buttons = [];
+  var paints = [];
+  var gl = null;
+  var ctx2d = null;
+  var textures = [];
+  var vbo = null;
+  var meshBuf = new Float32Array(40 * 24 * 5);
+  var programs = null;
+  var indexCache = {};
+
+  function paintAt(draw) {
+    var c = document.createElement("canvas");
+    c.width = 640;
+    c.height = 400;
+    var g = c.getContext("2d", { alpha: false });
+    draw(g);
+    return c;
+  }
+
+  function makePaints() {
+    paints = [
+      paintAt(function (g) {
+        g.fillStyle = "#e7d7b6"; g.fillRect(0, 0, 640, 400);
+        g.fillStyle = "#1d4e89"; g.fillRect(36, 48, 210, 250);
+        g.fillStyle = "#f3efe4"; g.fillRect(180, 150, 160, 160);
+        g.fillStyle = "#142033"; g.fillRect(0, 318, 640, 46);
+        g.fillStyle = "#d9854a"; g.beginPath(); g.arc(470, 120, 62, 0, 6.3); g.fill();
+      }),
+      paintAt(function (g) {
+        g.fillStyle = "#141820"; g.fillRect(0, 0, 640, 400);
+        g.fillStyle = "#e23b2f"; g.fillRect(70, 0, 120, 400);
+        g.fillStyle = "#f2e6d4"; g.fillRect(250, 70, 280, 46);
+        g.fillStyle = "#8fd0c6"; g.fillRect(280, 180, 90, 150);
+        g.fillStyle = "#f6f1e6"; g.beginPath(); g.arc(500, 250, 48, 0, 6.3); g.fill();
+      }),
+      paintAt(function (g) {
+        g.fillStyle = "#f6f3ea"; g.fillRect(0, 0, 640, 400);
+        g.fillStyle = "#6e8b74"; g.fillRect(0, 40, 640, 36);
+        g.fillStyle = "#234236"; g.fillRect(0, 120, 640, 70);
+        g.fillStyle = "#c9d7b8"; g.fillRect(0, 230, 640, 22);
+        g.fillStyle = "#d08a3a"; g.fillRect(420, 250, 150, 110);
+        g.fillStyle = "#17342c"; g.beginPath(); g.arc(150, 300, 54, 0, 6.3); g.fill();
+      }),
+      paintAt(function (g) {
+        g.fillStyle = "#101114"; g.fillRect(0, 0, 640, 400);
+        g.fillStyle = "#e6a15a"; g.fillRect(80, 60, 200, 260);
+        g.fillStyle = "#d8dde6"; g.fillRect(300, 40, 18, 320);
+        g.fillStyle = "#3d4c5c"; g.fillRect(360, 150, 200, 80);
+        g.fillStyle = "#f4efe6"; g.beginPath(); g.arc(430, 90, 36, 0, 6.3); g.fill();
+      }),
+      paintAt(function (g) {
+        g.fillStyle = "#efe6d6"; g.fillRect(0, 0, 640, 400);
+        g.fillStyle = "#8c4a32"; g.beginPath(); g.moveTo(40, 340); g.lineTo(280, 40); g.lineTo(300, 340); g.fill();
+        g.fillStyle = "#f7f4ee"; g.fillRect(320, 80, 240, 200);
+        g.fillStyle = "#2c241c"; g.fillRect(360, 250, 200, 28);
+        g.fillStyle = "#d97848"; g.beginPath(); g.arc(180, 200, 40, 0, 6.3); g.fill();
+      }),
+      paintAt(function (g) {
+        g.fillStyle = "#2a2038"; g.fillRect(0, 0, 640, 400);
+        g.fillStyle = "#f3ead7"; g.fillRect(0, 90, 640, 28);
+        g.fillStyle = "#f3ead7"; g.fillRect(0, 250, 640, 18);
+        g.fillStyle = "#e0b15a"; g.fillRect(460, 130, 80, 80);
+        g.fillStyle = "#d86a8a"; g.beginPath(); g.arc(180, 190, 70, 0, 6.3); g.fill();
+      }),
+      paintAt(function (g) {
+        g.fillStyle = "#d7ebe4"; g.fillRect(0, 0, 640, 400);
+        g.fillStyle = "#12343b"; g.fillRect(0, 200, 640, 200);
+        g.fillStyle = "#ef8b5f"; g.fillRect(70, 70, 180, 180);
+        g.fillStyle = "#f7f3ea"; g.fillRect(280, 110, 220, 50);
+        g.fillStyle = "#0e2428"; g.beginPath(); g.arc(470, 280, 58, 0, 6.3); g.fill();
+      }),
+      paintAt(function (g) {
+        g.fillStyle = "#1a1816"; g.fillRect(0, 0, 640, 400);
+        g.fillStyle = "#cbb6d8"; g.fillRect(40, 50, 240, 140);
+        g.fillStyle = "#8e79a8"; g.fillRect(180, 150, 260, 120);
+        g.fillStyle = "#f4f0e8"; g.fillRect(80, 300, 420, 16);
+        g.fillStyle = "#e07a5f"; g.beginPath(); g.arc(500, 90, 44, 0, 6.3); g.fill();
+      })
+    ];
+  }
+
+  function buildRoster() {
+    WORKS.forEach(function (work, i) {
+      var li = document.createElement("li");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.innerHTML = '<span class="idx">' + work.idx + '</span><span class="nm"><span>' + work.lines[0] + '</span><span>' + work.lines[1] + '</span></span>';
+      btn.addEventListener("pointerenter", function (e) {
+        notePointer(e);
+        if (blockedByGate()) return;
+        select(i);
+      });
+      btn.addEventListener("focus", function () { select(i); });
+      li.appendChild(btn);
+      roster.appendChild(li);
+      buttons.push(btn);
+    });
+    roster.addEventListener("keydown", function (e) {
+      var i = buttons.indexOf(document.activeElement);
+      if (i < 0) return;
+      var n = null;
+      if (e.key === "ArrowDown") n = Math.min(buttons.length - 1, i + 1);
+      else if (e.key === "ArrowUp") n = Math.max(0, i - 1);
+      else if (e.key === "Home") n = 0;
+      else if (e.key === "End") n = buttons.length - 1;
+      if (n === null || n === i) return;
+      e.preventDefault();
+      buttons[n].focus();
+    });
+  }
+
+  function notePointer(e) {
+    if (!e || typeof e.clientX !== "number") return;
+    lastPX = e.clientX;
+    lastPY = e.clientY;
+  }
+
+  function blockedByGate() {
+    if (!hoverGate.on) return false;
+    var dx = lastPX - hoverGate.x;
+    var dy = lastPY - hoverGate.y;
+    if (dx * dx + dy * dy < 16) return true;
+    hoverGate.on = false;
+    return false;
+  }
+
+  function select(i) {
+    if (i === active) return;
+    var first = active < 0;
+    active = i;
+    hoverGate.on = true;
+    hoverGate.x = lastPX;
+    hoverGate.y = lastPY;
+    if (!first && !reduce) {
+      stretch = 0.08;
+      bend = 1.72;
+    }
+    if (reduce) {
+      stretch = 1;
+      bend = 1;
+      scroll = i;
+      theme = WORKS[i].dark ? 1 : 0;
+      pull = pointer.inside ? 1 : 0;
+    }
+    buttons.forEach(function (btn, n) {
+      var on = n === i;
+      btn.classList.toggle("is-on", on);
+      if (on) btn.setAttribute("aria-current", "true");
+      else btn.removeAttribute("aria-current");
+    });
+    card.dataset.active = String(i);
+    if (reduce) draw();
+  }
+
+  function damp(cur, target, rate, dt) {
+    return cur + (target - cur) * (1 - Math.exp(-rate * dt));
+  }
+
+  function step(dt) {
+    var themeTarget = WORKS[active].dark ? 1 : 0;
+    if (reduce) {
+      stretch = 1;
+      bend = 1;
+      scroll = active;
+      theme = themeTarget;
+      pull = pointer.inside ? 1 : 0;
+    } else {
+      stretch = damp(stretch, 1, 5.4, dt);
+      bend = damp(bend, 1, 3.6, dt);
+      scroll = damp(scroll, active, 7.5, dt);
+      theme = damp(theme, themeTarget, 6, dt);
+      pull = damp(pull, pointer.inside ? 1 : 0, 8, dt);
+    }
+    card.dataset.theme = theme >= 0.5 ? "dark" : "light";
+    card.dataset.stretch = stretch.toFixed(3);
+    card.dataset.bend = bend.toFixed(3);
+  }
+
+  function warp(t, settle) {
+    var s = Math.min(1, Math.max(0, settle));
+    var c = (t - 0.5) * 2;
+    var p = 0.46 + 0.54 * s;
+    if (c === 0) return 0.5;
+    return Math.sign(c) * Math.pow(Math.abs(c), p) * 0.5 + 0.5;
+  }
+
+  function localPull(x, y) {
+    if (pull <= 0.001 || !pointer.inside) return 0;
+    var dx = (x - pointer.x) / Math.max(1, cssW);
+    var dy = (y - pointer.y) / Math.max(1, cssH);
+    return pull * Math.exp(-(dx * dx * 14 + dy * dy * 18));
+  }
+
+  function planeRect() {
+    if (narrow) return { cx: cssW * 0.5, cy: cssH * 0.23, w: cssW * 0.86, h: cssH * 0.28 };
+    return { cx: cssW * 0.38, cy: cssH * 0.46, w: cssW * 0.42, h: cssH * 0.4 };
+  }
+
+  function nameAnchor() { return cssH * 0.46; }
+  function nameStep() { return 86; }
+  function sheetBendNow() { return 0.92 + (bend - 1) * 0.85 + pull * 0.2; }
+
+  function projectPlane(u, v, rect, sx, sy, bendNow) {
+    var arc = 1.05 + 0.7 * Math.max(0, bendNow - 1);
+    var theta = (u - 0.5) * arc;
+    var edge = arc * 0.5;
+    var z = Math.cos(theta) - Math.cos(edge);
+    var half = Math.sin(edge) || 1;
+    var baseX = rect.cx + (Math.sin(theta) / half) * rect.w * 0.5 * sx;
+    var baseY = rect.cy + (v - 0.5) * rect.h * sy;
+    var lp = localPull(baseX, baseY);
+    var persp = 1 + z * (1.45 + lp * 1.15);
+    var x = rect.cx + (Math.sin(theta) / half) * rect.w * 0.5 * sx * (1 + lp * 0.12);
+    var y = rect.cy + (v - 0.5) * rect.h * sy * persp + Math.cos((u - 0.5) * Math.PI) * rect.h * 0.02 * bendNow;
+    return [x, y, 0.42 - z * 0.4 - lp * 0.08, warp(u, Math.min(sx, sy)), warp(v, sy)];
+  }
+
+  function sheetPoint(u, v, sheetBend) {
+    var amp = cssH * 0.055 * sheetBend;
+    var bow = Math.cos((u - 0.5) * Math.PI);
+    var edgeFade = Math.sin(u * Math.PI);
+    var x = u * cssW;
+    var y = -amp + v * (cssH + amp * 2) + (bow - 1) * amp;
+    var lp = localPull(x, y) * edgeFade;
+    x += (u - 0.5) * lp * cssW * 0.07;
+    y += lp * cssH * 0.03;
+    return [x, y, 0.86, u, v];
+  }
+
+  function tone(btn, top, height, line) {
+    var bot = top + height;
+    var mid = (top + bot) * 0.5;
+    var dark = mid > line;
+    var cross = top < line - 4 && bot > line + 4;
+    var shown = top >= 2 && bot <= cssH - 2;
+    btn.classList.toggle("on-dark", dark);
+    btn.classList.toggle("on-cross", cross);
+    btn.style.opacity = shown ? "1" : "0";
+  }
+
+  function placeNames() {
+    var line = splitY(narrow ? 0.5 : 0.74, sheetBendNow());
+    if (narrow) {
+      var top0 = cssH * 0.46;
+      var step = Math.max(44, (cssH - 18 - top0) / WORKS.length);
+      buttons.forEach(function (btn, i) {
+        var y = top0 + i * step;
+        btn.style.left = "50%";
+        btn.style.width = "auto";
+        btn.style.transform = "translateX(-50%)";
+        btn.style.top = y + "px";
+        tone(btn, y, i === active ? 52 : 40, line);
+      });
+      return;
+    }
+    var anchor = nameAnchor();
+    var step = nameStep();
+    buttons.forEach(function (btn, i) {
+      var y = anchor + (i - scroll) * step;
+      var top = y - (i === active ? 30 : 16);
+      btn.style.left = (cssW * 0.66) + "px";
+      btn.style.width = "auto";
+      btn.style.transform = "none";
+      btn.style.top = top + "px";
+      tone(btn, top, i === active ? 68 : 40, line);
+    });
+  }
+
+  function stretchX() { return 0.22 + 0.78 * Math.min(1, stretch); }
+  function stretchY() { return 0.07 + 0.93 * Math.pow(Math.min(1, stretch), 1.35); }
+
+  function compile(type, src) {
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, src);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return null;
+    return shader;
+  }
+
+  function link(vs, fs) {
+    var a = compile(gl.VERTEX_SHADER, vs);
+    var b = compile(gl.FRAGMENT_SHADER, fs);
+    if (!a || !b) return null;
+    var p = gl.createProgram();
+    gl.attachShader(p, a);
+    gl.attachShader(p, b);
+    gl.bindAttribLocation(p, 0, "aPos");
+    gl.bindAttribLocation(p, 1, "aZ");
+    gl.bindAttribLocation(p, 2, "aUV");
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) return null;
+    return p;
+  }
+
+  function uploadTexture(source) {
+    var tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return tex;
+  }
+
+  function indexFor(cols, rows) {
+    var key = cols + "x" + rows;
+    if (indexCache[key]) return indexCache[key];
+    var data = new Uint16Array(cols * rows * 6);
+    var k = 0;
+    var stride = cols + 1;
+    var y, x, i;
+    for (y = 0; y < rows; y++) {
+      for (x = 0; x < cols; x++) {
+        i = y * stride + x;
+        data[k++] = i;
+        data[k++] = i + 1;
+        data[k++] = i + stride;
+        data[k++] = i + 1;
+        data[k++] = i + stride + 1;
+        data[k++] = i + stride;
+      }
+    }
+    var buf = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    indexCache[key] = { buf: buf, count: data.length };
+    return indexCache[key];
+  }
+
+  function fillMesh(cols, rows, map) {
+    var stride = cols + 1;
+    var need = stride * (rows + 1) * 5;
+    if (meshBuf.length < need) meshBuf = new Float32Array(need);
+    var p = 0;
+    var y, x, u, v, pt;
+    for (y = 0; y <= rows; y++) {
+      v = y / rows;
+      for (x = 0; x <= cols; x++) {
+        u = x / cols;
+        pt = map(u, v);
+        meshBuf[p++] = pt[0];
+        meshBuf[p++] = pt[1];
+        meshBuf[p++] = pt[2];
+        meshBuf[p++] = pt[3];
+        meshBuf[p++] = pt[4];
+      }
+    }
+    return p;
+  }
+
+  function drawMesh(prog, cols, rows, map, tex) {
+    var n = fillMesh(cols, rows, map);
+    var index = indexFor(cols, rows);
+    gl.useProgram(prog.prog);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, meshBuf.subarray(0, n), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.enableVertexAttribArray(1);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 20, 0);
+    gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 20, 8);
+    gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 20, 12);
+    gl.uniform2f(prog.res, cssW, cssH);
+    if (tex) {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(prog.tex, 0);
+    } else {
+      gl.uniform1f(prog.split, 0.78 + (0.24 - 0.78) * theme);
+      gl.uniform3f(prog.cream, 0.957, 0.945, 0.906);
+      gl.uniform3f(prog.black, 0.055, 0.055, 0.055);
+    }
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index.buf);
+    gl.drawElements(gl.TRIANGLES, index.count, gl.UNSIGNED_SHORT, 0);
+  }
+
+  function setupGL() {
+    gl = canvas.getContext("webgl", {
+      alpha: false,
+      antialias: true,
+      depth: true,
+      stencil: false,
+      failIfMajorPerformanceCaveat: false
+    });
+    if (!gl) return false;
+    var vs = [
+      "attribute vec2 aPos;",
+      "attribute float aZ;",
+      "attribute vec2 aUV;",
+      "uniform vec2 uRes;",
+      "varying vec2 vUV;",
+      "varying float vZ;",
+      "void main(){",
+      "  vec2 c = aPos / uRes * 2.0 - 1.0;",
+      "  c.y = -c.y;",
+      "  gl_Position = vec4(c, aZ, 1.0);",
+      "  vUV = aUV;",
+      "  vZ = aZ;",
+      "}"
+    ].join("\n");
+    var sheetFs = [
+      "precision mediump float;",
+      "varying vec2 vUV;",
+      "varying float vZ;",
+      "uniform float uSplit;",
+      "uniform vec3 uCream;",
+      "uniform vec3 uBlack;",
+      "void main(){",
+      "  float k = smoothstep(uSplit - 0.012, uSplit + 0.012, vUV.y);",
+      "  vec3 col = mix(uCream, uBlack, k);",
+      "  gl_FragColor = vec4(col * (0.985 + 0.015 * clamp(vZ, 0.0, 1.0)), 1.0);",
+      "}"
+    ].join("\n");
+    var planeFs = [
+      "precision mediump float;",
+      "varying vec2 vUV;",
+      "varying float vZ;",
+      "uniform sampler2D uTex;",
+      "void main(){",
+      "  vec3 tex = texture2D(uTex, vUV).rgb;",
+      "  float light = clamp(0.8 + (0.42 - vZ) * 1.25, 0.72, 1.14);",
+      "  gl_FragColor = vec4(tex * light, 1.0);",
+      "}"
+    ].join("\n");
+    var sheet = link(vs, sheetFs);
+    var plane = link(vs, planeFs);
+    if (!sheet || !plane) { gl = null; return false; }
+    programs = {
+      sheet: {
+        prog: sheet,
+        res: gl.getUniformLocation(sheet, "uRes"),
+        split: gl.getUniformLocation(sheet, "uSplit"),
+        cream: gl.getUniformLocation(sheet, "uCream"),
+        black: gl.getUniformLocation(sheet, "uBlack")
+      },
+      plane: {
+        prog: plane,
+        res: gl.getUniformLocation(plane, "uRes"),
+        tex: gl.getUniformLocation(plane, "uTex")
+      }
+    };
+    vbo = gl.createBuffer();
+    textures = paints.map(uploadTexture);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
+    return true;
+  }
+
+  function swatchRect(i) {
+    var y = nameAnchor() + (i - scroll) * nameStep();
+    return { cx: Math.max(48, cssW * 0.08), cy: y, w: Math.min(78, cssW * 0.08), h: 46 };
+  }
+
+  function drawGL() {
+    var sheetBend = 0.92 + (bend - 1) * 0.85 + pull * 0.2;
+    var rect = planeRect();
+    var sx = stretchX();
+    var sy = stretchY();
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0.957, 0.945, 0.906, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    drawMesh(programs.sheet, 36, 18, function (u, v) { return sheetPoint(u, v, sheetBend); }, null);
+    if (!narrow) {
+      WORKS.forEach(function (_, i) {
+        var r = swatchRect(i);
+        if (r.cy < 36 || r.cy > cssH - 56) return;
+        drawMesh(programs.plane, 10, 6, function (u, v) {
+          return projectPlane(u, v, r, 1, 1, 1);
+        }, textures[i]);
+      });
+    }
+    drawMesh(programs.plane, 32, 16, function (u, v) {
+      return projectPlane(u, v, rect, sx, sy, bend);
+    }, textures[active]);
+  }
+
+  function splitY(u, sheetBend) {
+    return sheetPoint(u, 0.78 + (0.24 - 0.78) * theme, sheetBend)[1];
+  }
+
+  function draw2D() {
+    var sheetBend = 0.92 + (bend - 1) * 0.85 + pull * 0.2;
+    var rect = planeRect();
+    var sx = stretchX();
+    var sy = stretchY();
+    var g = ctx2d;
+    g.setTransform(canvas.width / cssW, 0, 0, canvas.height / cssH, 0, 0);
+    g.fillStyle = "#f4f1e7";
+    g.fillRect(0, 0, cssW, cssH);
+    g.beginPath();
+    var i;
+    for (i = 0; i <= 42; i++) {
+      var u = i / 42;
+      var y = splitY(u, sheetBend);
+      if (i === 0) g.moveTo(0, y);
+      else g.lineTo(u * cssW, y);
+    }
+    g.lineTo(cssW, cssH + 40);
+    g.lineTo(0, cssH + 40);
+    g.closePath();
+    g.fillStyle = "#0e0e0e";
+    g.fill();
+    if (!narrow) {
+      WORKS.forEach(function (_, n) {
+        var r = swatchRect(n);
+        if (r.cy < 36 || r.cy > cssH - 56) return;
+        blit(paints[n], r, 1, 1, 1);
+      });
+    }
+    blit(paints[active], rect, sx, sy, bend);
+  }
+
+  function blit(source, rect, sx, sy, bendNow) {
+    var strips = 42;
+    var i, u0, u1, a, b, c, d, x, y, w, h, uu0, uu1;
+    for (i = 0; i < strips; i++) {
+      u0 = i / strips;
+      u1 = (i + 1) / strips;
+      a = projectPlane(u0, 0, rect, sx, sy, bendNow);
+      b = projectPlane(u0, 1, rect, sx, sy, bendNow);
+      c = projectPlane(u1, 0, rect, sx, sy, bendNow);
+      d = projectPlane(u1, 1, rect, sx, sy, bendNow);
+      x = a[0];
+      w = c[0] - a[0];
+      if (w < 0) { x = c[0]; w = -w; }
+      y = Math.min(a[1], c[1]);
+      h = Math.max(b[1], d[1]) - y;
+      uu0 = Math.min(a[3], c[3]);
+      uu1 = Math.max(a[3], c[3]);
+      ctx2d.drawImage(source, uu0 * source.width, Math.min(a[4], b[4]) * source.height, Math.max(1, (uu1 - uu0) * source.width), Math.max(1, Math.abs(b[4] - a[4]) * source.height), x, y, Math.max(1, w), Math.max(1, h));
+    }
+  }
+
+  function draw() {
+    if (cssW < 2 || cssH < 2 || active < 0) return;
+    placeNames();
+    if (gl && programs) drawGL();
+    else if (ctx2d) draw2D();
+  }
+
+  function resize() {
+    var r = card.getBoundingClientRect();
+    cssW = Math.max(1, r.width);
+    cssH = Math.max(1, r.height);
+    narrow = cssW < 720;
+    card.classList.toggle("is-narrow", narrow);
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var bw = Math.max(2, Math.round(cssW * dpr));
+    var bh = Math.max(2, Math.round(cssH * dpr));
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw;
+      canvas.height = bh;
+    }
+    if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+
+  function frame(now) {
+    var dt = Math.min(0.05, lastTick ? (now - lastTick) / 1000 : 0.016);
+    lastTick = now;
+    step(dt);
+    draw();
+    if (!reduce) requestAnimationFrame(frame);
+  }
+
+  function boot() {
+    makePaints();
+    buildRoster();
+    if (!setupGL()) ctx2d = canvas.getContext("2d", { alpha: false });
+    resize();
+    select(0);
+    step(0);
+    draw();
+    if (!reduce) {
+      looping = true;
+      requestAnimationFrame(frame);
+    }
+    window.addEventListener("resize", function () {
+      resize();
+      if (reduce) draw();
+    });
+    if (window.ResizeObserver) {
+      new ResizeObserver(function () {
+        resize();
+        if (reduce) draw();
+      }).observe(card);
+    }
+    card.addEventListener("pointermove", function (e) {
+      notePointer(e);
+      var r = card.getBoundingClientRect();
+      pointer.x = e.clientX - r.left;
+      pointer.y = e.clientY - r.top;
+      pointer.inside = true;
+      if (reduce) {
+        pull = 1;
+        draw();
+      }
+    });
+    card.addEventListener("pointerleave", function () {
+      pointer.inside = false;
+      if (reduce) {
+        pull = 0;
+        draw();
+      }
+    });
+    function onMotion() {
+      reduce = motion.matches;
+      if (reduce) {
+        looping = false;
+        stretch = 1;
+        bend = 1;
+        scroll = active;
+        theme = WORKS[active].dark ? 1 : 0;
+        pull = pointer.inside ? 1 : 0;
+        step(0);
+        draw();
+      } else if (!looping) {
+        looping = true;
+        lastTick = 0;
+        requestAnimationFrame(frame);
+      }
+    }
+    if (motion.addEventListener) motion.addEventListener("change", onMotion);
+    else if (motion.addListener) motion.addListener(onMotion);
+  }
+
+  boot();
+})();
+  </script>
+</body>
+</html>
