@@ -50,17 +50,24 @@
       font-size: 12px;
       letter-spacing: 0.08em;
     }
-    h1 {
-      margin: 4px 0 8px;
+    .lesson p { margin: 0; color: var(--muted); }
+    .copy-stack {
+      display: grid;
+      margin: 4px 0 0;
+      min-height: 6.5em;
+    }
+    .copy-layer { grid-area: 1 / 1; }
+    .copy-title {
+      margin: 0 0 8px;
+      color: var(--ink);
       font-size: clamp(22px, 3vw, 28px);
+      font-weight: 700;
       line-height: 1.2;
       letter-spacing: -0.03em;
     }
-    .lesson p { margin: 0; color: var(--muted); }
-    #lesson { min-height: 6.5em; }
     .angle {
-      margin-top: 10px !important;
-      color: var(--ink) !important;
+      margin-top: 10px;
+      color: var(--ink);
       font-variant-numeric: tabular-nums;
     }
     figure { margin: 14px 0 0; }
@@ -176,12 +183,12 @@
         gap: 12px;
       }
       .stage { min-height: 220px; }
-      #lesson { min-height: 0; }
+      .copy-stack { min-height: 0; }
     }
     @media (max-width: 390px) {
       .throttle { grid-template-columns: minmax(0, 1fr); gap: 4px; }
       .readout { flex-direction: row; align-items: baseline; gap: 6px; }
-      h1 { font-size: 22px; }
+      .copy-title { font-size: 22px; }
     }
   </style>
 </head>
@@ -189,9 +196,17 @@
   <div class="shell">
     <section class="lesson">
       <p class="kicker">速度越过声速</p>
-      <h1 id="title">波前开始叠上</h1>
-      <p id="lesson"></p>
-      <p class="angle" id="angle" hidden></p>
+      <div class="copy-stack" id="copyStack">
+        <div class="copy-layer">
+          <p class="copy-title"></p>
+          <p class="copy-body"></p>
+        </div>
+        <div class="copy-layer">
+          <p class="copy-title"></p>
+          <p class="copy-body"></p>
+        </div>
+      </div>
+      <p class="angle" id="angle"></p>
       <figure>
         <canvas id="chart" width="320" height="88" aria-hidden="true"></canvas>
         <figcaption>
@@ -238,6 +253,7 @@
     var last = 0;
     var rafId = 0;
     var looping = false;
+    var paintQueued = false;
     var dragging = false;
     var reduceQ = window.matchMedia("(prefers-reduced-motion: reduce)");
     var stage = document.getElementById("stage");
@@ -248,8 +264,7 @@
     var thumb = document.getElementById("thumb");
     var tick = document.getElementById("tick");
     var machEl = document.getElementById("mach");
-    var titleEl = document.getElementById("title");
-    var lessonEl = document.getElementById("lesson");
+    var copyLayers = document.querySelectorAll(".copy-layer");
     var angleEl = document.getElementById("angle");
     var cdEl = document.getElementById("cd");
     var COPY = {
@@ -279,34 +294,62 @@
       var rise = Math.exp(-Math.pow((m - 1.02) / 0.28, 2));
       return 0.02 + rise * 0.028;
     }
-    function regimeOf(m) {
-      if (m < 0.8) return "ahead";
-      if (m < 0.98) return "bunch";
-      if (m < 1.08) return "wall";
-      return "cone";
+    var MARKS = [
+      { m: 0.8, id: "ahead" },
+      { m: 0.9, id: "bunch" },
+      { m: 1, id: "wall" },
+      { m: 1.12, id: "cone" }
+    ];
+    function smoothstep(edge0, edge1, x) {
+      var t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+    function copyBlend(mach) {
+      if (mach <= MARKS[0].m) return [{ id: MARKS[0].id, t: 1 }, { id: MARKS[0].id, t: 0 }];
+      if (mach >= MARKS[MARKS.length - 1].m) {
+        var last = MARKS[MARKS.length - 1].id;
+        return [{ id: last, t: 1 }, { id: last, t: 0 }];
+      }
+      for (var i = 0; i < MARKS.length - 1; i++) {
+        if (mach <= MARKS[i + 1].m) {
+          var span = MARKS[i + 1].m - MARKS[i].m;
+          var s = smoothstep(0, 1, (mach - MARKS[i].m) / span);
+          return [{ id: MARKS[i].id, t: 1 - s }, { id: MARKS[i + 1].id, t: s }];
+        }
+      }
+      return [{ id: "cone", t: 1 }, { id: "cone", t: 0 }];
     }
     function percent(m) { return (m - 0.2) / 2.2 * 100; }
 
     function paint() {
       var mach = machNow();
       var text = machText();
-      var regime = regimeOf(mach);
-      var copy = COPY[regime];
+      var blend = copyBlend(mach);
+      var dominant = blend[0].t >= blend[1].t ? blend[0] : blend[1];
       machEl.textContent = text;
       speed.setAttribute("aria-valuenow", text);
-      speed.setAttribute("aria-valuetext", "马赫 " + text + "，" + copy.title);
-      if (titleEl.textContent !== copy.title) titleEl.textContent = copy.title;
-      if (lessonEl.textContent !== copy.body) lessonEl.textContent = copy.body;
+      speed.setAttribute("aria-valuetext", "马赫 " + text + "，" + COPY[dominant.id].title);
+      for (var i = 0; i < copyLayers.length; i++) {
+        var slot = blend[i];
+        var copy = COPY[slot.id];
+        var layer = copyLayers[i];
+        var title = layer.querySelector(".copy-title");
+        var body = layer.querySelector(".copy-body");
+        if (title.textContent !== copy.title) title.textContent = copy.title;
+        if (body.textContent !== copy.body) body.textContent = copy.body;
+        layer.style.opacity = String(slot.t);
+        if (slot.t >= 0.5) layer.removeAttribute("aria-hidden");
+        else layer.setAttribute("aria-hidden", "true");
+      }
       var cd = cdOf(mach);
       cdEl.textContent = cd.toFixed(3);
-      if (mach >= 1) {
-        var deg = Math.asin(1 / mach) * 180 / Math.PI;
-        angleEl.hidden = false;
-        angleEl.textContent = "锋面和飞行方向大约成 " + deg.toFixed(1) + "°";
-      } else {
-        angleEl.hidden = true;
-        angleEl.textContent = "";
-      }
+      var coneMix = smoothstep(0.85, 1.15, mach);
+      var angleMach = Math.max(mach, 1);
+      var deg = Math.asin(1 / angleMach) * 180 / Math.PI;
+      angleEl.textContent = "锋面和飞行方向大约成 " + deg.toFixed(1) + "°";
+      angleEl.style.opacity = String(coneMix);
+      if (coneMix >= 0.35) angleEl.removeAttribute("aria-hidden");
+      else angleEl.setAttribute("aria-hidden", "true");
       var pct = percent(mach);
       fill.style.width = pct + "%";
       thumb.style.left = pct + "%";
@@ -353,13 +396,19 @@
       g.fillStyle = glow;
       g.fillRect(0, 0, w, h);
 
-      var pile = Math.exp(-Math.pow((mach - 1) / 0.07, 2));
-      if (pile > 0.04) {
+      var wallW = Math.exp(-Math.pow((mach - 1) / 0.1, 2));
+      var coneMix = smoothstep(0.85, 1.15, mach);
+      var coneAlpha = 0.92 * coneMix;
+      var waveW = 1 - 0.4 * coneMix;
+      stage.dataset.coneAlpha = coneAlpha.toFixed(4);
+      stage.dataset.wallWeight = wallW.toFixed(4);
+      stage.dataset.waveWeight = waveW.toFixed(4);
+      if (wallW > 0.01) {
         g.save();
         g.translate(noseX, noseY);
         var soft = g.createRadialGradient(0, 0, 2, 0, 0, h * 0.48);
-        soft.addColorStop(0, "rgba(255,220,160," + (0.28 * pile) + ")");
-        soft.addColorStop(0.08, "rgba(40,8,4," + (0.28 * pile) + ")");
+        soft.addColorStop(0, "rgba(255,220,160," + (0.28 * wallW) + ")");
+        soft.addColorStop(0.08, "rgba(40,8,4," + (0.28 * wallW) + ")");
         soft.addColorStop(1, "rgba(40,8,4,0)");
         g.fillStyle = soft;
         g.beginPath();
@@ -368,15 +417,15 @@
         g.restore();
       }
 
-      drawWaves(g, noseX, noseY, mach, scale, w, h);
+      drawWaves(g, noseX, noseY, mach, scale, w, h, waveW);
       drawExhaust(g, noseX, noseY, length, mach);
       drawJet(g, noseX, noseY, length);
-      if (mach >= 1) drawCone(g, noseX, noseY, mach, w, h, 0.92);
-      var tailT = clamp((mach - 1.05) / 0.25, 0, 1);
-      if (tailT > 0) drawCone(g, noseX + length * 0.96, noseY, mach, w, h, 0.4 * tailT);
+      if (coneAlpha > 0.001) drawCone(g, noseX, noseY, mach, w, h, coneAlpha);
+      var tailAlpha = 0.4 * smoothstep(1.02, 1.28, mach);
+      if (tailAlpha > 0.001) drawCone(g, noseX + length * 0.96, noseY, mach, w, h, tailAlpha);
     }
 
-    function drawWaves(g, noseX, noseY, mach, scale, w, h) {
+    function drawWaves(g, noseX, noseY, mach, scale, w, h, waveW) {
       var period = 0.16;
       var phase = motionOn() ? (sim % period) : 0;
       var horizon = 1.75;
@@ -390,12 +439,12 @@
         var fade = 1 - age / horizon;
         g.beginPath();
         g.arc(cx, noseY, r, 0, Math.PI * 2);
-        g.strokeStyle = "rgba(255,196,120," + (0.28 * fade) + ")";
+        g.strokeStyle = "rgba(255,196,120," + (0.28 * fade * waveW) + ")";
         g.lineWidth = 1.35;
         g.stroke();
         g.beginPath();
         g.arc(cx, noseY, r, Math.PI - 0.7, Math.PI + 0.7);
-        g.strokeStyle = "rgba(255,232,190," + ((0.35 + bunch * 0.55) * fade) + ")";
+        g.strokeStyle = "rgba(255,232,190," + ((0.35 + bunch * 0.55) * fade * waveW) + ")";
         g.lineWidth = 1.6 + bunch * 2.4;
         g.stroke();
       }
@@ -513,13 +562,21 @@
 
     function setGoal(next) {
       goal = clamp(Math.round(next), MIN, MAX);
-      paint();
+      requestPaint();
     }
     function fromClient(x) {
       var rect = track.getBoundingClientRect();
       if (!rect.width) return goal;
       var p = clamp((x - rect.left) / rect.width, 0, 1);
       return MIN + p * (MAX - MIN);
+    }
+    function requestPaint() {
+      if (looping || paintQueued) return;
+      paintQueued = true;
+      requestAnimationFrame(function () {
+        paintQueued = false;
+        if (!looping) paint();
+      });
     }
     function stopLoop() {
       looping = false;
@@ -576,11 +633,11 @@
       e.preventDefault();
       if (delta) setGoal(goal + delta);
     });
-    window.addEventListener("resize", paint);
+    window.addEventListener("resize", requestPaint);
     if (reduceQ.addEventListener) reduceQ.addEventListener("change", function () {
       if (reduceQ.matches) stopLoop();
       else startLoop();
-      paint();
+      requestPaint();
     });
     paint();
     startLoop();
