@@ -727,7 +727,7 @@
           : "Not connected";
         const tail = st === "connected" ? check() : st === "waiting" ? '<i class="spin"></i>' : "+";
         return '<button class="card' + (st === "connected" ? " on" : "") + '" type="button" data-act="tool" data-id="' + t.id + '"'
-          + (st === "idle" ? "" : " disabled") + ' aria-pressed="' + (st === "connected" ? "true" : "false") + '">"'
+          + (st === "idle" ? "" : " disabled") + ' aria-pressed="' + (st === "connected" ? "true" : "false") + '">'
           + tile(t.letter, t.color)
           + "<span><b class=\"nm\">" + t.name + "</b><span class=\"sub\">" + sub + "</span></span>"
           + '<span class="tail">' + tail + "</span></button>";
@@ -747,7 +747,7 @@
         if (sent && on) tail = '<span class="invited">Invited</span>';
         else if (on) tail = '<span class="tick">✓</span>';
         return '<button class="person' + (on && !sent ? " pick" : "") + '" type="button" data-act="person" data-id="' + p.id + '"'
-          + (sent ? " disabled" : "") + ' aria-pressed="' + (on ? "true" : "false") + '">"'
+          + (sent ? " disabled" : "") + ' aria-pressed="' + (on ? "true" : "false") + '">'
           + '<i class="blob" style="background:' + p.color + '"></i>'
           + "<span><b class=\"nm\">" + p.name + "</b><span class=\"sub\">" + p.email + "</span></span>"
           + tail + "</button>";
@@ -774,7 +774,7 @@
         }).join("");
         const on = state.template === t.id;
         return '<button class="tmpl' + (on ? " on" : "") + '" type="button" data-act="template" data-id="' + t.id + '"'
-          + (state.created ? " disabled" : "") + ' aria-pressed="' + (on ? "true" : "false") + '">"'
+          + (state.created ? " disabled" : "") + ' aria-pressed="' + (on ? "true" : "false") + '">'
           + "<span><b>" + t.name + "</b><small>" + t.blurb + "</small></span>"
           + '<span class="meta"><span class="minis">' + icons + "</span><small>" + have + " of " + t.tools.length + " connected</small></span></button>";
       }).join("");
@@ -990,6 +990,7 @@
     }
 
     function startJob() {
+      if (jobTimer || state.jobDone) return;
       clearTimeout(jobTimer);
       const agent = templateBy(state.template);
       const tick = () => {
@@ -1019,6 +1020,7 @@
     }
 
     function go(step) {
+      if (step === 4 && state.step === 4) return;
       state.step = step;
       if (step === 4 && reduced) {
         state.jobAt = templateBy(state.template).steps.length;
@@ -1031,6 +1033,7 @@
     function reset() {
       epoch += 1;
       clearTimeout(jobTimer);
+      jobTimer = 0;
       state.step = 1;
       state.tools = Object.fromEntries(TOOLS.map((t) => [t.id, "idle"]));
       state.order = [];
@@ -1077,8 +1080,10 @@
       else if (act === "template" && !state.created) {
         state.template = id;
         render();
-      } else if (act === "create" && state.template) {
+      } else if (act === "create" && state.step === 3 && state.template && !state.created) {
         state.created = true;
+        button.disabled = true;
+        button.setAttribute("aria-disabled", "true");
         go(4);
       } else if (act === "continue" && state.step === 3 && state.created) go(4);
       else if (act === "open") reset();
