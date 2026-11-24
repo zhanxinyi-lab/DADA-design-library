@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>点阵眼睛</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #03060a; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  </style>
+</head>
+<body>
+<canvas id="eye" aria-label="蓝色点阵眼睛，瞳孔和眼睑跟随指针拉伸"></canvas>
+<script>
+(() => {
+  const canvas = document.getElementById('eye');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const motion = matchMedia('(prefers-reduced-motion: reduce)');
+
+  const state = {
+    gx: 0, gy: 0, squint: 0, pull: 0,
+    tx: 0, ty: 0, ts: 0, tp: 0,
+    has: false,
+    px: 0, py: 0
+  };
+
+  let cssW = 0;
+  let cssH = 0;
+  let dpr = 1;
+  let raf = 0;
+  let last = 0;
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const smoothstep = (a, b, x) => {
+    const t = clamp((x - a) / (b - a), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+  const hash = (i, j) => {
+    let n = Math.imul(i | 0, 374761393) + Math.imul(j | 0, 668265263);
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  };
+
+  function layout() {
+    const narrow = clamp((760 - cssW) / 420, 0, 1);
+    const cx = cssW * (0.36 + 0.14 * narrow);
+    const cy = cssH * 0.52;
+    const eyeW = Math.max(168, Math.min(cssW * (0.5 + 0.08 * narrow), cssH * 0.5));
+    const eyeRx = eyeW * 0.5;
+    const eyeRy = eyeRx * 0.46;
+    const cell = Math.max(4, Math.round(eyeW / 72));
+    return { cx, cy, eyeRx, eyeRy, cell, eyeW, narrow };
+  }
+
+  function lids(nx, squint) {
+    const u = Math.pow(Math.max(0, 1 - nx * nx), 0.66);
+    const b = Math.pow(Math.max(0, 1 - nx * nx), 0.96);
+    return {
+      upper: u * (1 - squint * 0.46),
+      lower: -b * 0.7 * (1 - squint * 0.4)
+    };
+  }
+
+  function browInfo(nx) {
+    const u = (nx - 0.02) / 1.32;
+    const arch = Math.pow(Math.max(0, 1 - u * u), 0.8);
+    const tip = Math.max(0, nx - 0.85) * 0.48;
+    const ny = 1.16 + arch * 0.4 - tip;
+    const thick = Math.max(0.04, (0.055 + 0.13 * arch) * Math.max(0.22, 1 - Math.max(0, nx - 0.35) * 0.72));
+    return { ny, thick, arch };
+  }
+
+  function restOf(nx, ny, L) {
+    return { x: L.cx + nx * L.eyeRx, y: L.cy - ny * L.eyeRy };
+  }
+
+  function localOf(x, y, L) {
+    return { nx: (x - L.cx) / L.eyeRx, ny: -(y - L.cy) / L.eyeRy };
+  }
+
+  function deformOutPoint(nx, ny, L, pose) {
+    const rest = restOf(nx, ny, L);
+    if (pose.pull <= 0.001) return rest;
+    const dx = pose.px - rest.x;
+    const dy = pose.py - rest.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const align = clamp(nx * pose.gx + (-ny) * pose.gy, 0, 1);
+    const rim = clamp(Math.hypot(nx, ny / 0.68), 0, 1);
+    const mag = pose.pull * Math.pow(align, 1.2) * Math.pow(rim, 1.35) * L.eyeRx * 0.5;
+    return { x: rest.x + (dx / dist) * mag, y: rest.y + (dy / dist) * mag };
+  }
+
+  function deformIn(sx, sy, L, pose) {
+    let x = sx;
+    let y = sy;
+    for (let i = 0; i < 5; i++) {
+      const loc = localOf(x, y, L);
+      const fwd = deformOutPoint(loc.nx, loc.ny, L, pose);
+      const ex = sx - fwd.x;
+      const ey = sy - fwd.y;
+      if (ex * ex + ey * ey < 0.25) break;
+      x += ex;
+      y += ey;
+    }
+    return { x, y };
+  }
+
+  function warp(nx, ny, L, pose) {
+    return deformOutPoint(nx, ny, L, pose);
+  }
+
+  function measureSpaced(text, spacing) {
+    let w = 0;
+    for (const ch of text) w += ctx.measureText(ch).width + spacing;
+    return Math.max(0, w - spacing);
+  }
+
+  function fillSpaced(text, x, y, spacing, color) {
+    ctx.fillStyle = color;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    let cx = x;
+    for (const ch of text) {
+      ctx.fillText(ch, cx, y);
+      cx += ctx.measureText(ch).width + spacing;
+    }
+    return cx;
+  }
+
+  function resize() {
+    const nextDpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(1, canvas.clientWidth);
+    const h = Math.max(1, canvas.clientHeight);
+    if (w === cssW && h === cssH && nextDpr === dpr && canvas.width) return;
+    dpr = nextDpr;
+    cssW = w;
+    cssH = h;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+  }
+
+  function targetFrom(clientX, clientY, L) {
+    const rect = canvas.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    const dx = px - L.cx;
+    const dy = py - L.cy;
+    const pDist = Math.hypot(dx, dy);
+    state.px = px;
+    state.py = py;
+    state.tx = clamp(dx / (L.eyeRx * 1.15), -1, 1);
+    state.ty = clamp(dy / (L.eyeRy * 2.5), -1, 1);
+    const rim = Math.exp(-Math.pow((pDist / L.eyeRx - 1.0) / 0.55, 2));
+    const onRim = 1 - smoothstep(1.2, 2.6, Math.abs(dy) / L.eyeRy);
+    state.ts = rim * onRim * 0.72;
+    state.tp = smoothstep(L.eyeRx * 0.62, L.eyeRx * 1.25, pDist);
+    state.has = true;
+  }
+
+  function step(dt) {
+    if (motion.matches) {
+      state.gx = 0;
+      state.gy = 0;
+      state.squint = 0;
+      state.pull = 0;
+      state.has = false;
+      return;
+    }
+    const k = 1 - Math.exp(-dt * 9);
+    state.gx += ((state.has ? state.tx : 0) - state.gx) * k;
+    state.gy += ((state.has ? state.ty : 0) - state.gy) * k;
+    state.squint += ((state.has ? state.ts : 0) - state.squint) * k;
+    state.pull += ((state.has ? state.tp : 0) - state.pull) * k;
+  }
+
+  function draw() {
+    const L = layout();
+    const reduced = motion.matches;
+    const pose = {
+      px: state.px,
+      py: state.py,
+      pull: reduced ? 0 : state.pull,
+      gx: reduced ? 0 : state.gx,
+      gy: reduced ? 0 : state.gy,
+      gazeNx: reduced ? 0 : state.gx * 0.32,
+      gazeNy: reduced ? 0 : -state.gy * 0.36,
+      squint: reduced ? 0 : clamp(state.squint, 0, 1)
+    };
+
+    ctx.fillStyle = '#03060a';
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    const gap = Math.max(36, Math.round(L.cell * 7));
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(186, 206, 220, 0.055)';
+    ctx.lineWidth = 1;
+    for (let x = gap * 0.5; x < cssW; x += gap) {
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, cssH);
+    }
+    for (let y = gap * 0.5; y < cssH; y += gap) {
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(cssW, y + 0.5);
+    }
+    ctx.stroke();
+
+    const cell = L.cell;
+    const dot = Math.max(2, cell - Math.max(1, Math.round(cell * 0.22)));
+    const irisR = L.eyeRx * 0.4;
+    const pupilR = L.eyeRx * 0.09 * (1 - pose.squint * 0.1);
+    const reach = L.eyeRx * (1.15 + pose.pull * 0.62);
+    const x1 = Math.max(0, Math.floor((L.cx - reach) / cell) * cell);
+    const x2 = Math.min(cssW, L.cx + reach + L.eyeRx * 0.35);
+    const y1 = Math.max(0, Math.floor((L.cy - L.eyeRy * 2.15 - pose.pull * L.eyeRy) / cell) * cell);
+    const y2 = Math.min(cssH, L.cy + L.eyeRy * 1.25);
+
+    for (let y = y1; y <= y2; y += cell) {
+      for (let x = x1; x <= x2; x += cell) {
+        const ix = Math.round(x / cell);
+        const iy = Math.round(y / cell);
+        const h = hash(ix, iy);
+        const back = deformIn(x + cell * 0.5, y + cell * 0.5, L, pose);
+        const loc = localOf(back.x, back.y, L);
+        const lid = lids(loc.nx, pose.squint);
+        const inEye = loc.nx >= -1 && loc.nx <= 1 && loc.ny <= lid.upper && loc.ny >= lid.lower;
+        if (!inEye) continue;
+        const sx = (loc.nx - pose.gazeNx) * L.eyeRx;
+        const sy = (loc.ny - pose.gazeNy) * L.eyeRy;
+        const idist = Math.hypot(sx, sy);
+        if (idist < pupilR) continue;
+        const open = Math.max(0.04, lid.upper - lid.lower);
+        const v = clamp((loc.ny - lid.lower) / open, 0, 1);
+        let bright = 0.2 + 0.58 * Math.pow(v, 0.72);
+        bright *= 0.8 + 0.2 * h;
+        const ir = idist / irisR;
+        if (ir < 1.08) {
+          const ring = Math.exp(-Math.pow((ir - 0.7) * 7.2, 2));
+          const inner = ir < 0.4 ? 0.16 + ir * 0.25 : 0.36 + 0.22 * (1 - ir);
+          bright = (inner + ring * 0.95) * (0.86 + 0.14 * h);
+          if (ir > 0.9) bright *= 0.6;
+        } else if (v > 0.68) {
+          bright = Math.min(1, bright + (v - 0.68) * 1.15);
+        }
+        if (loc.nx < -0.62 && v < 0.4) bright *= 0.72;
+        const scanBand = Math.abs(loc.ny - pose.gazeNy) < 0.055;
+        const greenCut = loc.nx < pose.gazeNx ? 0.52 : 0.8;
+        const green = scanBand && h > greenCut && ir > 0.25 && ir < 1.35;
+        if (green) {
+          ctx.fillStyle = `rgba(${50 + h * 40 | 0},${200 + h * 45 | 0},${125 + h * 30 | 0},0.92)`;
+        } else {
+          const r = 18 + bright * 78 | 0;
+          const g = 78 + bright * 145 | 0;
+          const b = 158 + bright * 97 | 0;
+          ctx.fillStyle = `rgb(${r},${g},${b})`;
+        }
+        ctx.fillRect(x, y, dot, dot);
+      }
+    }
+
+    const browX1 = Math.max(0, Math.floor((L.cx - L.eyeRx * 1.2) / cell) * cell);
+    const browX2 = Math.min(cssW, L.cx + L.eyeRx * 1.7);
+    const browY1 = Math.max(0, Math.floor((L.cy - L.eyeRy * 2.2) / cell) * cell);
+    const browY2 = L.cy - L.eyeRy * 0.35;
+    for (let y = browY1; y <= browY2; y += cell) {
+      for (let x = browX1; x <= browX2; x += cell) {
+        const ix = Math.round(x / cell);
+        const iy = Math.round(y / cell);
+        const h = hash(ix, iy);
+        const browLoc = localOf(x + cell * 0.5, y + cell * 0.5, L);
+        if (browLoc.nx < -1.08 || browLoc.nx > 1.52) continue;
+        const brow = browInfo(browLoc.nx);
+        if (Math.abs(browLoc.ny - brow.ny) > brow.thick) continue;
+        const clump = hash(ix >> 2, iy >> 1);
+        const keep = browLoc.nx < 0.15 ? clump > 0.34 || h > 0.72 : h > 0.06;
+        if (!keep) continue;
+        const edge = 1 - Math.abs(browLoc.ny - brow.ny) / brow.thick;
+        const bright = (0.45 + 0.55 * edge) * (0.7 + 0.3 * h) * (0.55 + 0.45 * brow.arch);
+        ctx.fillStyle = `rgb(${150 + bright * 90 | 0},${196 + bright * 50 | 0},${255})`;
+        ctx.fillRect(x, y, dot, dot);
+      }
+    }
+
+    drawHud(L, pose, pupilR);
+  }
+
+  function trackingCount() {
+    if (!state.has || motion.matches) return 8;
+    const near = 1 - smoothstep(0.15, 1.15, state.pull);
+    const gaze = Math.min(1, Math.hypot(state.gx, state.gy));
+    return Math.min(21, 8 + Math.round(near * 8 + gaze * 5));
+  }
+
+  function drawHud(L, pose, pupilR) {
+    const fontPx = clamp(L.eyeRx * 0.062, 10, 13);
+    const spacing = Math.max(0.6, fontPx * 0.08);
+    ctx.font = `${fontPx}px ui-monospace, Cascadia Mono, Consolas, monospace`;
+    ctx.lineWidth = 1;
+
+    const lidL = lids(-0.2, pose.squint);
+    const lidR = lids(0.92, pose.squint);
+    const upperR = lids(0.45, pose.squint);
+    const anchors = {
+      pupil: warp(pose.gazeNx, pose.gazeNy, L, pose),
+      iris: warp(pose.gazeNx + 0.02, pose.gazeNy + 0.58, L, pose),
+      left: warp(-0.98, 0, L, pose),
+      right: warp(0.98, (lidR.upper + lidR.lower) * 0.5, L, pose),
+      lower: warp(0.08, lids(0.08, pose.squint).lower, L, pose),
+      upper: warp(0.42, upperR.upper, L, pose),
+      brow: (() => {
+        const nx = 0.72;
+        return restOf(nx, browInfo(nx).ny, L);
+      })(),
+      browTip: restOf(1.28, browInfo(1.28).ny, L),
+      leftMark: restOf(-1.22, browInfo(-0.9).ny * 0.15 + 0.15, L)
+    };
+    anchors.leftMark = { x: anchors.left.x - L.eyeRx * 0.28, y: anchors.left.y - L.eyeRy * 0.95 };
+
+    const ink = 'rgba(214, 230, 236, 0.84)';
+    const lineInk = 'rgba(190, 214, 224, 0.42)';
+    const mint = '#8dffe2';
+
+    const strokeTo = (a, b, alpha) => {
+      ctx.strokeStyle = `rgba(190, 214, 224, ${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    };
+    const box = (p, size, color) => {
+      ctx.strokeStyle = color;
+      ctx.strokeRect(p.x - size / 2, p.y - size / 2, size, size);
+    };
+
+    strokeTo(anchors.leftMark, warp(-0.55, lidL.upper * 0.45, L, pose), 0.38);
+    strokeTo(anchors.brow, { x: anchors.brow.x + fontPx * 2.2, y: anchors.brow.y - fontPx * 1.5 }, 0.4);
+    box(anchors.leftMark, 8, lineInk);
+    box({ x: anchors.brow.x + fontPx * 2.2, y: anchors.brow.y - fontPx * 1.5 }, 8, lineInk);
+
+    if (state.has && !motion.matches) {
+      const target = { x: state.px, y: state.py };
+      strokeTo(target, anchors.pupil, 0.5);
+      strokeTo(target, anchors.right, 0.42);
+      strokeTo(target, anchors.left, 0.28);
+      strokeTo(target, anchors.upper, 0.34);
+      strokeTo(target, anchors.brow, 0.3);
+      strokeTo(target, anchors.lower, 0.24);
+      const targetSize = Math.max(16, fontPx * 1.7);
+      ctx.strokeStyle = mint;
+      ctx.strokeRect(target.x - targetSize / 2, target.y - targetSize / 2, targetSize, targetSize);
+      const label = 'TARGET';
+      const lw = measureSpaced(label, spacing);
+      let lx = target.x + targetSize / 2 + 8;
+      if (lx + lw > cssW - 8) lx = Math.max(8, target.x - targetSize / 2 - 8 - lw);
+      let ly = target.y;
+      const browLabelY = anchors.brow.y - fontPx * 1.5;
+      if (Math.abs(ly - browLabelY) < fontPx * 1.8 && Math.abs(lx - anchors.brow.x) < L.eyeRx * 0.85) ly = browLabelY + fontPx * 2.4;
+      fillSpaced(label, lx, ly, spacing, mint);
+    }
+
+    ctx.fillStyle = '#03060a';
+    ctx.beginPath();
+    ctx.arc(anchors.pupil.x, anchors.pupil.y, Math.max(4, pupilR * 0.7), 0, Math.PI * 2);
+    ctx.fill();
+    const reticle = Math.max(18, pupilR * 2.6);
+    ctx.strokeStyle = mint;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(anchors.pupil.x - reticle / 2, anchors.pupil.y - reticle / 2, reticle, reticle);
+    ctx.lineWidth = 1;
+    const stackX = clamp(anchors.pupil.x + reticle / 2 + 8, 8, cssW - 108);
+    const scanA = 1 - smoothstep(0.72, 1, pose.squint);
+    if (scanA > 0.05) {
+      ctx.save();
+      ctx.globalAlpha = scanA;
+      fillSpaced('SCANNING', stackX, anchors.pupil.y, spacing * 0.8, mint);
+      ctx.restore();
+    }
+    const coord = (p) => `X ${Math.round(p.x)} Y ${Math.round(p.y)}`;
+    fillSpaced('IRIS', stackX, anchors.pupil.y - fontPx * 3.3, spacing, ink);
+    fillSpaced('NIR 850', stackX, anchors.pupil.y - fontPx * 1.7, spacing * 0.7, ink);
+    fillSpaced(coord(anchors.pupil), stackX, anchors.pupil.y + fontPx * 1.55, spacing * 0.45, ink);
+    const rightText = coord(anchors.right);
+    const rightW = measureSpaced(rightText, spacing * 0.45);
+    let rx = anchors.right.x + 12;
+    if (rx + rightW > cssW - 8) rx = anchors.right.x - 12 - rightW;
+    if (Math.hypot(rx - stackX, anchors.right.y - anchors.pupil.y) > fontPx * 3.2) {
+      fillSpaced(rightText, rx, anchors.right.y - fontPx * 0.2, spacing * 0.45, ink);
+    }
+    box(anchors.right, 8, lineInk);
+    fillSpaced('BROW', anchors.brow.x + fontPx * 2.2 + 8, anchors.brow.y - fontPx * 1.5, spacing, ink);
+
+    const track = `TRACKING ${trackingCount()} POINTS`;
+    const tw = measureSpaced(track, spacing * 0.85);
+    const th = fontPx + 10;
+    const tx = 16;
+    const ty = cssH - 16 - th;
+    ctx.strokeStyle = 'rgba(190, 214, 224, 0.45)';
+    ctx.strokeRect(tx, ty, tw + 16, th);
+    fillSpaced(track, tx + 8, ty + th / 2, spacing * 0.85, ink);
+  }
+
+  function frame(now) {
+    const dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
+    last = now;
+    step(dt);
+    resize();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+    if (!motion.matches) raf = requestAnimationFrame(frame);
+  }
+
+  function onPointer(e) {
+    if (motion.matches) return;
+    if (e.pointerType !== 'mouse') e.preventDefault();
+    targetFrom(e.clientX, e.clientY, layout());
+  }
+
+  window.addEventListener('pointerdown', onPointer, { passive: false });
+  window.addEventListener('pointermove', onPointer, { passive: false });
+  window.addEventListener('pointerout', (e) => {
+    if (e.pointerType === 'mouse' && e.relatedTarget == null) state.has = false;
+  });
+  window.addEventListener('resize', () => {
+    resize();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  });
+  motion.addEventListener('change', () => {
+    cancelAnimationFrame(raf);
+    last = 0;
+    if (motion.matches) {
+      state.gx = state.gy = state.squint = state.pull = 0;
+      state.has = false;
+      resize();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw();
+    } else {
+      raf = requestAnimationFrame(frame);
+    }
+  });
+
+  resize();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+  if (!motion.matches) raf = requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
