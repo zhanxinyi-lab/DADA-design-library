@@ -104,6 +104,7 @@
   var origin = 0;
   var raf = 0;
   var running = false;
+  var lost = false;
 
   function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
   function ease(t) {
@@ -366,6 +367,7 @@
   }
 
   function render(now) {
+    if (lost || !ctx) return;
     layoutCard();
     var rect = frame.getBoundingClientRect();
     var dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -386,11 +388,12 @@
   }
 
   function tick(now) {
+    if (!running) return;
     render(now);
     if (running) raf = window.requestAnimationFrame(tick);
   }
   function start() {
-    if (reduced || running) return;
+    if (lost || reduced || running) return;
     running = true;
     raf = window.requestAnimationFrame(tick);
   }
@@ -399,6 +402,28 @@
     if (raf) window.cancelAnimationFrame(raf);
     raf = 0;
   }
+  function redraw() {
+    render(performance.now());
+  }
+
+  canvas.addEventListener("contextlost", function (event) {
+    event.preventDefault();
+    lost = true;
+    stop();
+  });
+  canvas.addEventListener("contextrestored", function () {
+    lost = false;
+    ctx = canvas.getContext("2d");
+    if (!ctx) {
+      failEl.textContent = "这个浏览器画不出这块海报。";
+      failEl.className = "on";
+      return;
+    }
+    failEl.textContent = "";
+    failEl.className = "";
+    redraw();
+    if (!document.hidden) start();
+  });
 
   replayBtn.addEventListener("click", function () {
     if (reduced) return;
