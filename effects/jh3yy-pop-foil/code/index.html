@@ -127,7 +127,7 @@
         '  vec2 m = (uPointer - 0.5 * uRes) / max(uRes.y, 1.0);',
         '  vec2 d = p - m;',
         '  float dist = length(d);',
-        '  float stir = uNear * smoothstep(0.58, 0.0, dist);',
+        '  float stir = uNear * (1.0 - smoothstep(0.0, 0.58, dist));',
         '  vec2 radial = dist > 0.0008 ? d / dist : vec2(0.0, 1.0);',
         '  vec2 tangent = vec2(-radial.y, radial.x);',
         '  vec2 q = p + tangent * stir * 0.09;',

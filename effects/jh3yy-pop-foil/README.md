@@ -5,7 +5,7 @@
 - 状态：video_recreated
 - 原文：https://x.com/jh3yy/status/2120984619621269553
 - 素材 ID：2120984619621269553
-- 版本：1.0.0
+- 版本：1.0.1
 
 ## 复刻说明
 
@@ -22,5 +22,5 @@
 ## 自查
 
 - [x] 本地打开 code/index.html，对照原片看过静止流动、靠近搅动和离开后回落
-- [x] README 版本是 1.0.0，CHANGELOG.md 有这一节
+- [x] README 版本是 1.0.1，CHANGELOG.md 有这一节
 - [x] 没有引用外网资源（CDN、字体、图片）
