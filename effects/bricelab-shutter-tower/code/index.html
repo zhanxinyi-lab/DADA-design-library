@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>百叶随指针翻开的转角塔楼</title>
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden; background: #2c3358; color: #f7f4ee; }
+  body { touch-action: none; overscroll-behavior: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  header {
+    position: fixed; z-index: 1; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+    box-sizing: border-box; max-width: 100%; padding: 10px 12px;
+    font: 500 clamp(9px, 2.5vw, 13px)/1.2 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    pointer-events: none;
+  }
+  header span {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(16, 12, 28, .5);
+  }
+  .sr {
+    position: absolute; width: 1px; height: 1px; margin: 0; padding: 0;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<header>
+  <span>← bricelab.dev</span>
+  <span>Contact hello@bricelab.dev ↗</span>
+</header>
+<p class="sr">黄昏转角塔楼。移动指针或在画面上滑动，钢制百叶按远近先后成片翻开，露出暖黄灯光。开启减少动态效果时，百叶停在半开，不再跟随。</p>
+<script>
+(() => {
+  const ROWS = 14;
+  const LEFT_COLS = 3;
+  const RIGHT_COLS = 5;
+  const SLATS = 8;
+  const LEFT_W = 6.4;
+  const RIGHT_W = 9.6;
+  const HEIGHT = 26;
+  const INSET_X = 0.07;
+  const INSET_Y = 0.09;
+  const CLOSED = 0.18;
+  const OPEN_ANG = 1.2;
+  const HALF = 0.5;
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  let w = 1, h = 1, dpr = 1;
+  let reduced = motion.matches;
+  let pointer = null;
+  let raf = 0;
+  let last = 0;
+  let view = { focal: 1, ox: 0, oy: 0 };
+  const windows = [];
+
+  function clamp01(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }
+  function mix(a, b, t) {
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  }
+  function rgb(c, a) {
+    const body = `${c[0] | 0},${c[1] | 0},${c[2] | 0}`;
+    return a == null ? `rgb(${body})` : `rgba(${body},${a})`;
+  }
+  function hash(n) {
+    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function build() {
+    const rowH = HEIGHT / ROWS;
+    const leftW = LEFT_W / LEFT_COLS;
+    const rightW = RIGHT_W / RIGHT_COLS;
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < LEFT_COLS; col++) {
+        windows.push({
+          face: 'L',
+          x0: -LEFT_W + col * leftW,
+          x1: -LEFT_W + (col + 1) * leftW,
+          y0: row * rowH,
+          y1: (row + 1) * rowH,
+          open: reduced ? HALF : 0,
+          seed: row * 17 + col + 2,
+        });
+      }
+      for (let col = 0; col < RIGHT_COLS; col++) {
+        windows.push({
+          face: 'R',
+          z0: -(col + 1) * rightW,
+          z1: -col * rightW,
+          y0: row * rowH,
+          y1: (row + 1) * rowH,
+          open: reduced ? HALF : 0,
+          seed: row * 17 + col + 50,
+        });
+      }
+    }
+  }
+
+  function camera() {
+    const eye = { x: 11, y: 1.2, z: 10.5 };
+    const look = { x: -0.2, y: 14.2, z: -1 };
+    let fx = look.x - eye.x, fy = look.y - eye.y, fz = look.z - eye.z;
+    const fl = Math.hypot(fx, fy, fz) || 1;
+    fx /= fl; fy /= fl; fz /= fl;
+    let rx = -fz, ry = 0, rz = fx;
+    const rl = Math.hypot(rx, ry, rz) || 1;
+    rx /= rl; ry /= rl; rz /= rl;
+    const ux = ry * fz - rz * fy;
+    const uy = rz * fx - rx * fz;
+    const uz = rx * fy - ry * fx;
+    return { eye, fx, fy, fz, rx, ry, rz, ux, uy, uz };
+  }
+
+  function raw(cam, x, y, z) {
+    const dx = x - cam.eye.x, dy = y - cam.eye.y, dz = z - cam.eye.z;
+    return [
+      dx * cam.rx + dy * cam.ry + dz * cam.rz,
+      dx * cam.ux + dy * cam.uy + dz * cam.uz,
+      dx * cam.fx + dy * cam.fy + dz * cam.fz,
+    ];
+  }
+
+  function fit(cam) {
+    const cT = raw(cam, 0, HEIGHT, 0);
+    const cB = raw(cam, 0, 0, 0);
+    const lB = raw(cam, -LEFT_W, 0, 0);
+    const rB = raw(cam, 0, 0, -RIGHT_W);
+    const nT = [cT[0] / cT[2], cT[1] / cT[2]];
+    const nB = [cB[0] / cB[2], cB[1] / cB[2]];
+    const nL = [lB[0] / lB[2], lB[1] / lB[2]];
+    const nR = [rB[0] / rB[2], rB[1] / rB[2]];
+    let focal = (0.96 * h) / (nT[1] - nB[1]);
+    let span = (nR[0] - nL[0]) * focal;
+    if (span > w * 0.94) focal *= (w * 0.9) / span;
+    view = {
+      focal,
+      ox: w * 0.5 - ((nL[0] + nR[0]) / 2) * focal,
+      oy: 0.055 * h + nT[1] * focal,
+    };
+  }
+
+  function project(x, y, z, cam) {
+    const p = raw(cam, x, y, z);
+    if (p[2] < 0.2) return null;
+    return [view.ox + (p[0] / p[2]) * view.focal, view.oy - (p[1] / p[2]) * view.focal, p[2]];
+  }
+
+  function poly(pts, cam) {
+    const out = [];
+    for (const p of pts) {
+      const q = project(p[0], p[1], p[2], cam);
+      if (!q) return null;
+      out.push(q);
+    }
+    return out;
+  }
+
+  function fill(pts, color) {
+    if (!pts) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  function place(cam) {
+    for (const win of windows) {
+      const y = (win.y0 + win.y1) / 2;
+      const p = win.face === 'L'
+        ? project((win.x0 + win.x1) / 2, y, 0, cam)
+        : project(0, y, (win.z0 + win.z1) / 2, cam);
+      win.sx = p ? p[0] : -9999;
+      win.sy = p ? p[1] : -9999;
+      win.cz = p ? p[2] : 0;
+    }
+  }
+
+  function radius() { return Math.max(w, h) * 0.34; }
+
+  function targetOf(win) {
+    if (!pointer) return 0;
+    const dist = Math.hypot(pointer.x - win.sx, pointer.y - win.sy);
+    const t = 1 - dist / radius();
+    if (t <= 0) return 0;
+    const u = Math.min(1, t * 1.25);
+    return u * u * (3 - 2 * u);
+  }
+
+  function slatAmount(win, i) {
+    const along = SLATS <= 1 ? 0 : i / (SLATS - 1);
+    const fromTop = !pointer || pointer.y <= win.sy;
+    const lead = fromTop ? along : 1 - along;
+    return clamp01(win.open * 1.34 - lead * 0.34);
+  }
+
+  function drawSky() {
+    const g = ctx.createLinearGradient(0, h, w * 0.85, 0);
+    g.addColorStop(0, '#876f93');
+    g.addColorStop(0.32, '#5c547e');
+    g.addColorStop(0.68, '#3c4674');
+    g.addColorStop(1, '#2a3d70');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  function drawShell(cam) {
+    fill(poly([[-LEFT_W, 0, -0.45], [-LEFT_W, HEIGHT, -0.45], [-LEFT_W, HEIGHT, 0], [-LEFT_W, 0, 0]], cam), '#120f16');
+    fill(poly([[-0.45, 0, -RIGHT_W], [-0.45, HEIGHT, -RIGHT_W], [0, HEIGHT, -RIGHT_W], [0, 0, -RIGHT_W]], cam), '#100e14');
+    fill(poly([[-LEFT_W, 0, 0], [-LEFT_W, HEIGHT, 0], [0, HEIGHT, 0], [0, 0, 0]], cam), '#241e28');
+    fill(poly([[0, 0, 0], [0, HEIGHT, 0], [0, HEIGHT, -RIGHT_W], [0, 0, -RIGHT_W]], cam), '#1b1720');
+    fill(poly([[-LEFT_W, HEIGHT, 0.08], [0.1, HEIGHT, 0.08], [0.1, HEIGHT, -RIGHT_W], [-LEFT_W, HEIGHT, -RIGHT_W]], cam), '#141018');
+  }
+
+  function pane(win, depth) {
+    const y0 = win.y0 + INSET_Y, y1 = win.y1 - INSET_Y;
+    if (win.face === 'L') {
+      const x0 = win.x0 + INSET_X, x1 = win.x1 - INSET_X;
+      return [[x0, y0, depth], [x1, y0, depth], [x1, y1, depth], [x0, y1, depth]];
+    }
+    const z0 = win.z0 + INSET_X, z1 = win.z1 - INSET_X;
+    return [[depth, y0, z0], [depth, y0, z1], [depth, y1, z1], [depth, y1, z0]];
+  }
+
+  function drawWindow(win, cam) {
+    const room = poly(pane(win, -0.06), cam);
+    const glass = poly(pane(win, 0), cam);
+    if (!room || !glass) return;
+    const glow = hash(win.seed);
+    fill(room, rgb(mix([176, 92, 40], [255, 214, 148], 0.28 + glow * 0.62)));
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(room[0][0], room[0][1]);
+    for (let i = 1; i < 4; i++) ctx.lineTo(room[i][0], room[i][1]);
+    ctx.closePath();
+    ctx.clip();
+    ctx.globalAlpha = 0.35 + win.open * 0.4;
+    ctx.strokeStyle = '#8a4a28';
+    ctx.lineWidth = 1;
+    const mid = (a, b, t) => a + (b - a) * t;
+    ctx.beginPath();
+    ctx.moveTo(room[0][0], mid(room[0][1], room[3][1], 0.42));
+    ctx.lineTo(room[1][0], mid(room[1][1], room[2][1], 0.42));
+    ctx.moveTo(mid(room[0][0], room[3][0], 0.55), mid(room[0][1], room[3][1], 0.08));
+    ctx.lineTo(mid(room[1][0], room[2][0], 0.55), mid(room[1][1], room[2][1], 0.08));
+    ctx.stroke();
+    ctx.restore();
+
+    const cover = 0.08 + (1 - win.open) * 0.8;
+    const sky = glow > 0.78 ? [206, 218, 232] : [148, 164, 188];
+    const grad = ctx.createLinearGradient(glass[0][0], glass[0][1], glass[2][0], glass[2][1]);
+    grad.addColorStop(0, rgb(sky, Math.min(0.96, cover + 0.08)));
+    grad.addColorStop(0.55, rgb([118, 134, 162], cover));
+    grad.addColorStop(1, rgb([78, 92, 120], cover * 0.94));
+    ctx.beginPath();
+    ctx.moveTo(glass[0][0], glass[0][1]);
+    for (let i = 1; i < 4; i++) ctx.lineTo(glass[i][0], glass[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    const yTop = win.y1 - INSET_Y;
+    const pitch = (win.y1 - win.y0 - INSET_Y * 2) / SLATS;
+    const blade = pitch * 0.74;
+    for (let i = 0; i < SLATS; i++) {
+      const amount = slatAmount(win, i);
+      const angle = CLOSED + amount * (OPEN_ANG - CLOSED);
+      const s = Math.sin(angle), c = Math.cos(angle);
+      const hingeY = yTop - i * pitch;
+      const quad = win.face === 'L'
+        ? [
+          [win.x0 + INSET_X, hingeY, 0],
+          [win.x1 - INSET_X, hingeY, 0],
+          [win.x1 - INSET_X, hingeY - c * blade, s * blade],
+          [win.x0 + INSET_X, hingeY - c * blade, s * blade],
+        ]
+        : [
+          [0, hingeY, win.z0 + INSET_X],
+          [0, hingeY, win.z1 - INSET_X],
+          [s * blade, hingeY - c * blade, win.z1 - INSET_X],
+          [s * blade, hingeY - c * blade, win.z0 + INSET_X],
+        ];
+      const pts = poly(quad, cam);
+      if (!pts) continue;
+      const metal = mix([168, 182, 204], [110, 72, 46], amount * 0.8);
+      fill(pts, rgb(mix(metal, [24, 20, 28], amount * 0.22)));
+    }
+  }
+
+  function draw() {
+    const cam = camera();
+    fit(cam);
+    place(cam);
+    drawSky();
+    drawShell(cam);
+    const order = windows.slice().sort((a, b) => b.cz - a.cz);
+    for (const win of order) drawWindow(win, cam);
+  }
+
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = Math.max(1, Math.floor(w * dpr));
+    canvas.height = Math.max(1, Math.floor(h * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (reduced) {
+      cancel();
+      for (const win of windows) win.open = HALF;
+    }
+    draw();
+  }
+
+  function cancel() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+  }
+
+  function arm() {
+    if (reduced || raf) return;
+    last = performance.now();
+    raf = requestAnimationFrame(step);
+  }
+
+  function step(now) {
+    raf = 0;
+    if (reduced) return;
+    const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
+    last = now;
+    const rad = radius();
+    let moving = false;
+    for (const win of windows) {
+      const target = targetOf(win);
+      const dist = pointer ? Math.hypot(pointer.x - win.sx, pointer.y - win.sy) : rad;
+      const near = pointer ? clamp01(1 - dist / rad) : 0;
+      const tau = 0.065 + (1 - near) * 0.58;
+      const next = win.open + (target - win.open) * (1 - Math.exp(-dt / tau));
+      if (Math.abs(next - target) > 0.004) moving = true;
+      win.open = next;
+    }
+    draw();
+    if (moving) raf = requestAnimationFrame(step);
+  }
+
+  function onPointer(e) {
+    if (reduced) return;
+    pointer = { x: e.clientX, y: e.clientY, type: e.pointerType || 'mouse' };
+    arm();
+  }
+
+  function onLeave(e) {
+    if (reduced || (e && e.pointerType === 'touch')) return;
+    pointer = null;
+    arm();
+  }
+
+  build();
+  resize();
+  window.addEventListener('resize', resize);
+  window.addEventListener('pointerdown', onPointer, { passive: true });
+  window.addEventListener('pointermove', onPointer, { passive: true });
+  window.addEventListener('pointerleave', onLeave);
+  window.addEventListener('pointercancel', onLeave);
+  motion.addEventListener('change', () => {
+    reduced = motion.matches;
+    pointer = null;
+    if (reduced) {
+      cancel();
+      for (const win of windows) win.open = HALF;
+      draw();
+    }
+  });
+})();
+</script>
+</body>
+</html>
