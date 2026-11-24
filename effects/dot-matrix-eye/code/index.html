@@ -58,7 +58,7 @@
     let upper = u * (1 - squint * 0.12);
     let lower = -b * 0.82 * (1 - squint * 0.1);
     if (cap > 0.02) {
-      const directionBlend = smoothstep(-0.18, 0.18, capDirection);
+      const directionBlend = 0.5 + 0.5 * Math.tanh(capDirection / 0.16);
       const leftBlend = smoothstep(0.2, 0.62, -nx) * cap * (1 - directionBlend);
       if (leftBlend > 0) {
         const dx = (nx + 0.58) / 0.5;
