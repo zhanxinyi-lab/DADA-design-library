@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>颗粒网格渐变卡</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f4f1f8;
+      --ink: #2a2740;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      min-height: 100vh;
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      padding: 28px 16px 32px;
+      background: var(--page);
+      color: var(--ink);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body.tone-dark { color-scheme: dark; }
+    .card {
+      position: relative;
+      width: min(72vmin, 560px, calc(100vw - 32px));
+      aspect-ratio: 1;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .labels {
+      position: absolute;
+      inset: 11% 10%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      pointer-events: none;
+      color: var(--ink);
+      font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
+      font-size: clamp(10px, 1.45vmin, 13px);
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      line-height: 1.4;
+      text-transform: uppercase;
+    }
+    .labels p { margin: 0; }
+    .labels .bottom { align-self: flex-end; }
+    .dock {
+      width: min(72vmin, 560px, calc(100vw - 32px));
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px 16px;
+    }
+    .palettes {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .palettes legend {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+    }
+    .palettes label,
+    .switch {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 0 12px;
+      border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent);
+      border-radius: 999px;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+    .palettes input,
+    .switch input {
+      position: absolute;
+      opacity: 0;
+      width: 1px;
+      height: 1px;
+    }
+    .palettes label:has(input:checked) {
+      background: var(--ink);
+      color: var(--page);
+    }
+    .palettes label:focus-within,
+    .switch:focus-within {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+    .switch { gap: 8px; }
+    .switch i {
+      width: 28px;
+      height: 16px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--ink) 22%, transparent);
+      position: relative;
+    }
+    .switch i::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--page);
+    }
+    .switch:has(input:checked) i { background: var(--ink); }
+    .switch:has(input:checked) i::after { left: 14px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <canvas id="mesh" role="img" aria-label="淡紫颗粒网格渐变"></canvas>
+    <div class="labels" id="labels">
+      <p id="label-top">Lilac veil</p>
+      <p class="bottom" id="label-bottom">Field 04</p>
+    </div>
+  </div>
+  <div class="dock">
+    <fieldset class="palettes">
+      <legend>配色</legend>
+      <label><input type="radio" name="palette" value="lilac" checked><span>淡紫</span></label>
+      <label><input type="radio" name="palette" value="coral"><span>珊瑚青</span></label>
+      <label><input type="radio" name="palette" value="orchard"><span>果园</span></label>
+      <label><input type="radio" name="palette" value="ember"><span>夜烬</span></label>
+    </fieldset>
+    <label class="switch">
+      <input type="checkbox" id="show-label" checked>
+      <i aria-hidden="true"></i>
+      <span>细字</span>
+    </label>
+  </div>
+  <script>
+    'use strict';
+    var PRESETS = {
+      lilac: {
+        page: '#f3f0f8',
+        ink: '#2a2740',
+        dark: false,
+        radius: 0.16,
+        feather: 0.045,
+        drift: 0.046,
+        grain: 0.088,
+        pool: 0,
+        top: 'Lilac veil',
+        bottom: 'Field 04',
+        base: '#e6e1f6',
+        blobs: [
+          { x: 0.50, y: 0.48, r: 0.46, phase: 1.1, color: '#ebe4fb' },
+          { x: 0.26, y: 0.46, r: 0.34, phase: 0.4, color: '#6d88ee' },
+          { x: 0.42, y: 0.70, r: 0.32, phase: 2.1, color: '#8d78e4' },
+          { x: 0.74, y: 0.34, r: 0.30, phase: 2.9, color: '#c5d2fb' },
+          { x: 0.60, y: 0.58, r: 0.28, phase: 4.3, color: '#b49af4' }
+        ]
+      },
+      coral: {
+        page: '#ece6e3',
+        ink: '#3d2430',
+        dark: false,
+        radius: 0.055,
+        feather: 0.016,
+        drift: 0.03,
+        grain: 0.072,
+        pool: 0,
+        top: 'Coral shear',
+        bottom: 'Layer 02',
+        base: '#fbf6f4',
+        blobs: [
+          { x: 0.30, y: 0.18, r: 0.30, phase: 0.6, color: '#e56b86' },
+          { x: 0.70, y: 0.22, r: 0.26, phase: 1.8, color: '#f4b0c0' },
+          { x: 0.50, y: 0.46, r: 0.20, phase: 2.4, color: '#f8e6e2' },
+          { x: 0.32, y: 0.82, r: 0.28, phase: 3.3, color: '#49b4c8' },
+          { x: 0.70, y: 0.76, r: 0.24, phase: 4.6, color: '#8ed4e4' }
+        ]
+      },
+      orchard: {
+        page: '#efe4d6',
+        ink: '#3a261c',
+        dark: false,
+        radius: 0.05,
+        feather: 0.016,
+        drift: 0.026,
+        grain: 0.068,
+        pool: 0.72,
+        top: 'Orchard haze',
+        bottom: 'Plot 07',
+        base: '#f8f1e6',
+        blobs: [
+          { x: 0.36, y: 0.78, r: 0.30, phase: 1.6, color: '#f0a36e' },
+          { x: 0.64, y: 0.86, r: 0.26, phase: 2.7, color: '#e15d70' },
+          { x: 0.28, y: 0.92, r: 0.22, phase: 0.8, color: '#f6c7a4' },
+          { x: 0.52, y: 0.66, r: 0.22, phase: 3.5, color: '#f6d3b4' },
+          { x: 0.48, y: 0.96, r: 0.20, phase: 4.8, color: '#c56d62' }
+        ]
+      },
+      ember: {
+        page: '#12110f',
+        ink: '#f4efe6',
+        dark: true,
+        radius: 0.05,
+        feather: 0.018,
+        drift: 0.028,
+        grain: 0.085,
+        pool: 1,
+        top: 'Ember floor',
+        bottom: 'Band 03',
+        base: '#070707',
+        blobs: [
+          { x: 0.38, y: 0.88, r: 0.28, phase: 0.5, color: '#ff8633' },
+          { x: 0.68, y: 0.82, r: 0.26, phase: 1.7, color: '#7ea344' },
+          { x: 0.26, y: 0.76, r: 0.20, phase: 2.6, color: '#f2c14e' },
+          { x: 0.52, y: 0.96, r: 0.24, phase: 3.4, color: '#d24622' },
+          { x: 0.58, y: 0.70, r: 0.18, phase: 4.5, color: '#c4622e' }
+        ]
+      }
+    };
+
+    var canvas = document.getElementById('mesh');
+    var labelBox = document.getElementById('labels');
+    var labelTop = document.getElementById('label-top');
+    var labelBottom = document.getElementById('label-bottom');
+    var motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+    var reduced = motionQuery.matches;
+    var raf = 0;
+    var started = performance.now();
+    var mixFrom = clone(PRESETS.lilac);
+    var mixTo = clone(PRESETS.lilac);
+    var mixAt = started - 600;
+    var activeId = 'lilac';
+
+    function hex(value) {
+      var n = parseInt(value.slice(1), 16);
+      return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+    }
+    function clone(preset) {
+      return {
+        page: preset.page,
+        ink: preset.ink,
+        dark: preset.dark,
+        radius: preset.radius,
+        feather: preset.feather,
+        drift: preset.drift,
+        grain: preset.grain,
+        pool: preset.pool,
+        top: preset.top,
+        bottom: preset.bottom,
+        base: hex(preset.base),
+        blobs: preset.blobs.map(function (blob) {
+          return { x: blob.x, y: blob.y, r: blob.r, phase: blob.phase, color: hex(blob.color) };
+        })
+      };
+    }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function lerp3(a, b, t) {
+      return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+    }
+    function blend(t) {
+      var blobs = [];
+      for (var i = 0; i < mixFrom.blobs.length; i++) {
+        var a = mixFrom.blobs[i];
+        var b = mixTo.blobs[i];
+        blobs.push({
+          x: lerp(a.x, b.x, t),
+          y: lerp(a.y, b.y, t),
+          r: lerp(a.r, b.r, t),
+          phase: lerp(a.phase, b.phase, t),
+          color: lerp3(a.color, b.color, t)
+        });
+      }
+      return {
+        radius: lerp(mixFrom.radius, mixTo.radius, t),
+        feather: lerp(mixFrom.feather, mixTo.feather, t),
+        drift: lerp(mixFrom.drift, mixTo.drift, t),
+        grain: lerp(mixFrom.grain, mixTo.grain, t),
+        pool: lerp(mixFrom.pool, mixTo.pool, t),
+        base: lerp3(mixFrom.base, mixTo.base, t),
+        blobs: blobs
+      };
+    }
+    function ease(t) { return t * t * (3 - 2 * t); }
+    function applyChrome(preset) {
+      document.documentElement.style.setProperty('--page', preset.page);
+      document.documentElement.style.setProperty('--ink', preset.ink);
+      document.body.classList.toggle('tone-dark', preset.dark);
+      labelTop.textContent = preset.top;
+      labelBottom.textContent = preset.bottom;
+      canvas.setAttribute('aria-label', preset.top + ' 颗粒网格渐变');
+    }
+    function select(id) {
+      if (!PRESETS[id] || id === activeId) return;
+      var now = performance.now();
+      var t = ease(Math.min(1, (now - mixAt) / 520));
+      mixFrom = blend(t);
+      mixTo = clone(PRESETS[id]);
+      mixAt = now;
+      activeId = id;
+      applyChrome(PRESETS[id]);
+      kick();
+    }
+
+    var gl = null;
+    var program = null;
+    var loc = {};
+    var mode = 'gl';
+
+    var VERT = [
+      'attribute vec2 aPos;',
+      'void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }'
+    ].join('\n');
+    var FRAG = [
+      'precision mediump float;',
+      'uniform vec2 uRes;',
+      'uniform float uTime;',
+      'uniform float uSeed;',
+      'uniform float uRadius;',
+      'uniform float uFeather;',
+      'uniform float uDrift;',
+      'uniform float uGrain;',
+      'uniform float uPool;',
+      'uniform vec3 uBase;',
+      'uniform vec3 uB0; uniform vec3 uB1; uniform vec3 uB2; uniform vec3 uB3; uniform vec3 uB4;',
+      'uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;',
+      'uniform float uP0; uniform float uP1; uniform float uP2; uniform float uP3; uniform float uP4;',
+      'float hash(vec2 p){',
+      '  vec3 p3 = fract(vec3(p.xyx) * 0.1031);',
+      '  p3 += dot(p3, p3.yzx + 33.33);',
+      '  return fract((p3.x + p3.y) * p3.z);',
+      '}',
+      'vec4 blob(vec2 p, vec3 b, float phase, vec3 color){',
+      '  vec2 c = b.xy + uDrift * vec2(sin(uTime * 0.09 + phase), cos(uTime * 0.07 + phase * 1.37));',
+      '  vec2 d = p - c;',
+      '  float rad = max(b.z, 0.05);',
+      '  float w = exp(-dot(d, d) / (rad * rad * 0.55));',
+      '  w *= mix(1.0, smoothstep(0.08, 0.92, p.y), uPool);',
+      '  return vec4(color * w, w);',
+      '}',
+      'float roundBox(vec2 p, float radius){',
+      '  vec2 box = vec2(0.5 - uFeather * 0.35);',
+      '  vec2 q = abs(p) - box + radius;',
+      '  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;',
+      '}',
+      'void main(){',
+      '  vec2 uv = vec2(gl_FragCoord.x / uRes.x, 1.0 - gl_FragCoord.y / uRes.y);',
+      '  vec2 p = uv + 0.045 * vec2(sin(uv.y * 3.4 + uTime * 0.12), cos(uv.x * 3.1 - uTime * 0.10));',
+      '  vec4 s = blob(p, uB0, uP0, uC0) + blob(p, uB1, uP1, uC1) + blob(p, uB2, uP2, uC2)',
+      '    + blob(p, uB3, uP3, uC3) + blob(p, uB4, uP4, uC4);',
+      '  vec3 mixed = s.rgb / max(s.a, 0.0001);',
+      '  float cover = clamp(s.a * 0.85, 0.0, 1.0);',
+      '  vec3 col = mix(uBase, mixed, cover);',
+      '  float n = hash(gl_FragCoord.xy + vec2(uSeed, uSeed * 1.7)) - 0.5;',
+      '  float luma = dot(col, vec3(0.299, 0.587, 0.114));',
+      '  float mid = smoothstep(0.02, 0.35, luma) * (1.0 - smoothstep(0.72, 1.0, luma));',
+      '  col = clamp(col + n * uGrain * (0.45 + mid), 0.0, 1.0);',
+      '  float dist = roundBox(uv - 0.5, uRadius);',
+      '  float alpha = 1.0 - smoothstep(-uFeather, uFeather * 0.35, dist);',
+      '  gl_FragColor = vec4(col * alpha, alpha);',
+      '}',
+    ].join('\n');
+
+    function compile(type, source) {
+      var shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    }
+    function bootGL() {
+      gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false });
+      if (!gl) return false;
+      var vs = compile(gl.VERTEX_SHADER, VERT);
+      var fs = compile(gl.FRAGMENT_SHADER, FRAG);
+      if (!vs || !fs) return false;
+      program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.bindAttribLocation(program, 0, 'aPos');
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return false;
+      var names = ['uRes', 'uTime', 'uSeed', 'uRadius', 'uFeather', 'uDrift', 'uGrain', 'uPool', 'uBase'];
+      for (var i = 0; i < 5; i++) names.push('uB' + i, 'uC' + i, 'uP' + i);
+      names.forEach(function (name) { loc[name] = gl.getUniformLocation(program, name); });
+      var buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.disable(gl.BLEND);
+      gl.clearColor(0, 0, 0, 0);
+      return true;
+    }
+    function upload(view, time, seed) {
+      gl.useProgram(program);
+      gl.uniform2f(loc.uRes, canvas.width, canvas.height);
+      gl.uniform1f(loc.uTime, time);
+      gl.uniform1f(loc.uSeed, seed);
+      gl.uniform1f(loc.uRadius, view.radius);
+      gl.uniform1f(loc.uFeather, view.feather);
+      gl.uniform1f(loc.uDrift, view.drift);
+      gl.uniform1f(loc.uGrain, view.grain);
+      gl.uniform1f(loc.uPool, view.pool);
+      gl.uniform3fv(loc.uBase, view.base);
+      for (var i = 0; i < 5; i++) {
+        var blob = view.blobs[i];
+        gl.uniform3f(loc['uB' + i], blob.x, blob.y, blob.r);
+        gl.uniform3fv(loc['uC' + i], blob.color);
+        gl.uniform1f(loc['uP' + i], blob.phase);
+      }
+    }
+    function drawGL(view, time, seed) {
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      upload(view, time, seed);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    var ctx = null;
+    var noise = null;
+    function boot2d() {
+      mode = '2d';
+      ctx = canvas.getContext('2d');
+      noise = document.createElement('canvas');
+      noise.width = 128;
+      noise.height = 128;
+      var g = noise.getContext('2d');
+      var image = g.createImageData(128, 128);
+      for (var i = 0; i < image.data.length; i += 4) {
+        var v = 118 + Math.floor(Math.random() * 40);
+        image.data[i] = image.data[i + 1] = image.data[i + 2] = v;
+        image.data[i + 3] = 255;
+      }
+      g.putImageData(image, 0, 0);
+    }
+    function rgb(c, a) {
+      return 'rgba(' + Math.round(c[0] * 255) + ',' + Math.round(c[1] * 255) + ',' + Math.round(c[2] * 255) + ',' + a + ')';
+    }
+    function draw2d(view, time, seed) {
+      var w = canvas.width;
+      var h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.save();
+      var feather = view.feather * Math.min(w, h);
+      var radius = Math.min(view.radius * Math.min(w, h), w / 2, h / 2);
+      var inset = feather * 0.35;
+      var x = inset;
+      var y = inset;
+      var rw = w - inset * 2;
+      var rh = h - inset * 2;
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + rw, y, x + rw, y + rh, radius);
+      ctx.arcTo(x + rw, y + rh, x, y + rh, radius);
+      ctx.arcTo(x, y + rh, x, y, radius);
+      ctx.arcTo(x, y, x + rw, y, radius);
+      ctx.closePath();
+      ctx.clip();
+      ctx.fillStyle = rgb(view.base, 1);
+      ctx.fillRect(0, 0, w, h);
+      for (var i = 0; i < view.blobs.length; i++) {
+        var blob = view.blobs[i];
+        var x = (blob.x + view.drift * Math.sin(time * 0.09 + blob.phase)) * w;
+        var y = (blob.y + view.drift * Math.cos(time * 0.07 + blob.phase * 1.37)) * h;
+        var rad = Math.max(blob.r, 0.05) * Math.min(w, h) * 0.62;
+        var bias = 1 - view.pool + view.pool * Math.min(1, Math.max(0, (y / h - 0.08) / 0.84));
+        var grad = ctx.createRadialGradient(x, y, 0, x, y, rad);
+        grad.addColorStop(0, rgb(blob.color, 0.92 * bias));
+        grad.addColorStop(1, rgb(blob.color, 0));
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+      }
+      ctx.globalAlpha = Math.min(0.55, view.grain * 1.6);
+      var shift = (seed % 96) - 48;
+      ctx.drawImage(noise, shift, shift, w, h);
+      ctx.restore();
+    }
+
+    function resize() {
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+      var h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    }
+    function render(now) {
+      if (!canvas.clientWidth) return;
+      resize();
+      var t = ease(Math.min(1, (now - mixAt) / 520));
+      var view = blend(reduced ? 1 : t);
+      var time = reduced ? 4.2 : (now - started) / 1000;
+      var seed = reduced ? 7 : Math.floor(time * 10);
+      if (mode === 'gl') drawGL(view, time, seed);
+      else draw2d(view, time, seed);
+    }
+    function loop(now) {
+      render(now);
+      var mixing = (now - mixAt) < 520;
+      if (!reduced && document.visibilityState === 'visible') raf = requestAnimationFrame(loop);
+      else if (mixing) raf = requestAnimationFrame(loop);
+      else raf = 0;
+    }
+    function kick() {
+      if (raf) return;
+      raf = requestAnimationFrame(loop);
+    }
+    function syncMotion() {
+      reduced = motionQuery.matches;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      kick();
+    }
+
+    function resetCanvas() {
+      var next = canvas.cloneNode(false);
+      canvas.replaceWith(next);
+      canvas = next;
+      gl = null;
+    }
+    try {
+      if (!bootGL()) {
+        if (gl) resetCanvas();
+        boot2d();
+      }
+    } catch (error) {
+      if (gl) resetCanvas();
+      boot2d();
+    }
+    var initial = new URLSearchParams(location.search).get('palette');
+    if (PRESETS[initial]) {
+      mixFrom = clone(PRESETS[initial]);
+      mixTo = mixFrom;
+      mixAt = performance.now() - 600;
+      activeId = initial;
+      var initialInput = document.querySelector('input[name="palette"][value="' + initial + '"]');
+      if (initialInput) initialInput.checked = true;
+    }
+    applyChrome(PRESETS[activeId]);
+    document.querySelector('.palettes').addEventListener('change', function (event) {
+      if (event.target && event.target.name === 'palette') select(event.target.value);
+    });
+    document.getElementById('show-label').addEventListener('change', function (event) {
+      labelBox.hidden = !event.target.checked;
+    });
+    motionQuery.addEventListener('change', syncMotion);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') kick();
+    });
+    window.addEventListener('resize', kick);
+    kick();
+  </script>
+</body>
+</html>
