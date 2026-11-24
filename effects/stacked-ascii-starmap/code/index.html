@@ -118,6 +118,7 @@
   var buf = [];
   var reduced = motion.matches;
   var raf = 0;
+  var resizeRaf = 0;
   var origin = 0;
   var shown = 0;
   var sprites = BODIES.map(parseSprite);
@@ -490,6 +491,11 @@
 
   function loop(now) {
     if (reduced) return;
+    if (resizeRaf) {
+      window.cancelAnimationFrame(resizeRaf);
+      resizeRaf = 0;
+      fit();
+    }
     draw((now - origin) / 1000);
     raf = window.requestAnimationFrame(loop);
   }
@@ -497,6 +503,8 @@
   function boot() {
     if (raf) window.cancelAnimationFrame(raf);
     raf = 0;
+    if (resizeRaf) window.cancelAnimationFrame(resizeRaf);
+    resizeRaf = 0;
     reduced = motion.matches;
     fit();
     if (reduced) {
@@ -509,8 +517,12 @@
 
   if (motion.addEventListener) motion.addEventListener("change", boot);
   window.addEventListener("resize", function () {
-    fit();
-    draw(reduced ? HOLD : shown);
+    if (resizeRaf) window.cancelAnimationFrame(resizeRaf);
+    resizeRaf = window.requestAnimationFrame(function () {
+      resizeRaf = 0;
+      fit();
+      if (reduced || !raf) draw(reduced ? HOLD : shown);
+    });
   });
   boot();
 })();
