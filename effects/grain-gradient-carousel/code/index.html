@@ -129,7 +129,7 @@
   var dragMoved = false;
   var lastX = 0;
   var anim = null;
-  var shown = -1;
+  var shown = 0;
   var stageScale = 1;
   var dpr = 1;
   var ticking = false;
@@ -605,6 +605,7 @@
       if (!autoplay || !reduced) return;
       pos = Math.round(pos) + 1;
       elapsed = pos * PERIOD;
+      announceIndex(pos);
       draw();
       armBeat();
     }, wait);
@@ -678,6 +679,7 @@
     } else if (!dragging && autoplay && !reduced) {
       elapsed += dt;
       pos = posAt(elapsed);
+      announceIndex(pos);
     }
     draw();
     if (needsFrame()) {
