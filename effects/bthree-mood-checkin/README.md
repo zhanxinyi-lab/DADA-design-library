@@ -5,7 +5,7 @@
 - 状态：video_recreated
 - 原文：https://x.com/BThreeAgency/status/2120884210991050818
 - 素材 ID：2120884210991050818
-- 版本：1.0.1
+- 版本：1.0.2
 
 ## 复刻说明
 

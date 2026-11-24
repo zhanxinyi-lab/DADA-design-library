@@ -265,10 +265,11 @@
       transform: none;
       pointer-events: auto;
     }
-    .is-noted .ask, .is-noted .words, .is-noted .deck {
+    .is-noted .ask, .is-noted .words {
       opacity: 0;
       pointer-events: none;
     }
+    .is-noted .deck { opacity: 0; }
     .is-noted .face { transform: translate(-50%, 8%); }
     .ask, .words, .deck, .noted, .face {
       transition: opacity 680ms cubic-bezier(.22, 1, .36, 1), transform 680ms cubic-bezier(.22, 1, .36, 1);
@@ -341,7 +342,7 @@
         <p class="hint" id="hint">Tap the mood to select it</p>
         <div class="deck" id="deck" role="radiogroup" aria-label="How are you feeling right now?" aria-describedby="keys"></div>
         <div class="noted" id="noted">
-          <p class="noted-mood" id="noted-mood">OKAY</p>
+          <p class="noted-mood" id="noted-mood" aria-hidden="true">OKAY</p>
           <h2>Noted, gently.</h2>
         </div>
         <div class="home" aria-hidden="true"></div>
@@ -397,6 +398,7 @@
     let dragged = false;
     let suppressClick = false;
     let pointerId = null;
+    let captureEl = null;
     let originX = 0;
     let originPos = 1;
     let anim = null;
@@ -509,10 +511,11 @@
       if (anim) cancelAnimationFrame(anim);
       anim = null;
       dragging = false;
-      if (pointerId !== null) {
-        try { deck.releasePointerCapture(pointerId); } catch (err) { void err; }
-        pointerId = null;
+      if (pointerId !== null && captureEl) {
+        try { captureEl.releasePointerCapture(pointerId); } catch (err) { void err; }
       }
+      pointerId = null;
+      captureEl = null;
     }
     function startAnim(target) {
       stopAnim();
@@ -555,21 +558,25 @@
       while (pos - target > N / 2) target += N;
       return target;
     }
+    function focusIntent() {
+      const btn = cards[intent].btn;
+      btn.tabIndex = 0;
+      btn.focus();
+    }
     function confirmMood() {
-      if (noted) return;
       stopAnim();
       pos = intent;
       thumb = 0;
-      apply();
       const mood = moods[intent];
       noted = true;
       notedMood.textContent = mood.label;
       screen.classList.add("is-noted");
       back.disabled = false;
       back.setAttribute("aria-label", "Change this check-in");
-      deck.setAttribute("inert", "");
+      deck.removeAttribute("inert");
+      apply();
       say("Noted, gently. " + mood.label);
-      back.focus();
+      focusIntent();
     }
     function reopen() {
       if (!noted) return;
@@ -578,14 +585,18 @@
       back.disabled = true;
       back.setAttribute("aria-label", "Back");
       deck.removeAttribute("inert");
-      cards[currentIndex()].btn.focus();
-      say(moods[currentIndex()].label);
+      apply();
+      focusIntent();
+      say(moods[intent].label);
     }
     deck.addEventListener("pointerdown", (event) => {
       if (noted || event.button !== 0) return;
+      const held = event.target.closest("button");
+      if (!held) return;
       stopAnim();
       pointerId = event.pointerId;
-      deck.setPointerCapture(event.pointerId);
+      captureEl = held;
+      held.setPointerCapture(event.pointerId);
       originX = event.clientX;
       originPos = pos;
       dragged = false;
@@ -613,7 +624,7 @@
     deck.addEventListener("pointerup", endDrag);
     deck.addEventListener("pointercancel", endDrag);
     deck.addEventListener("click", (event) => {
-      const btn = event.target.closest("button");
+      const btn = event.target.closest("button") || document.elementFromPoint(event.clientX, event.clientY)?.closest("button");
       if (!btn) return;
       if (suppressClick) {
         suppressClick = false;
@@ -621,6 +632,15 @@
         return;
       }
       const index = Number(btn.dataset.i);
+      if (noted) {
+        if (index === intent) confirmMood();
+        else {
+          reopen();
+          go(index);
+          cards[mod(index)].btn.focus();
+        }
+        return;
+      }
       if (index === intent) confirmMood();
       else go(index);
     });
