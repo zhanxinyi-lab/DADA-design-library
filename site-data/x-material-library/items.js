@@ -33,7 +33,6 @@ window.ITEMS=[
     "code_snippets": [],
     "images": [
       "assets/2123710849655194024/poster0.jpg",
-      "assets/2123710849655194024/img1.jpg",
       "assets/2123710849655194024/img2.jpg",
       "assets/2123710849655194024/img3.jpg"
     ],
@@ -82,7 +81,6 @@ window.ITEMS=[
     "code_snippets": [],
     "images": [
       "assets/2123437162821763476/poster0.jpg",
-      "assets/2123437162821763476/img1.jpg",
       "assets/2123437162821763476/img2.jpg"
     ],
     "poster": "assets/2123437162821763476/poster0.jpg",
@@ -130,7 +128,6 @@ window.ITEMS=[
     "code_snippets": [],
     "images": [
       "assets/2123435129108615337/poster0.jpg",
-      "assets/2123435129108615337/img1.jpg",
       "assets/2123435129108615337/img2.jpg",
       "assets/2123435129108615337/img3.jpg"
     ],
@@ -181,7 +178,6 @@ window.ITEMS=[
     "code_snippets": [],
     "images": [
       "assets/2123426877734031774/poster0.jpg",
-      "assets/2123426877734031774/img1.jpg",
       "assets/2123426877734031774/img2.jpg"
     ],
     "poster": "assets/2123426877734031774/poster0.jpg",
@@ -230,7 +226,6 @@ window.ITEMS=[
     "code_snippets": [],
     "images": [
       "assets/2123418601713762583/poster0.jpg",
-      "assets/2123418601713762583/img1.jpg",
       "assets/2123418601713762583/img2.jpg",
       "assets/2123418601713762583/img3.jpg",
       "assets/2123418601713762583/img4.jpg"
@@ -283,7 +278,6 @@ window.ITEMS=[
     "code_snippets": [],
     "images": [
       "assets/2123334184257089803/poster0.jpg",
-      "assets/2123334184257089803/img1.jpg",
       "assets/2123334184257089803/img2.jpg",
       "assets/2123334184257089803/img3.jpg"
     ],
@@ -332,7 +326,6 @@ window.ITEMS=[
     "code_snippets": [],
     "images": [
       "assets/2123162803578282372/poster0.jpg",
-      "assets/2123162803578282372/img1.jpg",
       "assets/2123162803578282372/img2.jpg",
       "assets/2123162803578282372/img3.jpg"
     ],
@@ -380,8 +373,7 @@ window.ITEMS=[
     "code_links": [],
     "code_snippets": [],
     "images": [
-      "assets/2123079833278423065/poster0.jpg",
-      "assets/2123079833278423065/img1.jpg"
+      "assets/2123079833278423065/poster0.jpg"
     ],
     "poster": "assets/2123079833278423065/poster0.jpg",
     "video": "assets/2123079833278423065/preview.mp4",
@@ -428,7 +420,6 @@ window.ITEMS=[
     "code_snippets": [],
     "images": [
       "assets/2123029498694410401/poster0.jpg",
-      "assets/2123029498694410401/img1.jpg",
       "assets/2123029498694410401/img2.jpg"
     ],
     "poster": "assets/2123029498694410401/poster0.jpg",
@@ -476,8 +467,7 @@ window.ITEMS=[
     "code_links": [],
     "code_snippets": [],
     "images": [
-      "assets/2122234333247553965/poster0.jpg",
-      "assets/2122234333247553965/img1.jpg"
+      "assets/2122234333247553965/poster0.jpg"
     ],
     "poster": "assets/2122234333247553965/poster0.jpg",
     "video": "assets/2122234333247553965/preview.mp4",
@@ -5143,8 +5133,7 @@ window.ITEMS=[
     "code_links": [],
     "code_snippets": [],
     "images": [
-      "assets/1521133894665670656/poster0.jpg",
-      "assets/1521133894665670656/img1.jpg"
+      "assets/1521133894665670656/poster0.jpg"
     ],
     "poster": "assets/1521133894665670656/poster0.jpg",
     "video": "assets/1521133894665670656/preview.mp4",
