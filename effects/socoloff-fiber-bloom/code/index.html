@@ -354,7 +354,7 @@
         ctx.strokeStyle = grad;
         ctx.globalAlpha = clamp(state.opacity * state.exposure * fiber.veil * (soft ? 0.55 : 0.9), 0, 0.9);
         ctx.lineWidth = soft
-          ? clamp(fiber.girth * 2.1, 1.1, 3.2)
+          ? clamp(fiber.girth * 2.4, 1.6, 3.6)
           : clamp(fiber.girth * 0.85, 0.55, 1.45);
         strokeFiber(g);
       }
@@ -365,9 +365,8 @@
         ctx.lineJoin = 'round';
         drawPetalFills(state, localT);
         drawCore(state);
-        ctx.filter = 'blur(1.1px)';
-        for (let index = 0; index < count; index += 1) drawFiber(fibers[index], localT, state, true);
         ctx.filter = 'none';
+        for (let index = 0; index < count; index += 1) drawFiber(fibers[index], localT, state, true);
         for (let index = 0; index < count; index += 1) drawFiber(fibers[index], localT, state, false);
         ctx.filter = 'none';
         ctx.globalCompositeOperation = 'source-over';

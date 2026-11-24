@@ -5,7 +5,7 @@
 - 状态：video_recreated
 - 原文：https://x.com/socoloffalex/status/2119148990671245408
 - 素材 ID：2119148990671245408
-- 版本：1.0.0
+- 版本：1.0.1
 
 ## 复刻说明
 
