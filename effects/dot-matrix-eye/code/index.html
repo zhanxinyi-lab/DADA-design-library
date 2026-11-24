@@ -47,18 +47,33 @@
     const cy = cssH * 0.52;
     const eyeW = Math.max(168, Math.min(cssW * (0.5 + 0.08 * narrow), cssH * 0.5));
     const eyeRx = eyeW * 0.5;
-    const eyeRy = eyeRx * 0.46;
+    const eyeRy = eyeRx * 0.56;
     const cell = Math.max(4, Math.round(eyeW / 72));
     return { cx, cy, eyeRx, eyeRy, cell, eyeW, narrow };
   }
 
-  function lids(nx, squint) {
-    const u = Math.pow(Math.max(0, 1 - nx * nx), 0.66);
-    const b = Math.pow(Math.max(0, 1 - nx * nx), 0.96);
-    return {
-      upper: u * (1 - squint * 0.46),
-      lower: -b * 0.7 * (1 - squint * 0.4)
-    };
+  function lids(nx, squint, cap = 0, capSign = 1) {
+    const u = Math.pow(Math.max(0, 1 - nx * nx), 0.62);
+    const b = Math.pow(Math.max(0, 1 - nx * nx), 0.9);
+    let upper = u * (1 - squint * 0.22);
+    let lower = -b * 0.76 * (1 - squint * 0.18);
+    if (cap > 0.02) {
+      const side = nx * capSign;
+      const blend = smoothstep(0.2, 0.62, side) * cap;
+      if (blend > 0) {
+        const ax = 0.58 * capSign;
+        const rx = 0.5;
+        const ry = 0.78 * (1 - squint * 0.12);
+        const dx = (nx - ax) / rx;
+        const room = 1 - dx * dx;
+        if (room > 0) {
+          const half = Math.sqrt(room) * ry;
+          upper = upper * (1 - blend) + half * blend;
+          lower = lower * (1 - blend) + (-half * 0.92) * blend;
+        }
+      }
+    }
+    return { upper, lower };
   }
 
   function browInfo(nx) {
@@ -81,18 +96,13 @@
   function deformOutPoint(nx, ny, L, pose) {
     const rest = restOf(nx, ny, L);
     if (pose.pull <= 0.001) return rest;
-    const dx = pose.px - rest.x;
-    const dy = pose.py - rest.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const align = clamp(nx * pose.gx + (-ny) * pose.gy, 0, 1);
-    const rim = clamp(Math.hypot(nx, ny / 0.68), 0, 1);
-    const reach = Math.pow(align, 0.72) * Math.pow(rim, 0.62);
-    const mag = pose.pull * reach * L.eyeRx * 0.36;
-    const pinch = 1 - 0.75 * Math.pow(rim, 1.5) * Math.pow(align, 0.85);
-    return {
-      x: rest.x + (dx / dist) * mag,
-      y: rest.y + (dy / dist) * mag * pinch
-    };
+    const glen = Math.hypot(pose.gx, pose.gy) || 1;
+    const ux = pose.gx / glen;
+    const uy = pose.gy / glen;
+    const proj = (nx * L.eyeRx * ux + (-ny) * L.eyeRy * uy) / L.eyeRx;
+    const along = smoothstep(0.05, 0.48, proj);
+    const stretch = pose.pull * along * L.eyeRx * 0.2;
+    return { x: rest.x + ux * stretch, y: rest.y + uy * stretch };
   }
 
   function deformIn(sx, sy, L, pose) {
@@ -156,10 +166,10 @@
     const dead = L.eyeRx * 0.028;
     const gazeBlend = smoothstep(dead, dead * 2.4, pDist);
     state.tx = clamp((dx / (L.eyeRx * 1.15)) * gazeBlend, -1, 1);
-    state.ty = clamp((dy / (L.eyeRy * 2.5)) * gazeBlend, -1, 1);
+    state.ty = clamp((dy / (L.eyeRx * 1.15)) * gazeBlend, -1, 1);
     const rim = Math.exp(-Math.pow((pDist / L.eyeRx - 1.0) / 0.55, 2));
     const onRim = 1 - smoothstep(1.2, 2.6, Math.abs(dy) / L.eyeRy);
-    state.ts = rim * onRim * 0.72;
+    state.ts = rim * onRim * 0.12;
     const rise = smoothstep(L.eyeRx * 0.62, L.eyeRx * 1.08, pDist);
     const fade = 1 - smoothstep(L.eyeRx * 1.25, L.eyeRx * 2.8, pDist);
     state.tp = rise * (0.32 + 0.68 * fade);
@@ -230,8 +240,10 @@
         const h = hash(ix, iy);
         const back = deformIn(x + cell * 0.5, y + cell * 0.5, L, pose);
         const loc = localOf(back.x, back.y, L);
-        const lid = lids(loc.nx, pose.squint);
-        const inEye = loc.nx >= -1 && loc.nx <= 1 && loc.ny <= lid.upper && loc.ny >= lid.lower;
+        const capSign = pose.gx >= 0 ? 1 : -1;
+        const lid = lids(loc.nx, pose.squint, pose.pull, capSign);
+        const nxLimit = 1 + pose.pull * 0.12;
+        const inEye = loc.nx >= -nxLimit && loc.nx <= nxLimit && loc.ny <= lid.upper && loc.ny >= lid.lower;
         if (!inEye) continue;
         const sx = (loc.nx - pose.gazeNx) * L.eyeRx;
         const sy = (loc.ny - pose.gazeNy) * L.eyeRy;
