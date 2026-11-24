@@ -184,9 +184,20 @@
     return program;
   }
 
+  function replaceCanvas() {
+    var next = document.createElement("canvas");
+    next.id = "c";
+    next.setAttribute("role", "img");
+    next.setAttribute("aria-label", canvas.getAttribute("aria-label") || "");
+    canvas.replaceWith(next);
+    canvas = next;
+  }
+
+  var glBound = false;
   function bootGL(target) {
     var context = target.getContext("webgl", glOpts);
     if (!context) return false;
+    glBound = true;
     var program = linkProgram(context);
     if (!program) return false;
     var buffer = context.createBuffer();
@@ -200,34 +211,8 @@
     loc.uRes = context.getUniformLocation(program, "uRes");
     loc.uTime = context.getUniformLocation(program, "uTime");
     return true;
-  }
-
-  function releaseContext(context) {
-    var lose = context.getExtension("WEBGL_lose_context");
-    if (lose) lose.loseContext();
-  }
-
-  function replaceCanvas() {
-    var next = document.createElement("canvas");
-    next.id = "c";
-    next.setAttribute("role", "img");
-    next.setAttribute("aria-label", canvas.getAttribute("aria-label") || "");
-    canvas.replaceWith(next);
-    canvas = next;
-  }
-
-  var probe = document.createElement("canvas");
-  var probeGl = probe.getContext("webgl", glOpts);
-  var probeOk = false;
-  if (probeGl) {
-    var probeProgram = linkProgram(probeGl);
-    if (probeProgram) {
-      probeOk = true;
-      probeGl.deleteProgram(probeProgram);
-    }
-    releaseContext(probeGl);
-  }
-  if (probeOk && !bootGL(canvas)) replaceCanvas();
+  };
+  if (!bootGL(canvas) && glBound) replaceCanvas();
 
   var ctx2d = null;
   var layer = null;
