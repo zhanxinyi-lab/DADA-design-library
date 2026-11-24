@@ -313,7 +313,7 @@
           HASH,
           "float tongue(vec2 uv, float x, float w, float h){",
           "  float dx = exp(-pow((uv.x - x) / w, 2.0));",
-          "  float dy = smoothstep(h, -0.02, uv.y);",
+          "  float dy = 1.0 - smoothstep(-0.02, h, uv.y);",
           "  float hot = exp(-pow(uv.y / max(h * 0.42, 0.05), 2.0));",
           "  return dx * dy * (0.42 + 0.58 * hot);",
           "}",
@@ -335,7 +335,7 @@
           "  vec3 midC = mix(cream, sand, smoothstep(0.2, 0.7, x));",
           "  midC = mix(midC, pale, smoothstep(0.72, 1.0, x));",
           "  float lift = tongue(uv, 0.18 + slide, 0.20, 0.42 + sin(t * 0.27) * 0.03);",
-          "  float midBand = smoothstep(0.40, 0.10, uv.y) * fingers;",
+          "  float midBand = (1.0 - smoothstep(0.10, 0.40, uv.y)) * fingers;",
           "  float hot = 1.0 - smoothstep(0.055, 0.16, uv.y);",
           "  vec3 col = vec3(1.0);",
           "  col = mix(col, midC, clamp(midBand, 0.0, 1.0));",
@@ -353,7 +353,7 @@
           HASH,
           "float tongue(vec2 uv, float x, float w, float h){",
           "  float dx = exp(-pow((uv.x - x) / w, 2.0));",
-          "  float dy = smoothstep(h, -0.04, uv.y);",
+          "  float dy = 1.0 - smoothstep(-0.04, h, uv.y);",
           "  float hot = exp(-pow(uv.y / max(h * 0.38, 0.04), 2.0));",
           "  return dx * dy * (0.35 + 0.65 * hot);",
           "}",
@@ -434,19 +434,29 @@
         if (ext) ext.loseContext();
       }
 
-      function probe(fragSrc) {
+      function probe(fragSrc, host) {
         var test = document.createElement("canvas");
         test.width = 2;
         test.height = 2;
         var gl = test.getContext("webgl", GL_ATTR);
-        if (!gl) return false;
+        if (!gl) return null;
         var built = program(gl, fragSrc);
+        var ok = !!built;
         if (built) {
           gl.deleteBuffer(built.buffer);
           gl.deleteProgram(built.program);
         }
         release(gl);
-        return !!built;
+        if (!ok) return null;
+        var node = host;
+        var real = host.getContext("webgl", GL_ATTR);
+        if (!real) {
+          console.warn("grain-poster-triptych: 主画布拿不到 WebGL，试一次重建");
+          node = host.cloneNode(false);
+          host.replaceWith(node);
+          real = node.getContext("webgl", GL_ATTR);
+        }
+        return { canvas: node, gl: real };
       }
 
       function fallback(canvas, kind) {
@@ -501,8 +511,11 @@
         var canvas = canvases[i];
         var kind = canvas.getAttribute("data-paint");
         var view = { canvas: canvas, gl: null, prog: null, kind: kind, lost: false, mode: "2d" };
-        if (probe(FRAG[kind])) {
-          var gl = canvas.getContext("webgl", GL_ATTR);
+        var probed = probe(FRAG[kind], canvas);
+        if (probed) {
+          canvas = probed.canvas;
+          view.canvas = canvas;
+          var gl = probed.gl;
           var prog = gl ? program(gl, FRAG[kind]) : null;
           if (gl && prog) {
             view.gl = gl;
