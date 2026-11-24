@@ -400,6 +400,8 @@
     let originX = 0;
     let originPos = 1;
     let anim = null;
+    let animGen = 0;
+    let intent = 1;
 
     function mod(n) { return ((n % N) + N) % N; }
     function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
@@ -496,28 +498,43 @@
     }
     function finishAt(value) {
       pos = mod(value);
+      intent = pos;
       thumb = 0;
       anim = null;
       apply();
-      if (!noted) say(moods[currentIndex()].label);
+      if (!noted) say(moods[intent].label);
+    }
+    function stopAnim() {
+      animGen += 1;
+      if (anim) cancelAnimationFrame(anim);
+      anim = null;
+      dragging = false;
+      if (pointerId !== null) {
+        try { deck.releasePointerCapture(pointerId); } catch (err) { void err; }
+        pointerId = null;
+      }
     }
     function startAnim(target) {
-      if (anim) cancelAnimationFrame(anim);
+      stopAnim();
+      intent = mod(target);
       if (reduced()) {
-        finishAt(target);
+        finishAt(intent);
         return;
       }
+      const token = animGen;
       const from = pos;
       const fromThumb = thumb;
       const dist = Math.abs(target - from);
       const dur = Math.min(760, 420 + dist * 280);
       const t0 = performance.now();
       const step = (now) => {
+        if (token !== animGen || noted) return;
         const t = Math.min(1, (now - t0) / dur);
         const e = 1 - Math.pow(1 - t, 3);
         pos = from + (target - from) * e;
         thumb = fromThumb * (1 - e);
         apply();
+        if (token !== animGen || noted) return;
         if (t < 1) anim = requestAnimationFrame(step);
         else finishAt(target);
       };
@@ -540,7 +557,11 @@
     }
     function confirmMood() {
       if (noted) return;
-      const mood = moods[currentIndex()];
+      stopAnim();
+      pos = intent;
+      thumb = 0;
+      apply();
+      const mood = moods[intent];
       noted = true;
       notedMood.textContent = mood.label;
       screen.classList.add("is-noted");
@@ -562,14 +583,13 @@
     }
     deck.addEventListener("pointerdown", (event) => {
       if (noted || event.button !== 0) return;
+      stopAnim();
       pointerId = event.pointerId;
       deck.setPointerCapture(event.pointerId);
       originX = event.clientX;
       originPos = pos;
       dragged = false;
       dragging = true;
-      if (anim) cancelAnimationFrame(anim);
-      anim = null;
       apply();
     });
     deck.addEventListener("pointermove", (event) => {
@@ -601,17 +621,17 @@
         return;
       }
       const index = Number(btn.dataset.i);
-      if (index === currentIndex()) confirmMood();
+      if (index === intent) confirmMood();
       else go(index);
     });
     deck.addEventListener("keydown", (event) => {
       if (noted) return;
       if (event.key === "ArrowRight") {
         event.preventDefault();
-        go(currentIndex() + 1);
+        go(intent + 1);
       } else if (event.key === "ArrowLeft") {
         event.preventDefault();
-        go(currentIndex() - 1);
+        go(intent - 1);
       } else if (event.key === "Home") {
         event.preventDefault();
         go(0);
@@ -625,11 +645,23 @@
     });
     back.addEventListener("click", reopen);
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && noted) reopen();
+      if (!noted) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        reopen();
+      } else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        event.preventDefault();
+        const next = intent + (event.key === "ArrowRight" ? 1 : -1);
+        reopen();
+        go(next);
+      }
     });
     motion.addEventListener("change", () => {
       document.documentElement.classList.toggle("reduce", motion.matches);
-      if (motion.matches) finishAt(Math.round(pos));
+      if (motion.matches) {
+        stopAnim();
+        finishAt(intent);
+      }
     });
     window.addEventListener("resize", apply);
     apply();
