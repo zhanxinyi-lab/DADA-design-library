@@ -25,7 +25,13 @@
     }
     button, input { font: inherit; color: inherit; }
     button { cursor: pointer; }
-    button:disabled { cursor: default; }
+    button:disabled, .primary[aria-disabled="true"] { cursor: default; }
+    button:focus { outline: none; }
+    button:focus-visible {
+      outline: 2px solid #1c1c1c;
+      outline-offset: 3px;
+    }
+    .left:focus { outline: none; }
     .app {
       height: 100%;
       display: flex;
@@ -132,7 +138,8 @@
       min-height: 58px;
     }
     .card.on { background: #f3fbf6; border-color: #e1f2e8; }
-    .card .nm { font-weight: 650; font-size: 14px; display: block; }
+    .card > span, .person > span, .tmpl > span:first-child { min-width: 0; }
+    .card .nm { font-weight: 650; font-size: 14px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .card .sub {
       display: block;
       margin-top: 2px;
@@ -186,7 +193,7 @@
       color: #fff;
       font-weight: 600;
     }
-    .primary:disabled { background: var(--soft); color: #c5c5c5; }
+    .primary:disabled, .primary[aria-disabled="true"] { background: var(--soft); color: #c5c5c5; }
     .texty {
       border: 0;
       background: none;
@@ -211,7 +218,7 @@
       display: block;
     }
     .person .nm { font-weight: 650; font-size: 14px; display: block; }
-    .person .sub { color: var(--muted); font-size: 12px; }
+    .person .sub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .add { margin-left: auto; color: #9a9a9a; font-size: 13px; }
     .invited { margin-left: auto; color: var(--green); font-size: 13px; font-weight: 650; }
     .tick {
@@ -337,9 +344,12 @@
       align-items: center;
       gap: 8px;
       min-height: 28px;
+      min-width: 0;
       font-size: 13px;
       padding: 3px 0;
     }
+    .srow span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .srow.preview { color: #8a8a8a; }
     .ghost { color: #c4c4c4; font-size: 13px; padding: 3px 0 3px 26px; }
     .live {
       margin-left: auto;
@@ -460,18 +470,35 @@
     @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
     @media (max-width: 860px) {
       .app { height: auto; min-height: 100%; overflow: auto; }
-      header { grid-template-columns: 1fr; gap: 10px; }
+      header { grid-template-columns: 1fr; gap: 10px; padding: 14px 16px 4px; }
       .route { justify-self: start; }
       main { display: block; }
       .left { padding: 12px 16px 8px; }
       h1 { font-size: 22px; }
-      .stage { height: 560px; margin: 8px 12px 20px; }
-      .side { width: 42%; }
-      .card .sub { max-width: 92px; }
+      .stage { height: auto; min-height: 520px; margin: 8px 12px 20px; }
+      .side { width: 42%; min-width: 0; }
+      .card .sub { max-width: none; }
+      .window, .panel, .tmpl, .card, .person { max-width: 100%; }
+    }
+    @media (max-width: 480px) {
+      .grid { grid-template-columns: 1fr; }
+      .tmpl { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .meta { align-items: flex-start; }
+      header { padding: 12px 12px 4px; }
+      .left { padding: 8px 12px 4px; }
+      h1 { font-size: 20px; }
+      .stage { min-height: 460px; margin: 8px 10px 16px; }
+      .side { width: 112px; }
+      .url { max-width: calc(100% - 64px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .feed { padding: 12px 10px 16px; }
+      .cap { padding: 12px 12px 8px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .slot, .left, .seg, .slot.in .inn { transition: none !important; animation: none !important; }
-      .spin { animation: none; border-top-color: #222; }
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+      .spin { border-top-color: #222; }
     }
   </style>
 </head>
@@ -482,9 +509,9 @@
         <span class="mark"><i></i></span>
         <span id="brand-name">Detent</span>
       </button>
-      <div class="route" aria-hidden="true">
-        <span class="segs" id="segs"></span>
-        <span class="step-label" id="step-label">Step 1 of 4</span>
+      <div class="route">
+        <span class="segs" id="segs" aria-hidden="true"></span>
+        <span class="step-label" id="step-label" role="status" aria-live="polite">Step 1 of 4</span>
       </div>
     </header>
     <main>
@@ -587,9 +614,11 @@
       }
     ];
 
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const WAIT = reduced ? 16 : 760;
-    const JOB = reduced ? 16 : 900;
+    const motionQuery = matchMedia("(prefers-reduced-motion: reduce)");
+    let reduced = motionQuery.matches;
+    const WAIT = 760;
+    const JOB = 900;
+    let keyboard = false;
 
     const state = {
       step: 1,
@@ -645,15 +674,40 @@
       }).join("");
     }
 
-    function renderLeft(fade) {
+    function focusedLeft() {
+      const active = document.activeElement;
+      if (!keyboard || !active || !active.closest || !active.closest("#left")) return null;
+      if (active.id === "left") return { act: "", id: "" };
+      if (!active.dataset || !active.dataset.act) return null;
+      return { act: active.dataset.act, id: active.dataset.id || "" };
+    }
+
+    function restoreFocus(prev, stepChanged) {
+      if (!keyboard || (!prev && !stepChanged)) return;
+      const root = $("left");
+      const buttons = [...root.querySelectorAll("button[data-act]")];
+      let el = prev && buttons.find((b) => b.dataset.act === prev.act && (b.dataset.id || "") === prev.id && !b.disabled && b.getAttribute("aria-disabled") !== "true");
+      if (!el && prev && prev.act === "tool") el = buttons.find((b) => b.dataset.act === "tool" && !b.disabled);
+      if (!el) el = root.querySelector(".primary:not(:disabled):not([aria-disabled='true'])") || root.querySelector("button[data-act]:not(:disabled):not([aria-disabled='true'])");
+      if (!el) el = root.querySelector("[data-act='wait']");
+      if (el) el.focus();
+      else if (stepChanged) {
+        root.tabIndex = -1;
+        root.focus();
+      }
+    }
+
+    function renderLeft(fade, stepChanged) {
       const pane = $("left");
+      const prev = focusedLeft();
       const paint = () => {
         pane.innerHTML = '<div class="panel">' + leftHTML() + "</div>";
         pane.classList.remove("out");
+        restoreFocus(prev, stepChanged);
       };
-      if (fade) {
+      if (fade && !reduced) {
         pane.classList.add("out");
-        later(reduced ? 0 : 180, paint);
+        later(180, paint);
       } else paint();
     }
 
@@ -673,7 +727,7 @@
           : "Not connected";
         const tail = st === "connected" ? check() : st === "waiting" ? '<i class="spin"></i>' : "+";
         return '<button class="card' + (st === "connected" ? " on" : "") + '" type="button" data-act="tool" data-id="' + t.id + '"'
-          + (st === "idle" ? "" : " disabled") + ">"
+          + (st === "idle" ? "" : " disabled") + ' aria-pressed="' + (st === "connected" ? "true" : "false") + '">'
           + tile(t.letter, t.color)
           + "<span><b class=\"nm\">" + t.name + "</b><span class=\"sub\">" + sub + "</span></span>"
           + '<span class="tail">' + tail + "</span></button>";
@@ -693,7 +747,7 @@
         if (sent && on) tail = '<span class="invited">Invited</span>';
         else if (on) tail = '<span class="tick">✓</span>';
         return '<button class="person' + (on && !sent ? " pick" : "") + '" type="button" data-act="person" data-id="' + p.id + '"'
-          + (sent ? " disabled" : "") + ">"
+          + (sent ? " disabled" : "") + ' aria-pressed="' + (on ? "true" : "false") + '">'
           + '<i class="blob" style="background:' + p.color + '"></i>'
           + "<span><b class=\"nm\">" + p.name + "</b><span class=\"sub\">" + p.email + "</span></span>"
           + tail + "</button>";
@@ -720,7 +774,7 @@
         }).join("");
         const on = state.template === t.id;
         return '<button class="tmpl' + (on ? " on" : "") + '" type="button" data-act="template" data-id="' + t.id + '"'
-          + (state.created ? " disabled" : "") + ">"
+          + (state.created ? " disabled" : "") + ' aria-pressed="' + (on ? "true" : "false") + '">'
           + "<span><b>" + t.name + "</b><small>" + t.blurb + "</small></span>"
           + '<span class="meta"><span class="minis">' + icons + "</span><small>" + have + " of " + t.tools.length + " connected</small></span></button>";
       }).join("");
@@ -760,7 +814,7 @@
         : "Try it out. Detent is doing its first job, so you can see how it works.";
       const button = state.jobDone
         ? '<button class="primary" type="button" data-act="open">Open Detent →</button>'
-        : '<button class="primary" type="button" disabled>Working...</button>';
+        : '<button class="primary" type="button" data-act="wait" aria-disabled="true">Working...</button>';
       return "<h1>" + title + "</h1><ul class=\"checks\">" + items + "</ul><div class=\"actions\">" + button + "</div>";
     }
 
@@ -769,10 +823,11 @@
       if (node) return node;
       node = document.createElement("div");
       node.dataset.id = id;
-      node.className = "slot" + (animate ? "" : " in instant");
+      const motion = animate && !reduced;
+      node.className = "slot" + (motion ? "" : " in instant");
       node.innerHTML = '<div class="inn">' + html + "</div>";
       parent.appendChild(node);
-      if (animate) requestAnimationFrame(() => node.classList.add("in"));
+      if (motion) requestAnimationFrame(() => node.classList.add("in"));
       return node;
     }
 
@@ -799,16 +854,21 @@
 
     function syncAgents() {
       const list = $("agent-list");
-      if (!state.created) {
+      const agent = state.template ? templateBy(state.template) : null;
+      if (!agent) {
         list.replaceChildren();
         ensure(list, "ghost-agent", '<div class="ghost">Your first agent</div>', false);
         return;
       }
       const ghost = list.querySelector('[data-id="ghost-agent"]');
       if (ghost) ghost.remove();
-      const agent = templateBy(state.template);
-      const html = '<div class="srow">' + tile(agent.name.slice(0, 1), "#191919", true) + "<span>" + agent.name + '</span><i class="live"></i></div>';
-      if (!list.querySelector('[data-id="agent"]')) ensure(list, "agent", html, true);
+      const html = '<div class="srow' + (state.created ? "" : " preview") + '">'
+        + tile(agent.name.slice(0, 1), state.created ? "#191919" : "#9a9a9a", true)
+        + "<span>" + agent.name + "</span>"
+        + (state.created ? '<i class="live"></i>' : "") + "</div>";
+      const node = list.querySelector('[data-id="agent"]');
+      if (!node) ensure(list, "agent", html, true);
+      else node.querySelector(".inn").innerHTML = html;
     }
 
     function syncFoot() {
@@ -829,6 +889,7 @@
       if (foot.dataset.sig === sig) return;
       foot.dataset.sig = sig;
       foot.innerHTML = '<span class="stack">' + colors.map((c) => '<i style="background:' + c + '"></i>').join("") + "</span><span>" + label + "</span>";
+      if (reduced) return;
       foot.classList.remove("pop");
       void foot.offsetWidth;
       foot.classList.add("pop");
@@ -879,7 +940,8 @@
       if (!slot) {
         mount.innerHTML = '<div class="slot" data-id="job"><div class="inn"><article class="job"></article></div></div>';
         slot = mount.querySelector(".slot");
-        requestAnimationFrame(() => slot.classList.add("in"));
+        if (reduced) slot.classList.add("in", "instant");
+        else requestAnimationFrame(() => slot.classList.add("in"));
       }
       const rows = agent.steps.map((text, i) => {
         const cls = i < state.jobAt || state.jobDone ? "done" : i === state.jobAt ? "run" : "wait";
@@ -902,17 +964,23 @@
     }
 
     function render(opts) {
-      const fade = !!(opts && opts.fade) || (shownStep && shownStep !== state.step);
+      const stepChanged = !!(shownStep && shownStep !== state.step);
+      const fade = !!(opts && opts.fade) || stepChanged;
       shownStep = state.step;
       renderRoute();
-      renderLeft(fade);
+      renderLeft(fade, stepChanged);
       syncRight();
     }
 
     function connectTool(id) {
       if (state.tools[id] !== "idle") return;
-      state.tools[id] = "waiting";
       state.order.push(id);
+      if (reduced) {
+        state.tools[id] = "connected";
+        render();
+        return;
+      }
+      state.tools[id] = "waiting";
       render();
       later(WAIT, () => {
         if (state.tools[id] !== "waiting") return;
@@ -922,6 +990,7 @@
     }
 
     function startJob() {
+      if (jobTimer || state.jobDone) return;
       clearTimeout(jobTimer);
       const agent = templateBy(state.template);
       const tick = () => {
@@ -951,14 +1020,20 @@
     }
 
     function go(step) {
+      if (step === 4 && state.step === 4) return;
       state.step = step;
+      if (step === 4 && reduced) {
+        state.jobAt = templateBy(state.template).steps.length;
+        state.jobDone = true;
+      }
       render({ fade: true });
-      if (step === 4) startJob();
+      if (step === 4 && !reduced) startJob();
     }
 
     function reset() {
       epoch += 1;
       clearTimeout(jobTimer);
+      jobTimer = 0;
       state.step = 1;
       state.tools = Object.fromEntries(TOOLS.map((t) => [t.id, "idle"]));
       state.order = [];
@@ -977,9 +1052,18 @@
       render();
     }
 
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Tab" || event.key === "Enter" || event.key === " ") keyboard = true;
+    });
+    document.addEventListener("mousedown", () => { keyboard = false; });
+    motionQuery.addEventListener("change", () => {
+      reduced = motionQuery.matches;
+      render();
+    });
+
     $("left").addEventListener("click", (event) => {
       const button = event.target.closest("[data-act]");
-      if (!button || button.disabled) return;
+      if (!button || button.disabled || button.getAttribute("aria-disabled") === "true") return;
       const act = button.dataset.act;
       const id = button.dataset.id;
       if (act === "tool") connectTool(id);
@@ -996,14 +1080,21 @@
       else if (act === "template" && !state.created) {
         state.template = id;
         render();
-      } else if (act === "create" && state.template) {
+      } else if (act === "create" && state.step === 3 && state.template && !state.created) {
         state.created = true;
+        button.disabled = true;
+        button.setAttribute("aria-disabled", "true");
         go(4);
       } else if (act === "continue" && state.step === 3 && state.created) go(4);
       else if (act === "open") reset();
     });
 
-    $("logo").addEventListener("click", reset);
+    $("logo").addEventListener("click", () => {
+      reset();
+      if (!keyboard) return;
+      const first = $("left").querySelector("[data-act='tool']");
+      if (first) first.focus();
+    });
 
     $("brand-name").textContent = BRAND.name;
     $("ws-name").textContent = BRAND.workspace;
