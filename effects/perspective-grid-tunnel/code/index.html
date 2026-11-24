@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>透视方格隧道</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #070807; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .sr {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="tunnel" aria-label="深色透视方格隧道。移动鼠标或按住滑动，橙色方块会点亮周围格子，亮度散开后再熄灭。"></canvas>
+  <p class="sr" id="note">系统开启减少动态效果时，画面停在一帧静态网格。</p>
+  <script>
+    const canvas = document.getElementById("tunnel");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const BG = "#070807";
+    const ORANGE = "#f7931b";
+    const Z_NEAR = 0.48;
+    const Z_FAR = 18;
+    const SPREAD = 0.62;
+    const RISE = 7;
+    const FALL = 2.35;
+
+    let cssW = 1;
+    let cssH = 1;
+    let dpr = 1;
+    let cells = [];
+    let hot = -1;
+    let pointer = null;
+    let raf = 0;
+    let lastTime = 0;
+
+    function reduced() {
+      return motionQuery.matches;
+    }
+
+    function project(x, y, z) {
+      const f = Math.min(cssW, cssH) * 0.64 / z;
+      return [cssW * 0.5 + x * f, cssH * 0.42 + y * f];
+    }
+
+    function addCell(plane, a, b, corners) {
+      let sx = 0;
+      let sy = 0;
+      let sz = 0;
+      for (const p of corners) {
+        sx += p[0];
+        sy += p[1];
+        sz += p[2];
+      }
+      const n = corners.length;
+      const cx = sx / n;
+      const cy = sy / n;
+      const cz = sz / n;
+      const inset = 0.16;
+      cells.push({
+        plane: plane,
+        a: a,
+        b: b,
+        pts3: corners.map(function (p) {
+          return [
+            cx + (p[0] - cx) * (1 - inset),
+            cy + (p[1] - cy) * (1 - inset),
+            cz + (p[2] - cz) * (1 - inset)
+          ];
+        }),
+        energy: 0,
+        neighbors: []
+      });
+    }
+
+    function build() {
+      const previous = pointer;
+      cells = [];
+      const short = Math.min(cssW, cssH);
+      const cols = short < 430 ? 7 : short < 820 ? 9 : 12;
+      const depth = short < 430 ? 9 : 12;
+      const wallRows = short < 430 ? 4 : 5;
+      const stretch = Math.max(1, cssH / Math.max(cssW, 1) / 1.05);
+      const floorY = 0.9 * stretch;
+      const ceilY = -0.5 * stretch;
+      const half = 1;
+
+      for (let iz = 0; iz < depth; iz++) {
+        const zNearEdge = Z_NEAR * Math.pow(Z_FAR / Z_NEAR, iz / depth);
+        const zFarEdge = Z_NEAR * Math.pow(Z_FAR / Z_NEAR, (iz + 1) / depth);
+        for (let ix = 0; ix < cols; ix++) {
+          const x0 = -half + ix * (2 * half) / cols;
+          const x1 = -half + (ix + 1) * (2 * half) / cols;
+          addCell("floor", ix, iz, [
+            [x0, floorY, zFarEdge],
+            [x1, floorY, zFarEdge],
+            [x1, floorY, zNearEdge],
+            [x0, floorY, zNearEdge]
+          ]);
+          addCell("ceiling", ix, iz, [
+            [x0, ceilY, zFarEdge],
+            [x1, ceilY, zFarEdge],
+            [x1, ceilY, zNearEdge],
+            [x0, ceilY, zNearEdge]
+          ]);
+        }
+        for (let iy = 0; iy < wallRows; iy++) {
+          const y0 = ceilY + iy * (floorY - ceilY) / wallRows;
+          const y1 = ceilY + (iy + 1) * (floorY - ceilY) / wallRows;
+          addCell("left", iy, iz, [
+            [-half, y0, zFarEdge],
+            [-half, y0, zNearEdge],
+            [-half, y1, zNearEdge],
+            [-half, y1, zFarEdge]
+          ]);
+          addCell("right", iy, iz, [
+            [half, y0, zFarEdge],
+            [half, y0, zNearEdge],
+            [half, y1, zNearEdge],
+            [half, y1, zFarEdge]
+          ]);
+        }
+      }
+
+      const index = new Map();
+      cells.forEach(function (cell, i) {
+        index.set(cell.plane + ":" + cell.a + ":" + cell.b, i);
+      });
+      cells.forEach(function (cell) {
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          const id = index.get(cell.plane + ":" + (cell.a + d[0]) + ":" + (cell.b + d[1]));
+          if (id !== undefined) cell.neighbors.push(id);
+        });
+      });
+      pointer = previous;
+      hot = pointer ? hit(pointer.x, pointer.y) : -1;
+    }
+
+    function resize() {
+      cssW = Math.max(1, window.innerWidth);
+      cssH = Math.max(1, window.innerHeight);
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      build();
+      if (reduced()) draw();
+    }
+
+    function screenPts(cell) {
+      return cell.pts3.map(function (p) { return project(p[0], p[1], p[2]); });
+    }
+
+    function inside(pts, x, y) {
+      let hitOdd = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const yi = pts[i][1];
+        const yj = pts[j][1];
+        if ((yi > y) !== (yj > y)) {
+          const xCross = (pts[j][0] - pts[i][0]) * (y - yi) / (yj - yi) + pts[i][0];
+          if (x < xCross) hitOdd = !hitOdd;
+        }
+      }
+      return hitOdd;
+    }
+
+    function spanOf(pts) {
+      let minX = pts[0][0];
+      let maxX = pts[0][0];
+      let minY = pts[0][1];
+      let maxY = pts[0][1];
+      for (const p of pts) {
+        if (p[0] < minX) minX = p[0];
+        if (p[0] > maxX) maxX = p[0];
+        if (p[1] < minY) minY = p[1];
+        if (p[1] > maxY) maxY = p[1];
+      }
+      return { minX: minX, maxX: maxX, minY: minY, maxY: maxY, w: maxX - minX, h: maxY - minY };
+    }
+
+    function hit(x, y) {
+      let found = -1;
+      let nearest = Infinity;
+      let fallback = -1;
+      let fallbackDist = Infinity;
+      for (let i = 0; i < cells.length; i++) {
+        const pts = screenPts(cells[i]);
+        const box = spanOf(pts);
+        if (box.w < 4 && box.h < 4) continue;
+        const cx = (box.minX + box.maxX) / 2;
+        const cy = (box.minY + box.maxY) / 2;
+        const dist = Math.hypot(x - cx, y - cy);
+        const reach = Math.max(28, Math.max(box.w, box.h) * 0.8);
+        if (dist < fallbackDist && dist <= reach) {
+          fallbackDist = dist;
+          fallback = i;
+        }
+        const cz = (cells[i].pts3[0][2] + cells[i].pts3[2][2]) * 0.5;
+        if (!inside(pts, x, y) || cz >= nearest) continue;
+        nearest = cz;
+        found = i;
+      }
+      return found === -1 ? fallback : found;
+    }
+
+    function trace(pts) {
+      const box = spanOf(pts);
+      const radius = Math.min(12, Math.min(box.w, box.h) * 0.22);
+      const count = pts.length;
+      ctx.beginPath();
+      for (let i = 0; i < count; i++) {
+        const prev = pts[(i + count - 1) % count];
+        const cur = pts[i];
+        const next = pts[(i + 1) % count];
+        const v1x = prev[0] - cur[0];
+        const v1y = prev[1] - cur[1];
+        const v2x = next[0] - cur[0];
+        const v2y = next[1] - cur[1];
+        const l1 = Math.hypot(v1x, v1y) || 1;
+        const l2 = Math.hypot(v2x, v2y) || 1;
+        const rad = Math.min(radius, l1 * 0.35, l2 * 0.35);
+        const ax = cur[0] + v1x / l1 * rad;
+        const ay = cur[1] + v1y / l1 * rad;
+        const bx = cur[0] + v2x / l2 * rad;
+        const by = cur[1] + v2y / l2 * rad;
+        if (i === 0) ctx.moveTo(ax, ay);
+        else ctx.lineTo(ax, ay);
+        ctx.quadraticCurveTo(cur[0], cur[1], bx, by);
+      }
+      ctx.closePath();
+    }
+
+    function step(dt) {
+      const prev = cells.map(function (cell) { return cell.energy; });
+      const decay = Math.exp(-FALL * dt);
+      const rise = 1 - Math.exp(-RISE * dt);
+      for (let i = 0; i < cells.length; i++) {
+        let inflow = 0;
+        const neighbors = cells[i].neighbors;
+        for (let n = 0; n < neighbors.length; n++) {
+          if (prev[neighbors[n]] > inflow) inflow = prev[neighbors[n]];
+        }
+        let energy = prev[i] * decay;
+        const goal = i === hot ? 1 : inflow * SPREAD;
+        if (goal > energy) energy += (goal - energy) * rise;
+        if (i === hot) energy = 1;
+        cells[i].energy = energy < 0.004 ? 0 : energy;
+      }
+    }
+
+    function draw() {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = BG;
+      ctx.fillRect(0, 0, cssW, cssH);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      const order = cells.map(function (cell, i) {
+        let z = 0;
+        for (const p of cell.pts3) z += p[2];
+        return { i: i, z: z / cell.pts3.length };
+      });
+      order.sort(function (a, b) { return b.z - a.z; });
+
+      let hotPts = null;
+      for (const item of order) {
+        const cell = cells[item.i];
+        const pts = screenPts(cell);
+        const box = spanOf(pts);
+        if (box.w < 2.2 && box.h < 2.2) continue;
+        trace(pts);
+        const depth = 1 - Math.min(1, Math.max(0, (item.z - Z_NEAR) / (Z_FAR - Z_NEAR))) * 0.78;
+        const shown = cell.energy * depth;
+        const ambient = ((cell.a * 13 + cell.b * 7 + cell.plane.length) % 11 === 0) ? 0.05 : 0.015;
+        ctx.fillStyle = "rgba(176, 186, 174, " + ambient + ")";
+        ctx.fill();
+        if (item.i !== hot && cell.energy > 0.045) {
+          const t = Math.min(1, shown);
+          const r = Math.round(40 + (170 - 40) * t);
+          const g = Math.round(72 + (216 - 72) * t);
+          const b = Math.round(66 + (198 - 66) * t);
+          const alpha = 0.5 + 0.5 * t;
+          ctx.fillStyle = "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+          ctx.fill();
+        }
+        const strokeA = 0.28 + Math.min(0.55, shown * 0.7);
+        ctx.strokeStyle = "rgba(198, 206, 196, " + strokeA + ")";
+        ctx.lineWidth = shown > 0.2 ? 1.35 : 1;
+        ctx.stroke();
+        if (item.i === hot) hotPts = pts;
+      }
+
+      if (hotPts) {
+        const box = spanOf(hotPts);
+        const cx = (box.minX + box.maxX) / 2;
+        const cy = (box.minY + box.maxY) / 2;
+        const size = Math.max(12, Math.min(68, Math.min(box.w, box.h) * 0.72));
+        const x = Math.round(cx - size / 2);
+        const y = Math.round(cy - size / 2);
+        ctx.fillStyle = ORANGE;
+        ctx.fillRect(x, y, Math.round(size), Math.round(size));
+      }
+    }
+
+    function lit() {
+      if (hot !== -1) return true;
+      for (const cell of cells) if (cell.energy > 0) return true;
+      return false;
+    }
+
+    function frame(now) {
+      const dt = Math.min(0.05, lastTime ? (now - lastTime) / 1000 : 0.016);
+      lastTime = now;
+      step(dt);
+      draw();
+      if (lit()) raf = requestAnimationFrame(frame);
+      else { raf = 0; lastTime = 0; }
+    }
+
+    function stop() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      lastTime = 0;
+      for (const cell of cells) cell.energy = 0;
+      hot = -1;
+      draw();
+    }
+
+    function start() {
+      if (raf || reduced()) return;
+      raf = requestAnimationFrame(frame);
+    }
+
+    function onPointer(event) {
+      if (reduced()) return;
+      pointer = { x: event.clientX, y: event.clientY, type: event.pointerType };
+      hot = hit(pointer.x, pointer.y);
+      start();
+    }
+
+    function onLeave(event) {
+      if (event && event.pointerType === "mouse" && event.type === "pointerup") return;
+      pointer = null;
+      hot = -1;
+    }
+
+    window.addEventListener("pointermove", onPointer);
+    window.addEventListener("pointerdown", onPointer);
+    window.addEventListener("pointerup", onLeave);
+    window.addEventListener("pointercancel", onLeave);
+    document.documentElement.addEventListener("pointerleave", function () { onLeave(); });
+    window.addEventListener("resize", resize);
+    motionQuery.addEventListener("change", function () {
+      if (reduced()) stop();
+      else if (pointer) start();
+    });
+
+    resize();
+    draw();
+    if (reduced()) stop();
+  </script>
+</body>
+</html>
