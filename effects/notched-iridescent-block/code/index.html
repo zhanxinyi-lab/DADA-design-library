@@ -218,6 +218,7 @@
   var layer = null;
   var lctx = null;
   var noise = null;
+  var noisePattern = null;
   if (!gl) {
     ctx2d = canvas.getContext("2d");
     if (ctx2d) {
@@ -236,24 +237,34 @@
         dots.data[i + 3] = 255;
       }
       nctx.putImageData(dots, 0, 0);
+      noisePattern = lctx.createPattern(noise, "repeat");
     }
   }
 
   if (gl) {
     canvas.addEventListener("webglcontextlost", function (event) {
       event.preventDefault();
+      heldTime = animTime(performance.now());
       glLost = true;
       stopLoop();
     });
     canvas.addEventListener("webglcontextrestored", function () {
+      if (!bootGL(canvas)) {
+        if (!rafId) {
+          looping = true;
+          rafId = requestAnimationFrame(frame);
+        }
+        return;
+      }
       glLost = false;
-      if (!bootGL(canvas)) return;
+      start = performance.now() - heldTime * 1000;
       resize();
       startLoop();
     });
   }
 
   var start = performance.now();
+  var heldTime = 0;
   var width = 1;
   var height = 1;
   var rafId = 0;
@@ -319,12 +330,13 @@
   function drawSlab(time, shiftX, shiftY, mode) {
     var s = pose(time);
     var unit = Math.min(width, height);
-    var bx = s.bx * unit;
-    var by = s.by * unit;
+    var inset = mode === "front" ? 0.012 * unit : 0;
+    var bx = s.bx * unit - inset;
+    var by = s.by * unit - inset;
     var cr = s.bodyR * unit;
     var ncx = s.ncx * unit;
-    var nw = s.nw * unit;
-    var nh = s.nh * unit;
+    var nw = Math.max(0, s.nw * unit - inset);
+    var nh = Math.max(0, s.nh * unit - inset);
     var nr = s.nr * unit;
     var lift = s.lift * unit;
     lctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -376,12 +388,11 @@
     roundRect(lctx, ncx - nw, lift - nh, nw * 2, nh * 2, nr);
     lctx.fill();
     lctx.restore();
-    if (noise) {
+    if (noisePattern) {
       lctx.save();
       lctx.globalCompositeOperation = "source-atop";
       lctx.globalAlpha = mode === "front" ? 0.22 : 0.12;
-      var pat = lctx.createPattern(noise, "repeat");
-      lctx.fillStyle = pat;
+      lctx.fillStyle = noisePattern;
       lctx.translate((time * 22) % 128, (time * 9) % 128);
       lctx.fillRect(-128, -128, width + 256, height + 256);
       lctx.restore();
@@ -398,7 +409,7 @@
     ctx2d.fillStyle = bg;
     ctx2d.fillRect(0, 0, width, height);
     ctx2d.save();
-    ctx2d.translate(width * 0.5, height * 0.5 - unit * 0.015 + unit * 0.055);
+    ctx2d.translate(width * 0.5 + unit * 0.006, height * 0.5 + unit * 0.031);
     ctx2d.scale(1, 0.28);
     ctx2d.fillStyle = "rgba(48, 72, 140, 0.16)";
     ctx2d.beginPath();
@@ -429,8 +440,17 @@
 
   function frame(now) {
     if (!looping) return;
+    now = now || performance.now();
+    if (glLost && bootGL(canvas)) {
+      glLost = false;
+      start = now - heldTime * 1000;
+    }
     resize();
-    paint(animTime(now || performance.now()));
+    paint(animTime(now));
+    if (!glLost && reduce) {
+      stopLoop();
+      return;
+    }
     rafId = requestAnimationFrame(frame);
   }
 
