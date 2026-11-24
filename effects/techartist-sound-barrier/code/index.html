@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>声障</title>
+  <style>
+    :root {
+      --bg: #2a090c;
+      --card: rgba(42, 10, 12, 0.78);
+      --ink: #fff6ee;
+      --muted: rgba(255, 236, 220, 0.74);
+      --amber: #ffb25a;
+      --line: rgba(255, 220, 180, 0.28);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      min-height: 100%;
+      overflow-x: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.5 system-ui, "Segoe UI", sans-serif;
+    }
+    .shell {
+      display: grid;
+      grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+      grid-template-areas:
+        "lesson stage"
+        "throttle throttle";
+      grid-template-rows: minmax(280px, 1fr) auto;
+      gap: 14px 18px;
+      width: min(1120px, 100%);
+      min-height: 100%;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .lesson, .stage, .dock { min-width: 0; }
+    .lesson {
+      grid-area: lesson;
+      align-self: stretch;
+      padding: 16px 16px 12px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+    }
+    .kicker {
+      margin: 0;
+      color: var(--amber);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+    }
+    h1 {
+      margin: 4px 0 8px;
+      font-size: clamp(22px, 3vw, 28px);
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+    }
+    .lesson p { margin: 0; color: var(--muted); }
+    #lesson { min-height: 6.5em; }
+    .angle {
+      margin-top: 10px !important;
+      color: var(--ink) !important;
+      font-variant-numeric: tabular-nums;
+    }
+    figure { margin: 14px 0 0; }
+    #chart {
+      display: block;
+      width: 100%;
+      height: 88px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.22);
+    }
+    figcaption {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      align-items: baseline;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    figcaption b {
+      color: var(--ink);
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+    }
+    .stage {
+      grid-area: stage;
+      position: relative;
+      min-height: 280px;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    #stage { display: block; width: 100%; height: 100%; }
+    .dock { grid-area: throttle; }
+    .throttle {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+    }
+    .readout {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      font-variant-numeric: tabular-nums;
+    }
+    .readout b {
+      font-size: 28px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+    .readout span { color: var(--muted); font-size: 12px; }
+    .slider { border-radius: 12px; outline: none; }
+    .slider:focus-visible { outline: none; }
+    .slider:focus-visible .thumb {
+      box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--ink);
+    }
+    .track {
+      position: relative;
+      height: 44px;
+      margin: 0 14px;
+      touch-action: none;
+      cursor: grab;
+    }
+    .track.dragging { cursor: grabbing; }
+    .track::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 19px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 236, 220, 0.18);
+    }
+    .fill, .tick, .thumb { position: absolute; }
+    .fill {
+      left: 0;
+      top: 19px;
+      height: 6px;
+      width: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #8c2a22, var(--amber));
+    }
+    .tick {
+      top: 14px;
+      width: 2px;
+      height: 16px;
+      background: rgba(255, 246, 238, 0.85);
+    }
+    .thumb {
+      top: 10px;
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--amber);
+      border-radius: 50%;
+      background: var(--ink);
+      transform: translateX(-50%);
+    }
+    .hint {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    @media (max-width: 720px) {
+      .shell {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "lesson"
+          "stage"
+          "throttle";
+        grid-template-rows: auto minmax(220px, 46vh) auto;
+        padding: 12px;
+        gap: 12px;
+      }
+      .stage { min-height: 220px; }
+      #lesson { min-height: 0; }
+    }
+    @media (max-width: 390px) {
+      .throttle { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+      .readout { flex-direction: row; align-items: baseline; gap: 6px; }
+      h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="lesson">
+      <p class="kicker">速度越过声速</p>
+      <h1 id="title">波前开始叠上</h1>
+      <p id="lesson"></p>
+      <p class="angle" id="angle" hidden></p>
+      <figure>
+        <canvas id="chart" width="320" height="88" aria-hidden="true"></canvas>
+        <figcaption>
+          <span>阻力系数</span>
+          <b id="cd">0.000</b>
+          <span>示意曲线，山顶在声速附近</span>
+        </figcaption>
+      </figure>
+    </section>
+    <div class="stage">
+      <canvas id="stage"></canvas>
+    </div>
+    <div class="dock">
+      <div class="throttle">
+        <div class="readout" aria-hidden="true"><b id="mach">0.85</b><span>马赫</span></div>
+        <div
+          id="speed"
+          class="slider"
+          role="slider"
+          tabindex="0"
+          aria-label="飞行速度"
+          aria-orientation="horizontal"
+          aria-valuemin="0.2"
+          aria-valuemax="2.4"
+          aria-valuenow="0.85"
+          aria-valuetext="马赫 0.85，波前开始叠上"
+          aria-describedby="hint"
+        >
+          <div class="track" id="track">
+            <div class="fill" id="fill"></div>
+            <div class="tick" id="tick"></div>
+            <div class="thumb" id="thumb"></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" id="hint">拖动速度条，或按左右方向键。白刻度是声速。Shift 或 PageUp / PageDown 跳 0.10，Home / End 到两端。</p>
+    </div>
+  </div>
+  <script>
+    var MIN = 20;
+    var MAX = 240;
+    var goal = 85;
+    var sim = 0;
+    var last = 0;
+    var rafId = 0;
+    var looping = false;
+    var dragging = false;
+    var reduceQ = window.matchMedia("(prefers-reduced-motion: reduce)");
+    var stage = document.getElementById("stage");
+    var chart = document.getElementById("chart");
+    var speed = document.getElementById("speed");
+    var track = document.getElementById("track");
+    var fill = document.getElementById("fill");
+    var thumb = document.getElementById("thumb");
+    var tick = document.getElementById("tick");
+    var machEl = document.getElementById("mach");
+    var titleEl = document.getElementById("title");
+    var lessonEl = document.getElementById("lesson");
+    var angleEl = document.getElementById("angle");
+    var cdEl = document.getElementById("cd");
+    var COPY = {
+      ahead: {
+        title: "声波跑在前面",
+        body: "飞得比声音慢时，机头挤出的压力波会自己向外扩，而且扩得比飞机快。所以每一圈都能伸到机头前面，前头的空气先被轻轻推开。这时候阻力主要是空气擦过机身。"
+      },
+      bunch: {
+        title: "波前开始叠上",
+        body: "速度靠近声速，飞机开始追上自己刚发出的波。新的一圈还没散开，下一圈已经压上来，机头前面的空隙越来越窄。压力挤在更短的距离里，阻力就沿着这条坡往上爬。"
+      },
+      wall: {
+        title: "叠成一面陡墙",
+        body: "速度贴上声速时，波再也超不到前面。各圈波的前端叠在鼻尖同一条线上，画面里就像一堵陡墙。那不是固体障碍，是压力锋面叠在了一起；阻力曲线也在这里登顶。"
+      },
+      cone: {
+        title: "陡墙收成激波锥",
+        body: "再快一点，机头跑到了自己发出的声波前面。叠住的锋面被撑开，收成向后张开的锥。飞得越快，锥越贴着机身。阻力从刚才的山顶往下落，是因为锋面甩到了侧后方，不是因为陡墙忽然消失。"
+      }
+    };
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function motionOn() { return !reduceQ.matches; }
+    function machNow() { return goal / 100; }
+    function machText() { return machNow().toFixed(2); }
+    function cdOf(m) {
+      var rise = Math.exp(-Math.pow((m - 1.02) / 0.28, 2));
+      return 0.02 + rise * 0.028;
+    }
+    function regimeOf(m) {
+      if (m < 0.8) return "ahead";
+      if (m < 0.98) return "bunch";
+      if (m < 1.08) return "wall";
+      return "cone";
+    }
+    function percent(m) { return (m - 0.2) / 2.2 * 100; }
+
+    function paint() {
+      var mach = machNow();
+      var text = machText();
+      var regime = regimeOf(mach);
+      var copy = COPY[regime];
+      machEl.textContent = text;
+      speed.setAttribute("aria-valuenow", text);
+      speed.setAttribute("aria-valuetext", "马赫 " + text + "，" + copy.title);
+      if (titleEl.textContent !== copy.title) titleEl.textContent = copy.title;
+      if (lessonEl.textContent !== copy.body) lessonEl.textContent = copy.body;
+      var cd = cdOf(mach);
+      cdEl.textContent = cd.toFixed(3);
+      if (mach >= 1) {
+        var deg = Math.asin(1 / mach) * 180 / Math.PI;
+        angleEl.hidden = false;
+        angleEl.textContent = "锋面和飞行方向大约成 " + deg.toFixed(1) + "°";
+      } else {
+        angleEl.hidden = true;
+        angleEl.textContent = "";
+      }
+      var pct = percent(mach);
+      fill.style.width = pct + "%";
+      thumb.style.left = pct + "%";
+      tick.style.left = percent(1) + "%";
+      drawStage(mach);
+      drawChart(mach);
+    }
+
+    function fit(canvas) {
+      var rect = canvas.getBoundingClientRect();
+      var dpr = Math.min(2, window.devicePixelRatio || 1);
+      var w = Math.max(1, Math.round(rect.width * dpr));
+      var h = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      var g = canvas.getContext("2d");
+      if (!g) return null;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { g: g, w: rect.width, h: rect.height };
+    }
+
+    function drawStage(mach) {
+      var box = fit(stage);
+      if (!box || box.w < 2 || box.h < 2) return;
+      var g = box.g;
+      var w = box.w;
+      var h = box.h;
+      var noseX = w * (w < 520 ? 0.36 : 0.4);
+      var noseY = h * 0.56;
+      var length = Math.min(w * 0.46, h * 0.62);
+      var scale = Math.min(w, h) * 0.42;
+      g.clearRect(0, 0, w, h);
+      var sky = g.createLinearGradient(0, 0, w, h);
+      sky.addColorStop(0, "#4a0d10");
+      sky.addColorStop(1, "#1a0608");
+      g.fillStyle = sky;
+      g.fillRect(0, 0, w, h);
+      var glow = g.createRadialGradient(noseX, noseY, 8, noseX, noseY, Math.max(w, h) * 0.55);
+      var hot = clamp((mach - 0.6) / 0.5, 0, 1);
+      glow.addColorStop(0, "rgba(255,120,40," + (0.18 + hot * 0.28) + ")");
+      glow.addColorStop(1, "rgba(255,80,20,0)");
+      g.fillStyle = glow;
+      g.fillRect(0, 0, w, h);
+
+      var pile = Math.exp(-Math.pow((mach - 1) / 0.07, 2));
+      if (pile > 0.04) {
+        g.save();
+        g.translate(noseX, noseY);
+        var soft = g.createRadialGradient(0, 0, 2, 0, 0, h * 0.48);
+        soft.addColorStop(0, "rgba(255,220,160," + (0.28 * pile) + ")");
+        soft.addColorStop(0.08, "rgba(40,8,4," + (0.28 * pile) + ")");
+        soft.addColorStop(1, "rgba(40,8,4,0)");
+        g.fillStyle = soft;
+        g.beginPath();
+        g.ellipse(0, 0, 22, h * 0.46, 0, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+
+      drawWaves(g, noseX, noseY, mach, scale, w, h);
+      drawExhaust(g, noseX, noseY, length, mach);
+      drawJet(g, noseX, noseY, length);
+      if (mach >= 1) drawCone(g, noseX, noseY, mach, w, h, 0.92);
+      var tailT = clamp((mach - 1.05) / 0.25, 0, 1);
+      if (tailT > 0) drawCone(g, noseX + length * 0.96, noseY, mach, w, h, 0.4 * tailT);
+    }
+
+    function drawWaves(g, noseX, noseY, mach, scale, w, h) {
+      var period = 0.16;
+      var phase = motionOn() ? (sim % period) : 0;
+      var horizon = 1.75;
+      var bunch = Math.exp(-Math.pow((mach - 1) / 0.14, 2));
+      g.lineCap = "round";
+      for (var age = phase; age <= horizon; age += period) {
+        if (age < 0.04) continue;
+        var cx = noseX + mach * age * scale;
+        var r = age * scale;
+        if (cx + r < -20 || cx - r > w + 20) continue;
+        var fade = 1 - age / horizon;
+        g.beginPath();
+        g.arc(cx, noseY, r, 0, Math.PI * 2);
+        g.strokeStyle = "rgba(255,196,120," + (0.28 * fade) + ")";
+        g.lineWidth = 1.35;
+        g.stroke();
+        g.beginPath();
+        g.arc(cx, noseY, r, Math.PI - 0.7, Math.PI + 0.7);
+        g.strokeStyle = "rgba(255,232,190," + ((0.35 + bunch * 0.55) * fade) + ")";
+        g.lineWidth = 1.6 + bunch * 2.4;
+        g.stroke();
+      }
+    }
+
+    function drawCone(g, apexX, apexY, mach, w, h, alpha) {
+      var mu = Math.asin(clamp(1 / mach, -1, 1));
+      var reach = Math.hypot(w, h);
+      var dx = Math.cos(mu) * reach;
+      var dy = Math.sin(mu) * reach;
+      g.beginPath();
+      g.moveTo(apexX, apexY);
+      g.lineTo(apexX + dx, apexY - dy);
+      g.moveTo(apexX, apexY);
+      g.lineTo(apexX + dx, apexY + dy);
+      g.strokeStyle = "rgba(255,206,130," + alpha + ")";
+      g.lineWidth = 2;
+      g.stroke();
+    }
+
+    function drawExhaust(g, noseX, noseY, length, mach) {
+      var x0 = noseX + length * 1.05;
+      var flame = length * (0.18 + clamp(mach / 2.4, 0, 1) * 0.22);
+      var grad = g.createLinearGradient(x0, noseY, x0 + flame, noseY);
+      grad.addColorStop(0, "rgba(255,236,200,0.95)");
+      grad.addColorStop(0.35, "rgba(255,150,50,0.8)");
+      grad.addColorStop(1, "rgba(255,80,20,0)");
+      g.fillStyle = grad;
+      g.beginPath();
+      g.moveTo(x0, noseY - length * 0.035);
+      g.lineTo(x0 + flame, noseY);
+      g.lineTo(x0, noseY + length * 0.035);
+      g.fill();
+    }
+
+    function drawJet(g, noseX, noseY, length) {
+      var u = length / 320;
+      function X(x) { return noseX + x * u; }
+      function Y(y) { return noseY + y * u; }
+      function poly(pts, fill) {
+        g.beginPath();
+        g.moveTo(X(pts[0][0]), Y(pts[0][1]));
+        for (var i = 1; i < pts.length; i++) g.lineTo(X(pts[i][0]), Y(pts[i][1]));
+        g.closePath();
+        g.fillStyle = fill;
+        g.fill();
+      }
+      poly([[168, -2], [250, -108], [292, -78], [214, 10]], "#cfc6b8");
+      poly([[168, 6], [236, 36], [268, 22], [210, 8]], "#ddd4c6");
+      poly([[246, -8], [300, -86], [318, -62], [272, 0]], "#b7aea0");
+      poly([[236, 4], [292, 28], [304, 16], [250, 6]], "#c4baac");
+      g.beginPath();
+      g.moveTo(X(0), Y(0));
+      g.quadraticCurveTo(X(70), Y(-16), X(132), Y(-18));
+      g.lineTo(X(168), Y(-18));
+      g.quadraticCurveTo(X(186), Y(-22), X(196), Y(-52));
+      g.quadraticCurveTo(X(214), Y(-60), X(236), Y(-20));
+      g.lineTo(X(286), Y(-16));
+      g.lineTo(X(308), Y(-20));
+      g.lineTo(X(308), Y(20));
+      g.lineTo(X(286), Y(16));
+      g.lineTo(X(150), Y(18));
+      g.quadraticCurveTo(X(64), Y(16), X(0), Y(0));
+      g.fillStyle = "#f4efe6";
+      g.fill();
+      g.strokeStyle = "rgba(48,28,20,0.45)";
+      g.lineWidth = 1.25;
+      g.stroke();
+      g.beginPath();
+      g.moveTo(X(184), Y(-20));
+      g.quadraticCurveTo(X(204), Y(-50), X(228), Y(-18));
+      g.quadraticCurveTo(X(206), Y(-16), X(184), Y(-20));
+      g.fillStyle = "#241c18";
+      g.fill();
+      g.fillStyle = "#1a1512";
+      g.beginPath();
+      g.moveTo(X(300), Y(-16));
+      g.lineTo(X(316), Y(-18));
+      g.lineTo(X(316), Y(18));
+      g.lineTo(X(300), Y(16));
+      g.closePath();
+      g.fill();
+    }
+
+    function drawChart(mach) {
+      var box = fit(chart);
+      if (!box || box.w < 2 || box.h < 2) return;
+      var g = box.g;
+      var w = box.w;
+      var h = box.h;
+      g.clearRect(0, 0, w, h);
+      function xOf(m) { return 8 + (m - 0.2) / 2.2 * (w - 16); }
+      function yOf(v) { return h - 14 - (v - 0.016) / 0.04 * (h - 26); }
+      g.strokeStyle = "rgba(255,246,238,0.28)";
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(xOf(1), 8);
+      g.lineTo(xOf(1), h - 12);
+      g.stroke();
+      g.beginPath();
+      for (var m = 0.2; m <= 2.401; m += 0.02) {
+        var x = xOf(m);
+        var y = yOf(cdOf(m));
+        if (m === 0.2) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      }
+      g.strokeStyle = "#ffb25a";
+      g.lineWidth = 2;
+      g.stroke();
+      g.fillStyle = "#fff6ee";
+      g.beginPath();
+      g.arc(xOf(mach), yOf(cdOf(mach)), 3.5, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    function setGoal(next) {
+      goal = clamp(Math.round(next), MIN, MAX);
+      paint();
+    }
+    function fromClient(x) {
+      var rect = track.getBoundingClientRect();
+      if (!rect.width) return goal;
+      var p = clamp((x - rect.left) / rect.width, 0, 1);
+      return MIN + p * (MAX - MIN);
+    }
+    function stopLoop() {
+      looping = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+    function frame(now) {
+      if (!looping) return;
+      if (!motionOn()) {
+        stopLoop();
+        paint();
+        return;
+      }
+      var dt = Math.min(48, now - last);
+      last = now;
+      sim += dt / 1000;
+      paint();
+      rafId = requestAnimationFrame(frame);
+    }
+    function startLoop() {
+      if (!motionOn() || looping) return;
+      looping = true;
+      last = performance.now();
+      rafId = requestAnimationFrame(frame);
+    }
+
+    track.addEventListener("pointerdown", function (e) {
+      if (e.button != null && e.button !== 0) return;
+      dragging = true;
+      track.classList.add("dragging");
+      track.setPointerCapture(e.pointerId);
+      speed.focus();
+      setGoal(fromClient(e.clientX));
+    });
+    track.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      setGoal(fromClient(e.clientX));
+    });
+    function endDrag() {
+      dragging = false;
+      track.classList.remove("dragging");
+    }
+    track.addEventListener("pointerup", endDrag);
+    track.addEventListener("pointercancel", endDrag);
+    speed.addEventListener("keydown", function (e) {
+      var delta = 0;
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") delta = e.shiftKey ? 10 : 1;
+      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") delta = e.shiftKey ? -10 : -1;
+      else if (e.key === "PageUp") delta = 10;
+      else if (e.key === "PageDown") delta = -10;
+      else if (e.key === "Home") setGoal(MIN);
+      else if (e.key === "End") setGoal(MAX);
+      else return;
+      e.preventDefault();
+      if (delta) setGoal(goal + delta);
+    });
+    window.addEventListener("resize", paint);
+    if (reduceQ.addEventListener) reduceQ.addEventListener("change", function () {
+      if (reduceQ.matches) stopLoop();
+      else startLoop();
+      paint();
+    });
+    paint();
+    startLoop();
+  </script>
+</body>
+</html>
