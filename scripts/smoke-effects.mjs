@@ -2,6 +2,7 @@
 // 浏览器冒烟：用无头 Chromium 真打开每个 effects/<id>/code/index.html。
 // 断网打开（任何外网请求都记为问题），收集控制台报错，等 3 秒后截图（桌面 + 手机），
 // 并检查画面不是一片纯色（白屏/黑屏）。截图放 shots/，CI 里作为附件给人看。
+// 共用一个浏览器，同时开 4 个页面；每个页面自己打开、用完即关。截图名是「效果-屏幕」，不会写到同一个文件。
 import { chromium } from 'playwright-core';
 import { readdirSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -10,6 +11,7 @@ import { pathToFileURL } from 'node:url';
 const ROOT = resolve(process.argv[2] || '.');
 const OUT = resolve(process.env.SHOTS_DIR || 'shots');
 const WAIT_MS = Number(process.env.SMOKE_WAIT_MS || 3000);
+const WORKERS = 4;
 const VIEWPORTS = [{ name: 'desktop', width: 1280, height: 800 }, { name: 'mobile', width: 390, height: 844 }];
 mkdirSync(OUT, { recursive: true });
 
@@ -17,15 +19,20 @@ const ids = readdirSync(join(ROOT, 'effects'), { withFileTypes: true })
   .filter((e) => e.isDirectory() && existsSync(join(ROOT, 'effects', e.name, 'code', 'index.html')))
   .map((e) => e.name);
 
+const started = Date.now();
 const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH || undefined,
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'],
 });
-const rows = [];
-let failed = 0;
+
+const jobs = [];
 for (const id of ids) {
-  for (const vp of VIEWPORTS) {
-    const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
+  for (const vp of VIEWPORTS) jobs.push({ id, vp });
+}
+
+async function openOne(id, vp) {
+  const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
+  try {
     const errors = [];
     const external = [];
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 160)); });
@@ -62,13 +69,35 @@ for (const id of ids) {
     if (errors.length) issues.push('控制台报错：' + errors.slice(0, 3).join(' / '));
     if (external.length) issues.push('偷偷连外网：' + [...new Set(external)].slice(0, 3).join(' , '));
     if (blank) issues.push('画面几乎是纯色（白屏/黑屏？）');
-    if (issues.length) failed++;
-    rows.push(`| \`${id}\` | ${vp.name} | ${issues.length ? '❌ ' + issues.join('；').replace(/\|/g, '\\|') : '✅'} |`);
-    await page.close();
+    return { bad: issues.length > 0, text: `| \`${id}\` | ${vp.name} | ${issues.length ? '❌ ' + issues.join('；').replace(/\|/g, '\\|') : '✅'} |` };
+  } finally {
+    await page.close().catch(() => {});
   }
 }
-await browser.close();
-const md = [`## 浏览器冒烟${failed ? '未通过' : '通过'}`, '', `打开了 ${ids.length} 个效果 × ${VIEWPORTS.length} 种屏幕。截图在本次运行的附件 \`effect-screenshots\` 里。`, '',
+
+const rows = new Array(jobs.length);
+let failed = 0;
+let cursor = 0;
+async function worker() {
+  for (;;) {
+    const index = cursor++;
+    if (index >= jobs.length) return;
+    const { id, vp } = jobs[index];
+    const row = await openOne(id, vp);
+    rows[index] = row.text;
+    if (row.bad) failed++;
+  }
+}
+
+try {
+  const pool = Math.min(WORKERS, Math.max(jobs.length, 1));
+  await Promise.all(Array.from({ length: pool }, () => worker()));
+} finally {
+  await browser.close();
+}
+
+const elapsedSec = ((Date.now() - started) / 1000).toFixed(1);
+const md = [`## 浏览器冒烟${failed ? '未通过' : '通过'}`, '', `打开了 ${ids.length} 个效果 × ${VIEWPORTS.length} 种屏幕，总耗时 ${elapsedSec} 秒。截图在本次运行的附件 \`effect-screenshots\` 里。`, '',
   '| 素材 | 屏幕 | 结果 |', '|---|---|---|', ...rows].join('\n');
 console.log(md);
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, md + '\n');
