@@ -47,29 +47,36 @@
     const cy = cssH * 0.52;
     const eyeW = Math.max(168, Math.min(cssW * (0.5 + 0.08 * narrow), cssH * 0.5));
     const eyeRx = eyeW * 0.5;
-    const eyeRy = eyeRx * 0.56;
+    const eyeRy = eyeRx * 0.58;
     const cell = Math.max(4, Math.round(eyeW / 72));
     return { cx, cy, eyeRx, eyeRy, cell, eyeW, narrow };
   }
 
-  function lids(nx, squint, cap = 0, capSign = 1) {
+  function lids(nx, squint, cap = 0, capDirection = 1) {
     const u = Math.pow(Math.max(0, 1 - nx * nx), 0.62);
     const b = Math.pow(Math.max(0, 1 - nx * nx), 0.9);
-    let upper = u * (1 - squint * 0.22);
-    let lower = -b * 0.76 * (1 - squint * 0.18);
+    let upper = u * (1 - squint * 0.12);
+    let lower = -b * 0.82 * (1 - squint * 0.1);
     if (cap > 0.02) {
-      const side = nx * capSign;
-      const blend = smoothstep(0.2, 0.62, side) * cap;
-      if (blend > 0) {
-        const ax = 0.58 * capSign;
-        const rx = 0.5;
-        const ry = 0.78 * (1 - squint * 0.12);
-        const dx = (nx - ax) / rx;
+      const directionBlend = smoothstep(-0.18, 0.18, capDirection);
+      const leftBlend = smoothstep(0.2, 0.62, -nx) * cap * (1 - directionBlend);
+      if (leftBlend > 0) {
+        const dx = (nx + 0.58) / 0.5;
         const room = 1 - dx * dx;
         if (room > 0) {
-          const half = Math.sqrt(room) * ry;
-          upper = upper * (1 - blend) + half * blend;
-          lower = lower * (1 - blend) + (-half * 0.92) * blend;
+          const half = Math.sqrt(room) * 0.78 * (1 - squint * 0.12);
+          upper = upper * (1 - leftBlend) + half * leftBlend;
+          lower = lower * (1 - leftBlend) + (-half * 0.92) * leftBlend;
+        }
+      }
+      const rightBlend = smoothstep(0.2, 0.62, nx) * cap * directionBlend;
+      if (rightBlend > 0) {
+        const dx = (nx - 0.58) / 0.5;
+        const room = 1 - dx * dx;
+        if (room > 0) {
+          const half = Math.sqrt(room) * 0.78 * (1 - squint * 0.12);
+          upper = upper * (1 - rightBlend) + half * rightBlend;
+          lower = lower * (1 - rightBlend) + (-half * 0.92) * rightBlend;
         }
       }
     }
@@ -101,7 +108,7 @@
     const uy = pose.gy / glen;
     const proj = (nx * L.eyeRx * ux + (-ny) * L.eyeRy * uy) / L.eyeRx;
     const along = smoothstep(0.05, 0.48, proj);
-    const stretch = pose.pull * along * L.eyeRx * 0.2;
+    const stretch = pose.pull * along * L.eyeRx * 0.1;
     return { x: rest.x + ux * stretch, y: rest.y + uy * stretch };
   }
 
@@ -240,8 +247,7 @@
         const h = hash(ix, iy);
         const back = deformIn(x + cell * 0.5, y + cell * 0.5, L, pose);
         const loc = localOf(back.x, back.y, L);
-        const capSign = pose.gx >= 0 ? 1 : -1;
-        const lid = lids(loc.nx, pose.squint, pose.pull, capSign);
+        const lid = lids(loc.nx, pose.squint, pose.pull, pose.gx);
         const nxLimit = 1 + pose.pull * 0.12;
         const inEye = loc.nx >= -nxLimit && loc.nx <= nxLimit && loc.ny <= lid.upper && loc.ny >= lid.lower;
         if (!inEye) continue;
