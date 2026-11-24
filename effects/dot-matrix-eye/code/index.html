@@ -86,8 +86,13 @@
     const dist = Math.hypot(dx, dy) || 1;
     const align = clamp(nx * pose.gx + (-ny) * pose.gy, 0, 1);
     const rim = clamp(Math.hypot(nx, ny / 0.68), 0, 1);
-    const mag = pose.pull * Math.pow(align, 1.2) * Math.pow(rim, 1.35) * L.eyeRx * 0.36;
-    return { x: rest.x + (dx / dist) * mag, y: rest.y + (dy / dist) * mag };
+    const reach = Math.pow(align, 0.72) * Math.pow(rim, 0.62);
+    const mag = pose.pull * reach * L.eyeRx * 0.36;
+    const pinch = 1 - 0.75 * Math.pow(rim, 1.5) * Math.pow(align, 0.85);
+    return {
+      x: rest.x + (dx / dist) * mag,
+      y: rest.y + (dy / dist) * mag * pinch
+    };
   }
 
   function deformIn(sx, sy, L, pose) {
