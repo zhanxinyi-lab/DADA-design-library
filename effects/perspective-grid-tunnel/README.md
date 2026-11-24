@@ -5,7 +5,7 @@
 - 状态：video_recreated
 - 原文：https://x.com/AdelineAstraOS/status/2120882122441498894
 - 素材 ID：2120882122441498894
-- 版本：1.0.0
+- 版本：1.0.1
 
 ## 复刻说明
 
