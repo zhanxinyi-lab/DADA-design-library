@@ -19,6 +19,10 @@
     cursor: grab;
   }
   canvas:active { cursor: grabbing; }
+  canvas:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: -6px;
+  }
   .bar {
     position: fixed;
     left: 0;
@@ -116,6 +120,7 @@
 
   var reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   var reduced = reducedQuery.matches;
+  var userOverride = false;
   var autoplay = !reduced;
   var pos = 0;
   var elapsed = 0;
@@ -134,7 +139,7 @@
   var noise = makeNoise();
   var binary = makeBinary();
   var cards = [
-    { label: "Product&Design", name: "Product&Design", paint: paintProduct, motif: motifProduct, textY: 0.5 },
+    { label: "Product&Design", name: "Product&Design", paint: paintProduct, motif: motifProduct, textY: 0.6 },
     { label: "Engineering", name: "Engineering", paint: paintEngineering, motif: motifFlare, textY: 0.52 },
     { label: "Data", name: "Data", paint: paintData, motif: motifBinary, textY: 0.54 },
     { label: "", name: "暖色光斑", paint: paintWarm, motif: motifCross, textY: 0.5 },
@@ -239,7 +244,7 @@
     bg.addColorStop(1, "#9ebfff");
     g.fillStyle = bg;
     g.fillRect(0, 0, w, h);
-    var hot = g.createRadialGradient(w * 0.5, h * 0.25, 4, w * 0.5, h * 0.34, w * 0.42);
+    var hot = g.createRadialGradient(w * 0.5, h * 0.36, 4, w * 0.5, h * 0.42, w * 0.42);
     hot.addColorStop(0, "rgba(255, 186, 78, 1)");
     hot.addColorStop(0.22, "rgba(255, 120, 86, 0.72)");
     hot.addColorStop(1, "rgba(255, 80, 140, 0)");
@@ -250,7 +255,7 @@
 
   function fanLight(g, w, h) {
     var cx = w * 0.5;
-    var cy = h * 0.25;
+    var cy = h * 0.36;
     var reach = h * 0.95;
     g.save();
     g.beginPath();
@@ -270,7 +275,7 @@
 
   function motifProduct(g, w, h) {
     var cx = w * 0.5;
-    var cy = h * 0.25;
+    var cy = h * 0.36;
     var span = w * 0.34;
     g.save();
     g.strokeStyle = "rgba(255,255,255,0.94)";
@@ -502,45 +507,44 @@
     }
   }
 
-  function drawCard(card, x, y, w, h, f) {
+  function ensureCardBuf(card) {
     var px = Math.max(1, dpr * stageScale);
-    var bw = Math.max(2, Math.round(w * px));
-    var bh = Math.max(2, Math.round(h * px));
+    var bw = Math.max(2, Math.round(FOCUS_W * px));
+    var bh = Math.max(2, Math.round(FOCUS_H * px));
     if (!card.buf) {
       card.buf = document.createElement("canvas");
       card.bctx = card.buf.getContext("2d");
     }
-    if (card.buf.width !== bw || card.buf.height !== bh) {
-      card.buf.width = bw;
-      card.buf.height = bh;
-    }
+    if (card.bufPx === px && card.buf.width === bw && card.buf.height === bh) return;
+    card.buf.width = bw;
+    card.buf.height = bh;
+    card.bufPx = px;
     var g = card.bctx;
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.clearRect(0, 0, bw, bh);
     g.setTransform(px, 0, 0, px, 0, 0);
-    var radius = 46 + (72 - 46) * f;
-    roundPath(g, 0.5, 0.5, w - 1, h - 1, radius);
+    var radius = 72;
+    roundPath(g, 0.5, 0.5, FOCUS_W - 1, FOCUS_H - 1, radius);
     g.save();
     g.clip();
-    card.paint(g, w, h);
-    card.motif(g, w, h);
-    grain(g, w, h);
+    card.paint(g, FOCUS_W, FOCUS_H);
+    card.motif(g, FOCUS_W, FOCUS_H);
+    grain(g, FOCUS_W, FOCUS_H);
     g.restore();
-    roundPath(g, 1, 1, w - 2, h - 2, Math.max(1, radius - 1));
-    g.strokeStyle = "rgba(255,255,255," + (0.18 + 0.22 * f) + ")";
+    roundPath(g, 1, 1, FOCUS_W - 2, FOCUS_H - 2, radius - 1);
+    g.strokeStyle = "rgba(255,255,255,0.4)";
     g.lineWidth = 1.5;
     g.stroke();
-    if (card.label && f > 0.56) {
-      g.save();
-      g.globalAlpha = Math.max(0, Math.min(1, (f - 0.56) / 0.3));
+    if (card.label) {
       g.fillStyle = "#fff";
-      g.font = "500 " + Math.max(16, Math.round(23 * (h / FOCUS_H))) + "px system-ui, \"Segoe UI\", sans-serif";
+      g.font = "500 23px system-ui, \"Segoe UI\", sans-serif";
       g.textAlign = "center";
       g.textBaseline = "middle";
       if ("letterSpacing" in g) g.letterSpacing = "0.4px";
-      g.fillText(card.label, w / 2, h * card.textY);
-      g.restore();
+      g.fillText(card.label, FOCUS_W / 2, FOCUS_H * card.textY);
     }
+  }
+
+  function drawCard(card, x, y, w, h, f) {
+    ensureCardBuf(card);
     ctx.save();
     var blur = (1 - f) * (1 - f) * 18;
     if (blur > 0.45) blitBlur(card.buf, x, y, w, h, blur);
@@ -583,8 +587,12 @@
     else elapsed = i * PERIOD + HOLD + SLIDE * easeInv(u);
   }
 
+  function prefersStill() {
+    return reduced && !userOverride;
+  }
+
   function needsFrame() {
-    return !!(dragging || anim || (autoplay && !reduced));
+    return !!(dragging || anim || (autoplay && !prefersStill()));
   }
 
   function kick() {
@@ -610,7 +618,7 @@
   }
 
   function goTo(target) {
-    if (reduced) {
+    if (prefersStill()) {
       pos = target;
       elapsed = target * PERIOD;
       anim = null;
@@ -646,7 +654,7 @@
       } else {
         pos = anim.from + (anim.target - anim.from) * ease(t);
       }
-    } else if (!dragging && autoplay && !reduced) {
+    } else if (!dragging && autoplay && !prefersStill()) {
       elapsed += dt;
       pos = posAt(elapsed);
     }
@@ -694,6 +702,8 @@
     dragMoved = false;
     lastX = pointerX(event);
     anim = null;
+    pos = Math.round(pos);
+    syncElapsed();
     canvas.setPointerCapture(event.pointerId);
     kick();
   });
@@ -712,6 +722,9 @@
     if (!dragging) return;
     dragging = false;
     if (!dragMoved) {
+      var settled = Math.round(pos);
+      announceIndex(settled);
+      goTo(settled);
       kick();
       return;
     }
@@ -766,10 +779,10 @@
   nextBtn.addEventListener("click", function () { step(1); });
   pauseBtn.addEventListener("click", function () {
     autoplay = !autoplay;
+    if (autoplay) userOverride = true;
     anim = null;
-    if (autoplay && reduced) reduced = false;
+    pos = Math.round(pos);
     syncElapsed();
-    pauseBtn.textContent = autoplay ? "暂停" : "继续";
     pauseBtn.setAttribute("aria-pressed", autoplay ? "false" : "true");
     kick();
   });
@@ -777,21 +790,18 @@
   function onReduce(event) {
     reduced = event.matches;
     if (reduced) {
+      userOverride = false;
       autoplay = false;
       anim = null;
       pos = Math.round(pos);
       elapsed = pos * PERIOD;
-      pauseBtn.textContent = "继续";
       pauseBtn.setAttribute("aria-pressed", "true");
     }
     kick();
   }
   if (reducedQuery.addEventListener) reducedQuery.addEventListener("change", onReduce);
   else if (reducedQuery.addListener) reducedQuery.addListener(onReduce);
-  if (reduced) {
-    pauseBtn.textContent = "继续";
-    pauseBtn.setAttribute("aria-pressed", "true");
-  }
+  if (reduced) pauseBtn.setAttribute("aria-pressed", "true");
 
   window.addEventListener("resize", function () {
     resize();
