@@ -133,7 +133,7 @@
 </head>
 <body>
   <div id="runway"></div>
-  <div id="stage" role="group" aria-label="拌面滚动进度" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.0000" aria-valuetext="第1拍 提起" data-progress="0.0000" data-phase="lift">
+  <div id="stage" role="progressbar" aria-label="拌面滚动进度" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.0000" aria-valuetext="lift" data-progress="0.0000" data-phase="lift">
     <canvas id="board" aria-label="筷子夹起一团拌面"></canvas>
     <header>
       <div class="mark">热勺</div>
@@ -154,6 +154,7 @@
   var reduced = motion.matches;
   var progress = reduced ? 1 : 0;
   var locking = false;
+  var pendingScroll = null;
   var shown = "";
 
   var stage = document.getElementById("stage");
@@ -612,12 +613,6 @@
     hintEl.style.opacity = String(0.75 * (1 - span(p, 0.04, 0.2)));
   }
 
-  function beatNo(name) {
-    if (name === "split") return "2";
-    if (name === "plate") return "3";
-    return "1";
-  }
-
   function syncCopy() {
     var name = phaseOf(progress);
     var row = COPY[name];
@@ -627,7 +622,7 @@
     stage.setAttribute("aria-valuemin", "0");
     stage.setAttribute("aria-valuemax", "1");
     stage.setAttribute("aria-valuenow", now);
-    stage.setAttribute("aria-valuetext", "第" + beatNo(name) + "拍 " + row[1]);
+    stage.setAttribute("aria-valuetext", name);
     if (name === shown) return;
     shown = name;
     kickerEl.textContent = row[0];
@@ -656,10 +651,9 @@
   function pinEnd() {
     progress = 1;
     var max = maxScroll();
-    if (max > 0 && Math.abs(window.scrollY - max) > 1) {
-      locking = true;
+    if (max > 0 && window.scrollY !== max) {
+      pendingScroll = max;
       window.scrollTo(0, max);
-      locking = false;
     }
     paint();
   }
@@ -678,6 +672,13 @@
   }
 
   function onScroll() {
+    if (pendingScroll !== null) {
+      if (window.scrollY === pendingScroll) {
+        pendingScroll = null;
+        return;
+      }
+      pendingScroll = null;
+    }
     if (locking) return;
     if (reduced) {
       pinEnd();
