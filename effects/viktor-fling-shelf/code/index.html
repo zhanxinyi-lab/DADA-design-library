@@ -376,16 +376,20 @@
     }
 
     function fling(speed) {
+      if (reduced()) {
+        position = mod(Math.round(position));
+        velocity = 0;
+        springing = false;
+        target = position;
+        paint();
+        sayIndex(position);
+        return;
+      }
       velocity = speed;
       target = Math.round(position + velocity / PROJECT);
       springing = true;
       springStart = performance.now();
       sayIndex(target);
-      if (reduced()) {
-        snapAll();
-        paint();
-        return;
-      }
       wake();
     }
 
@@ -447,7 +451,7 @@
       const piece = drag.piece;
       const origin = drag.origin;
       const heldTarget = drag.heldTarget;
-      const speed = releaseVelocity();
+      const speed = reduced() ? 0 : releaseVelocity();
       drag = null;
       pendingX = null;
       rail.classList.remove("is-drag");
@@ -475,7 +479,7 @@
         return;
       }
       if (reduced()) {
-        position = mod(Math.round(position + speed / PROJECT));
+        position = mod(Math.round(position));
         velocity = 0;
         springing = false;
         target = position;
