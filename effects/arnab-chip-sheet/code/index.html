@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>筛选芯片从按钮长出面板</title>
+  <style>
+    :root {
+      --ink: #1c1b19;
+      --paper: #f3efe8;
+      --card: #fffdf9;
+      --line: #e4ddd2;
+      --muted: #6f6a63;
+      --sheet: #1b1b1b;
+      --sheet-line: #3a3a3a;
+      --accent: #3b86f6;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --dur: 460ms;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    html { overflow-x: clip; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; color: inherit; }
+    .stage {
+      min-height: 100%;
+      padding: 20px 12px 28px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .column {
+      width: min(440px, 100%);
+      min-width: 0;
+      position: relative;
+    }
+    .hint {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      min-width: 0;
+    }
+    .card {
+      min-width: 0;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 8px;
+    }
+    .swatch {
+      height: 84px;
+      border-radius: 12px;
+      position: relative;
+    }
+    .swatch::after {
+      content: "";
+      position: absolute;
+      left: 22%;
+      right: 22%;
+      top: 18px;
+      bottom: 14px;
+      border-radius: 40% 40% 10px 10px;
+      background: rgb(255 255 255 / 42%);
+    }
+    .swatch[data-tone="clay"] { background: #c9846c; }
+    .swatch[data-tone="sage"] { background: #7f9278; }
+    .swatch[data-tone="sand"] { background: #d7c3a4; }
+    .swatch[data-tone="ink"] { background: #314155; }
+    .swatch[data-tone="wine"] { background: #8d4f5d; }
+    .swatch[data-tone="brass"] { background: #c6a15b; }
+    .card h2 {
+      margin: 8px 4px 0;
+      font-size: 15px;
+      font-weight: 650;
+    }
+    .card p {
+      margin: 3px 4px 6px;
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+    .live {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .dock {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      margin-top: 16px;
+    }
+    .filter {
+      width: 44px;
+      height: 44px;
+      flex: none;
+      border: 0;
+      border-radius: 50%;
+      background: var(--sheet);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      cursor: pointer;
+    }
+    .bar {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 4px;
+      border-radius: 999px;
+      background: var(--sheet);
+      color: #f5f5f5;
+      overflow: hidden;
+    }
+    .sort, .quiet {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      border-radius: 999px;
+    }
+    .sort {
+      flex: 1 1 auto;
+      height: 36px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 0 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .sort.is-set { color: #9cc4ff; }
+    .sort span, .quiet span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .quiet {
+      flex: none;
+      min-width: auto;
+      padding: 0 3px;
+      color: #dedede;
+      font-size: 12px;
+    }
+    .sort svg, .quiet svg { width: 14px; height: 14px; flex: none; }
+    .sep {
+      width: 1px;
+      height: 16px;
+      flex: none;
+      background: #3f3f3f;
+    }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      border: 0;
+      padding: 0;
+      margin: 0;
+      background: transparent;
+      cursor: default;
+    }
+    .sheet {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 3;
+      padding: 16px 14px 14px;
+      border-radius: 22px;
+      background: var(--sheet);
+      color: #f7f7f7;
+      overflow: hidden;
+    }
+    .sheet h2 {
+      margin: 0 2px 12px;
+      font-size: 15px;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+    .options {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      min-width: 0;
+    }
+    .opt {
+      min-width: 0;
+      min-height: 40px;
+      border: 1px solid var(--sheet-line);
+      border-radius: 999px;
+      background: transparent;
+      color: #f3f3f3;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.25;
+      text-align: center;
+      cursor: pointer;
+    }
+    .opt[aria-checked="true"] {
+      border-color: #8ebcff;
+      box-shadow: inset 0 0 0 1px #8ebcff;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      min-width: 0;
+    }
+    .clear, .apply {
+      min-height: 44px;
+      border: 0;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .clear {
+      flex: none;
+      padding: 0 16px;
+      background: #2a2a2a;
+      color: #f2f2f2;
+    }
+    .apply {
+      flex: 1 1 auto;
+      min-width: 0;
+      background: #2c2c2c;
+      color: #c8c8c8;
+    }
+    .apply.is-ready {
+      background: var(--accent);
+      color: #fff;
+    }
+    :focus { outline: none; }
+    :focus-visible {
+      outline: 2px solid #161513;
+      outline-offset: 3px;
+    }
+    .filter:focus-visible {
+      outline: 2px solid #161513;
+      outline-offset: 3px;
+    }
+    .bar :focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: -3px;
+    }
+    .sheet :focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition: none !important;
+        animation: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="column" id="column">
+      <p class="hint">点筛选，条从这颗钮展开。再点排序，面板从芯片长出来；选完折回去，已选项留在芯片里。</p>
+      <div class="grid" id="grid">
+        <article class="card" data-i="0" data-price="128" data-rating="4.6" data-fresh="40" data-deal="0">
+          <div class="swatch" data-tone="clay"></div>
+          <h2>陶土灯</h2>
+          <p>128 · 评价 4.6</p>
+        </article>
+        <article class="card" data-i="1" data-price="86" data-rating="4.2" data-fresh="20" data-deal="10">
+          <div class="swatch" data-tone="sage"></div>
+          <h2>亚麻袋</h2>
+          <p>86 · 评价 4.2</p>
+        </article>
+        <article class="card" data-i="2" data-price="240" data-rating="4.8" data-fresh="55" data-deal="0">
+          <div class="swatch" data-tone="sand"></div>
+          <h2>橡木凳</h2>
+          <p>240 · 评价 4.8</p>
+        </article>
+        <article class="card" data-i="3" data-price="64" data-rating="4.4" data-fresh="90" data-deal="15">
+          <div class="swatch" data-tone="ink"></div>
+          <h2>玻璃壶</h2>
+          <p>64 · 评价 4.4</p>
+        </article>
+        <article class="card" data-i="4" data-price="310" data-rating="4.9" data-fresh="10" data-deal="30">
+          <div class="swatch" data-tone="wine"></div>
+          <h2>羊毛毯</h2>
+          <p>310 · 评价 4.9</p>
+        </article>
+        <article class="card" data-i="5" data-price="42" data-rating="4.1" data-fresh="70" data-deal="5">
+          <div class="swatch" data-tone="brass"></div>
+          <h2>黄铜勺</h2>
+          <p>42 · 评价 4.1</p>
+        </article>
+      </div>
+      <p class="live" id="live" aria-live="polite"></p>
+      <div class="dock" id="dock">
+        <button type="button" class="filter" id="filter" aria-expanded="false" aria-controls="bar" aria-label="筛选">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+            <circle cx="9" cy="7" r="2.1" fill="currentColor"></circle>
+            <circle cx="15" cy="12" r="2.1" fill="currentColor"></circle>
+            <circle cx="8" cy="17" r="2.1" fill="currentColor"></circle>
+          </svg>
+        </button>
+        <div class="bar" id="bar" hidden>
+          <button type="button" class="sort" id="sort" aria-expanded="false" aria-controls="sheet" aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+              <path d="M7 5v14M7 5 4.6 7.4M7 5l2.4 2.4M17 19V5M17 19l-2.4-2.4M17 19l2.4-2.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+            <span id="sort-label">排序</span>
+          </button>
+          <i class="sep" aria-hidden="true"></i>
+          <span class="quiet"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M3 8h10v7H3zM13 11h4.2L20 14v1h-7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="7" cy="17.2" r="1.3" fill="currentColor"></circle><circle cx="16.5" cy="17.2" r="1.3" fill="currentColor"></circle></svg><span>配送</span></span>
+          <i class="sep" aria-hidden="true"></i>
+          <span class="quiet"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"></rect><path d="M8 3.6v3M16 3.6v3M4 9.5h16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg><span>到达时间</span></span>
+        </div>
+      </div>
+      <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+        <h2 id="sheet-title">怎么排</h2>
+        <div class="options" id="options" role="radiogroup" aria-label="怎么排">
+          <button type="button" class="opt" role="radio" data-sort="featured" aria-checked="true" tabindex="0">综合推荐</button>
+          <button type="button" class="opt" role="radio" data-sort="low" aria-checked="false" tabindex="-1">价格从低到高</button>
+          <button type="button" class="opt" role="radio" data-sort="high" aria-checked="false" tabindex="-1">价格从高到低</button>
+          <button type="button" class="opt" role="radio" data-sort="rated" aria-checked="false" tabindex="-1">评价最高</button>
+          <button type="button" class="opt" role="radio" data-sort="fresh" aria-checked="false" tabindex="-1">最新上架</button>
+          <button type="button" class="opt" role="radio" data-sort="deal" aria-checked="false" tabindex="-1">折扣最大</button>
+        </div>
+        <div class="actions">
+          <button type="button" class="clear" id="clear">清除</button>
+          <button type="button" class="apply" id="apply">收起</button>
+        </div>
+      </div>
+    </div>
+    <button type="button" class="backdrop" id="backdrop" hidden tabindex="-1" aria-label="关闭排序"></button>
+  </main>
+  <script>
+    (function () {
+      var OPTIONS = ["featured", "low", "high", "rated", "fresh", "deal"];
+      var NAMES = {
+        featured: "综合推荐",
+        low: "价格从低到高",
+        high: "价格从高到低",
+        rated: "评价最高",
+        fresh: "最新上架",
+        deal: "折扣最大"
+      };
+      var DUR = 460;
+      var EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
+      var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      var filterBtn = document.getElementById("filter");
+      var bar = document.getElementById("bar");
+      var sortBtn = document.getElementById("sort");
+      var sortLabel = document.getElementById("sort-label");
+      var sheet = document.getElementById("sheet");
+      var options = document.getElementById("options");
+      var clearBtn = document.getElementById("clear");
+      var applyBtn = document.getElementById("apply");
+      var backdrop = document.getElementById("backdrop");
+      var grid = document.getElementById("grid");
+      var dock = document.getElementById("dock");
+      var live = document.getElementById("live");
+      var applied = "featured";
+      var pending = "featured";
+      var barPhase = "closed";
+      var sheetPhase = "closed";
+      var generation = 0;
+
+      function reduced() { return motion.matches; }
+
+      function focusRing(el) {
+        if (!el) return;
+        try { el.focus({ preventScroll: true, focusVisible: true }); }
+        catch (err) { el.focus({ preventScroll: true }); }
+      }
+
+      function clearMotion(el) {
+        el.style.transition = "none";
+        el.style.transform = "none";
+        el.style.transformOrigin = "";
+      }
+
+      function delta(layout, target) {
+        var sx = target.width / Math.max(1, layout.width);
+        var sy = target.height / Math.max(1, layout.height);
+        var dx = target.left - layout.left;
+        var dy = target.top - layout.top;
+        return "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")";
+      }
+
+      function whenDone(el, gen, fn) {
+        var ran = false;
+        function run() {
+          el.removeEventListener("transitionend", onEnd);
+          if (ran || gen !== generation) return;
+          ran = true;
+          fn();
+        }
+        function onEnd(e) {
+          if (e.target !== el || e.propertyName !== "transform") return;
+          run();
+        }
+        el.addEventListener("transitionend", onEnd);
+        window.setTimeout(run, DUR + 80);
+      }
+
+      function growFrom(el, origin, gen, fn) {
+        var layout = el.getBoundingClientRect();
+        el.style.transformOrigin = "0 0";
+        el.style.transition = "none";
+        el.style.transform = delta(layout, origin);
+        el.getBoundingClientRect();
+        el.style.transition = "transform " + DUR + "ms " + EASE;
+        el.style.transform = "translate(0px, 0px) scale(1, 1)";
+        whenDone(el, gen, function () {
+          clearMotion(el);
+          if (fn) fn();
+        });
+      }
+
+      function motionTo(el, dest, gen, fn) {
+        var visual = el.getBoundingClientRect();
+        el.style.transition = "none";
+        el.style.transform = "none";
+        var layout = el.getBoundingClientRect();
+        el.style.transformOrigin = "0 0";
+        el.style.transform = delta(layout, visual);
+        el.getBoundingClientRect();
+        el.style.transition = "transform " + DUR + "ms " + EASE;
+        el.style.transform = delta(layout, dest);
+        whenDone(el, gen, fn);
+      }
+
+      function paintChip() {
+        var named = applied !== "featured";
+        sortLabel.textContent = named ? NAMES[applied] : "排序";
+        sortBtn.classList.toggle("is-set", named);
+        sortBtn.setAttribute("aria-label", named ? "排序，当前是" + NAMES[applied] : "排序");
+      }
+
+      function paintOptions() {
+        var nodes = options.querySelectorAll("[data-sort]");
+        for (var i = 0; i < nodes.length; i++) {
+          var on = nodes[i].getAttribute("data-sort") === pending;
+          nodes[i].setAttribute("aria-checked", on ? "true" : "false");
+          nodes[i].tabIndex = on ? 0 : -1;
+        }
+        var dirty = pending !== applied;
+        applyBtn.classList.toggle("is-ready", dirty);
+        applyBtn.textContent = dirty ? "用这个顺序" : "收起";
+      }
+
+      function reorder() {
+        var cards = Array.prototype.slice.call(grid.children);
+        function value(card) {
+          if (applied === "low") return Number(card.dataset.price);
+          if (applied === "high") return -Number(card.dataset.price);
+          if (applied === "rated") return -Number(card.dataset.rating);
+          if (applied === "fresh") return -Number(card.dataset.fresh);
+          if (applied === "deal") return -Number(card.dataset.deal);
+          return Number(card.dataset.i);
+        }
+        cards.sort(function (a, b) {
+          return value(a) - value(b) || Number(a.dataset.i) - Number(b.dataset.i);
+        });
+        for (var i = 0; i < cards.length; i++) grid.appendChild(cards[i]);
+      }
+
+      function announce() {
+        live.textContent = "已按" + NAMES[applied] + "排列";
+      }
+
+      function checkedRadio() {
+        return options.querySelector('[aria-checked="true"]');
+      }
+
+      function barShown() {
+        return barPhase === "open" || barPhase === "opening";
+      }
+
+      function openBar() {
+        if (barShown()) return;
+        if (reduced()) {
+          generation += 1;
+          bar.hidden = false;
+          filterBtn.setAttribute("aria-expanded", "true");
+          clearMotion(bar);
+          barPhase = "open";
+          focusRing(sortBtn);
+          return;
+        }
+        var origin = filterBtn.getBoundingClientRect();
+        bar.hidden = false;
+        filterBtn.setAttribute("aria-expanded", "true");
+        var gen = ++generation;
+        barPhase = "opening";
+        growFrom(bar, origin, gen, function () {
+          if (gen !== generation) return;
+          barPhase = "open";
+        });
+        focusRing(sortBtn);
+      }
+
+      function closeBar() {
+        if (barPhase === "closed" || barPhase === "closing") return;
+        if (reduced()) {
+          generation += 1;
+          bar.hidden = true;
+          clearMotion(bar);
+          filterBtn.setAttribute("aria-expanded", "false");
+          barPhase = "closed";
+          focusRing(filterBtn);
+          return;
+        }
+        var dest = filterBtn.getBoundingClientRect();
+        var gen = ++generation;
+        barPhase = "closing";
+        motionTo(bar, dest, gen, function () {
+          if (gen !== generation) return;
+          bar.hidden = true;
+          clearMotion(bar);
+          filterBtn.setAttribute("aria-expanded", "false");
+          barPhase = "closed";
+          focusRing(filterBtn);
+        });
+      }
+
+      function releaseSheet() {
+        sheet.hidden = true;
+        backdrop.hidden = true;
+        grid.inert = false;
+        dock.inert = false;
+        sortBtn.setAttribute("aria-expanded", "false");
+        clearMotion(sheet);
+        sheetPhase = "closed";
+        focusRing(sortBtn);
+      }
+
+      function openSheet() {
+        if (sheetPhase === "open" || sheetPhase === "opening") return;
+        if (!barShown()) openBar();
+        pending = applied;
+        paintOptions();
+        if (reduced()) {
+          generation += 1;
+          sheet.hidden = false;
+          backdrop.hidden = false;
+          sortBtn.setAttribute("aria-expanded", "true");
+          grid.inert = true;
+          dock.inert = true;
+          clearMotion(sheet);
+          sheetPhase = "open";
+          focusRing(checkedRadio());
+          return;
+        }
+        var origin = sortBtn.getBoundingClientRect();
+        sheet.hidden = false;
+        backdrop.hidden = false;
+        sortBtn.setAttribute("aria-expanded", "true");
+        grid.inert = true;
+        dock.inert = true;
+        var gen = ++generation;
+        sheetPhase = "opening";
+        growFrom(sheet, origin, gen, function () {
+          if (gen !== generation) return;
+          sheetPhase = "open";
+        });
+        focusRing(checkedRadio());
+      }
+
+      function closeSheet(commit) {
+        if (sheetPhase === "closed" || sheetPhase === "closing") return;
+        if (commit) {
+          applied = pending;
+          paintChip();
+          reorder();
+          announce();
+        } else {
+          pending = applied;
+          paintOptions();
+        }
+        if (reduced()) {
+          generation += 1;
+          releaseSheet();
+          return;
+        }
+        var dest = sortBtn.getBoundingClientRect();
+        var gen = ++generation;
+        sheetPhase = "closing";
+        motionTo(sheet, dest, gen, function () {
+          if (gen !== generation) return;
+          releaseSheet();
+        });
+      }
+
+      function choose(id) {
+        if (OPTIONS.indexOf(id) < 0) return;
+        pending = id;
+        paintOptions();
+        focusRing(checkedRadio());
+      }
+
+      function snapReduced() {
+        if (!reduced()) return;
+        generation += 1;
+        clearMotion(bar);
+        clearMotion(sheet);
+        clearMotion(filterBtn);
+        if (sheetPhase === "closing") releaseSheet();
+        else if (sheetPhase === "opening") sheetPhase = "open";
+        if (barPhase === "closing") {
+          bar.hidden = true;
+          clearMotion(bar);
+          filterBtn.setAttribute("aria-expanded", "false");
+          barPhase = "closed";
+        } else if (barPhase === "opening") barPhase = "open";
+      }
+
+      filterBtn.addEventListener("click", function () {
+        if (barShown()) closeBar();
+        else openBar();
+      });
+      sortBtn.addEventListener("click", function () {
+        if (sheetPhase === "closed") openSheet();
+        else closeSheet(false);
+      });
+      clearBtn.addEventListener("click", function () {
+        pending = "featured";
+        paintOptions();
+        focusRing(checkedRadio());
+      });
+      applyBtn.addEventListener("click", function () { closeSheet(true); });
+      backdrop.addEventListener("click", function () { closeSheet(false); });
+      options.addEventListener("click", function (e) {
+        var el = e.target.closest("[data-sort]");
+        if (!el || !options.contains(el)) return;
+        choose(el.getAttribute("data-sort"));
+      });
+      options.addEventListener("keydown", function (e) {
+        var dir = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+        if (!dir && e.key !== "Home" && e.key !== "End") return;
+        e.preventDefault();
+        var index = OPTIONS.indexOf(pending);
+        if (e.key === "Home") index = 0;
+        else if (e.key === "End") index = OPTIONS.length - 1;
+        else index = (index + dir + OPTIONS.length) % OPTIONS.length;
+        choose(OPTIONS[index]);
+      });
+      sheet.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          closeSheet(false);
+          return;
+        }
+        if (e.key !== "Tab") return;
+        var list = [checkedRadio(), clearBtn, applyBtn];
+        var current = document.activeElement;
+        var index = list.indexOf(current);
+        var next = e.shiftKey
+          ? (index <= 0 ? list.length - 1 : index - 1)
+          : (index === list.length - 1 || index < 0 ? 0 : index + 1);
+        e.preventDefault();
+        focusRing(list[next]);
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        if (sheetPhase === "open" || sheetPhase === "opening") {
+          e.preventDefault();
+          closeSheet(false);
+          return;
+        }
+        if (barShown()) {
+          e.preventDefault();
+          closeBar();
+        }
+      });
+      if (motion.addEventListener) motion.addEventListener("change", snapReduced);
+      else if (motion.addListener) motion.addListener(snapReduced);
+      paintChip();
+      paintOptions();
+    })();
+  </script>
+</body>
+</html>
