@@ -22,6 +22,13 @@
     perspective: 860px;
     user-select: none;
   }
+  #stage:focus {
+    outline: none;
+  }
+  #stage:focus-visible {
+    outline: 3px solid #145c34;
+    outline-offset: -8px;
+  }
   #shadow {
     position: absolute;
     left: 50%;
@@ -111,8 +118,8 @@
 </head>
 <body>
   <h1 class="sr">按住喷射的纸币枪</h1>
-  <p class="sr">枪会转向指针。按住鼠标主键或空格才喷出纸币，松开就停。减少动态效果时只转向，不喷。</p>
-  <div id="stage">
+  <p class="sr">枪会转向指针。按住鼠标主键或空格才喷出纸币，松开、指针离开窗口或窗口失焦就停。减少动态效果时只转向，不喷。</p>
+  <div id="stage" tabindex="0" role="button" aria-pressed="false" aria-label="纸币枪，按住喷射" aria-describedby="spray-state">
     <div id="shadow"></div>
     <div id="gun">
       <svg viewBox="0 0 240 170" aria-hidden="true">
@@ -142,6 +149,7 @@
       </svg>
     </div>
   </div>
+  <p id="spray-state" class="sr" role="status" aria-live="polite">已停止</p>
   <script>
     (function () {
       var stage = document.getElementById("stage");
@@ -154,7 +162,9 @@
       var aim = 0;
       var shown = 0;
       var kick = 0;
+      var sprayState = document.getElementById("spray-state");
       var firing = { pointer: false, key: false };
+      var activePointerId = null;
       var bills = [];
       var raf = 0;
       var last = 0;
@@ -333,73 +343,128 @@
         }
         ensureLoop();
       }
+      function syncPressed() {
+        var on = wantsFire();
+        var pressed = on ? "true" : "false";
+        var label = on ? "正在喷" : "已停止";
+        if (stage.getAttribute("aria-pressed") !== pressed) stage.setAttribute("aria-pressed", pressed);
+        if (sprayState.textContent !== label) sprayState.textContent = label;
+      }
+      function settleHold() {
+        kick = 0;
+        spawnAcc = 0;
+        syncPressed();
+        if (reduced()) {
+          stopLoop();
+          paintGun();
+          return;
+        }
+        ensureLoop();
+      }
+      function releaseCapture() {
+        var id = activePointerId;
+        activePointerId = null;
+        if (id == null) return;
+        try {
+          if (stage.hasPointerCapture(id)) stage.releasePointerCapture(id);
+        } catch (err) {}
+      }
+      function stopPointer() {
+        var was = firing.pointer;
+        firing.pointer = false;
+        releaseCapture();
+        if (!was) {
+          syncPressed();
+          return;
+        }
+        settleHold();
+      }
+      function stopAll() {
+        var was = firing.pointer || firing.key;
+        firing.key = false;
+        firing.pointer = false;
+        releaseCapture();
+        if (!was) {
+          syncPressed();
+          return;
+        }
+        settleHold();
+      }
+      function outsideWindow(e) {
+        return e.clientX < 0 || e.clientY < 0 || e.clientX > window.innerWidth || e.clientY > window.innerHeight;
+      }
       function onReduce() {
         if (!reduced()) {
+          syncPressed();
           if (wantsFire() || Math.abs(wrap(aim - shown)) > 0.004) ensureLoop();
           return;
         }
         stopLoop();
         clearBills();
         shown = aim;
+        kick = 0;
+        syncPressed();
         paintGun();
       }
 
       stage.addEventListener("pointerdown", function (e) {
         if (e.button !== 0) return;
         e.preventDefault();
-        stage.setPointerCapture(e.pointerId);
+        activePointerId = e.pointerId;
+        try { stage.setPointerCapture(e.pointerId); } catch (err) {}
         aimAt(e.clientX, e.clientY);
         firing.pointer = true;
         if (reduced()) {
           shown = aim;
           kick = 0;
+          syncPressed();
           paintGun();
           return;
         }
+        syncPressed();
         ensureLoop();
       });
       stage.addEventListener("pointermove", function (e) {
+        if (firing.pointer && outsideWindow(e)) {
+          stopPointer();
+          return;
+        }
         aimAt(e.clientX, e.clientY);
       });
-      function endPointer(e) {
-        if (!firing.pointer) return;
-        firing.pointer = false;
-        if (e && stage.hasPointerCapture(e.pointerId)) stage.releasePointerCapture(e.pointerId);
-        if (reduced()) paintGun();
-        else ensureLoop();
-      }
-      stage.addEventListener("pointerup", endPointer);
-      stage.addEventListener("pointercancel", endPointer);
+      stage.addEventListener("pointerup", stopPointer);
+      stage.addEventListener("pointercancel", stopPointer);
+      stage.addEventListener("lostpointercapture", stopPointer);
+      document.addEventListener("pointerleave", stopPointer);
+      document.documentElement.addEventListener("pointerleave", stopPointer);
+      window.addEventListener("pointerout", function (e) {
+        if (!e.relatedTarget) stopPointer();
+      });
+      window.addEventListener("mouseleave", stopPointer);
+      document.documentElement.addEventListener("mouseleave", stopPointer);
       window.addEventListener("keydown", function (e) {
         if (e.code !== "Space") return;
         e.preventDefault();
+        if (document.activeElement !== stage) stage.focus({ preventScroll: true });
         if (e.repeat || firing.key) return;
         firing.key = true;
         if (reduced()) {
           shown = aim;
           kick = 0;
+          syncPressed();
           paintGun();
           return;
         }
+        syncPressed();
         ensureLoop();
       });
       window.addEventListener("keyup", function (e) {
         if (e.code !== "Space") return;
         e.preventDefault();
+        if (!firing.key) return;
         firing.key = false;
-        if (reduced()) paintGun();
-        else ensureLoop();
+        settleHold();
       });
-      window.addEventListener("blur", function () {
-        firing.pointer = false;
-        firing.key = false;
-        if (reduced()) {
-          stopLoop();
-          paintGun();
-        } else if (raf || bills.length) {
-          ensureLoop();
-        }
-      });
+      window.addEventListener("blur", stopAll);
       window.addEventListener("resize", function () {
         measure();
         if (reduced()) {
@@ -413,6 +478,7 @@
       else if (reduceQuery.addListener) reduceQuery.addListener(onReduce);
       measure();
       paintGun();
+      syncPressed();
     })();
   </script>
 </body>
