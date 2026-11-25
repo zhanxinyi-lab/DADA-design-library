@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>甩动换色货架</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: grid;
+      background: #f6f0e8;
+      color: #3a342c;
+      font: 16px/1.45 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .page {
+      width: min(860px, 100%);
+      min-width: 0;
+      margin: auto;
+      padding: 20px 16px 28px;
+    }
+    .lede { margin: 0 0 14px; max-width: 100%; overflow-wrap: anywhere; font-size: 15px; }
+    .stage { position: relative; min-height: 320px; }
+    .shelf { height: 320px; }
+    .rail {
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      cursor: grab;
+    }
+    .rail.is-drag { cursor: grabbing; }
+    .piece {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      width: 132px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #e7c27a;
+      cursor: pointer;
+    }
+    .piece svg { display: block; width: 100%; height: auto; }
+    .detail {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+      gap: 12px;
+      align-items: center;
+      min-width: 0;
+    }
+    .detail[hidden] { display: none !important; }
+    .detail-art { min-width: 0; color: #efc3c6; }
+    .detail-art svg { display: block; width: min(220px, 100%); height: auto; margin: 0 auto; }
+    .detail-copy { min-width: 0; }
+    .back, .swatch {
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+    .back {
+      display: inline-block;
+      margin: 0 0 8px;
+      padding: 6px 0;
+      border: 0;
+      background: transparent;
+    }
+    .name { margin: 0 0 10px; font-size: 20px; font-weight: 650; }
+    .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+    .swatch {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border: 1px solid rgba(58, 52, 44, .28);
+      border-radius: 50%;
+      background: #ddd;
+    }
+    .swatch[aria-checked="true"]::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 10px;
+      height: 10px;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      background: #2a241e;
+      transform: translate(-50%, -50%);
+    }
+    .piece:focus, .swatch:focus, .back:focus, .rail:focus {
+      outline: 2px solid #24362c;
+      outline-offset: 3px;
+    }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 560px) {
+      .page { padding: 16px 12px 20px; }
+      .stage, .shelf { min-height: 300px; height: 300px; }
+      .detail { grid-template-columns: minmax(0, 1fr); align-content: center; }
+      .detail-art svg { width: min(150px, 46vw); }
+      .name { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <p class="lede">拖动或甩动货架。点开一件再选颜色。方向键可以翻页，打开后用来换色。</p>
+    <div class="stage" id="stage">
+      <div class="shelf" id="shelf">
+        <div class="rail" id="rail" tabindex="0" role="group" aria-label="服装货架，左右方向键转动"></div>
+      </div>
+      <div class="detail" id="detail" hidden>
+        <div class="detail-art" id="detailArt"></div>
+        <div class="detail-copy">
+          <button type="button" class="back" id="back">返回货架</button>
+          <p class="name" id="pieceName"></p>
+          <div class="swatches" id="swatches" role="radiogroup" aria-label="颜色"></div>
+        </div>
+      </div>
+    </div>
+    <p class="sr" id="status" aria-live="polite"></p>
+  </div>
+  <script>
+    const pieces = [
+      { name: "开衫", shape: "cardigan", on: 0, colors: ["#c5cbb8", "#e3b7ae", "#d9c7a6", "#b7c7cf"] },
+      { name: "连体衣", shape: "romper", on: 0, colors: ["#f0c3bf", "#efd3a4", "#c9d5c6", "#e4c6d6"] },
+      { name: "长袖", shape: "tee", on: 0, colors: ["#efc3c6", "#e7c27a", "#d8cfc4", "#c5d2c8"] },
+      { name: "背带裤", shape: "overalls", on: 0, colors: ["#b7c6b4", "#e6d2b8", "#c9c3d4", "#efc6c0"] },
+      { name: "圆帽", shape: "beanie", on: 0, colors: ["#efc6cf", "#e8d7a8", "#c9d3c4", "#d7c2ae"] },
+      { name: "短裤", shape: "shorts", on: 0, colors: ["#e8c98a", "#c5d0c4", "#f0c4bc", "#c9d4de"] }
+    ];
+    const SHAPES = {
+      tee: '<path fill="currentColor" d="M32 22h36l14 16-9 8-7-7v49H34V39l-7 7-9-8z"/><path d="M46 50h12v13H46z" fill="none" stroke="#3a342c" stroke-width="1.6" opacity=".4"/>',
+      romper: '<path fill="currentColor" d="M30 16h20l12 14 8 12-8 7-6-7v8H48l1 34h-10l1-34H32v-8l-6 7-8-7 8-12z"/>',
+      cardigan: '<path fill="currentColor" d="M22 26l12-8 8 12 8-12 12 8 16 20-10 8-6-8v46H46V58H34v34H22V46l-6 8-10-8z"/><circle cx="36" cy="66" r="2.2" fill="#3a342c" opacity=".5"/><circle cx="36" cy="76" r="2.2" fill="#3a342c" opacity=".5"/><circle cx="36" cy="86" r="2.2" fill="#3a342c" opacity=".5"/>',
+      overalls: '<path fill="currentColor" d="M30 18h8v24h12V18h8v32h10v42H52V70H40v22H22V50h8V18z"/>',
+      beanie: '<path fill="currentColor" d="M16 62c0-24 10-42 24-42s24 18 24 42v4H16z"/><path fill="currentColor" d="M12 62h56v12H12z"/>',
+      shorts: '<path fill="currentColor" d="M20 34h40v18l-3 38H42l-6-26-6 26H23L20 52V34z"/>'
+    };
+    const N = pieces.length;
+    const SPRING_K = 110;
+    const SPRING_C = 12;
+    const PROJECT = 4.2;
+    const COLOR_MS = 380;
+    const OPEN_MS = 260;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+    const rail = document.querySelector("#rail");
+    const shelf = document.querySelector("#shelf");
+    const detail = document.querySelector("#detail");
+    const detailArt = document.querySelector("#detailArt");
+    const pieceName = document.querySelector("#pieceName");
+    const swatches = document.querySelector("#swatches");
+    const status = document.querySelector("#status");
+    const back = document.querySelector("#back");
+
+    let position = 2;
+    let velocity = 0;
+    let target = 2;
+    let springing = false;
+    let springStart = 0;
+    let lastTick = 0;
+    let displayed = hexRgb(pieces[2].colors[0]);
+    let colorFrom = displayed.slice();
+    let colorTo = displayed.slice();
+    let colorStart = 0;
+    let coloring = false;
+    let openMix = 0;
+    let openFrom = 0;
+    let openTarget = 0;
+    let openStart = 0;
+    let opening = false;
+    let active = 2;
+    let artShape = "";
+    let raf = 0;
+    let pendingX = null;
+    let drag = null;
+    let announced = "";
+
+    function hexRgb(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+    function rgbCss(rgb) {
+      return "rgb(" + (rgb[0] | 0) + ", " + (rgb[1] | 0) + ", " + (rgb[2] | 0) + ")";
+    }
+    function mod(i) {
+      return ((i % N) + N) % N;
+    }
+    function wrapDelta(index) {
+      let d = index - position;
+      d = ((d % N) + N) % N;
+      if (d > N / 2) d -= N;
+      return d;
+    }
+    function svgFor(shape) {
+      return '<svg viewBox="0 0 80 100" aria-hidden="true"><ellipse cx="40" cy="96" rx="20" ry="3.5" fill="#000" opacity=".08"/>' + SHAPES[shape] + "</svg>";
+    }
+    function reduced() { return reduce.matches; }
+
+    const items = pieces.map((piece, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "piece";
+      button.innerHTML = svgFor(piece.shape);
+      button.addEventListener("click", (event) => {
+        if (event.detail !== 0) return;
+        openPiece(index);
+      });
+      rail.appendChild(button);
+      return button;
+    });
+
+    function spacing() {
+      const width = rail.clientWidth || 320;
+      return Math.min(156, Math.max(76, width * 0.3));
+    }
+    function cardWidth() {
+      const width = rail.clientWidth || 320;
+      return Math.min(150, Math.max(76, width * 0.28));
+    }
+
+    function paint() {
+      const gap = spacing();
+      const card = cardWidth();
+      const tilt = Math.max(-7, Math.min(7, velocity * 3.2));
+      const nearest = mod(Math.round(position));
+      items.forEach((button, index) => {
+        const piece = pieces[index];
+        const delta = wrapDelta(index);
+        const distance = Math.abs(delta);
+        const fade = distance <= 1.35 ? 1 : Math.max(0, 1 - (distance - 1.35) / 0.7);
+        const hidden = fade <= 0.02;
+        button.style.width = card + "px";
+        button.style.opacity = hidden ? "0" : fade.toFixed(3);
+        button.style.visibility = hidden ? "hidden" : "visible";
+        button.tabIndex = hidden || openMix > 0.5 ? -1 : 0;
+        button.setAttribute("aria-hidden", hidden || openMix > 0.5 ? "true" : "false");
+        if (index === nearest && openMix < 0.5) button.setAttribute("aria-current", "true");
+        else button.removeAttribute("aria-current");
+        button.setAttribute("aria-label", piece.name + "，第 " + (index + 1) + " 件，共 " + N + " 件");
+        const color = index === active && (coloring || openMix > 0) ? displayed : hexRgb(piece.colors[piece.on]);
+        button.style.color = rgbCss(color);
+        if (hidden) return;
+        const scale = 1 - Math.min(distance, 2.2) * 0.16;
+        const x = delta * gap;
+        const y = distance * 12;
+        button.style.zIndex = String(30 - Math.round(distance * 10));
+        button.style.transform = "translate(-50%, -50%) translate3d(" + x.toFixed(2) + "px, " + y.toFixed(2) + "px, 0) scale(" + scale.toFixed(3) + ") rotate(" + (delta * -8 + tilt).toFixed(2) + "deg)";
+      });
+      detailArt.style.color = rgbCss(displayed);
+      detail.style.opacity = String(openMix);
+      detail.style.transform = "translateY(" + ((1 - openMix) * 12).toFixed(2) + "px)";
+      shelf.style.opacity = String(1 - openMix);
+      shelf.style.visibility = openMix > 0.98 ? "hidden" : "visible";
+    }
+
+    function say(text) {
+      if (announced === text) return;
+      announced = text;
+      status.textContent = text;
+    }
+    function sayIndex(index) {
+      const piece = pieces[mod(index)];
+      say(piece.name + "，第 " + (mod(index) + 1) + " 件，共 " + N + " 件");
+    }
+
+    function wake() {
+      if (raf) return;
+      raf = requestAnimationFrame(frame);
+    }
+    function stop() {
+      if (!raf) return;
+      cancelAnimationFrame(raf);
+      raf = 0;
+    }
+
+    function snapAll() {
+      if (springing) position = target;
+      velocity = 0;
+      springing = false;
+      if (coloring) displayed = colorTo.slice();
+      coloring = false;
+      if (opening) openMix = openTarget;
+      opening = false;
+      lastTick = 0;
+    }
+
+    function frame(now) {
+      raf = 0;
+      applyPointer();
+      let again = false;
+      if (!reduced()) again = step(now) || again;
+      else snapAll();
+      paint();
+      if (again) wake();
+      else lastTick = 0;
+    }
+
+    function applyPointer() {
+      if (!drag || pendingX == null) return;
+      const x = pendingX;
+      pendingX = null;
+      const now = performance.now();
+      position = drag.origin - (x - drag.x0) / spacing();
+      const dt = Math.max(16, now - drag.lastT) / 1000;
+      velocity = Math.max(-8, Math.min(8, (position - drag.lastPos) / dt));
+      drag.lastPos = position;
+      drag.lastT = now;
+      drag.samples.push({ x: x, t: now });
+      if (drag.samples.length > 5) drag.samples.shift();
+    }
+
+    function step(now) {
+      if (!lastTick) lastTick = now;
+      const dt = Math.min(0.032, Math.max(0, (now - lastTick) / 1000));
+      lastTick = now;
+      let again = false;
+      if (springing && !drag) {
+        const pull = target - position;
+        velocity += pull * SPRING_K * dt;
+        velocity *= Math.exp(-SPRING_C * dt);
+        position += velocity * dt;
+        const left = target - position;
+        if ((Math.abs(left) < 0.0012 && Math.abs(velocity) < 0.01) || now - springStart > 1600) {
+          position = mod(target);
+          target = position;
+          velocity = 0;
+          springing = false;
+          sayIndex(position);
+        } else again = true;
+      }
+      if (coloring) {
+        const t = Math.min(1, (now - colorStart) / COLOR_MS);
+        const eased = 1 - Math.pow(1 - t, 3);
+        displayed = colorFrom.map((channel, index) => channel + (colorTo[index] - channel) * eased);
+        if (t >= 1) coloring = false;
+        else again = true;
+      }
+      if (opening) {
+        const t = Math.min(1, (now - openStart) / OPEN_MS);
+        const eased = 1 - Math.pow(1 - t, 3);
+        openMix = openFrom + (openTarget - openFrom) * eased;
+        if (t >= 1) {
+          openMix = openTarget;
+          opening = false;
+          if (openMix === 0) finishClose();
+        } else again = true;
+      }
+      return again;
+    }
+
+    function releaseVelocity() {
+      const samples = drag.samples;
+      const last = samples[samples.length - 1];
+      let first = samples[0];
+      for (let i = samples.length - 1; i >= 0; i--) {
+        if (last.t - samples[i].t >= 40) { first = samples[i]; break; }
+      }
+      const dt = Math.max(16, last.t - first.t);
+      const dx = last.x - first.x;
+      return Math.max(-8, Math.min(8, -(dx / dt) * 1000 / spacing()));
+    }
+
+    function fling(speed) {
+      velocity = speed;
+      target = Math.round(position + velocity / PROJECT);
+      springing = true;
+      springStart = performance.now();
+      sayIndex(target);
+      if (reduced()) {
+        snapAll();
+        paint();
+        return;
+      }
+      wake();
+    }
+
+    function page(dir) {
+      if (openMix > 0.5) return;
+      const base = springing ? target : Math.round(position);
+      target = base + dir;
+      if (reduced()) {
+        position = mod(target);
+        target = position;
+        snapAll();
+        paint();
+        focusPiece(target);
+        sayIndex(target);
+        return;
+      }
+      velocity = dir * 1.55;
+      springing = true;
+      springStart = performance.now();
+      focusPiece(target);
+      sayIndex(target);
+      wake();
+    }
+
+    function focusPiece(index) {
+      const button = items[mod(index)];
+      button.tabIndex = 0;
+      button.focus({ preventScroll: true });
+    }
+
+    rail.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || openMix > 0.2) return;
+      const now = performance.now();
+      drag = {
+        id: event.pointerId,
+        x0: event.clientX,
+        origin: position,
+        lastPos: position,
+        lastT: now,
+        piece: event.target.closest ? event.target.closest(".piece") : null,
+        heldTarget: springing ? target : null,
+        samples: [{ x: event.clientX, t: now }]
+      };
+      pendingX = null;
+      springing = false;
+      velocity = 0;
+      rail.classList.add("is-drag");
+      try { rail.setPointerCapture(event.pointerId); } catch (error) { /* 指针已经松开时不再抓 */ }
+    });
+    rail.addEventListener("pointermove", (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      pendingX = event.clientX;
+      wake();
+    });
+    function endDrag(event, cancel) {
+      if (!drag || event.pointerId !== drag.id) return;
+      if (pendingX != null) applyPointer();
+      const moved = Math.abs(event.clientX - drag.x0);
+      const piece = drag.piece;
+      const origin = drag.origin;
+      const heldTarget = drag.heldTarget;
+      const speed = releaseVelocity();
+      drag = null;
+      pendingX = null;
+      rail.classList.remove("is-drag");
+      if (!cancel && moved < 8 && piece) {
+        position = origin;
+        velocity = 0;
+        springing = false;
+        paint();
+        openPiece(items.indexOf(piece));
+        return;
+      }
+      if (moved < 8) {
+        position = origin;
+        velocity = 0;
+        if (heldTarget != null && !cancel && !reduced()) {
+          target = heldTarget;
+          springing = true;
+          springStart = performance.now();
+          wake();
+        } else {
+          springing = false;
+          target = Math.round(origin);
+          paint();
+        }
+        return;
+      }
+      if (reduced()) {
+        position = mod(Math.round(position + speed / PROJECT));
+        velocity = 0;
+        springing = false;
+        target = position;
+        paint();
+        sayIndex(position);
+        return;
+      }
+      fling(speed);
+    }
+    rail.addEventListener("pointerup", (event) => endDrag(event, false));
+    rail.addEventListener("pointercancel", (event) => endDrag(event, true));
+
+    shelf.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight") { event.preventDefault(); page(1); }
+      else if (event.key === "ArrowLeft") { event.preventDefault(); page(-1); }
+    });
+
+    function openPiece(index) {
+      active = mod(index);
+      const piece = pieces[active];
+      displayed = hexRgb(piece.colors[piece.on]);
+      coloring = false;
+      pieceName.textContent = piece.name;
+      if (artShape !== piece.shape) {
+        artShape = piece.shape;
+        detailArt.innerHTML = svgFor(piece.shape);
+      }
+      renderSwatches();
+      detail.hidden = false;
+      shelf.inert = true;
+      say(piece.name + "，正在选颜色");
+      if (reduced()) {
+        openMix = 1;
+        opening = false;
+        paint();
+        focusCurrentSwatch();
+        return;
+      }
+      openFrom = openMix;
+      openTarget = 1;
+      openStart = performance.now();
+      opening = true;
+      wake();
+      focusCurrentSwatch();
+    }
+
+    function renderSwatches() {
+      const piece = pieces[active];
+      swatches.replaceChildren();
+      piece.colors.forEach((hex, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "swatch";
+        button.setAttribute("role", "radio");
+        button.style.background = hex;
+        button.setAttribute("aria-checked", index === piece.on ? "true" : "false");
+        button.setAttribute("aria-label", piece.name + "的第 " + (index + 1) + " 种颜色");
+        button.addEventListener("click", () => chooseColor(index));
+        swatches.appendChild(button);
+      });
+    }
+
+    function focusCurrentSwatch() {
+      const chosen = swatches.querySelector('[aria-checked="true"]');
+      if (chosen) chosen.focus({ preventScroll: true });
+    }
+
+    function chooseColor(index) {
+      const piece = pieces[active];
+      if (piece.on === index && !coloring) return;
+      piece.on = index;
+      [...swatches.children].forEach((button, i) => {
+        button.setAttribute("aria-checked", i === index ? "true" : "false");
+      });
+      const next = hexRgb(piece.colors[index]);
+      say(piece.name + "，第 " + (index + 1) + " 种颜色");
+      if (reduced()) {
+        displayed = next;
+        coloring = false;
+        paint();
+        focusCurrentSwatch();
+        return;
+      }
+      colorFrom = displayed.slice();
+      colorTo = next;
+      colorStart = performance.now();
+      coloring = true;
+      wake();
+      focusCurrentSwatch();
+    }
+
+    function cycleColor(dir) {
+      const total = pieces[active].colors.length;
+      const next = pieces[active].on + dir;
+      chooseColor(((next % total) + total) % total);
+    }
+
+    detail.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") { event.preventDefault(); closeDetail(); }
+      else if (event.key === "ArrowRight" || event.key === "ArrowDown") { event.preventDefault(); cycleColor(1); }
+      else if (event.key === "ArrowLeft" || event.key === "ArrowUp") { event.preventDefault(); cycleColor(-1); }
+    });
+
+    function closeDetail() {
+      shelf.inert = false;
+      position = active;
+      target = active;
+      velocity = 0;
+      springing = false;
+      if (reduced()) {
+        openMix = 0;
+        opening = false;
+        finishClose();
+        paint();
+        sayIndex(active);
+        return;
+      }
+      openFrom = openMix;
+      openTarget = 0;
+      openStart = performance.now();
+      opening = true;
+      wake();
+      sayIndex(active);
+    }
+    function finishClose() {
+      detail.hidden = true;
+      shelf.inert = false;
+      shelf.style.visibility = "visible";
+      focusPiece(active);
+    }
+    back.addEventListener("click", closeDetail);
+
+    reduce.addEventListener("change", () => {
+      if (!reduced()) return;
+      const destination = mod(Math.round(springing ? target : position));
+      snapAll();
+      position = destination;
+      target = destination;
+      if (openTarget === 0 && openMix < 1) openMix = 0;
+      if (openMix === 0 && !detail.hidden) finishClose();
+      paint();
+      stop();
+    });
+
+    window.addEventListener("resize", () => wake());
+    paint();
+    sayIndex(position);
+  </script>
+</body>
+</html>
