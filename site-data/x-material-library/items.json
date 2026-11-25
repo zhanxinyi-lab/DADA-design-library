@@ -7305,5 +7305,365 @@
     "library_name": "Parametric Sprite Stacking（Forge collection）",
     "source_label": "Forge",
     "code_note": "外链登记，不复刻，不保存对方的视频或截图。"
+  },
+  {
+    "id": "2124431846859813234",
+    "url": "https://x.com/MengTo/status/2124431846859813234",
+    "author": "MengTo",
+    "author_name": "Meng To",
+    "created_at": "2026-11-22T09:16:36.000Z",
+    "lang": "en",
+    "text": "GPT 6.2 Astra recreated this desk in three.js. Every desk object is interactive, down to the pen. Tap sunset on the Liquid Glass UI and the whole room warms up.\n\nSite: \n\nI open-sourced 3 skills for the liquid glass, shaders and 3d room:\n\nGlass \nPress shaders \n3D room",
+    "sources": [
+      "brief",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "场景",
+      "灯光",
+      "WebGL",
+      "官网",
+      "互动"
+    ],
+    "metrics": {
+      "bookmark_count": 996,
+      "impression_count": 84327,
+      "like_count": 956,
+      "quote_count": 14,
+      "reply_count": 61,
+      "repost_count": 81
+    },
+    "links": [
+      "https://threeui.com/studio-glass",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/ui/refract-liquid-glass",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/ui/shade-glass-button-press",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/light-a-threejs-workspace"
+    ],
+    "code_links": [
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/ui/refract-liquid-glass",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/ui/shade-glass-button-press",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/light-a-threejs-workspace"
+    ],
+    "code_snippets": [],
+    "images": [
+      "assets/2124431846859813234/poster0.jpg",
+      "assets/2124431846859813234/img2.jpg"
+    ],
+    "poster": "assets/2124431846859813234/poster0.jpg",
+    "video": "assets/2124431846859813234/preview.mp4",
+    "preview": "assets/2124431846859813234/preview.webm",
+    "duration_s": 33,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-24T23:04:36+08:00",
+    "effect_zh": "MengTo 用 three.js 做了一间能在网页里走进去的书房。桌上的物件都能点，点 Sunset 后窗外的光会收进去，房间慢慢暖成夜灯。适合做产品展示或品牌场景页：在房间里直接调光线，而不是另开一层设置。站点 threeui.com/studio-glass。",
+    "platform": "x",
+    "title": "互动书桌 Studio Glass：点一下光线，房间就会从白天转到夜灯",
+    "cindy_job": "cindy-jobs/2124431846859813234"
+  },
+  {
+    "id": "2125025159438577940",
+    "url": "https://x.com/viktoroddy/status/2125025159438577940",
+    "author": "viktoroddy",
+    "author_name": "Viktor Oddy",
+    "created_at": "2026-11-24T00:34:13.000Z",
+    "lang": "en",
+    "text": "Shopping for kids' clothes should feel like play.\n\nSo the store became a carousel you can fling 🎠\n\nTap a piece, swap the colour, add to bag.\n\nFree prompt below 👇",
+    "sources": [
+      "hotscan-1000",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "旋转木马",
+      "电商",
+      "换色",
+      "微交互",
+      "童装"
+    ],
+    "metrics": {
+      "bookmark_count": 77,
+      "impression_count": 5104,
+      "like_count": 106,
+      "quote_count": 1,
+      "reply_count": 9,
+      "repost_count": 2
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125025159438577940/poster0.jpg"
+    ],
+    "poster": "assets/2125025159438577940/poster0.jpg",
+    "video": "assets/2125025159438577940/preview.mp4",
+    "preview": "assets/2125025159438577940/preview.webm",
+    "duration_s": 8,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-24T23:04:36+08:00",
+    "effect_zh": "BUNTO 童装店把货架做成可以甩动的旋转木马：衣服在米白背景和大字 TINY 前面排成一圈，点开一件就能换颜色、放进购物袋。适合儿童用品或轻时装官网：把逛店做成玩耍，而不是静态货架。",
+    "platform": "x",
+    "title": "童装店 BUNTO：货架做成能甩动的旋转木马，点开就能换色加购",
+    "cindy_job": "cindy-jobs/2125025159438577940"
+  },
+  {
+    "id": "2125125308991090749",
+    "url": "https://x.com/MengTo/status/2125125308991090749",
+    "author": "MengTo",
+    "author_name": "Meng To",
+    "created_at": "2026-11-24T07:12:11.000Z",
+    "lang": "en",
+    "text": "After working for 5 days with Astra 6.2, I've come to love this model the most. It's extremely fast and has the best taste in 3D.\n\nHere's a landing page I built with it: \n\nI started making more skills as a result of this requiring more steering, which is not a bad thing.\n\nSkills I used, all open-sourced:\n\nParticle dissolve \n3D objects \nTopography \nBorder flashlight",
+    "sources": [
+      "hotscan-1600",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "滚动",
+      "WebGL",
+      "粒子",
+      "落地页",
+      "标本"
+    ],
+    "metrics": {
+      "bookmark_count": 410,
+      "impression_count": 21637,
+      "like_count": 388,
+      "quote_count": 0,
+      "reply_count": 33,
+      "repost_count": 30
+    },
+    "links": [
+      "https://threeui.com/saltmere",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/hover-particle-dissolve",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/3d-feature-objects",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/interactive-topography",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/web-design/gradient-border-flashlight"
+    ],
+    "code_links": [
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/hover-particle-dissolve",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/3d-feature-objects",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/interactive-topography",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/web-design/gradient-border-flashlight"
+    ],
+    "code_snippets": [],
+    "images": [
+      "assets/2125125308991090749/poster0.jpg",
+      "assets/2125125308991090749/img2.jpg",
+      "assets/2125125308991090749/img3.jpg"
+    ],
+    "poster": "assets/2125125308991090749/poster0.jpg",
+    "video": "assets/2125125308991090749/preview.mp4",
+    "preview": "assets/2125125308991090749/preview.webm",
+    "duration_s": 59,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-24T23:04:36+08:00",
+    "effect_zh": "MengTo 做的海边观测站落地页 Saltmere：首屏的雨伞、纸鹤和浑天仪可以拖着转，还会碎成粒子再聚合成下一件标本；往下滚还能看到潮汐仪表、年份等高线图，以及跟着光走的海床。适合自然、科研或品牌故事页：把 3D 标本和数据卡片放在同一屏里把玩。站点 threeui.com/saltmere。",
+    "platform": "x",
+    "title": "海边观测站 Saltmere：标本能拖转，碎成粒子后再聚成下一件",
+    "cindy_job": "cindy-jobs/2125125308991090749"
+  },
+  {
+    "id": "2125168311340282300",
+    "url": "https://x.com/greensock/status/2125168311340282300",
+    "author": "greensock",
+    "author_name": "GSAP",
+    "created_at": "2026-11-24T10:03:03.000Z",
+    "lang": "ro",
+    "text": "💚 Site of the Day - AI Ui(s)\n\nFederico — @ffmfed \n\n🛠️ WebGL, Astro, WebGPU\n\nsite → \nshowcase →",
+    "sources": [
+      "hotscan-2200",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "排版",
+      "搜索",
+      "WebGL",
+      "手册",
+      "互动"
+    ],
+    "metrics": {
+      "bookmark_count": 41,
+      "impression_count": 2509,
+      "like_count": 59,
+      "quote_count": 1,
+      "reply_count": 2,
+      "repost_count": 6
+    },
+    "links": [
+      "https://aiu.is/",
+      "https://gsap.com/showcase"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125168311340282300/poster0.jpg",
+      "assets/2125168311340282300/img2.jpg",
+      "assets/2125168311340282300/img3.jpg"
+    ],
+    "poster": "assets/2125168311340282300/poster0.jpg",
+    "video": "assets/2125168311340282300/preview.mp4",
+    "preview": "assets/2125168311340282300/preview.webm",
+    "duration_s": 20,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-24T23:04:36+08:00",
+    "effect_zh": "Federico 做的站点 aiu.is（GSAP Site of the Day）是一本讲「AI 界面」的在线手册。蓝墨水手写感的字会顺着阅读轻轻起伏，左边是可点的章节目录。后面还有可拖、可缩放的生成情绪板，以及「Find something about…」搜索——打字后对应章节会变成小球被吸到指针旁边，也可以用手推开。适合资料站、作品集或带检索的内容页。站点用了 WebGL、Astro 和 WebGPU。",
+    "platform": "x",
+    "title": "aiu.is 手册站：字会随阅读起伏，搜索时章节会变成小球被吸过来",
+    "cindy_job": "cindy-jobs/2125168311340282300"
+  },
+  {
+    "id": "2124822349568483743",
+    "url": "https://x.com/milosboyk/status/2124822349568483743",
+    "author": "milosboyk",
+    "author_name": "Milos Bojkovic",
+    "created_at": "2026-11-23T11:08:20.000Z",
+    "lang": "en",
+    "text": "Interactive parcel concept for the careers page",
+    "sources": [
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "招聘",
+      "信封",
+      "贴纸",
+      "微交互",
+      "官网"
+    ],
+    "metrics": {
+      "bookmark_count": 130,
+      "impression_count": 5969,
+      "like_count": 226,
+      "quote_count": 0,
+      "reply_count": 6,
+      "repost_count": 11
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2124822349568483743/poster0.jpg",
+      "assets/2124822349568483743/img2.jpg"
+    ],
+    "poster": "assets/2124822349568483743/poster0.jpg",
+    "video": "assets/2124822349568483743/preview.mp4",
+    "preview": "assets/2124822349568483743/preview.webm",
+    "duration_s": 17,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-24T23:04:36+08:00",
+    "effect_zh": "招聘页把公司介绍做成一个可点的牛皮纸信封。点开后，远程办公、异步协作、Notify all 等福利贴纸会从信封里飞出，再一张张贴回信封表面。适合招聘或品牌介绍页：用拆包裹的动作把福利讲完，而不是用列表堆文字。",
+    "platform": "x",
+    "title": "招聘页信封：打开包裹时，福利贴纸会从里面飞出来贴上",
+    "cindy_job": "cindy-jobs/2124822349568483743"
+  },
+  {
+    "id": "2124665007485116636",
+    "url": "https://x.com/viktoroddy/status/2124665007485116636",
+    "author": "viktoroddy",
+    "author_name": "Viktor Oddy",
+    "created_at": "2026-11-23T00:43:06.000Z",
+    "lang": "en",
+    "text": "Food websites don't need 20 photos. They need one dish that moves 🔥\n\nA twirl of noodles lifts off the chopsticks, spins apart into shrimp, lime and peanuts, and plates itself as you scroll\n\nAI web design is getting ridiculous",
+    "sources": [
+      "hotscan-1600",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "滚动",
+      "餐饮",
+      "官网",
+      "拆装",
+      "hotscan"
+    ],
+    "metrics": {
+      "bookmark_count": 109,
+      "impression_count": 6408,
+      "like_count": 132,
+      "quote_count": 3,
+      "reply_count": 12,
+      "repost_count": 10
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2124665007485116636/poster0.jpg",
+      "assets/2124665007485116636/img2.jpg",
+      "assets/2124665007485116636/img3.jpg"
+    ],
+    "poster": "assets/2124665007485116636/poster0.jpg",
+    "video": "assets/2124665007485116636/preview.mp4",
+    "preview": "assets/2124665007485116636/preview.webm",
+    "duration_s": 7,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-23T23:10:33+08:00",
+    "effect_zh": "餐厅官网「BAAN street kitchen」把滚动做成一道菜：筷子先把拌面提起，面条旋转拆成虾仁、青柠、花生和豆芽，再自行落回盘中。导航和标题会跟着场景一起换。很适合做美食或品牌官网的滚动主视觉：一屏把菜品拆装和排版讲完。",
+    "platform": "x",
+    "title": "餐厅站 BAAN：滚动时拌面会旋转拆开，再自行落盘",
+    "cindy_job": "cindy-jobs/2124665007485116636"
+  },
+  {
+    "id": "2124235064125034827",
+    "url": "https://x.com/arnab_design/status/2124235064125034827",
+    "author": "arnab_design",
+    "author_name": "Arnab Debnath",
+    "created_at": "2026-11-21T20:14:40.000Z",
+    "lang": "en",
+    "text": "Filter chips, but the sheet comes from the chip itself.\n\nWhen you close it, your selection folds back into the bar, so you always know what's applied.\n\n#InteractionDesign #buildinpublic",
+    "sources": [
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "筛选",
+      "芯片",
+      "面板",
+      "微交互",
+      "bookmark"
+    ],
+    "metrics": {
+      "bookmark_count": 566,
+      "impression_count": 18763,
+      "like_count": 618,
+      "quote_count": 0,
+      "reply_count": 25,
+      "repost_count": 29
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2124235064125034827/poster0.jpg",
+      "assets/2124235064125034827/img2.jpg",
+      "assets/2124235064125034827/img3.jpg"
+    ],
+    "poster": "assets/2124235064125034827/poster0.jpg",
+    "video": "assets/2124235064125034827/preview.mp4",
+    "preview": "assets/2124235064125034827/preview.webm",
+    "duration_s": 22,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-23T23:10:33+08:00",
+    "effect_zh": "在商品列表里点筛选芯片，筛选面板会从那颗芯片本身展开；选好条件后面板再折回条上，已选项会留在芯片里，让人一眼知道当前筛了什么。适合电商列表或筛选条：打开和收回都连着原按钮，不会跳到别处。",
+    "platform": "x",
+    "title": "筛选芯片：面板从芯片长出来，选完再折回条上",
+    "cindy_job": "cindy-jobs/2124235064125034827"
   }
 ]
