@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>提起、拆开、落盘</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      max-width: 100%;
+    }
+    html { scroll-behavior: auto; }
+    body {
+      background: #c56b3e;
+      color: #f6efe4;
+      font-family: system-ui, "Segoe UI", "PingFang SC", sans-serif;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      body { background: #f3e6d2; color: #2c2118; }
+    }
+    #runway { height: 360vh; }
+    #stage {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      max-width: 100%;
+    }
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 12px;
+      max-width: 100%;
+    }
+    .mark, .phase, .cta, .links {
+      white-space: nowrap;
+    }
+    .mark {
+      font-weight: 650;
+      letter-spacing: 0.04em;
+      font-size: 15px;
+    }
+    .links {
+      display: flex;
+      gap: 12px;
+      font-size: 13px;
+      opacity: 0.8;
+    }
+    .phase {
+      font-size: 13px;
+      letter-spacing: 0.12em;
+    }
+    .cta {
+      border: 1px solid currentColor;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 13px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    .copy {
+      position: absolute;
+      z-index: 2;
+      left: 16px;
+      top: 64px;
+      max-width: min(20rem, calc(100% - 32px));
+      pointer-events: none;
+    }
+    .copy.settled {
+      left: 50%;
+      top: 14%;
+      transform: translateX(-50%);
+      text-align: center;
+      width: max-content;
+      max-width: calc(100% - 32px);
+    }
+    .kicker {
+      margin: 0 0 6px;
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      opacity: 0.75;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(32px, 7vw, 68px);
+      font-weight: 640;
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+    }
+    .sub {
+      margin: 10px 0 0;
+      font-size: 14px;
+      line-height: 1.45;
+      max-width: 16rem;
+    }
+    .copy.settled .sub { margin-left: auto; margin-right: auto; }
+    .hint {
+      position: absolute;
+      z-index: 2;
+      left: 16px;
+      right: 16px;
+      bottom: 14px;
+      margin: 0;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      opacity: 0.75;
+    }
+    @media (max-width: 640px) {
+      .links { display: none; }
+      .copy { top: 56px; }
+      h1 { font-size: clamp(28px, 9vw, 44px); }
+    }
+  </style>
+</head>
+<body>
+  <div id="runway"></div>
+  <div id="stage" data-progress="0.0000" data-phase="lift">
+    <canvas id="board" aria-label="筷子夹起一团拌面"></canvas>
+    <header>
+      <div class="mark">热勺</div>
+      <div class="links"><span>口味</span><span>灶台</span><span>座位</span></div>
+      <div class="phase" id="phase">提起</div>
+      <button class="cta" type="button" id="cta">看落盘</button>
+    </header>
+    <div class="copy" id="copy">
+      <p class="kicker" id="kicker">01</p>
+      <h1 id="title">提起一筷</h1>
+      <p class="sub" id="sub">面还缠在筷子上</p>
+    </div>
+    <p class="hint" id="hint">滚动，或用方向键</p>
+  </div>
+  <script>
+(function () {
+  var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var reduced = motion.matches;
+  var progress = reduced ? 1 : 0;
+  var locking = false;
+  var shown = "";
+
+  var stage = document.getElementById("stage");
+  var canvas = document.getElementById("board");
+  var ctx = canvas.getContext("2d");
+  var phaseEl = document.getElementById("phase");
+  var kickerEl = document.getElementById("kicker");
+  var titleEl = document.getElementById("title");
+  var subEl = document.getElementById("sub");
+  var hintEl = document.getElementById("hint");
+  var copyEl = document.getElementById("copy");
+  var cta = document.getElementById("cta");
+
+  var STRANDS = 14;
+  var STEPS = 22;
+  var COLORS = ["#e6b45a", "#d5923a", "#c4782c", "#efc98a", "#b86b2e", "#e0a44e", "#cc8440", "#f0c878"];
+  var COPY = {
+    lift: ["01", "提起", "提起一筷", "面还缠在筷子上", "筷子夹起一团拌面"],
+    split: ["02", "拆开", "转开拆开", "虾、青柠、花生、豆芽分开", "面条旋转拆开，食材分开并带标注"],
+    plate: ["03", "落盘", "落回盘里", "还是热的", "食材落回盘里"]
+  };
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function span(p, a, b) {
+    if (p <= a) return 0;
+    if (p >= b) return 1;
+    var t = (p - a) / (b - a);
+    return t * t * (3 - 2 * t);
+  }
+  function hash(n) {
+    var x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+  function phaseOf(p) {
+    if (p < 0.34) return "lift";
+    if (p < 0.82) return "split";
+    return "plate";
+  }
+  function narrow() { return window.innerWidth < 700; }
+  function spreadX() { return narrow() ? 0.74 : 1; }
+  function spreadY() { return narrow() ? 0.9 : 1; }
+
+  function holdPoint(i, t) {
+    var side = i - (STRANDS - 1) / 2;
+    var curl = Math.sin(t * 8.5 + i * 1.15) * (5 + t * 9);
+    var x = side * 2.4 + curl + Math.sin(t * 3.2 + i) * 4;
+    var y = -78 + t * 148 + Math.cos(t * 6.5 + i * 0.7) * 4;
+    if (t > 0.62) x += Math.sin((t - 0.62) * 14 + i) * 10;
+    var c = Math.cos(0.22), s = Math.sin(0.22);
+    var dx = x - 4, dy = y + 78;
+    return [4 + dx * c - dy * s, -78 + dx * s + dy * c];
+  }
+  function openPoint(i, t) {
+    var amp = (46 + (i % 4) * 5) * spreadX();
+    var tube = (i - (STRANDS - 1) / 2) * 1.7 * spreadX();
+    var x = Math.sin(t * Math.PI * 2.15 + i * 0.38) * amp + tube;
+    var y = (-168 + t * 336) * spreadY() + Math.cos(t * Math.PI * 3 + i) * 5;
+    x += Math.sin(t * 11 + i * 1.7) * 4 * spreadX();
+    return [x, y];
+  }
+  function platePoint(i, t) {
+    var layer = i % 3;
+    var ang = t * Math.PI * 4.6 + i * 0.72;
+    var rad = 12 + t * 58 + layer * 4;
+    return [Math.cos(ang) * rad, 6 - layer * 5 + Math.sin(ang) * rad * 0.36];
+  }
+  function strandPoint(i, t, p) {
+    var a = span(p, 0.16, 0.48);
+    var b = span(p, 0.60, 0.90);
+    var h = holdPoint(i, t);
+    var o = openPoint(i, t);
+    var pl = platePoint(i, t);
+    var x = lerp(lerp(h[0], o[0], a), pl[0], b);
+    var y = lerp(lerp(h[1], o[1], a), pl[1], b);
+    var shift = (1 - a) * (narrow() ? 6 : 72);
+    x += shift * (1 - b);
+    if (b > 0 && b < 1) y += Math.sin(b * Math.PI) * 34;
+    return [x, y];
+  }
+
+  var BITS = [
+    { name: "鲜虾", side: 1, ly: -22, hold: [10, -6, -0.7], open: [-8, -188, -0.35], plate: [-16, -2, -0.45], kind: "shrimp" },
+    { name: "青柠", side: 1, hold: [18, -58, 0.4], open: [124, -140, 0.2], plate: [34, -6, 0.25], kind: "lime" },
+    { name: "花生", side: 1, hold: [6, -36, 0.2], open: [148, -16, 0.1], plate: [2, -10, 0], kind: "peanut" },
+    { name: "豆芽", side: -1, hold: [-16, 18, -0.4], open: [-150, -8, -0.5], plate: [-30, 8, 0.2], kind: "sprout" },
+    { name: "小米辣", side: 1, hold: [20, 28, 1.1], open: [140, 70, 0.7], plate: [12, 12, 0.8], kind: "chili" },
+    { name: "蛋", side: -1, hold: [-2, 34, 0.2], open: [-128, 96, -0.2], plate: [-6, 10, 0.1], kind: "egg" },
+    { name: "", side: 1, hold: [14, 48, 1.4], open: [92, 132, 1.5], plate: [18, 4, 0.85], kind: "shrimp" }
+  ];
+
+  function bitLocal(bit, p) {
+    var a = span(p, 0.18, 0.48);
+    var b = span(p, 0.62, 0.90);
+    var hx = bit.hold[0] + (1 - a) * (narrow() ? 6 : 72);
+    var ox = bit.open[0] * spreadX();
+    var oy = bit.open[1] * spreadY();
+    var x = lerp(lerp(hx, ox, a), bit.plate[0], b);
+    var y = lerp(lerp(bit.hold[1], oy, a), bit.plate[1], b);
+    var r = lerp(lerp(bit.hold[2], bit.open[2], a), bit.plate[2], b);
+    if (b > 0 && b < 1) y += Math.sin(b * Math.PI) * 22;
+    return [x, y, r, a, b];
+  }
+
+  function layout() {
+    var w = Math.max(1, window.innerWidth);
+    var h = Math.max(1, window.innerHeight);
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var a = span(progress, 0.16, 0.48);
+    var b = span(progress, 0.60, 0.90);
+    var n = narrow();
+    var lift = [n ? w * 0.56 : w * 0.67, n ? h * 0.58 : h * 0.50];
+    var split = [n ? w * 0.50 : w * 0.56, n ? h * 0.60 : h * 0.50];
+    var plate = [w * 0.5, n ? h * 0.64 : h * 0.60];
+    var scale = clamp(Math.min(w / (n ? 500 : 660), h / 740), 0.58, 1.3);
+    return {
+      w: w,
+      h: h,
+      x: lerp(lerp(lift[0], split[0], a), plate[0], b),
+      y: lerp(lerp(lift[1], split[1], a), plate[1], b),
+      scale: scale
+    };
+  }
+
+  function screen(view, pt) {
+    return [view.x + pt[0] * view.scale, view.y + pt[1] * view.scale];
+  }
+
+  function ribbon(view, pts, width) {
+    var left = [];
+    var right = [];
+    var i, prev, next, dx, dy, len, nx, ny, p;
+    for (i = 0; i < pts.length; i++) {
+      prev = pts[Math.max(0, i - 1)];
+      next = pts[Math.min(pts.length - 1, i + 1)];
+      dx = next[0] - prev[0];
+      dy = next[1] - prev[1];
+      len = Math.hypot(dx, dy) || 1;
+      nx = -dy / len * width;
+      ny = dx / len * width;
+      p = screen(view, pts[i]);
+      left.push([p[0] + nx, p[1] + ny]);
+      right.push([p[0] - nx, p[1] - ny]);
+    }
+    ctx.beginPath();
+    ctx.moveTo(left[0][0], left[0][1]);
+    for (i = 1; i < left.length; i++) ctx.lineTo(left[i][0], left[i][1]);
+    for (i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawNoodles(view, p) {
+    var i, k, pts, width;
+    for (i = 0; i < STRANDS; i++) {
+      pts = [];
+      for (k = 0; k <= STEPS; k++) pts.push(strandPoint(i, k / STEPS, p));
+      width = (2.05 + (i % 4) * 0.32) * view.scale;
+      ctx.fillStyle = i % 2 ? "#a86428" : "#9a5c24";
+      ribbon(view, pts, width + 0.65 * view.scale);
+      ctx.fillStyle = COLORS[i % COLORS.length];
+      ribbon(view, pts, width);
+    }
+  }
+
+  function drawShrimp() {
+    ctx.fillStyle = "#f3a07c";
+    ctx.beginPath();
+    ctx.moveTo(-36, 8);
+    ctx.quadraticCurveTo(-48, -6, -40, -14);
+    ctx.quadraticCurveTo(-30, -22, -22, -8);
+    ctx.quadraticCurveTo(-28, 6, -36, 8);
+    ctx.fill();
+    ctx.strokeStyle = "#ee8b66";
+    ctx.lineCap = "round";
+    ctx.lineWidth = 13;
+    ctx.beginPath();
+    ctx.moveTo(-24, 2);
+    ctx.quadraticCurveTo(-4, 16, 16, 6);
+    ctx.quadraticCurveTo(32, -2, 28, -12);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(160,60,36,0.35)";
+    ctx.lineWidth = 1;
+    var i, x;
+    for (i = 0; i < 4; i++) {
+      x = -16 + i * 10;
+      ctx.beginPath();
+      ctx.moveTo(x, 8 - i);
+      ctx.lineTo(x + 2, -2 - i * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#f29a74";
+    ctx.beginPath();
+    ctx.ellipse(30, -8, 8, 6, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#2b1c14";
+    ctx.beginPath();
+    ctx.arc(33, -10, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#f0c2a4";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(34, -12);
+    ctx.quadraticCurveTo(48, -18, 58, -28);
+    ctx.stroke();
+  }
+
+  function drawLime() {
+    ctx.rotate(-0.5);
+    ctx.fillStyle = "#d5e48a";
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, 26, -1.0, 0.95);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#6f9a3e";
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(80,110,40,0.35)";
+    ctx.lineWidth = 1;
+    var i;
+    for (i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(i * 0.38) * 24, Math.sin(i * 0.38) * 24);
+      ctx.stroke();
+    }
+  }
+
+  function drawPeanut() {
+    var spots = [[-10, -4, 8, 5], [2, -8, 7, 5], [12, 0, 8, 5], [-2, 6, 9, 5], [8, 8, 6, 4], [-14, 6, 6, 4], [16, -8, 5, 3.5]];
+    var i;
+    for (i = 0; i < spots.length; i++) {
+      ctx.save();
+      ctx.translate(spots[i][0], spots[i][1]);
+      ctx.rotate(i * 0.4);
+      ctx.fillStyle = i % 2 ? "#d7b07a" : "#c49658";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, spots[i][2], spots[i][3], 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(90,60,30,0.35)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-spots[i][2] + 2, 0);
+      ctx.lineTo(spots[i][2] - 2, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawSprout() {
+    var i, a;
+    for (i = 0; i < 7; i++) {
+      a = -0.9 + i * 0.28;
+      ctx.strokeStyle = "#f4f1e6";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 8);
+      ctx.quadraticCurveTo(Math.cos(a) * 16, Math.sin(a) * 10, Math.cos(a) * 34, Math.sin(a) * 22 - 6);
+      ctx.stroke();
+      ctx.fillStyle = i % 2 ? "#e7d27a" : "#f7f4ea";
+      ctx.beginPath();
+      ctx.ellipse(Math.cos(a) * 34, Math.sin(a) * 22 - 6, 4.2, 2.4, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawChili() {
+    ctx.fillStyle = "#d23b2e";
+    ctx.beginPath();
+    ctx.moveTo(-18, 0);
+    ctx.quadraticCurveTo(0, -8, 22, -2);
+    ctx.quadraticCurveTo(8, 0, 22, 3);
+    ctx.quadraticCurveTo(0, 8, -18, 0);
+    ctx.fill();
+    ctx.fillStyle = "#5f8a34";
+    ctx.fillRect(-22, -1.5, 8, 3);
+  }
+
+  function drawEgg() {
+    ctx.fillStyle = "#f0c84a";
+    ctx.beginPath();
+    ctx.moveTo(-12, -2);
+    ctx.quadraticCurveTo(-4, -12, 8, -6);
+    ctx.quadraticCurveTo(16, 2, 6, 10);
+    ctx.quadraticCurveTo(-2, 14, -12, 6);
+    ctx.quadraticCurveTo(-16, 2, -12, -2);
+    ctx.fill();
+    ctx.fillStyle = "#e2b03a";
+    ctx.beginPath();
+    ctx.ellipse(4, 2, 5, 3.5, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  var DRAW = { shrimp: drawShrimp, lime: drawLime, peanut: drawPeanut, sprout: drawSprout, chili: drawChili, egg: drawEgg };
+
+  function drawPlate(view, alpha) {
+    if (alpha <= 0.01) return;
+    var s = view.scale;
+    ctx.save();
+    ctx.translate(view.x, view.y + 28 * s);
+    ctx.scale(s, s);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "rgba(70,42,24,0.16)";
+    ctx.beginPath();
+    ctx.ellipse(0, 18, 196, 32, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f7f2ea";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 208, 62, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#e4d5c4";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 150, 38, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(176,148,120,0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    var i, ang;
+    for (i = 0; i < 28; i++) {
+      ang = hash(i + 4) * Math.PI * 2;
+      ctx.fillStyle = "rgba(160,130,100," + (0.12 + hash(i + 19) * 0.2) + ")";
+      ctx.beginPath();
+      ctx.arc(Math.cos(ang) * (176 + hash(i) * 20), Math.sin(ang) * (48 + hash(i + 2) * 8), 1.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawSticks(view, p) {
+    var alpha = 1 - span(p, 0.28, 0.46);
+    if (alpha <= 0.02) return;
+    var top = strandPoint(4, 0.1, p);
+    var pinch = screen(view, top);
+    var lift = span(p, 0.16, 0.42) * 180 * view.scale;
+    var x = pinch[0];
+    var y = pinch[1] - lift;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#2c2118";
+    ctx.lineWidth = 7 * view.scale;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 210 * view.scale, y - 150 * view.scale);
+    ctx.moveTo(x + 8 * view.scale, y + 6 * view.scale);
+    ctx.lineTo(x + 230 * view.scale, y - 118 * view.scale);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,220,180,0.35)";
+    ctx.lineWidth = 1.5 * view.scale;
+    ctx.beginPath();
+    ctx.moveTo(x + 4 * view.scale, y - 2 * view.scale);
+    ctx.lineTo(x + 200 * view.scale, y - 142 * view.scale);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBits(view, p) {
+    var i, bit, loc, pos, pop;
+    for (i = 0; i < BITS.length; i++) {
+      bit = BITS[i];
+      loc = bitLocal(bit, p);
+      pos = screen(view, loc);
+      pop = view.scale * (0.86 + 0.22 * loc[3] * (1 - loc[4]));
+      if (loc[3] > 0.05 && loc[4] < 0.95) {
+        ctx.fillStyle = "rgba(70,40,20," + (0.1 * loc[3] * (1 - loc[4])) + ")";
+        ctx.beginPath();
+        ctx.ellipse(pos[0], pos[1] + 16 * view.scale, 18 * view.scale, 5 * view.scale, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.save();
+      ctx.translate(pos[0], pos[1]);
+      ctx.rotate(loc[2]);
+      ctx.scale(pop, pop);
+      DRAW[bit.kind]();
+      ctx.restore();
+    }
+  }
+
+  function drawLabels(view, p) {
+    var alpha = span(p, 0.40, 0.52) * (1 - span(p, 0.70, 0.84));
+    if (alpha <= 0.03) return;
+    var font = (narrow() ? 12 : 14) + "px system-ui, sans-serif";
+    ctx.font = font;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = alpha;
+    var placed = [];
+    var i, bit, loc, pos, text, tw, side, lx, ly, j, hit;
+    var items = BITS.filter(function (b) { return b.name; });
+    var mid = screen(view, strandPoint(2, 0.78, p));
+    items.push({ name: "面条", side: -1, at: mid });
+    for (i = 0; i < items.length; i++) {
+      bit = items[i];
+      if (bit.at) pos = bit.at;
+      else {
+        loc = bitLocal(bit, p);
+        pos = screen(view, loc);
+      }
+      text = bit.name;
+      tw = ctx.measureText(text).width;
+      side = bit.side || 1;
+      lx = pos[0] + side * (narrow() ? 36 : 48);
+      if (side < 0) lx -= tw;
+      lx = clamp(lx, 8, view.w - tw - 8);
+      ly = clamp(pos[1] + (bit.ly || 0), 72, view.h - 22);
+      for (j = 0; j < placed.length; j++) {
+        hit = placed[j];
+        if (Math.abs(hit[0] - lx) < tw + 12 && Math.abs(hit[1] - ly) < 18) ly = clamp(hit[1] + 18, 72, view.h - 22);
+      }
+      placed.push([lx, ly]);
+      ctx.strokeStyle = "rgba(60,40,28,0.55)";
+      ctx.beginPath();
+      ctx.moveTo(pos[0], pos[1]);
+      ctx.lineTo(side < 0 ? lx + tw + 3 : lx - 3, ly - 3);
+      ctx.stroke();
+      ctx.fillStyle = "#3a291c";
+      ctx.fillText(text, lx, ly);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function draw() {
+    var view = layout();
+    var p = progress;
+    var bgT = span(p, 0.12, 0.40);
+    var rust = [197, 107, 62];
+    var cream = [243, 230, 210];
+    var bg = [
+      lerp(rust[0], cream[0], bgT) | 0,
+      lerp(rust[1], cream[1], bgT) | 0,
+      lerp(rust[2], cream[2], bgT) | 0
+    ];
+    var inkT = span(p, 0.30, 0.48);
+    var ink = [
+      lerp(246, 44, inkT) | 0,
+      lerp(239, 33, inkT) | 0,
+      lerp(228, 24, inkT) | 0
+    ];
+    var bgCss = "rgb(" + bg[0] + "," + bg[1] + "," + bg[2] + ")";
+    var inkCss = "rgb(" + ink[0] + "," + ink[1] + "," + ink[2] + ")";
+    document.body.style.background = bgCss;
+    document.body.style.color = inkCss;
+    ctx.fillStyle = bgCss;
+    ctx.fillRect(0, 0, view.w, view.h);
+    drawPlate(view, span(p, 0.58, 0.80));
+    drawNoodles(view, p);
+    drawBits(view, p);
+    drawSticks(view, p);
+    drawLabels(view, p);
+    hintEl.style.opacity = String(0.75 * (1 - span(p, 0.04, 0.2)));
+  }
+
+  function syncCopy() {
+    var name = phaseOf(progress);
+    var row = COPY[name];
+    stage.dataset.progress = progress.toFixed(4);
+    stage.dataset.phase = name;
+    if (name === shown) return;
+    shown = name;
+    kickerEl.textContent = row[0];
+    phaseEl.textContent = row[1];
+    titleEl.textContent = row[2];
+    subEl.textContent = row[3];
+    canvas.setAttribute("aria-label", row[4]);
+    copyEl.classList.toggle("settled", name === "plate");
+  }
+
+  function paint() {
+    draw();
+    syncCopy();
+  }
+
+  function maxScroll() {
+    return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  }
+
+  function currentProgress() {
+    var max = maxScroll();
+    if (max <= 0) return progress;
+    return clamp(window.scrollY / max, 0, 1);
+  }
+
+  function applyProgress(next) {
+    progress = clamp(next, 0, 1);
+    var max = maxScroll();
+    locking = true;
+    if (max > 0) window.scrollTo(0, Math.round(progress * max));
+    locking = false;
+    paint();
+  }
+
+  function onScroll() {
+    if (locking) return;
+    var max = maxScroll();
+    if (max <= 0) return;
+    progress = currentProgress();
+    paint();
+  }
+
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", function () { paint(); });
+  cta.addEventListener("click", function () { applyProgress(1); });
+
+  window.addEventListener("keydown", function (event) {
+    if (event.altKey || event.metaKey || event.ctrlKey) return;
+    if (event.target && event.target.closest && event.target.closest("button")) {
+      if (event.key === " " || event.key === "Enter") return;
+    }
+    var delta = 0;
+    if (event.key === "ArrowDown") delta = 0.08;
+    else if (event.key === "ArrowUp") delta = -0.08;
+    else if (event.key === "PageDown" || event.key === " ") delta = 0.18;
+    else if (event.key === "PageUp") delta = -0.18;
+    else if (event.key === "Home") { event.preventDefault(); applyProgress(0); return; }
+    else if (event.key === "End") { event.preventDefault(); applyProgress(1); return; }
+    else return;
+    event.preventDefault();
+    applyProgress(currentProgress() + delta);
+  });
+
+  function onMotion() {
+    reduced = motion.matches;
+    if (!reduced) return;
+    applyProgress(1);
+  }
+  if (motion.addEventListener) motion.addEventListener("change", onMotion);
+  else if (motion.addListener) motion.addListener(onMotion);
+
+  if (reduced) applyProgress(1);
+  else paint();
+})();
+  </script>
+</body>
+</html>
