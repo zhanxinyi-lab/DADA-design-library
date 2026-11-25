@@ -343,7 +343,7 @@
       velYaw = 0;
       velPitch = 0;
       label();
-      kick();
+      paint();
       return;
     }
     from.set(cur);
@@ -365,6 +365,11 @@
   function kick() {
     if (raf) return;
     raf = requestAnimationFrame(frame);
+  }
+
+  function paint() {
+    applySize();
+    draw();
   }
 
   function applySize() {
@@ -609,7 +614,7 @@
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
     sizeDirty = true;
-    kick();
+    paint();
   }
   if (motion.addEventListener) motion.addEventListener('change', onMotion);
   else if (motion.addListener) motion.addListener(onMotion);
@@ -619,7 +624,8 @@
   seedBurst();
   cur.set(shapes[0]);
   label();
-  kick();
+  if (reduced) paint();
+  else kick();
 })();
 </script>
 </body>
