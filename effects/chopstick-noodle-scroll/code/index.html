@@ -133,7 +133,7 @@
 </head>
 <body>
   <div id="runway"></div>
-  <div id="stage" data-progress="0.0000" data-phase="lift">
+  <div id="stage" role="group" aria-label="拌面滚动进度" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0.0000" aria-valuetext="第1拍 提起" data-progress="0.0000" data-phase="lift">
     <canvas id="board" aria-label="筷子夹起一团拌面"></canvas>
     <header>
       <div class="mark">热勺</div>
@@ -612,11 +612,22 @@
     hintEl.style.opacity = String(0.75 * (1 - span(p, 0.04, 0.2)));
   }
 
+  function beatNo(name) {
+    if (name === "split") return "2";
+    if (name === "plate") return "3";
+    return "1";
+  }
+
   function syncCopy() {
     var name = phaseOf(progress);
     var row = COPY[name];
-    stage.dataset.progress = progress.toFixed(4);
+    var now = progress.toFixed(4);
+    stage.dataset.progress = now;
     stage.dataset.phase = name;
+    stage.setAttribute("aria-valuemin", "0");
+    stage.setAttribute("aria-valuemax", "1");
+    stage.setAttribute("aria-valuenow", now);
+    stage.setAttribute("aria-valuetext", "第" + beatNo(name) + "拍 " + row[1]);
     if (name === shown) return;
     shown = name;
     kickerEl.textContent = row[0];
@@ -642,7 +653,22 @@
     return clamp(window.scrollY / max, 0, 1);
   }
 
+  function pinEnd() {
+    progress = 1;
+    var max = maxScroll();
+    if (max > 0 && Math.abs(window.scrollY - max) > 1) {
+      locking = true;
+      window.scrollTo(0, max);
+      locking = false;
+    }
+    paint();
+  }
+
   function applyProgress(next) {
+    if (reduced) {
+      pinEnd();
+      return;
+    }
     progress = clamp(next, 0, 1);
     var max = maxScroll();
     locking = true;
@@ -653,6 +679,10 @@
 
   function onScroll() {
     if (locking) return;
+    if (reduced) {
+      pinEnd();
+      return;
+    }
     var max = maxScroll();
     if (max <= 0) return;
     progress = currentProgress();
@@ -660,7 +690,20 @@
   }
 
   window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("resize", function () { paint(); });
+  window.addEventListener("wheel", function (event) {
+    if (!reduced) return;
+    event.preventDefault();
+    pinEnd();
+  }, { passive: false });
+  window.addEventListener("touchmove", function (event) {
+    if (!reduced) return;
+    event.preventDefault();
+    pinEnd();
+  }, { passive: false });
+  window.addEventListener("resize", function () {
+    if (reduced) progress = 1;
+    paint();
+  });
   cta.addEventListener("click", function () { applyProgress(1); });
 
   window.addEventListener("keydown", function (event) {
@@ -673,22 +716,31 @@
     else if (event.key === "ArrowUp") delta = -0.08;
     else if (event.key === "PageDown" || event.key === " ") delta = 0.18;
     else if (event.key === "PageUp") delta = -0.18;
-    else if (event.key === "Home") { event.preventDefault(); applyProgress(0); return; }
-    else if (event.key === "End") { event.preventDefault(); applyProgress(1); return; }
+    else if (event.key === "Home") delta = -1;
+    else if (event.key === "End") delta = 1;
     else return;
     event.preventDefault();
+    if (reduced) {
+      pinEnd();
+      return;
+    }
+    if (event.key === "Home") { applyProgress(0); return; }
+    if (event.key === "End") { applyProgress(1); return; }
     applyProgress(currentProgress() + delta);
   });
 
   function onMotion() {
     reduced = motion.matches;
-    if (!reduced) return;
-    applyProgress(1);
+    if (reduced) pinEnd();
+    else {
+      progress = currentProgress();
+      paint();
+    }
   }
   if (motion.addEventListener) motion.addEventListener("change", onMotion);
   else if (motion.addListener) motion.addListener(onMotion);
 
-  if (reduced) applyProgress(1);
+  if (reduced) pinEnd();
   else paint();
 })();
   </script>
