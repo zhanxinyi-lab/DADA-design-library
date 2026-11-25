@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>按住喷射的纸币枪</title>
+<style>
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #f3f1eb;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: #f3f1eb;
+    touch-action: none;
+    cursor: default;
+    perspective: 860px;
+    user-select: none;
+  }
+  #stage:focus {
+    outline: none;
+  }
+  #stage:focus-visible {
+    outline: 3px solid #145c34;
+    outline-offset: -8px;
+  }
+  #shadow {
+    position: absolute;
+    left: 50%;
+    top: 47%;
+    width: min(28vw, 120px);
+    height: 14px;
+    transform: translate(-50%, 28px);
+    background: radial-gradient(ellipse at center, rgba(48, 42, 34, 0.18), transparent 70%);
+    pointer-events: none;
+  }
+  #gun {
+    position: absolute;
+    width: min(58vw, 230px);
+    aspect-ratio: 240 / 170;
+    transform-origin: 40% 88.24%;
+    pointer-events: none;
+  }
+  #gun svg { display: block; width: 100%; height: 100%; }
+  .bill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 72px;
+    height: 34px;
+    border-radius: 3px;
+    pointer-events: none;
+    transform-style: preserve-3d;
+    background-color: #b7d48a;
+    background-image:
+      linear-gradient(#1d663c, #1d663c),
+      linear-gradient(#1d663c, #1d663c),
+      radial-gradient(ellipse at center, transparent 40%, #1d663c 43% 49%, transparent 52%),
+      linear-gradient(#f6ffe9, #f6ffe9);
+    background-size: 100% 2px, 2px 100%, 42% 68%, 76% 62%;
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 0 0 2px #1d663c;
+  }
+  .bill::before,
+  .bill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .bill::before {
+    background: #163e28;
+    transform: translateZ(-3px);
+  }
+  .bill::after {
+    background:
+      linear-gradient(#1d663c, #1d663c) center/70% 2px no-repeat,
+      linear-gradient(#d7efb6, #8fb864);
+    box-shadow: inset 0 0 0 2px #1d663c;
+    transform: rotateY(180deg) translateZ(1px);
+  }
+  .bill.v1 {
+    background-color: #9ecb78;
+    background-image:
+      linear-gradient(#1d663c, #1d663c),
+      linear-gradient(#1d663c, #1d663c),
+      linear-gradient(#f4ffe6, #f4ffe6);
+    background-size: 8% 72%, 8% 72%, 70% 58%;
+    background-position: 18% center, 82% center, center;
+  }
+  .bill.v2 {
+    background-color: #d5d48a;
+    background-image:
+      radial-gradient(circle at 50% 50%, transparent 36%, #5d6a2e 40% 46%, transparent 50%),
+      linear-gradient(#fff8d8, #fff8d8);
+    background-size: 34% 70%, 74% 60%;
+    background-position: center;
+    box-shadow: inset 0 0 0 2px #5d6a2e;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+  <h1 class="sr">按住喷射的纸币枪</h1>
+  <p class="sr">枪会转向指针。按住鼠标主键或空格才喷出纸币，松开、指针离开窗口或窗口失焦就停。减少动态效果时只转向，不喷。</p>
+  <div id="stage" tabindex="0" role="button" aria-pressed="false" aria-label="纸币枪，按住喷射" aria-describedby="spray-state">
+    <div id="shadow"></div>
+    <div id="gun">
+      <svg viewBox="0 0 240 170" aria-hidden="true">
+        <defs>
+          <linearGradient id="gun-body" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#4c5462"/>
+            <stop offset="0.42" stop-color="#2c313a"/>
+            <stop offset="1" stop-color="#191c22"/>
+          </linearGradient>
+          <linearGradient id="gun-grip" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#d0d4da"/>
+            <stop offset="0.45" stop-color="#8e949e"/>
+            <stop offset="1" stop-color="#666c76"/>
+          </linearGradient>
+        </defs>
+        <path d="M84 100h32c5 0 8 4 8 9v30c0 11-8 18-18 18h-6c-13 0-20-8-20-20v-28c0-6 4-9 4-9z" fill="url(#gun-grip)"/>
+        <path d="M96 112h6v26" stroke="rgba(255,255,255,.35)" stroke-width="2" fill="none"/>
+        <path d="M46 72c0-14 10-22 22-22h128c16 0 26 9 30 20 2 6 4 12 4 16 0 15-11 26-26 26H80c-18 0-30-9-34-22-2-6-2-12 0-18z" fill="url(#gun-body)"/>
+        <path d="M76 50h96c7 0 11 4 11 9v7H68v-7c0-5 4-9 8-9z" fill="#3e4652"/>
+        <rect x="204" y="62" width="24" height="30" rx="3" fill="#14171c"/>
+        <rect x="214" y="70" width="8" height="14" rx="1" fill="#0c0e12"/>
+        <path d="M60 76l72-14 16 34-72 14z" fill="#e4373f"/>
+        <path d="M70 80l50-9" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-linecap="round"/>
+        <path d="M122 108c10 2 12 10 8 16" fill="none" stroke="#e06a32" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="96" cy="150" r="6.5" fill="none" stroke="#5c636c" stroke-width="2.5"/>
+        <circle cx="96" cy="150" r="1.7" fill="#5c636c"/>
+      </svg>
+    </div>
+  </div>
+  <p id="spray-state" class="sr" role="status" aria-live="polite">已停止</p>
+  <script>
+    (function () {
+      var stage = document.getElementById("stage");
+      var gun = document.getElementById("gun");
+      var reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+      var PIVOT_X = 96 / 240;
+      var PIVOT_Y = 150 / 170;
+      var MUZZLE_X = 218 / 240;
+      var MUZZLE_Y = 78 / 170;
+      var aim = 0;
+      var shown = 0;
+      var kick = 0;
+      var sprayState = document.getElementById("spray-state");
+      var firing = { pointer: false, key: false };
+      var activePointerId = null;
+      var bills = [];
+      var raf = 0;
+      var last = 0;
+      var spawnAcc = 0;
+      var size = { w: 0, h: 0 };
+
+      function reduced() { return reduceQuery.matches; }
+      function wantsFire() { return (firing.pointer || firing.key) && !reduced(); }
+      function wrap(d) {
+        var t = Math.PI * 2;
+        d = (d + Math.PI) % t;
+        if (d < 0) d += t;
+        return d - Math.PI;
+      }
+      function pivot() {
+        return { x: stage.clientWidth * 0.5, y: stage.clientHeight * 0.47 };
+      }
+      function measure() {
+        size.w = gun.offsetWidth;
+        size.h = gun.offsetHeight;
+      }
+      function barrelLocal() {
+        var dx = size.w * (MUZZLE_X - PIVOT_X);
+        var dy = size.h * (MUZZLE_Y - PIVOT_Y);
+        return { x: dx, y: dy, angle: Math.atan2(dy, dx) };
+      }
+      function barrelWorld() {
+        var local = barrelLocal();
+        var c = Math.cos(shown);
+        var s = Math.sin(shown);
+        return { x: local.x * c - local.y * s, y: local.x * s + local.y * c };
+      }
+      function paintGun() {
+        if (!size.w) measure();
+        var p = pivot();
+        var dir = barrelWorld();
+        var len = Math.hypot(dir.x, dir.y) || 1;
+        var ox = size.w * PIVOT_X;
+        var oy = size.h * PIVOT_Y;
+        gun.style.left = (p.x - ox - dir.x / len * kick) + "px";
+        gun.style.top = (p.y - oy - dir.y / len * kick) + "px";
+        gun.style.transform = "rotate(" + shown + "rad)";
+      }
+      function muzzle() {
+        var p = pivot();
+        var dir = barrelWorld();
+        var len = Math.hypot(dir.x, dir.y) || 1;
+        return {
+          x: p.x + dir.x - dir.x / len * kick,
+          y: p.y + dir.y - dir.y / len * kick,
+          angle: Math.atan2(dir.y, dir.x)
+        };
+      }
+      function clearBills() {
+        for (var i = 0; i < bills.length; i++) bills[i].el.remove();
+        bills.length = 0;
+        spawnAcc = 0;
+      }
+      function stopLoop() {
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+        last = 0;
+        kick = 0;
+      }
+      function spawn() {
+        var m = muzzle();
+        var spread = (Math.random() - 0.5) * 0.62;
+        var angle = m.angle + spread;
+        var speed = 460 + Math.random() * 720;
+        var scale = 0.62 + Math.random() * 0.7;
+        var el = document.createElement("div");
+        el.className = "bill v" + (Math.floor(Math.random() * 3));
+        el.setAttribute("aria-hidden", "true");
+        el.style.width = (72 * scale) + "px";
+        el.style.height = (34 * scale) + "px";
+        stage.appendChild(el);
+        bills.push({
+          el: el,
+          x: m.x,
+          y: m.y,
+          vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 80,
+          vy: Math.sin(angle) * speed + (Math.random() - 0.5) * 80,
+          rx: Math.random() * 360,
+          ry: Math.random() * 360,
+          rz: (Math.random() - 0.5) * 50,
+          sx: (Math.random() < 0.5 ? -1 : 1) * (220 + Math.random() * 520),
+          sy: (Math.random() < 0.5 ? -1 : 1) * (260 + Math.random() * 640),
+          sz: (Math.random() - 0.5) * 140,
+          w: 72 * scale,
+          h: 34 * scale,
+          life: 0,
+          max: 1.45 + Math.random() * 0.85,
+          grav: 70 + Math.random() * 90
+        });
+      }
+      function stepBills(dt) {
+        var width = stage.clientWidth;
+        var height = stage.clientHeight;
+        for (var i = bills.length - 1; i >= 0; i--) {
+          var b = bills[i];
+          b.life += dt;
+          b.vy += b.grav * dt;
+          b.x += b.vx * dt;
+          b.y += b.vy * dt;
+          b.rx += b.sx * dt;
+          b.ry += b.sy * dt;
+          b.rz += b.sz * dt;
+          var away = b.x < -180 || b.y < -180 || b.x > width + 180 || b.y > height + 180;
+          if (b.life >= b.max || away) {
+            b.el.remove();
+            bills.splice(i, 1);
+            continue;
+          }
+          var fade = b.life > b.max * 0.72 ? 1 - (b.life - b.max * 0.72) / (b.max * 0.28) : 1;
+          b.el.style.opacity = fade.toFixed(3);
+          b.el.style.transform = "translate3d(" + (b.x - b.w / 2).toFixed(1) + "px," + (b.y - b.h / 2).toFixed(1) + "px,0) rotateZ(" + b.rz.toFixed(1) + "deg) rotateY(" + b.ry.toFixed(1) + "deg) rotateX(" + b.rx.toFixed(1) + "deg)";
+        }
+      }
+      function shouldRun() {
+        if (reduced()) return false;
+        if (wantsFire() || bills.length) return true;
+        return Math.abs(wrap(aim - shown)) > 0.004;
+      }
+      function frame(now) {
+        if (reduced()) {
+          raf = 0;
+          last = 0;
+          kick = 0;
+          shown = aim;
+          clearBills();
+          paintGun();
+          return;
+        }
+        if (!last) last = now;
+        var dt = Math.min(0.034, (now - last) / 1000);
+        last = now;
+        var delta = wrap(aim - shown);
+        if (Math.abs(delta) < 0.004) shown = aim;
+        else shown += delta * (1 - Math.exp(-14 * dt));
+        if (wantsFire()) {
+          kick = 3.2 + Math.sin(now * 0.048) * 1.8;
+          spawnAcc += dt;
+          while (spawnAcc >= 0.042 && bills.length < 80) {
+            spawnAcc -= 0.042;
+            spawn();
+          }
+        } else {
+          kick = 0;
+          spawnAcc = 0;
+        }
+        paintGun();
+        stepBills(dt);
+        if (shouldRun()) raf = requestAnimationFrame(frame);
+        else {
+          raf = 0;
+          last = 0;
+        }
+      }
+      function ensureLoop() {
+        if (reduced() || raf) return;
+        raf = requestAnimationFrame(frame);
+      }
+      function aimAt(clientX, clientY) {
+        var rect = stage.getBoundingClientRect();
+        var p = pivot();
+        var x = clientX - rect.left - p.x;
+        var y = clientY - rect.top - p.y;
+        if (x * x + y * y < 64) return;
+        if (!size.w) measure();
+        aim = Math.atan2(y, x) - barrelLocal().angle;
+        if (reduced()) {
+          shown = aim;
+          kick = 0;
+          paintGun();
+          return;
+        }
+        ensureLoop();
+      }
+      function syncPressed() {
+        var on = wantsFire();
+        var pressed = on ? "true" : "false";
+        var label = on ? "正在喷" : "已停止";
+        if (stage.getAttribute("aria-pressed") !== pressed) stage.setAttribute("aria-pressed", pressed);
+        if (sprayState.textContent !== label) sprayState.textContent = label;
+      }
+      function settleHold() {
+        kick = 0;
+        spawnAcc = 0;
+        syncPressed();
+        if (reduced()) {
+          stopLoop();
+          paintGun();
+          return;
+        }
+        ensureLoop();
+      }
+      function releaseCapture() {
+        var id = activePointerId;
+        activePointerId = null;
+        if (id == null) return;
+        try {
+          if (stage.hasPointerCapture(id)) stage.releasePointerCapture(id);
+        } catch (err) {}
+      }
+      function stopPointer() {
+        var was = firing.pointer;
+        firing.pointer = false;
+        releaseCapture();
+        if (!was) {
+          syncPressed();
+          return;
+        }
+        settleHold();
+      }
+      function stopAll() {
+        var was = firing.pointer || firing.key;
+        firing.key = false;
+        firing.pointer = false;
+        releaseCapture();
+        if (!was) {
+          syncPressed();
+          return;
+        }
+        settleHold();
+      }
+      function outsideWindow(e) {
+        return e.clientX < 0 || e.clientY < 0 || e.clientX > window.innerWidth || e.clientY > window.innerHeight;
+      }
+      function onReduce() {
+        if (!reduced()) {
+          syncPressed();
+          if (wantsFire() || Math.abs(wrap(aim - shown)) > 0.004) ensureLoop();
+          return;
+        }
+        stopLoop();
+        clearBills();
+        shown = aim;
+        kick = 0;
+        syncPressed();
+        paintGun();
+      }
+
+      stage.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        activePointerId = e.pointerId;
+        try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+        aimAt(e.clientX, e.clientY);
+        firing.pointer = true;
+        if (reduced()) {
+          shown = aim;
+          kick = 0;
+          syncPressed();
+          paintGun();
+          return;
+        }
+        syncPressed();
+        ensureLoop();
+      });
+      stage.addEventListener("pointermove", function (e) {
+        if (firing.pointer && outsideWindow(e)) {
+          stopPointer();
+          return;
+        }
+        aimAt(e.clientX, e.clientY);
+      });
+      stage.addEventListener("pointerup", stopPointer);
+      stage.addEventListener("pointercancel", stopPointer);
+      stage.addEventListener("lostpointercapture", stopPointer);
+      document.addEventListener("pointerleave", stopPointer);
+      document.documentElement.addEventListener("pointerleave", stopPointer);
+      window.addEventListener("pointerout", function (e) {
+        if (!e.relatedTarget) stopPointer();
+      });
+      window.addEventListener("mouseleave", stopPointer);
+      document.documentElement.addEventListener("mouseleave", stopPointer);
+      window.addEventListener("keydown", function (e) {
+        if (e.code !== "Space") return;
+        e.preventDefault();
+        if (document.activeElement !== stage) stage.focus({ preventScroll: true });
+        if (e.repeat || firing.key) return;
+        firing.key = true;
+        if (reduced()) {
+          shown = aim;
+          kick = 0;
+          syncPressed();
+          paintGun();
+          return;
+        }
+        syncPressed();
+        ensureLoop();
+      });
+      window.addEventListener("keyup", function (e) {
+        if (e.code !== "Space") return;
+        e.preventDefault();
+        if (!firing.key) return;
+        firing.key = false;
+        settleHold();
+      });
+      window.addEventListener("blur", stopAll);
+      window.addEventListener("resize", function () {
+        measure();
+        if (reduced()) {
+          shown = aim;
+          paintGun();
+        } else {
+          paintGun();
+        }
+      });
+      if (reduceQuery.addEventListener) reduceQuery.addEventListener("change", onReduce);
+      else if (reduceQuery.addListener) reduceQuery.addListener(onReduce);
+      measure();
+      paintGun();
+      syncPressed();
+    })();
+  </script>
+</body>
+</html>
