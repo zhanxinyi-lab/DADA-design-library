@@ -59,13 +59,15 @@
   let view = { focal: 1, ox: 0, oy: 0 };
   const windows = [];
 
-  function clamp01(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }
+  function clamp01(t) { return t > 0 ? (t < 1 ? t : 1) : 0; }
   function mix(a, b, t) {
     return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   }
   function rgb(c, a) {
     const body = `${c[0] | 0},${c[1] | 0},${c[2] | 0}`;
-    return a == null ? `rgb(${body})` : `rgba(${body},${a})`;
+    if (a == null || !Number.isFinite(a)) return `rgb(${body})`;
+    const alpha = a < 0 ? 0 : a > 1 ? 1 : a;
+    return `rgba(${body},${alpha})`;
   }
   function hash(n) {
     const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
@@ -198,6 +200,7 @@
   function targetOf(win) {
     if (!pointer) return 0;
     const dist = Math.hypot(pointer.x - win.sx, pointer.y - win.sy);
+    if (!Number.isFinite(dist)) return 0;
     const t = 1 - dist / radius();
     if (t <= 0) return 0;
     const u = Math.min(1, t * 1.25);
@@ -263,17 +266,24 @@
     ctx.stroke();
     ctx.restore();
 
+    if (!Number.isFinite(win.open)) win.open = 0;
     const cover = 0.08 + (1 - win.open) * 0.8;
     const sky = glow > 0.78 ? [206, 218, 232] : [148, 164, 188];
-    const grad = ctx.createLinearGradient(glass[0][0], glass[0][1], glass[2][0], glass[2][1]);
-    grad.addColorStop(0, rgb(sky, Math.min(0.96, cover + 0.08)));
-    grad.addColorStop(0.55, rgb([118, 134, 162], cover));
-    grad.addColorStop(1, rgb([78, 92, 120], cover * 0.94));
+    const x0 = glass[0][0], y0 = glass[0][1], x1 = glass[2][0], y1 = glass[2][1];
     ctx.beginPath();
     ctx.moveTo(glass[0][0], glass[0][1]);
     for (let i = 1; i < 4; i++) ctx.lineTo(glass[i][0], glass[i][1]);
     ctx.closePath();
-    ctx.fillStyle = grad;
+    const span = Math.hypot(x1 - x0, y1 - y0);
+    if (Number.isFinite(span) && span >= 0.5) {
+      const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+      grad.addColorStop(0, rgb(sky, Math.min(0.96, cover + 0.08)));
+      grad.addColorStop(0.55, rgb([118, 134, 162], cover));
+      grad.addColorStop(1, rgb([78, 92, 120], cover * 0.94));
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = rgb(sky, Math.min(0.96, cover + 0.08));
+    }
     ctx.fill();
 
     const yTop = win.y1 - INSET_Y;
@@ -376,7 +386,7 @@
       const tau = 0.065 + (1 - near) * 0.58;
       const next = win.open + (target - win.open) * (1 - Math.exp(-dt / tau));
       if (Math.abs(next - target) > 0.004) moving = true;
-      win.open = next;
+      win.open = Number.isFinite(next) ? next : 0;
     }
     draw();
     if (moving) schedule('step');
