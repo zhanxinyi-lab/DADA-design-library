@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>步行笔记搜索</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #e7ebf2;
+      color: #24306a;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    #stage {
+      position: fixed;
+      inset: 0;
+      touch-action: none;
+      z-index: 1;
+    }
+    .orb {
+      position: absolute;
+      left: 0;
+      top: 0;
+      display: grid;
+      place-items: center;
+      box-sizing: border-box;
+      padding: 0.35rem;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 32% 28%, #ffffff 0%, #f3f6fb 46%, #c5ccda 100%);
+      box-shadow:
+        inset 0 -10px 16px rgba(62, 74, 120, 0.2),
+        0 12px 20px rgba(36, 44, 80, 0.16);
+      color: #3140d6;
+      font-weight: 650;
+      line-height: 1.15;
+      text-align: center;
+      user-select: none;
+    }
+    .orb span { pointer-events: none; }
+    .orb.match { color: #1826b0; }
+    .orb.dim { opacity: 0.42; }
+    #find {
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: 40%;
+      z-index: 2;
+      display: flex;
+      justify-content: center;
+      margin: 0;
+      pointer-events: none;
+    }
+    .panel {
+      box-sizing: border-box;
+      width: min(20rem, calc(100% - 7.5rem));
+      pointer-events: auto;
+      text-align: center;
+    }
+    label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    input {
+      display: block;
+      box-sizing: border-box;
+      width: 100%;
+      margin: 0;
+      padding: 0.15rem 0.25rem 0.4rem;
+      border: 0;
+      border-bottom: 2px solid #3140d6;
+      border-radius: 0;
+      background: transparent;
+      color: #5d6bef;
+      font: 650 1.55rem/1.25 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      text-align: center;
+    }
+    input:focus {
+      outline: none;
+      color: #1d2bb8;
+      border-bottom-color: #1d2bb8;
+    }
+    input:focus-visible {
+      outline: 2px solid #1d2bb8;
+      outline-offset: 4px;
+    }
+    .hint, #live {
+      margin: 0.7rem 0 0;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      line-height: 1.45;
+    }
+    #live { min-height: 1.45em; font-weight: 650; }
+    #find.searching .hint { visibility: hidden; }
+    @media (max-width: 360px) {
+      input { font-size: 1.2rem; }
+      .hint, #live { font-size: 0.72rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="stage"></div>
+  <form id="find" role="search">
+    <div class="panel">
+    <label for="q">搜索步行笔记</label>
+    <input id="q" name="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="24" placeholder="找一条步行笔记">
+    <p class="hint">十二条步行笔记。写下想找的词，对上的球会靠向搜索；指针可以把它们推开。回车确认。</p>
+    <p id="live" role="status" aria-live="polite"></p>
+    </div>
+  </form>
+  <script>
+    const NOTES = [
+      { title: "路灯", words: "路灯 灯 夜 光" },
+      { title: "雨棚", words: "雨棚 雨 避雨" },
+      { title: "台阶", words: "台阶 梯 高低" },
+      { title: "橱窗", words: "橱窗 窗 玻璃" },
+      { title: "长椅", words: "长椅 椅 坐" },
+      { title: "树影", words: "树影 树 影 叶" },
+      { title: "桥洞", words: "桥洞 桥 拱" },
+      { title: "晚风", words: "晚风 风 夜" },
+      { title: "回声", words: "回声 声 回" },
+      { title: "地图", words: "地图 图 方向" },
+      { title: "转角", words: "转角 角 弯" },
+      { title: "门槛", words: "门槛 门 入口" }
+    ];
+
+    const stage = document.getElementById("stage");
+    const form = document.getElementById("find");
+    const input = document.getElementById("q");
+    const live = document.getElementById("live");
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const balls = NOTES.map((note) => {
+      const el = document.createElement("div");
+      el.className = "orb";
+      const label = document.createElement("span");
+      label.textContent = note.title;
+      el.append(label);
+      el.dataset.title = note.title;
+      stage.append(el);
+      return {
+        title: note.title,
+        words: note.words,
+        el,
+        r: 28,
+        x: 0, y: 0, vx: 0, vy: 0,
+        homeX: 0, homeY: 0, goalX: 0, goalY: 0,
+        match: false,
+        ready: false
+      };
+    });
+
+    let raf = 0;
+    let last = 0;
+    let calm = 0;
+    let pointerDown = false;
+    let pushX = 0;
+    let pushY = 0;
+
+    function reduced() { return motion.matches; }
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function query() { return input.value.trim().toLowerCase(); }
+
+    function matches(ball, q) {
+      if (!q) return false;
+      const hay = (ball.title + " " + ball.words).toLowerCase();
+      return q.split(/\s+/).filter(Boolean).every((token) => hay.includes(token));
+    }
+
+    function namesFor(q) {
+      return balls.filter((ball) => matches(ball, q)).map((ball) => ball.title);
+    }
+
+    function summary() {
+      const q = query();
+      if (!q) return "";
+      const names = namesFor(q);
+      if (!names.length) return "没有匹配的笔记";
+      return names.length + " 条靠向搜索：" + names.join("、");
+    }
+
+    function radiusFor(w, h) {
+      return clamp(Math.min(w / 11, h / 16), 22, 54);
+    }
+
+    function computeHomes(w, h, r) {
+      const cx = w / 2;
+      const cy = h / 2;
+      const rx = Math.max(r + 8, w / 2 - r - 8);
+      const ry = Math.max(r + 8, h / 2 - r - 8);
+      const pts = NOTES.map((_, i) => {
+        const a = -Math.PI / 2 + (i + 0.5) * (Math.PI * 2 / NOTES.length);
+        const jr = 0.8 + (i % 5) * 0.045;
+        const jy = 0.74 + (i % 4) * 0.06;
+        return { x: cx + Math.cos(a) * rx * jr, y: cy + Math.sin(a) * ry * jy };
+      });
+      const stageBox = stage.getBoundingClientRect();
+      const panelBox = form.querySelector(".panel").getBoundingClientRect();
+      const hole = {
+        left: panelBox.left - stageBox.left - r - 8,
+        right: panelBox.right - stageBox.left + r + 8,
+        top: panelBox.top - stageBox.top - r - 8,
+        bottom: panelBox.bottom - stageBox.top + r + 8
+      };
+      for (let pass = 0; pass < 16; pass++) {
+        for (let i = 0; i < pts.length; i++) {
+          for (let j = i + 1; j < pts.length; j++) {
+            let dx = pts[j].x - pts[i].x;
+            let dy = pts[j].y - pts[i].y;
+            let dist = Math.hypot(dx, dy) || 0.001;
+            const min = r * 2 + 8;
+            if (dist < min) {
+              const push = (min - dist) / 2;
+              dx /= dist;
+              dy /= dist;
+              pts[i].x -= dx * push;
+              pts[i].y -= dy * push;
+              pts[j].x += dx * push;
+              pts[j].y += dy * push;
+            }
+          }
+        }
+        for (const p of pts) {
+          if (p.x > hole.left && p.x < hole.right && p.y > hole.top && p.y < hole.bottom) {
+            const mid = (hole.top + hole.bottom) / 2;
+            p.y = p.y < mid ? hole.top : hole.bottom;
+          }
+          p.x = clamp(p.x, r + 4, w - r - 4);
+          p.y = clamp(p.y, r + 4, h - r - 4);
+        }
+      }
+      return pts;
+    }
+
+    function layout() {
+      const w = stage.clientWidth;
+      const h = stage.clientHeight;
+      if (w < 2 || h < 2) return;
+      const r = radiusFor(w, h);
+      const homes = computeHomes(w, h, r);
+      balls.forEach((ball, i) => {
+        ball.r = r;
+        ball.homeX = homes[i].x;
+        ball.homeY = homes[i].y;
+        const size = (r * 2) + "px";
+        ball.el.style.width = size;
+        ball.el.style.height = size;
+        ball.el.style.fontSize = Math.max(12, Math.min(18, r * 0.36)) + "px";
+        if (!ball.ready) {
+          ball.x = ball.homeX;
+          ball.y = ball.homeY;
+          ball.vx = 0;
+          ball.vy = 0;
+          ball.ready = true;
+        }
+        ball.x = clamp(ball.x, r + 4, w - r - 4);
+        ball.y = clamp(ball.y, r + 4, h - r - 4);
+      });
+      assignGoals();
+    }
+
+    function assignGoals() {
+      const w = stage.clientWidth;
+      const h = stage.clientHeight;
+      const q = query();
+      const matched = q ? balls.filter((ball) => matches(ball, q)) : [];
+      const r = balls[0].r;
+      const gap = r * 2 + 10;
+      const cols = Math.max(1, Math.floor((w - 12) / gap));
+      form.classList.toggle("searching", matched.length > 0);
+      const stageBox = stage.getBoundingClientRect();
+      const box = input.getBoundingClientRect();
+      const cx = box.left + box.width / 2 - stageBox.left;
+      matched.forEach((ball, i) => {
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        const rowCount = Math.min(cols, matched.length - row * cols);
+        const x = cx - ((rowCount - 1) * gap) / 2 + col * gap;
+        const y = box.bottom - stageBox.top + r * 0.9 + row * gap;
+        ball.goalX = clamp(x, r + 4, w - r - 4);
+        ball.goalY = clamp(y, r + 4, h - r - 4);
+        ball.match = true;
+      });
+      for (const ball of balls) {
+        if (matched.includes(ball)) continue;
+        ball.match = false;
+        ball.goalX = ball.homeX;
+        ball.goalY = ball.homeY;
+      }
+    }
+
+    function render() {
+      const q = query();
+      for (const ball of balls) {
+        ball.el.style.transform = "translate(" + ball.x + "px, " + ball.y + "px) translate(-50%, -50%)";
+        ball.el.classList.toggle("match", ball.match);
+        ball.el.classList.toggle("dim", Boolean(q) && !ball.match);
+      }
+    }
+
+    function stop() {
+      if (!raf) return;
+      cancelAnimationFrame(raf);
+      raf = 0;
+    }
+
+    function settleNow() {
+      stop();
+      layout();
+      for (const ball of balls) {
+        ball.x = ball.goalX;
+        ball.y = ball.goalY;
+        ball.vx = 0;
+        ball.vy = 0;
+      }
+      render();
+    }
+
+    function localPoint(event) {
+      const rect = stage.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    }
+
+    function collide() {
+      const rest = 0.42;
+      for (let pass = 0; pass < 4; pass++) {
+        for (let i = 0; i < balls.length; i++) {
+          for (let j = i + 1; j < balls.length; j++) {
+            const a = balls[i];
+            const b = balls[j];
+            let dx = b.x - a.x;
+            let dy = b.y - a.y;
+            let dist = Math.hypot(dx, dy) || 0.001;
+            const min = a.r + b.r;
+            if (dist >= min) continue;
+            dx /= dist;
+            dy /= dist;
+            const overlap = min - dist;
+            a.x -= dx * overlap * 0.5;
+            a.y -= dy * overlap * 0.5;
+            b.x += dx * overlap * 0.5;
+            b.y += dy * overlap * 0.5;
+            const rel = (b.vx - a.vx) * dx + (b.vy - a.vy) * dy;
+            if (rel < 0) {
+              const impulse = -(1 + rest) * rel / 2;
+              a.vx -= impulse * dx;
+              a.vy -= impulse * dy;
+              b.vx += impulse * dx;
+              b.vy += impulse * dy;
+            }
+          }
+        }
+      }
+    }
+
+    function walls(ball) {
+      const w = stage.clientWidth;
+      const h = stage.clientHeight;
+      const pad = 4;
+      if (ball.x < ball.r + pad) {
+        ball.x = ball.r + pad;
+        if (ball.vx < 0) ball.vx *= -0.35;
+      } else if (ball.x > w - ball.r - pad) {
+        ball.x = w - ball.r - pad;
+        if (ball.vx > 0) ball.vx *= -0.35;
+      }
+      if (ball.y < ball.r + pad) {
+        ball.y = ball.r + pad;
+        if (ball.vy < 0) ball.vy *= -0.35;
+      } else if (ball.y > h - ball.r - pad) {
+        ball.y = h - ball.r - pad;
+        if (ball.vy > 0) ball.vy *= -0.35;
+      }
+    }
+
+    function shove(x, y, dx, dy) {
+      for (const ball of balls) {
+        const ox = ball.x - x;
+        const oy = ball.y - y;
+        const dist = Math.hypot(ox, oy) || 0.001;
+        const reach = ball.r + 34;
+        if (dist > reach) continue;
+        const falloff = (1 - dist / reach) ** 2;
+        ball.vx += dx * 16 * falloff;
+        ball.vy += dy * 16 * falloff;
+        if (dist < ball.r * 0.92) {
+          ball.vx += (ox / dist) * 90 * (1 - dist / ball.r);
+          ball.vy += (oy / dist) * 90 * (1 - dist / ball.r);
+        }
+      }
+    }
+
+    function step(dt) {
+      for (const ball of balls) {
+        const omega = ball.match ? 8.5 : 3.6;
+        const zeta = 1.05;
+        const ax = omega * omega * (ball.goalX - ball.x) - 2 * zeta * omega * ball.vx;
+        const ay = omega * omega * (ball.goalY - ball.y) - 2 * zeta * omega * ball.vy;
+        ball.vx += ax * dt;
+        ball.vy += ay * dt;
+        ball.x += ball.vx * dt;
+        ball.y += ball.vy * dt;
+      }
+      collide();
+      for (const ball of balls) walls(ball);
+    }
+
+    function movingFast() {
+      if (pointerDown) return true;
+      for (const ball of balls) {
+        if (ball.vx * ball.vx + ball.vy * ball.vy > 144) return true;
+      }
+      return false;
+    }
+
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      assignGoals();
+      const slices = Math.max(1, Math.ceil(dt / 0.016));
+      const h = dt / slices;
+      for (let i = 0; i < slices; i++) step(h);
+      render();
+      if (movingFast()) calm = 0;
+      else calm += 1;
+      if (pointerDown || calm < 10) raf = requestAnimationFrame(frame);
+      else {
+        raf = 0;
+        calm = 0;
+        for (const ball of balls) {
+          ball.vx = 0;
+          ball.vy = 0;
+        }
+      }
+    }
+
+    function wake() {
+      if (reduced() || raf) return;
+      calm = 0;
+      last = performance.now();
+      raf = requestAnimationFrame(frame);
+    }
+
+    stage.addEventListener("pointerdown", (event) => {
+      if (reduced() || event.button !== 0) return;
+      pointerDown = true;
+      const p = localPoint(event);
+      pushX = p.x;
+      pushY = p.y;
+      stage.setPointerCapture(event.pointerId);
+      wake();
+    });
+
+    stage.addEventListener("pointermove", (event) => {
+      if (!pointerDown || reduced()) return;
+      const p = localPoint(event);
+      let dx = p.x - pushX;
+      let dy = p.y - pushY;
+      const dist = Math.hypot(dx, dy);
+      const cap = 42;
+      if (dist > cap) {
+        dx *= cap / dist;
+        dy *= cap / dist;
+      }
+      pushX = p.x;
+      pushY = p.y;
+      if (dx || dy) shove(p.x, p.y, dx, dy);
+      wake();
+    });
+
+    function endPointer(event) {
+      if (!pointerDown) return;
+      pointerDown = false;
+      if (event.pointerId != null && stage.hasPointerCapture(event.pointerId)) {
+        stage.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    stage.addEventListener("pointerup", endPointer);
+    stage.addEventListener("pointercancel", endPointer);
+
+    input.addEventListener("input", () => {
+      live.textContent = summary();
+      if (reduced()) settleNow();
+      else wake();
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const q = query();
+      live.textContent = q ? ("已确认。" + summary()) : "先写一个词，再按回车。";
+      if (reduced()) settleNow();
+      else wake();
+    });
+
+    function onMotionChange() {
+      if (reduced()) settleNow();
+      else wake();
+    }
+    if (typeof motion.addEventListener === "function") motion.addEventListener("change", onMotionChange);
+    else motion.addListener(onMotionChange);
+
+    window.addEventListener("resize", () => {
+      if (reduced()) settleNow();
+      else {
+        layout();
+        render();
+        wake();
+      }
+    });
+
+    layout();
+    if (reduced()) settleNow();
+    else render();
+  </script>
+</body>
+</html>
