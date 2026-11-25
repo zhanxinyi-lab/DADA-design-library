@@ -274,7 +274,8 @@
     for (const id of IDS) kelvinRgb[id] = kelvinToRgb(SPEC[id].kelvin);
 
     function lighting(weight) {
-      const lin = [0.045, 0.05, 0.07];
+      // Cool night floor so the room stays readable with every lamp off. Not a fifth light.
+      const lin = [0.3, 0.32, 0.4];
       for (const id of IDS) {
         const amount = lights[id].level * SPEC[id].gain * (weight[id] || 0);
         const base = kelvinRgb[id];
@@ -396,7 +397,7 @@
         [0.85, 0.45, 0.22],
         [0.18 + warm * 0.9, 0.12 + warm * 0.35, 0.1]
       );
-      const night = [8 + day * 10, 14 + day * 16, 28 + day * 20];
+      const night = [36 + day * 8, 52 + day * 12, 78 + day * 14];
       const blend = night.map((channel, i) => channel * (1 - Math.max(day, warm)) + sky[i] * day * 0.65 + low[i] * warm * 0.7);
       const glass = ctx.createLinearGradient(gx, gy, gx, gy + gh);
       glass.addColorStop(0, css(blend));
