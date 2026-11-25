@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>点卡片一起换强调色和斜切面</title>
+  <style>
+    :root {
+      --accent: rgb(226, 59, 47);
+      --deep: rgb(65, 29, 29);
+      --paper: rgb(241, 226, 225);
+      --ink: #1c1c22;
+      --muted: #b9b4ac;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100%;
+      overflow-x: clip;
+      background: #0e0e12;
+      color: #f6f4ef;
+      font: 16px/1.35 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .board {
+      width: min(1120px, calc(100% - 16px));
+      margin: 8px auto;
+      min-height: calc(100% - 16px);
+      display: flex;
+      flex-direction: column;
+      background: var(--deep);
+      overflow: clip;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      padding: 12px 16px;
+    }
+    .mark { width: 28px; height: 28px; flex: none; }
+    .mark .ink { fill: currentColor; opacity: 0.45; }
+    .mark .hot { fill: var(--accent); }
+    .brand { min-width: 0; }
+    .brand strong {
+      display: block;
+      font-size: 13px;
+      letter-spacing: 0.16em;
+      font-weight: 800;
+    }
+    .brand span { color: var(--muted); font-size: 12px; }
+    .count {
+      margin-left: auto;
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      font-variant-numeric: tabular-nums;
+    }
+    .body {
+      flex: 1;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 34%) minmax(0, 1fr);
+    }
+    .copy {
+      min-width: 0;
+      padding: 18px 18px 22px;
+    }
+    .kicker {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+    }
+    .kicker i {
+      width: 28px;
+      height: 3px;
+      background: var(--accent);
+      display: block;
+    }
+    h1 {
+      margin: 0;
+      max-width: 100%;
+      font-size: clamp(40px, 6vw, 76px);
+      line-height: 0.88;
+      letter-spacing: -0.045em;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+    .local {
+      margin: 10px 0 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .line, .note { margin: 12px 0 0; max-width: 36em; }
+    .note { color: var(--muted); font-size: 14px; }
+    .hint { margin: 18px 0 0; color: var(--muted); font-size: 12px; }
+    .visual {
+      position: relative;
+      min-width: 0;
+      min-height: 480px;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: none;
+    }
+    .picks {
+      position: absolute;
+      z-index: 1;
+      top: 16px;
+      right: 14px;
+      bottom: 16px;
+      width: min(210px, 42%);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 10px;
+    }
+    .pick {
+      width: 100%;
+      min-width: 0;
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: #17171c;
+      color: #f6f4ef;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .pick[aria-checked="true"] {
+      border-color: var(--accent);
+      box-shadow: inset 4px 0 0 var(--accent);
+    }
+    .pick:focus { outline: none; }
+    .pick:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .swatch {
+      width: 28px;
+      height: 40px;
+      flex: none;
+      clip-path: polygon(38% 0, 100% 0, 62% 100%, 0 100%);
+    }
+    .pick-text { min-width: 0; display: flex; flex-direction: column; }
+    .num { font-size: 11px; letter-spacing: 0.08em; color: #b9b4ac; }
+    .nm { font-weight: 700; overflow-wrap: anywhere; }
+    @media (max-width: 720px) {
+      .body { grid-template-columns: minmax(0, 1fr); }
+      .visual { min-height: 0; }
+      canvas { position: relative; height: 280px; }
+      .picks {
+        position: relative;
+        top: auto;
+        right: auto;
+        bottom: auto;
+        width: auto;
+        padding: 4px 12px 16px;
+      }
+    }
+    @media (forced-colors: active) {
+      .pick:focus-visible { outline: 2px solid Highlight; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .pick { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="board">
+    <header>
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+        <path class="hot" d="M5 3h9L9 29H0z"></path>
+        <path class="ink" d="M18 3h9l-5 26h-9z"></path>
+      </svg>
+      <div class="brand">
+        <strong>LEDGER</strong>
+        <span>角色台账</span>
+      </div>
+      <div class="count" id="count">01 / 04</div>
+    </header>
+    <div class="body">
+      <section class="copy">
+        <p class="kicker"><i></i><span id="file">档案 01</span></p>
+        <h1 id="name">REED</h1>
+        <p class="local" id="local">灯塔</p>
+        <p class="line" id="line">路口的灯还在原来的位置。</p>
+        <p class="note" id="note">路过可以站住，也可以继续走。灯不跟着人挪。</p>
+        <p class="hint">点一张卡片，或用方向键、Home、End 切换。</p>
+      </section>
+      <div class="visual" id="visual">
+        <canvas id="view" width="640" height="480" aria-hidden="true"></canvas>
+        <div class="picks" id="picks" role="radiogroup" aria-label="选择角色"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var cast = [
+        {
+          id: "reed", num: "01", name: "REED", local: "灯塔",
+          line: "路口的灯还在原来的位置。",
+          note: "路过可以站住，也可以继续走。灯不跟着人挪。",
+          rgb: [226, 59, 47]
+        },
+        {
+          id: "quill", num: "02", name: "QUILL", local: "羽笔",
+          line: "只留下还能改的那一句。",
+          note: "写完把笔帽扣上，纸页就不再翻回去。",
+          rgb: [36, 158, 96]
+        },
+        {
+          id: "marble", num: "03", name: "MARBLE", local: "弹珠",
+          line: "沿一条直线滚到尽头。",
+          note: "停住之后不解释方向，线本身已经够用。",
+          rgb: [47, 111, 224]
+        },
+        {
+          id: "amber", num: "04", name: "AMBER", local: "琥珀",
+          line: "暖色封在透明的壳里。",
+          note: "看得到温度，碰不到芯，也不必敲开。",
+          rgb: [224, 154, 26]
+        }
+      ];
+
+      var motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+      var root = document.documentElement;
+      var visual = document.getElementById("visual");
+      var canvas = document.getElementById("view");
+      var ctx = canvas.getContext("2d");
+      var picks = document.getElementById("picks");
+      var nodes = {
+        file: document.getElementById("file"),
+        name: document.getElementById("name"),
+        local: document.getElementById("local"),
+        line: document.getElementById("line"),
+        note: document.getElementById("note"),
+        count: document.getElementById("count")
+      };
+      var buttons = [];
+      var loopId = 0;
+      var state = {
+        index: 0,
+        prevIndex: 0,
+        t: 1,
+        start: 0,
+        from: cast[0].rgb.slice(),
+        color: cast[0].rgb.slice()
+      };
+      var DURATION = 360;
+
+      function prefersReduced() { return motionQuery.matches; }
+
+      function mix(a, b, t) {
+        return [
+          a[0] + (b[0] - a[0]) * t,
+          a[1] + (b[1] - a[1]) * t,
+          a[2] + (b[2] - a[2]) * t
+        ];
+      }
+
+      function rgbCss(rgb) {
+        return "rgb(" + Math.round(rgb[0]) + ", " + Math.round(rgb[1]) + ", " + Math.round(rgb[2]) + ")";
+      }
+
+      function ease(t) {
+        var x = t < 0 ? 0 : t > 1 ? 1 : t;
+        return 1 - Math.pow(1 - x, 3);
+      }
+
+      function commit(rgb) {
+        var deep = mix([20, 20, 24], rgb, 0.22);
+        var paper = mix([243, 241, 234], rgb, 0.1);
+        root.style.setProperty("--accent", rgbCss(rgb));
+        root.style.setProperty("--deep", rgbCss(deep));
+        root.style.setProperty("--paper", rgbCss(paper));
+        state.color = rgb;
+      }
+
+      function syncDom() {
+        var item = cast[state.index];
+        nodes.file.textContent = "档案 " + item.num;
+        nodes.name.textContent = item.name;
+        nodes.local.textContent = item.local;
+        nodes.line.textContent = item.line;
+        nodes.note.textContent = item.note;
+        nodes.count.textContent = item.num + " / 04";
+        buttons.forEach(function (btn, i) {
+          var on = i === state.index;
+          btn.setAttribute("aria-checked", on ? "true" : "false");
+          btn.tabIndex = 0;
+        });
+      }
+
+      function cancelLoop() {
+        if (loopId) cancelAnimationFrame(loopId);
+        loopId = 0;
+      }
+
+      function roundRect(x, y, w, h, r) {
+        var rr = Math.min(r, w / 2, h / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.arcTo(x + w, y, x + w, y + h, rr);
+        ctx.arcTo(x + w, y + h, x, y + h, rr);
+        ctx.arcTo(x, y + h, x, y, rr);
+        ctx.arcTo(x, y, x + w, y, rr);
+        ctx.closePath();
+      }
+
+      function drawBand(w, h, rgb) {
+        var top = w * 0.5;
+        var bw = Math.max(52, w * 0.18);
+        var shift = h * 0.62;
+        ctx.beginPath();
+        ctx.moveTo(top, -40);
+        ctx.lineTo(top + bw, -40);
+        ctx.lineTo(top + bw - shift, h + 40);
+        ctx.lineTo(top - shift, h + 40);
+        ctx.closePath();
+        ctx.fillStyle = rgbCss(rgb);
+        ctx.fill();
+      }
+
+      function fillInk() { ctx.fillStyle = "#1c1c22"; }
+
+      function drawReed() {
+        fillInk();
+        roundRect(-28, -124, 56, 42, 7);
+        ctx.fill();
+        ctx.fillStyle = "#f4f1ea";
+        ctx.fillRect(-15, -110, 30, 8);
+        fillInk();
+        ctx.fillRect(-7, -82, 14, 14);
+        ctx.beginPath();
+        ctx.moveTo(-46, -70);
+        ctx.lineTo(46, -70);
+        ctx.lineTo(58, 46);
+        ctx.lineTo(-58, 46);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#f4f1ea";
+        roundRect(-16, -48, 32, 22, 3);
+        ctx.fill();
+        fillInk();
+        ctx.fillRect(-26, 46, 16, 40);
+        ctx.fillRect(10, 46, 16, 40);
+      }
+
+      function drawQuill() {
+        fillInk();
+        ctx.beginPath();
+        ctx.arc(0, -96, 22, 0, Math.PI * 2);
+        ctx.fill();
+        roundRect(-34, -74, 68, 124, 18);
+        ctx.fill();
+        ctx.fillStyle = "#f4f1ea";
+        ctx.fillRect(-6, -56, 12, 86);
+        fillInk();
+        ctx.beginPath();
+        ctx.moveTo(40, -118);
+        ctx.lineTo(54, -118);
+        ctx.lineTo(48, 36);
+        ctx.lineTo(40, 52);
+        ctx.lineTo(34, 36);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillRect(-24, 50, 14, 36);
+        ctx.fillRect(8, 50, 14, 36);
+      }
+
+      function drawMarble() {
+        fillInk();
+        ctx.beginPath();
+        ctx.arc(0, -86, 24, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, -8, 48, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.save();
+        ctx.strokeStyle = "#f4f1ea";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(0, -8, 30, 0.4, 2.4);
+        ctx.stroke();
+        ctx.restore();
+        ctx.fillRect(-28, 36, 16, 40);
+        ctx.fillRect(12, 36, 16, 40);
+      }
+
+      function drawAmber() {
+        fillInk();
+        ctx.beginPath();
+        ctx.moveTo(-22, -124);
+        ctx.lineTo(22, -124);
+        ctx.lineTo(34, -96);
+        ctx.lineTo(-34, -96);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(0, -78);
+        ctx.lineTo(62, -28);
+        ctx.lineTo(48, 58);
+        ctx.lineTo(-48, 58);
+        ctx.lineTo(-62, -28);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#f4f1ea";
+        ctx.beginPath();
+        ctx.moveTo(0, -48);
+        ctx.lineTo(16, -24);
+        ctx.lineTo(0, 8);
+        ctx.lineTo(-16, -24);
+        ctx.closePath();
+        ctx.fill();
+        fillInk();
+        ctx.fillRect(-26, 58, 16, 28);
+        ctx.fillRect(10, 58, 16, 28);
+      }
+
+      function drawFigure(id, cx, cy, scale, alpha) {
+        if (alpha <= 0.001) return;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+        ctx.globalAlpha *= alpha;
+        ctx.fillStyle = "rgba(20, 20, 24, 0.16)";
+        ctx.beginPath();
+        ctx.ellipse(0, 102, 50, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (id === "reed") drawReed();
+        else if (id === "quill") drawQuill();
+        else if (id === "marble") drawMarble();
+        else drawAmber();
+        ctx.restore();
+      }
+
+      function drawBadge(x, y, rgb, num) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.strokeStyle = rgbCss(rgb);
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, 28, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "#1c1c22";
+        ctx.font = "700 16px Segoe UI, Microsoft YaHei, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(num, 0, 1);
+        ctx.restore();
+      }
+
+      function draw() {
+        var rect = canvas.getBoundingClientRect();
+        var w = rect.width;
+        var h = rect.height;
+        if (w < 2 || h < 2) return;
+        var dpr = canvas.width / w;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+        drawBand(w, h, state.color);
+        var stacked = window.matchMedia("(max-width: 720px)").matches;
+        var cx = w * (stacked ? 0.46 : 0.36);
+        var cy = h * 0.56;
+        var scale = Math.min(w, h) / 430;
+        var e = ease(state.t);
+        var showPair = state.t < 1 && state.prevIndex !== state.index;
+        if (showPair) {
+          drawFigure(cast[state.prevIndex].id, cx, cy, scale, 1 - e);
+          drawFigure(cast[state.index].id, cx, cy, scale, e);
+        } else {
+          drawFigure(cast[state.index].id, cx, cy, scale, 1);
+        }
+        var badgeX = Math.min(w - 40, Math.max(40, cx + 92 * scale));
+        var badgeY = Math.max(40, cy - 108 * scale);
+        drawBadge(badgeX, badgeY, state.color, cast[state.index].num);
+      }
+
+      function sizeCanvas() {
+        var rect = canvas.getBoundingClientRect();
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var w = Math.max(1, Math.round(rect.width * dpr));
+        var h = Math.max(1, Math.round(rect.height * dpr));
+        if (canvas.width === w && canvas.height === h) return false;
+        canvas.width = w;
+        canvas.height = h;
+        return true;
+      }
+
+      function paintNow() {
+        sizeCanvas();
+        draw();
+      }
+
+      function tick(now) {
+        loopId = 0;
+        if (prefersReduced()) {
+          state.t = 1;
+          commit(cast[state.index].rgb.slice());
+          paintNow();
+          return;
+        }
+        state.t = Math.min(1, (now - state.start) / DURATION);
+        if (state.t >= 1) commit(cast[state.index].rgb.slice());
+        else commit(mix(state.from, cast[state.index].rgb, ease(state.t)));
+        paintNow();
+        if (state.t < 1) loopId = window.requestAnimationFrame(tick);
+      }
+
+      function ensureLoop() {
+        if (loopId || prefersReduced()) return;
+        loopId = window.requestAnimationFrame(tick);
+      }
+
+      function setIndex(index) {
+        if (index < 0 || index >= cast.length) return;
+        if (index === state.index && state.t >= 1) return;
+        state.from = state.color.slice();
+        state.prevIndex = state.index;
+        state.index = index;
+        state.start = performance.now();
+        state.t = 0;
+        syncDom();
+        if (prefersReduced()) {
+          cancelLoop();
+          state.t = 1;
+          commit(cast[index].rgb.slice());
+          paintNow();
+          return;
+        }
+        ensureLoop();
+      }
+
+      function onKey(ev) {
+        var dir = ev.key === "ArrowDown" || ev.key === "ArrowRight" ? 1
+          : ev.key === "ArrowUp" || ev.key === "ArrowLeft" ? -1 : 0;
+        if (!dir && ev.key !== "Home" && ev.key !== "End") return;
+        ev.preventDefault();
+        var next = ev.key === "Home" ? 0 : ev.key === "End" ? cast.length - 1
+          : (state.index + dir + cast.length) % cast.length;
+        setIndex(next);
+        buttons[next].focus();
+      }
+
+      cast.forEach(function (item, i) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "pick";
+        btn.setAttribute("role", "radio");
+        btn.setAttribute("aria-checked", "false");
+        btn.setAttribute("aria-label", item.local + "，" + item.name);
+        btn.innerHTML = '<span class="swatch" aria-hidden="true"></span><span class="pick-text"><span class="num"></span><span class="nm"></span></span>';
+        btn.querySelector(".swatch").style.background = rgbCss(item.rgb);
+        btn.querySelector(".num").textContent = item.num;
+        btn.querySelector(".nm").textContent = item.local;
+        btn.addEventListener("click", function () { setIndex(i); });
+        btn.addEventListener("keydown", onKey);
+        picks.appendChild(btn);
+        buttons.push(btn);
+      });
+
+      commit(state.color.slice());
+      syncDom();
+      paintNow();
+
+      if (window.ResizeObserver) {
+        var observer = new ResizeObserver(function () {
+          if (!sizeCanvas()) return;
+          if (prefersReduced() || state.t >= 1) paintNow();
+        });
+        observer.observe(visual);
+      } else {
+        window.addEventListener("resize", function () {
+          sizeCanvas();
+          if (prefersReduced() || state.t >= 1) paintNow();
+        });
+      }
+
+      motionQuery.addEventListener("change", function () {
+        if (!prefersReduced()) return;
+        cancelLoop();
+        state.t = 1;
+        commit(cast[state.index].rgb.slice());
+        paintNow();
+      });
+    }());
+  </script>
+</body>
+</html>
