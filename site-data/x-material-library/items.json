@@ -7568,5 +7568,102 @@
     "platform": "x",
     "title": "招聘页信封：打开包裹时，福利贴纸会从里面飞出来贴上",
     "cindy_job": "cindy-jobs/2124822349568483743"
+  },
+  {
+    "id": "2124665007485116636",
+    "url": "https://x.com/viktoroddy/status/2124665007485116636",
+    "author": "viktoroddy",
+    "author_name": "Viktor Oddy",
+    "created_at": "2026-11-23T00:43:06.000Z",
+    "lang": "en",
+    "text": "Food websites don't need 20 photos. They need one dish that moves 🔥\n\nA twirl of noodles lifts off the chopsticks, spins apart into shrimp, lime and peanuts, and plates itself as you scroll\n\nAI web design is getting ridiculous",
+    "sources": [
+      "hotscan-1600",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "滚动",
+      "餐饮",
+      "官网",
+      "拆装",
+      "hotscan"
+    ],
+    "metrics": {
+      "bookmark_count": 109,
+      "impression_count": 6408,
+      "like_count": 132,
+      "quote_count": 3,
+      "reply_count": 12,
+      "repost_count": 10
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2124665007485116636/poster0.jpg",
+      "assets/2124665007485116636/img2.jpg",
+      "assets/2124665007485116636/img3.jpg"
+    ],
+    "poster": "assets/2124665007485116636/poster0.jpg",
+    "video": "assets/2124665007485116636/preview.mp4",
+    "preview": "assets/2124665007485116636/preview.webm",
+    "duration_s": 7,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-23T23:10:33+08:00",
+    "effect_zh": "餐厅官网「BAAN street kitchen」把滚动做成一道菜：筷子先把拌面提起，面条旋转拆成虾仁、青柠、花生和豆芽，再自行落回盘中。导航和标题会跟着场景一起换。很适合做美食或品牌官网的滚动主视觉：一屏把菜品拆装和排版讲完。",
+    "platform": "x",
+    "title": "餐厅站 BAAN：滚动时拌面会旋转拆开，再自行落盘",
+    "cindy_job": "cindy-jobs/2124665007485116636"
+  },
+  {
+    "id": "2124235064125034827",
+    "url": "https://x.com/arnab_design/status/2124235064125034827",
+    "author": "arnab_design",
+    "author_name": "Arnab Debnath",
+    "created_at": "2026-11-21T20:14:40.000Z",
+    "lang": "en",
+    "text": "Filter chips, but the sheet comes from the chip itself.\n\nWhen you close it, your selection folds back into the bar, so you always know what's applied.\n\n#InteractionDesign #buildinpublic",
+    "sources": [
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "筛选",
+      "芯片",
+      "面板",
+      "微交互",
+      "bookmark"
+    ],
+    "metrics": {
+      "bookmark_count": 566,
+      "impression_count": 18763,
+      "like_count": 618,
+      "quote_count": 0,
+      "reply_count": 25,
+      "repost_count": 29
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2124235064125034827/poster0.jpg",
+      "assets/2124235064125034827/img2.jpg",
+      "assets/2124235064125034827/img3.jpg"
+    ],
+    "poster": "assets/2124235064125034827/poster0.jpg",
+    "video": "assets/2124235064125034827/preview.mp4",
+    "preview": "assets/2124235064125034827/preview.webm",
+    "duration_s": 22,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-23T23:10:33+08:00",
+    "effect_zh": "在商品列表里点筛选芯片，筛选面板会从那颗芯片本身展开；选好条件后面板再折回条上，已选项会留在芯片里，让人一眼知道当前筛了什么。适合电商列表或筛选条：打开和收回都连着原按钮，不会跳到别处。",
+    "platform": "x",
+    "title": "筛选芯片：面板从芯片长出来，选完再折回条上",
+    "cindy_job": "cindy-jobs/2124235064125034827"
   }
 ]
