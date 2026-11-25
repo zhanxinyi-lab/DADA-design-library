@@ -388,6 +388,14 @@
       var barPhase = "closed";
       var sheetPhase = "closed";
       var generation = 0;
+      var closeTimer = 0;
+      var closingId = 0;
+
+      function clearCloseTimer() {
+        if (!closeTimer) return;
+        window.clearTimeout(closeTimer);
+        closeTimer = 0;
+      }
 
       function reduced() { return motion.matches; }
 
@@ -563,6 +571,8 @@
 
       function openSheet() {
         if (sheetPhase !== "closed") return;
+        clearCloseTimer();
+        closingId = 0;
         if (!barShown()) openBar();
         pending = applied;
         paintOptions();
@@ -593,6 +603,11 @@
         focusRing(checkedRadio());
       }
 
+      function finishClose(gen) {
+        if (gen !== generation || closingId !== gen || sheetPhase !== "closing") return;
+        releaseSheet();
+      }
+
       function closeSheet(commit) {
         if (sheetPhase === "closed" || sheetPhase === "closing") return;
         if (commit) {
@@ -604,21 +619,25 @@
           pending = applied;
           paintOptions();
         }
+        clearCloseTimer();
         if (reduced()) {
+          closingId = 0;
           generation += 1;
           releaseSheet();
           return;
         }
         var dest = sortBtn.getBoundingClientRect();
         var gen = ++generation;
+        closingId = gen;
         sheetPhase = "closing";
         motionTo(sheet, dest, gen, function () {
-          if (gen !== generation) return;
-          releaseSheet();
+          finishClose(gen);
         });
-        window.setTimeout(function () {
-          if (sheetPhase === "closing") releaseSheet();
+        var timer = window.setTimeout(function () {
+          if (closeTimer === timer) closeTimer = 0;
+          finishClose(gen);
         }, DUR + 120);
+        closeTimer = timer;
       }
 
       function choose(id) {
@@ -630,6 +649,7 @@
 
       function snapReduced() {
         if (!reduced()) return;
+        clearCloseTimer();
         generation += 1;
         clearMotion(bar);
         clearMotion(sheet);
