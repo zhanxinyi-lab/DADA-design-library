@@ -448,7 +448,6 @@
         raf = requestAnimationFrame(function () { raf = 0; render(); });
       }
       function onReduce() {
-        if (!reduceQ.matches) return;
         if (raf) { cancelAnimationFrame(raf); raf = 0; }
         render();
       }
