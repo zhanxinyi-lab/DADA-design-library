@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>标本碎裂重组</title>
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden; background: #07090e; color: #e7eef6; }
+  body {
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+  header, footer {
+    position: fixed; z-index: 1; left: 0; right: 0;
+    box-sizing: border-box; max-width: 100%;
+    padding: 12px 14px;
+    pointer-events: none;
+    user-select: none;
+  }
+  header { top: 0; }
+  footer {
+    bottom: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px 12px;
+  }
+  h1, p { margin: 0; max-width: 100%; overflow-wrap: anywhere; }
+  .kicker {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #9aabbf;
+  }
+  h1 {
+    margin-top: 4px;
+    font-size: clamp(22px, 6vw, 40px);
+    font-weight: 560;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+  }
+  #blurb, #hint {
+    margin-top: 4px;
+    color: #b7c4d4;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  #hint { flex: 1 1 180px; min-width: 0; margin-top: 0; }
+  button {
+    pointer-events: auto;
+    max-width: 100%;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid rgba(231, 238, 246, 0.38);
+    border-radius: 999px;
+    background: rgba(8, 12, 20, 0.62);
+    color: inherit;
+    font: inherit;
+    font-size: 14px;
+  }
+  button:focus-visible { outline: 2px solid #d5e4f5; outline-offset: 2px; }
+  .sr {
+    position: absolute; width: 1px; height: 1px; margin: 0; padding: 0;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" width="2" height="2" aria-hidden="true"></canvas>
+<header>
+  <p class="kicker"><span id="index">01</span> / 04</p>
+  <h1 id="title">球体</h1>
+  <p id="blurb">粒子聚成的圆球</p>
+</header>
+<footer>
+  <p id="hint">按住拖动可旋转，松手后带着惯性碎开，再聚成下一件。右方向键或下方向键同样可以。</p>
+  <button type="button" id="next">下一件</button>
+</footer>
+<p class="sr" id="live" aria-live="polite">球体。粒子聚成的圆球</p>
+<p class="sr">自绘粒子标本。拖动旋转，松手或选择下一件时碎成粒子再聚拢。开启减少动态效果时直接换成下一件。</p>
+<script>
+(() => {
+  const COUNT = 1680;
+  const MORPH = 1.08;
+  const LOOKS = [
+    { name: '球体', blurb: '粒子聚成的圆球', rgb: [214, 228, 242] },
+    { name: '圆盖', blurb: '浅穹，下面一根柄', rgb: [198, 186, 230] },
+    { name: '螺壳', blurb: '一圈圈绕开的壳', rgb: [232, 214, 190] },
+    { name: '水母', blurb: '伞钟和下垂的须', rgb: [168, 216, 222] }
+  ];
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const indexEl = document.getElementById('index');
+  const titleEl = document.getElementById('title');
+  const blurbEl = document.getElementById('blurb');
+  const live = document.getElementById('live');
+  const nextBtn = document.getElementById('next');
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (!ctx) return;
+
+  const shapes = [];
+  const cur = new Float32Array(COUNT * 3);
+  const from = new Float32Array(COUNT * 3);
+  const burst = new Float32Array(COUNT * 3);
+  const px = new Float32Array(COUNT);
+  const py = new Float32Array(COUNT);
+  const pz = new Float32Array(COUNT);
+  const ps = new Float32Array(COUNT);
+  const order = new Array(COUNT);
+
+  let reduced = motion.matches;
+  let shapeIndex = 0;
+  let morph = null;
+  let yaw = 0.4;
+  let pitch = 0.32;
+  let velYaw = 0;
+  let velPitch = 0;
+  let drag = false;
+  let pointerId = 0;
+  let lastX = 0;
+  let lastY = 0;
+  let nextX = 0;
+  let nextY = 0;
+  let hasMove = false;
+  let advance = 0;
+  let raf = 0;
+  let last = 0;
+  let sizeDirty = true;
+  let w = 0;
+  let h = 0;
+  let dpr = 1;
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+  function rng(seed) {
+    let s = seed >>> 0;
+    return () => {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function normalize(buf) {
+    let cx = 0;
+    let cy = 0;
+    let cz = 0;
+    for (let i = 0; i < COUNT; i++) {
+      cx += buf[i * 3];
+      cy += buf[i * 3 + 1];
+      cz += buf[i * 3 + 2];
+    }
+    cx /= COUNT;
+    cy /= COUNT;
+    cz /= COUNT;
+    let maxR = 0.0001;
+    for (let i = 0; i < COUNT; i++) {
+      const x = buf[i * 3] - cx;
+      const y = buf[i * 3 + 1] - cy;
+      const z = buf[i * 3 + 2] - cz;
+      buf[i * 3] = x;
+      buf[i * 3 + 1] = y;
+      buf[i * 3 + 2] = z;
+      const r = Math.hypot(x, y, z);
+      if (r > maxR) maxR = r;
+    }
+    const s = 1 / maxR;
+    for (let i = 0; i < buf.length; i++) buf[i] *= s;
+    return buf;
+  }
+
+  function byAngle(buf) {
+    const idx = new Array(COUNT);
+    for (let i = 0; i < COUNT; i++) idx[i] = i;
+    idx.sort((a, b) => {
+      const aa = Math.atan2(buf[a * 3 + 2], buf[a * 3]);
+      const bb = Math.atan2(buf[b * 3 + 2], buf[b * 3]);
+      const d = aa - bb;
+      if (Math.abs(d) > 0.04) return d;
+      return buf[a * 3 + 1] - buf[b * 3 + 1];
+    });
+    const out = new Float32Array(COUNT * 3);
+    for (let i = 0; i < COUNT; i++) {
+      const j = idx[i] * 3;
+      out[i * 3] = buf[j];
+      out[i * 3 + 1] = buf[j + 1];
+      out[i * 3 + 2] = buf[j + 2];
+    }
+    return out;
+  }
+
+  function sphere() {
+    const buf = new Float32Array(COUNT * 3);
+    const gold = Math.PI * (3 - Math.sqrt(5));
+    const shell = Math.floor(COUNT * 0.74);
+    for (let i = 0; i < COUNT; i++) {
+      const inner = i >= shell;
+      const j = inner ? i - shell : i;
+      const m = Math.max(2, inner ? COUNT - shell : shell);
+      const y = 1 - (j / (m - 1)) * 2;
+      const ring = Math.sqrt(Math.max(0, 1 - y * y));
+      const t = gold * j;
+      const rad = inner ? 0.42 + (j % 5) * 0.06 : 1;
+      buf[i * 3] = Math.cos(t) * ring * rad;
+      buf[i * 3 + 1] = y * rad;
+      buf[i * 3 + 2] = Math.sin(t) * ring * rad;
+    }
+    return byAngle(normalize(buf));
+  }
+
+  function canopy() {
+    const buf = new Float32Array(COUNT * 3);
+    const rand = rng(7);
+    const cap = Math.floor(COUNT * 0.84);
+    const rim = Math.floor(COUNT * 0.08);
+    for (let i = 0; i < COUNT; i++) {
+      if (i < cap) {
+        const rr = Math.sqrt(rand());
+        const a = rand() * Math.PI * 2;
+        buf[i * 3] = rr * Math.cos(a);
+        buf[i * 3 + 1] = 0.34 - rr * rr * 0.5;
+        buf[i * 3 + 2] = rr * Math.sin(a) * 0.94;
+      } else if (i < cap + rim) {
+        const a = ((i - cap) / rim) * Math.PI * 2;
+        buf[i * 3] = Math.cos(a) * 1.02;
+        buf[i * 3 + 1] = -0.16;
+        buf[i * 3 + 2] = Math.sin(a) * 0.96;
+      } else {
+        const t = (i - cap - rim) / Math.max(1, COUNT - cap - rim - 1);
+        buf[i * 3] = (rand() - 0.5) * 0.035;
+        buf[i * 3 + 1] = -0.16 - t * 0.62;
+        buf[i * 3 + 2] = (rand() - 0.5) * 0.035;
+      }
+    }
+    return byAngle(normalize(buf));
+  }
+
+  function shell() {
+    const buf = new Float32Array(COUNT * 3);
+    const turns = 3.5;
+    for (let i = 0; i < COUNT; i++) {
+      const t = i / (COUNT - 1);
+      const ang = t * turns * Math.PI * 2;
+      const rad = 0.07 + Math.pow(t, 0.92) * 0.9;
+      const tubeA = i * 2.399963;
+      const tubeR = 0.045 + t * 0.15;
+      const cs = Math.cos(ang);
+      const sn = Math.sin(ang);
+      buf[i * 3] = (rad + tubeR * Math.cos(tubeA)) * cs;
+      buf[i * 3 + 1] = (1 - t) * 0.72 + tubeR * Math.sin(tubeA) * 0.7;
+      buf[i * 3 + 2] = (rad + tubeR * Math.cos(tubeA)) * sn;
+    }
+    return byAngle(normalize(buf));
+  }
+
+  function medusa() {
+    const buf = new Float32Array(COUNT * 3);
+    const rand = rng(3);
+    const bell = Math.floor(COUNT * 0.48);
+    const arms = 8;
+    for (let i = 0; i < bell; i++) {
+      const y = rand();
+      const ring = Math.sqrt(Math.max(0, 1 - y * y));
+      const a = rand() * Math.PI * 2;
+      const skin = 0.86 + rand() * 0.14;
+      buf[i * 3] = Math.cos(a) * ring * skin;
+      buf[i * 3 + 1] = y * 0.78 + 0.12;
+      buf[i * 3 + 2] = Math.sin(a) * ring * skin;
+    }
+    const strand = Math.max(1, Math.floor((COUNT - bell) / arms));
+    for (let i = bell; i < COUNT; i++) {
+      const k = i - bell;
+      const arm = k % arms;
+      const step = Math.floor(k / arms);
+      const t = step / strand;
+      const a = (arm / arms) * Math.PI * 2;
+      const hang = t * 1.45;
+      buf[i * 3] = Math.cos(a) * (0.22 + t * 0.16) + Math.sin(t * 3.2 + arm) * 0.1 * t;
+      buf[i * 3 + 1] = 0.08 - hang;
+      buf[i * 3 + 2] = Math.sin(a) * (0.22 + t * 0.16) + Math.cos(t * 2.4 + arm) * 0.08 * t;
+    }
+    return byAngle(normalize(buf));
+  }
+
+  function seedBurst() {
+    const rand = rng(11);
+    for (let i = 0; i < COUNT; i++) {
+      const z = rand() * 2 - 1;
+      const a = rand() * Math.PI * 2;
+      const ring = Math.sqrt(Math.max(0, 1 - z * z));
+      burst[i * 3] = Math.cos(a) * ring;
+      burst[i * 3 + 1] = z;
+      burst[i * 3 + 2] = Math.sin(a) * ring;
+    }
+  }
+
+  function label() {
+    const shown = morph && !reduced ? morph.to : shapeIndex;
+    const item = LOOKS[shown];
+    const n = String(shown + 1).padStart(2, '0');
+    indexEl.textContent = n;
+    titleEl.textContent = item.name;
+    blurbEl.textContent = item.blurb;
+    const msg = morph && !reduced
+      ? `碎开后聚成${item.name}`
+      : `${item.name}。${item.blurb}`;
+    if (live.textContent !== msg) live.textContent = msg;
+  }
+
+  function applyMorph(u) {
+    const target = shapes[morph.to];
+    const e = u * u * (3 - 2 * u);
+    const s = Math.sin(Math.PI * u);
+    const ang = s * 0.85;
+    const cs = Math.cos(ang);
+    const sn = Math.sin(ang);
+    const amp = s * 0.8;
+    for (let i = 0; i < COUNT; i++) {
+      const k = i * 3;
+      const x = from[k] + (target[k] - from[k]) * e;
+      const y = from[k + 1] + (target[k + 1] - from[k + 1]) * e;
+      const z = from[k + 2] + (target[k + 2] - from[k + 2]) * e;
+      cur[k] = x * cs - z * sn + burst[k] * amp;
+      cur[k + 1] = y + burst[k + 1] * amp;
+      cur[k + 2] = x * sn + z * cs + burst[k + 2] * amp;
+    }
+  }
+
+  function begin(to) {
+    if (morph && morph.to === to) return;
+    if (!morph && to === shapeIndex) return;
+    if (reduced) {
+      morph = null;
+      shapeIndex = to;
+      cur.set(shapes[to]);
+      velYaw = 0;
+      velPitch = 0;
+      label();
+      paint();
+      return;
+    }
+    from.set(cur);
+    morph = { to, t: 0, dur: MORPH };
+    label();
+    kick();
+  }
+
+  function go(delta) {
+    const base = morph ? morph.to : shapeIndex;
+    const to = (base + delta + LOOKS.length) % LOOKS.length;
+    begin(to);
+  }
+
+  function busy() {
+    return !!morph || Math.abs(velYaw) > 0 || Math.abs(velPitch) > 0 || hasMove || sizeDirty;
+  }
+
+  function kick() {
+    if (raf) return;
+    raf = requestAnimationFrame(frame);
+  }
+
+  function paint() {
+    applySize();
+    draw();
+  }
+
+  function applySize() {
+    if (!sizeDirty) return;
+    sizeDirty = false;
+    const ndpr = Math.min(2, window.devicePixelRatio || 1);
+    const nw = Math.max(1, window.innerWidth);
+    const nh = Math.max(1, window.innerHeight);
+    if (nw === w && nh === h && ndpr === dpr && canvas.width > 0) return;
+    w = nw;
+    h = nh;
+    dpr = ndpr;
+    const pw = Math.max(1, Math.floor(w * dpr));
+    const ph = Math.max(1, Math.floor(h * dpr));
+    if (canvas.width !== pw || canvas.height !== ph) {
+      canvas.width = pw;
+      canvas.height = ph;
+    }
+  }
+
+  function step(dt) {
+    if (hasMove) {
+      const dx = nextX - lastX;
+      const dy = nextY - lastY;
+      lastX = nextX;
+      lastY = nextY;
+      hasMove = false;
+      const sens = 0.0052;
+      yaw += dx * sens;
+      pitch = clamp(pitch + dy * sens, -1.05, 1.05);
+      if (!reduced && dt > 0) {
+        velYaw = clamp((dx * sens) / dt, -2.4, 2.4);
+        velPitch = clamp((dy * sens) / dt, -2.4, 2.4);
+      } else {
+        velYaw = 0;
+        velPitch = 0;
+      }
+    } else if (!drag && !reduced) {
+      yaw += velYaw * dt;
+      const nextPitch = pitch + velPitch * dt;
+      pitch = clamp(nextPitch, -1.05, 1.05);
+      if (nextPitch !== pitch) velPitch = 0;
+      const decay = Math.exp(-Math.max(dt, 0.001) / 0.24);
+      velYaw *= decay;
+      velPitch *= decay;
+      if (Math.abs(velYaw) < 0.04) velYaw = 0;
+      if (Math.abs(velPitch) < 0.04) velPitch = 0;
+    }
+    if (advance) {
+      const dir = advance;
+      advance = 0;
+      go(dir);
+    }
+    if (morph && !reduced) {
+      morph.t += dt;
+      const u = Math.min(1, morph.t / morph.dur);
+      applyMorph(u);
+      if (u >= 1) {
+        shapeIndex = morph.to;
+        cur.set(shapes[shapeIndex]);
+        morph = null;
+        label();
+      }
+    }
+    return !!morph || Math.abs(velYaw) > 0 || Math.abs(velPitch) > 0;
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#141c2a');
+    sky.addColorStop(1, '#07090e');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+    const glowR = Math.min(w, h) * 0.42;
+    const glow = ctx.createRadialGradient(w * 0.5, h * 0.46, 0, w * 0.5, h * 0.46, glowR);
+    glow.addColorStop(0, 'rgba(132, 162, 198, 0.16)');
+    glow.addColorStop(1, 'rgba(132, 162, 198, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+    ctx.translate(w * 0.5, h * 0.64);
+    ctx.scale(1, 0.28);
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.min(w, h) * 0.16, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    ctx.fill();
+    ctx.restore();
+
+    const cy = Math.cos(yaw);
+    const sy = Math.sin(yaw);
+    const cp = Math.cos(pitch);
+    const sp = Math.sin(pitch);
+    const scale = Math.min(w, h) * 0.34;
+    let tint = LOOKS[shapeIndex].rgb;
+    if (morph) {
+      const u = clamp01(morph.t / morph.dur);
+      const a = LOOKS[shapeIndex].rgb;
+      const b = LOOKS[morph.to].rgb;
+      tint = [
+        a[0] + (b[0] - a[0]) * u,
+        a[1] + (b[1] - a[1]) * u,
+        a[2] + (b[2] - a[2]) * u
+      ];
+    }
+    for (let i = 0; i < COUNT; i++) {
+      const k = i * 3;
+      const x = cur[k];
+      const y = cur[k + 1];
+      const z = cur[k + 2];
+      const x1 = x * cy + z * sy;
+      const z1 = -x * sy + z * cy;
+      const y2 = y * cp - z1 * sp;
+      const z2 = y * sp + z1 * cp;
+      const depth = 2.7 + z2;
+      const p = 1 / (depth > 0.35 ? depth : 0.35);
+      px[i] = x1 * p;
+      py[i] = y2 * p;
+      pz[i] = z2;
+      ps[i] = p;
+      order[i] = i;
+    }
+    order.sort((a, b) => pz[a] - pz[b]);
+    const spark = morph ? Math.sin(Math.PI * clamp01(morph.t / morph.dur)) : 0;
+    for (let n = 0; n < COUNT; n++) {
+      const i = order[n];
+      const sx = w * 0.5 + px[i] * scale;
+      const sy = h * 0.46 - py[i] * scale;
+      if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue;
+      const light = clamp01((pz[i] + 1.5) / 3);
+      const alpha = clamp01(0.28 + ps[i] * 0.85 + spark * 0.25);
+      const rr = Math.max(0.7, ps[i] * 2.15 * (scale / 180));
+      const shade = 0.55 + light * 0.45;
+      const cr = clamp(tint[0] * shade, 0, 255) | 0;
+      const cg = clamp(tint[1] * shade, 0, 255) | 0;
+      const cb = clamp(tint[2] * shade, 0, 255) | 0;
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, rr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function frame(now) {
+    raf = 0;
+    const dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
+    last = now;
+    applySize();
+    const again = step(dt);
+    draw();
+    if (again) kick();
+  }
+
+  function endDrag(event, doAdvance) {
+    if (!drag || event.pointerId !== pointerId) return;
+    drag = false;
+    canvas.classList.remove('dragging');
+    try { canvas.releasePointerCapture(event.pointerId); } catch (err) { /* 捕获可能已经松开 */ }
+    if (doAdvance) advance = 1;
+    kick();
+  }
+
+  canvas.addEventListener('pointerdown', (event) => {
+    if (event.button != null && event.button !== 0) return;
+    drag = true;
+    pointerId = event.pointerId;
+    lastX = nextX = event.clientX;
+    lastY = nextY = event.clientY;
+    hasMove = false;
+    velYaw = 0;
+    velPitch = 0;
+    canvas.classList.add('dragging');
+    try { canvas.setPointerCapture(event.pointerId); } catch (err) { /* 不支持捕获时仍跟 move */ }
+  });
+
+  canvas.addEventListener('pointermove', (event) => {
+    if (!drag || event.pointerId !== pointerId) return;
+    nextX = event.clientX;
+    nextY = event.clientY;
+    hasMove = true;
+    kick();
+  }, { passive: true });
+
+  canvas.addEventListener('pointerup', (event) => {
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    const onButton = !!(hit && hit.closest && hit.closest('button'));
+    endDrag(event, !onButton);
+  });
+
+  canvas.addEventListener('pointercancel', (event) => endDrag(event, false));
+
+  nextBtn.addEventListener('click', () => go(1));
+
+  window.addEventListener('keydown', (event) => {
+    if (event.altKey || event.metaKey || event.ctrlKey) return;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      go(1);
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      go(-1);
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    sizeDirty = true;
+    kick();
+  });
+
+  window.addEventListener('blur', () => {
+    if (!drag) return;
+    drag = false;
+    canvas.classList.remove('dragging');
+    kick();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      last = 0;
+      return;
+    }
+    if (busy()) kick();
+  });
+
+  function onMotion() {
+    reduced = motion.matches;
+    if (!reduced) return;
+    if (morph) {
+      shapeIndex = morph.to;
+      cur.set(shapes[shapeIndex]);
+      morph = null;
+    }
+    velYaw = 0;
+    velPitch = 0;
+    drag = false;
+    hasMove = false;
+    canvas.classList.remove('dragging');
+    label();
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+    sizeDirty = true;
+    paint();
+  }
+  if (motion.addEventListener) motion.addEventListener('change', onMotion);
+  else if (motion.addListener) motion.addListener(onMotion);
+
+  for (let i = 0; i < COUNT; i++) order[i] = i;
+  shapes.push(sphere(), canopy(), shell(), medusa());
+  seedBurst();
+  cur.set(shapes[0]);
+  label();
+  if (reduced) paint();
+  else kick();
+})();
+</script>
+</body>
+</html>
