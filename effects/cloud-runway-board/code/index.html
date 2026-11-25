@@ -312,9 +312,20 @@
       .split { grid-template-columns: minmax(0, 1fr) 108px; gap: 6px; }
       .main, .panel, .note { padding: 8px; }
       .notes { gap: 6px; }
-      .chart { height: 84px; gap: 2px; }
-      .col b { display: none; }
-      .axis { display: block; }
+      .chart { height: 108px; gap: 2px; }
+      .bar { max-height: calc(100% - 28px); }
+      .col b {
+        display: block;
+        height: 26px;
+        margin-top: 2px;
+        overflow: hidden;
+        font-size: 8px;
+        line-height: 1;
+        letter-spacing: 0;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+      }
+      .axis { display: none; }
       .balance { flex-wrap: wrap; align-items: flex-start; }
       .note p { font-size: 10px; }
       .note li { display: block; }
@@ -324,7 +335,7 @@
     }
     @media (max-height: 640px) {
       .eyebrow { font-size: 18px; margin-bottom: 6px; }
-      .chart { height: 72px; }
+      .chart { height: 100px; }
       .note p { margin-top: 3px; }
       .lift { margin-bottom: 6vh; }
     }
@@ -457,81 +468,108 @@
       var root = document.documentElement;
       var sky = document.getElementById("sky");
       var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-      var progress = motion.matches ? 1 : 0;
+      var target = motion.matches ? 1 : 0;
       var auto = !motion.matches;
-      var frame = 0;
+      var pending = 0;
+      var autoStart = 0;
+      var pointerY = null;
+      var touchY = null;
 
       function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
       function paint(next) {
-        progress = clamp(next, 0, 1);
-        root.style.setProperty("--p", String(progress));
+        root.style.setProperty("--p", String(clamp(next, 0, 1)));
       }
-      function stopAuto() {
-        auto = false;
-        if (frame) {
-          window.cancelAnimationFrame(frame);
-          frame = 0;
+      function schedule() {
+        if (motion.matches || pending) return;
+        pending = window.requestAnimationFrame(draw);
+      }
+      function draw(now) {
+        pending = 0;
+        if (auto) {
+          if (!autoStart) autoStart = now;
+          var t = Math.min(1, (now - autoStart) / 2600);
+          target = t * t * (3 - 2 * t);
+          if (t < 1) schedule();
+          else auto = false;
         }
+        paint(target);
+      }
+      function stopAuto() { auto = false; }
+      function nudge(delta) {
+        stopAuto();
+        target = clamp(target + delta, 0, 1);
+        schedule();
+      }
+      function jump(next) {
+        stopAuto();
+        target = clamp(next, 0, 1);
+        schedule();
       }
       function settle() {
-        stopAuto();
+        auto = false;
+        target = 1;
+        if (pending) {
+          window.cancelAnimationFrame(pending);
+          pending = 0;
+        }
         paint(1);
       }
 
-      if (motion.matches) {
-        settle();
-      } else {
-        var t0 = 0;
-        function tick(now) {
-          if (!auto) return;
-          if (!t0) t0 = now;
-          var t = Math.min(1, (now - t0) / 2600);
-          var eased = t * t * (3 - 2 * t);
-          paint(eased);
-          if (t < 1) frame = window.requestAnimationFrame(tick);
-          else frame = 0;
-        }
-        frame = window.requestAnimationFrame(tick);
-      }
+      if (motion.matches) settle();
+      else schedule();
 
       window.addEventListener("wheel", function (e) {
         if (motion.matches) return;
         e.preventDefault();
-        stopAuto();
-        paint(progress + e.deltaY / 880);
+        nudge(e.deltaY / 880);
       }, { passive: false });
 
-      var lastY = null;
       window.addEventListener("touchstart", function (e) {
         if (motion.matches) return;
-        stopAuto();
-        lastY = e.touches[0].clientY;
+        touchY = e.touches[0].clientY;
       }, { passive: true });
       window.addEventListener("touchmove", function (e) {
-        if (motion.matches || lastY == null) return;
+        if (motion.matches || touchY == null) return;
         e.preventDefault();
         var y = e.touches[0].clientY;
-        paint(progress + (lastY - y) / 460);
-        lastY = y;
+        var dy = touchY - y;
+        touchY = y;
+        nudge(dy / 460);
       }, { passive: false });
-      window.addEventListener("touchend", function () { lastY = null; });
+      window.addEventListener("touchend", function () { touchY = null; });
+      window.addEventListener("touchcancel", function () { touchY = null; });
 
       window.addEventListener("keydown", function (e) {
         if (motion.matches) return;
-        var step = { ArrowDown: 0.08, ArrowUp: -0.08, PageDown: 0.2, PageUp: -0.2, " ": 0.16, Home: -1, End: 1 };
+        var step = { ArrowDown: 0.08, ArrowUp: -0.08, PageDown: 0.2, PageUp: -0.2, " ": 0.16 };
+        if (e.key === "Home") { e.preventDefault(); jump(0); return; }
+        if (e.key === "End") { e.preventDefault(); jump(1); return; }
         if (!(e.key in step)) return;
         e.preventDefault();
-        stopAuto();
-        paint(e.key === "Home" ? 0 : e.key === "End" ? 1 : progress + step[e.key]);
+        nudge(step[e.key]);
       });
 
+      function anchorPointer(y) { pointerY = y; }
+      sky.addEventListener("pointerenter", function (e) {
+        if (e.pointerType === "touch") return;
+        anchorPointer(e.clientY);
+      });
+      sky.addEventListener("pointerdown", function (e) {
+        if (e.pointerType === "touch") return;
+        anchorPointer(e.clientY);
+      });
       sky.addEventListener("pointermove", function (e) {
         if (motion.matches || e.pointerType === "touch") return;
-        stopAuto();
-        var rect = sky.getBoundingClientRect();
-        var y = (e.clientY - rect.top) / Math.max(1, rect.height);
-        paint((0.92 - y) / 0.64);
+        if (pointerY == null) {
+          anchorPointer(e.clientY);
+          return;
+        }
+        var dy = pointerY - e.clientY;
+        pointerY = e.clientY;
+        if (dy) nudge(dy / 520);
       });
+      sky.addEventListener("pointerleave", function () { pointerY = null; });
+      sky.addEventListener("pointercancel", function () { pointerY = null; });
 
       motion.addEventListener("change", function () {
         if (motion.matches) settle();
