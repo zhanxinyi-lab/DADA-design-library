@@ -595,7 +595,6 @@
       }
 
       motionQuery.addEventListener("change", function () {
-        if (!prefersReduced()) return;
         cancelLoop();
         state.t = 1;
         commit(cast[state.index].rgb.slice());
