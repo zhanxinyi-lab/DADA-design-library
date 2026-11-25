@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gait line</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; max-width: 100%; }
+    body {
+      min-height: 100%;
+      overflow-x: hidden;
+      background: #667178;
+      color: #241c16;
+      font: 15px/1.4 system-ui, "Segoe UI", sans-serif;
+    }
+    .wrap {
+      width: min(880px, 100%);
+      margin: 0 auto;
+      padding: 16px 12px 28px;
+    }
+    .sheet {
+      min-width: 0;
+      background: #f6f1e6;
+      border-radius: 18px;
+      box-shadow: 0 18px 40px rgba(20, 16, 12, 0.28);
+      padding: 16px 16px 14px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 4px 16px;
+    }
+    .copy, .figure, .scrub { min-width: 0; }
+    .kicker {
+      margin: 0;
+      color: #6d6258;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 2px 0 0;
+      font-size: clamp(22px, 6vw, 36px);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+    .lead {
+      margin: 8px 0 0;
+      color: #4e453d;
+      font-size: 14px;
+    }
+    .muscles {
+      list-style: none;
+      padding: 0;
+      margin: 12px 0 0;
+      display: grid;
+      gap: 8px;
+    }
+    .muscles li { min-width: 0; }
+    .action { display: block; color: #7a6e64; font-size: 12px; }
+    .name { display: block; color: #9d2b32; font-weight: 700; overflow-wrap: anywhere; }
+    svg { display: block; width: 100%; height: auto; }
+    .bone { fill: none; stroke: #241e18; stroke-width: 7; stroke-linecap: round; }
+    .joint { fill: #f7f2e8; stroke: #241e18; stroke-width: 2; }
+    .skull { fill: #f7f2e8; stroke: #241e18; stroke-width: 2.5; }
+    .socket { fill: #241e18; }
+    .rib { fill: none; stroke: #241e18; stroke-width: 2.2; stroke-linecap: round; }
+    #legB .bone, #legB .joint { stroke: #8d847b; }
+    .muscle { fill: #e23a3a; opacity: 0.08; }
+    .muscle.on { opacity: 0.94; filter: url(#glow); }
+    .ground { stroke: #c9b8a2; stroke-width: 2; }
+    .scrub { margin-top: 4px; }
+    label[for="line"] {
+      display: block;
+      margin: 0 0 6px;
+      text-align: right;
+      color: #9d2b32;
+      font-size: 14px;
+      font-style: italic;
+    }
+    input[type="range"] {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      margin: 0;
+      accent-color: #9d2b32;
+      cursor: ew-resize;
+    }
+    input[type="range"]:focus { outline: none; }
+    input[type="range"]:focus-visible {
+      outline: 3px solid #0c3d66;
+      outline-offset: 4px;
+    }
+    .ticks {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 2px;
+      margin-top: 6px;
+      font-size: 10px;
+      line-height: 1.15;
+      text-align: center;
+      color: #6d6258;
+    }
+    .ticks span { min-width: 0; overflow-wrap: anywhere; }
+    .ticks span.on { color: #9d2b32; font-weight: 700; }
+    #turn {
+      margin: 8px 0 0;
+      text-align: right;
+      color: #9d2b32;
+      font-size: 14px;
+      font-style: italic;
+    }
+    .help {
+      margin: 6px 0 0;
+      color: #6d6258;
+      font-size: 12px;
+    }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (min-width: 721px) {
+      .sheet { grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); }
+      .copy { grid-column: 1; grid-row: 1; align-self: center; }
+      .figure { grid-column: 2; grid-row: 1; }
+      .scrub { grid-column: 1 / -1; }
+      .ticks { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="sheet">
+      <div class="figure">
+        <svg id="figure" viewBox="0 0 440 500" aria-hidden="true">
+          <defs>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2.4" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <line class="ground" x1="48" y1="448" x2="392" y2="448"/>
+        </svg>
+      </div>
+      <div class="copy">
+        <p class="kicker">One stride</p>
+        <h1 id="phase">landing</h1>
+        <p class="lead">Drag the line. The legs change pose with it, and the red marks show which muscles are working.</p>
+        <ul class="muscles" id="muscles"></ul>
+      </div>
+      <div class="scrub">
+        <label for="line">Drag the line</label>
+        <input id="line" type="range" min="0" max="100" step="1" value="0" aria-describedby="help">
+        <div class="ticks" aria-hidden="true">
+          <span>landing</span>
+          <span>push-off</span>
+          <span>swing up</span>
+          <span>reach</span>
+          <span>pull back</span>
+        </div>
+        <p id="turn" hidden>turn the page</p>
+        <p class="help" id="help">Arrow keys walk the same phases. Home and End jump to the ends.</p>
+      </div>
+    </div>
+  </div>
+  <div class="sr" id="live" aria-live="polite"></div>
+  <script>
+    (function () {
+      var SVG = "http://www.w3.org/2000/svg";
+      var THIGH = 78;
+      var SHIN = 72;
+      var UPPER = 46;
+      var FORE = 40;
+      // SVG clockwise degrees. Thigh 0 points down; positive swings the foot forward.
+      // Knee negative bends the shin back. Ankle positive points the toes down.
+      // Torso negative leans the chest forward. Arm positive swings the hand forward.
+      var PHASES = [
+        {
+          name: "landing",
+          lines: [
+            ["hip extension", "gluteals"],
+            ["knee flexion", "quadriceps, eccentric"],
+            ["ankle dorsiflexion", "gastrocnemius, eccentric"]
+          ],
+          back: { glute: 1 },
+          front: { quad: 1, gastro: 1 },
+          pose: { torso: -12, bThigh: -26, bKnee: -14, bAnkle: 8, fThigh: 24, fKnee: -16, fAnkle: -4, bArm: 36, bElbow: -20, fArm: -28, fElbow: -18 }
+        },
+        {
+          name: "push-off",
+          lines: [
+            ["hip extension", "gluteals"],
+            ["knee extension", "quadriceps"],
+            ["ankle plantar flexion", "gastrocnemius"]
+          ],
+          back: { glute: 1, quad: 1, gastro: 1 },
+          front: {},
+          pose: { torso: -8, bThigh: -6, bKnee: -4, bAnkle: 32, fThigh: 58, fKnee: -72, fAnkle: 0, bArm: 16, bElbow: -28, fArm: -12, fElbow: -32 }
+        },
+        {
+          name: "swing up",
+          lines: [
+            ["hip flexion", "hip flexors"],
+            ["knee flexion", "hamstrings"],
+            ["ankle dorsiflexion", "tibialis anterior"]
+          ],
+          back: {},
+          front: { flex: 1, ham: 1, tib: 1 },
+          pose: { torso: -6, bThigh: -22, bKnee: -10, bAnkle: 6, fThigh: 42, fKnee: -48, fAnkle: -10, bArm: -4, bElbow: -18, fArm: 10, fElbow: -20 }
+        },
+        {
+          name: "reach",
+          lines: [
+            ["hip flexion", "hip flexors"],
+            ["knee extension", "quadriceps"],
+            ["ankle dorsiflexion", "tibialis anterior"]
+          ],
+          back: {},
+          front: { flex: 1, quad: 1, tib: 1 },
+          pose: { torso: -4, bThigh: -34, bKnee: -10, bAnkle: 4, fThigh: 36, fKnee: -10, fAnkle: -12, bArm: -22, bElbow: -14, fArm: 28, fElbow: -12 }
+        },
+        {
+          name: "pull back",
+          lines: [
+            ["hip extension", "gluteals"],
+            ["knee extension", "hamstrings, eccentric"],
+            ["ankle dorsiflexion", "tibialis anterior"]
+          ],
+          back: { glute: 1 },
+          front: { ham: 1, tib: 1 },
+          pose: { torso: -2, bThigh: -40, bKnee: -8, bAnkle: 2, fThigh: 30, fKnee: -6, fAnkle: -8, bArm: -36, bElbow: -10, fArm: 42, fElbow: -10 }
+        }
+      ];
+
+      function el(name, attrs) {
+        var node = document.createElementNS(SVG, name);
+        if (attrs) {
+          Object.keys(attrs).forEach(function (key) { node.setAttribute(key, attrs[key]); });
+        }
+        return node;
+      }
+      function add(parent, children) {
+        children.forEach(function (child) { parent.appendChild(child); });
+        return parent;
+      }
+      function bone(x1, y1, x2, y2) { return el("line", { class: "bone", x1: x1, y1: y1, x2: x2, y2: y2 }); }
+      function joint(cx, cy, r) { return el("circle", { class: "joint", cx: cx, cy: cy, r: r }); }
+      function slab(kind, x, y, w, h) {
+        return el("rect", { class: "muscle", "data-m": kind, x: x, y: y, width: w, height: h, rx: Math.min(w, h) / 2 });
+      }
+
+      var svg = document.getElementById("figure");
+      var body = el("g", { id: "body" });
+      svg.appendChild(body);
+
+      function makeLeg(id) {
+        var leg = el("g", { id: id, class: "leg" });
+        var thigh = el("g", { class: "thigh" });
+        var shin = el("g", { class: "shin" });
+        var foot = el("g", { class: "foot" });
+        add(foot, [bone(-8, 2, 0, 0), bone(0, 0, 32, 8), joint(0, 0, 4)]);
+        add(shin, [
+          slab("gastro", -14, 10, 14, 42),
+          slab("tib", 2, 12, 12, 40),
+          bone(0, 0, 0, SHIN),
+          joint(0, 0, 5),
+          foot
+        ]);
+        add(thigh, [
+          slab("glute", -16, 2, 16, 30),
+          slab("flex", 2, 6, 14, 28),
+          slab("quad", 1, 30, 14, 42),
+          slab("ham", -15, 32, 14, 40),
+          bone(0, 0, 0, THIGH),
+          joint(0, 0, 6),
+          shin
+        ]);
+        leg.appendChild(thigh);
+        return leg;
+      }
+
+      function makeArm() {
+        var upper = el("g", { class: "upper" });
+        var fore = el("g", { class: "fore" });
+        add(fore, [bone(0, 0, 0, FORE), joint(0, 0, 3.5), bone(-6, FORE, 8, FORE + 6)]);
+        add(upper, [bone(0, 0, 0, UPPER), joint(0, 0, 4.5), fore]);
+        return upper;
+      }
+
+      var legB = makeLeg("legB");
+      var legF = makeLeg("legF");
+      var torso = el("g", { id: "torso" });
+      add(torso, [
+        el("ellipse", { cx: 0, cy: 8, rx: 22, ry: 12, class: "rib" }),
+        bone(0, 0, 0, -100),
+        el("path", { class: "rib", d: "M -10 -78 Q 18 -70 16 -62" }),
+        el("path", { class: "rib", d: "M -10 -66 Q 20 -58 16 -50" }),
+        el("path", { class: "rib", d: "M -8 -54 Q 18 -46 14 -38" }),
+        el("path", { class: "rib", d: "M -6 -42 Q 14 -36 10 -28" })
+      ]);
+      var head = el("g", { class: "head", transform: "translate(0 -118)" });
+      add(head, [
+        el("circle", { class: "skull", cx: 0, cy: 0, r: 22 }),
+        el("circle", { class: "socket", cx: 8, cy: -1, r: 4.2 }),
+        el("path", { class: "rib", d: "M -6 12 Q 8 22 16 8" })
+      ]);
+      torso.appendChild(head);
+      var armB = makeArm();
+      var armF = makeArm();
+      torso.appendChild(armB);
+      torso.appendChild(armF);
+
+      body.appendChild(legB);
+      body.appendChild(torso);
+      body.appendChild(legF);
+
+      var phaseEl = document.getElementById("phase");
+      var listEl = document.getElementById("muscles");
+      var slider = document.getElementById("line");
+      var turnEl = document.getElementById("turn");
+      var liveEl = document.getElementById("live");
+      var ticks = Array.prototype.slice.call(document.querySelectorAll(".ticks span"));
+      var reduceQ = window.matchMedia("(prefers-reduced-motion: reduce)");
+      var raf = 0;
+      var announced = false;
+      var lastPhase = "";
+      var lastTurn = false;
+
+      var GROUND = 448;
+      function rot(x, y, angle) {
+        var r = angle * Math.PI / 180;
+        var c = Math.cos(r);
+        var s = Math.sin(r);
+        return [x * c - y * s, x * s + y * c];
+      }
+      function footLow(thigh, knee, ankle) {
+        var aim = -thigh;
+        var kneeP = rot(0, THIGH, aim);
+        var shin = aim - knee;
+        var ankleP = rot(0, SHIN, shin);
+        ankleP[0] += kneeP[0];
+        ankleP[1] += kneeP[1];
+        var low = ankleP[1];
+        [[0, 0], [32, 8], [-8, 2]].forEach(function (p) {
+          var local = rot(p[0], p[1], ankle);
+          var world = rot(local[0], local[1], shin);
+          var y = ankleP[1] + world[1];
+          if (y > low) low = y;
+        });
+        return low;
+      }
+      function lerp(a, b, t) { return a + (b - a) * t; }
+      function sample(u) {
+        var x = u * (PHASES.length - 1);
+        var i0 = Math.min(PHASES.length - 2, Math.floor(x));
+        var t = x - i0;
+        var a = PHASES[i0].pose;
+        var b = PHASES[i0 + 1].pose;
+        var pose = {};
+        Object.keys(a).forEach(function (key) { pose[key] = lerp(a[key], b[key], t); });
+        return { pose: pose, index: Math.min(PHASES.length - 1, Math.round(x)) };
+      }
+      function paint(leg, spec) {
+        Array.prototype.forEach.call(leg.querySelectorAll(".muscle"), function (node) {
+          node.classList.toggle("on", !!spec[node.getAttribute("data-m")]);
+        });
+      }
+      function applyLeg(leg, thigh, knee, ankle) {
+        leg.querySelector(".thigh").setAttribute("transform", "rotate(" + (-thigh) + ")");
+        leg.querySelector(".shin").setAttribute("transform", "translate(0 " + THIGH + ") rotate(" + (-knee) + ")");
+        leg.querySelector(".foot").setAttribute("transform", "translate(0 " + SHIN + ") rotate(" + ankle + ")");
+      }
+      function applyArm(arm, shoulder, elbow) {
+        arm.setAttribute("transform", "translate(0 -96) rotate(" + (-shoulder) + ")");
+        arm.querySelector(".fore").setAttribute("transform", "translate(0 " + UPPER + ") rotate(" + elbow + ")");
+      }
+      function phrase(phase, atEnd) {
+        var bits = phase.lines.map(function (line) { return line[0] + ", " + line[1]; });
+        var text = phase.name + ". " + bits.join(". ");
+        if (atEnd) text += ". turn the page";
+        return text;
+      }
+      function render() {
+        var value = Number(slider.value);
+        var atEnd = value >= 100;
+        var sampled = sample(value / 100);
+        var pose = sampled.pose;
+        var phase = PHASES[sampled.index];
+        var low = Math.max(
+          footLow(pose.bThigh, pose.bKnee, pose.bAnkle),
+          footLow(pose.fThigh, pose.fKnee, pose.fAnkle)
+        );
+        body.setAttribute("transform", "translate(220 " + (GROUND - low) + ")");
+        torso.setAttribute("transform", "rotate(" + pose.torso + ")");
+        applyLeg(legB, pose.bThigh, pose.bKnee, pose.bAnkle);
+        applyLeg(legF, pose.fThigh, pose.fKnee, pose.fAnkle);
+        applyArm(armB, pose.bArm, pose.bElbow);
+        applyArm(armF, pose.fArm, pose.fElbow);
+        paint(legB, phase.back);
+        paint(legF, phase.front);
+        phaseEl.textContent = phase.name;
+        listEl.replaceChildren();
+        phase.lines.forEach(function (line) {
+          var item = document.createElement("li");
+          var action = document.createElement("span");
+          var name = document.createElement("span");
+          action.className = "action";
+          name.className = "name";
+          action.textContent = line[0];
+          name.textContent = line[1];
+          item.appendChild(action);
+          item.appendChild(name);
+          listEl.appendChild(item);
+        });
+        ticks.forEach(function (tick, index) { tick.classList.toggle("on", index === sampled.index); });
+        turnEl.hidden = !atEnd;
+        var text = phrase(phase, atEnd);
+        slider.setAttribute("aria-valuetext", text);
+        if (!announced) {
+          announced = true;
+          lastPhase = phase.name;
+          lastTurn = atEnd;
+          return;
+        }
+        if (phase.name !== lastPhase || atEnd !== lastTurn) {
+          lastPhase = phase.name;
+          lastTurn = atEnd;
+          liveEl.textContent = text;
+        }
+      }
+      function schedule() {
+        if (reduceQ.matches) {
+          if (raf) { cancelAnimationFrame(raf); raf = 0; }
+          render();
+          return;
+        }
+        if (raf) return;
+        raf = requestAnimationFrame(function () { raf = 0; render(); });
+      }
+      function onReduce() {
+        if (!reduceQ.matches) return;
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        render();
+      }
+      slider.addEventListener("input", schedule);
+      if (reduceQ.addEventListener) reduceQ.addEventListener("change", onReduce);
+      else if (reduceQ.addListener) reduceQ.addListener(onReduce);
+
+      var params = new URLSearchParams(location.search);
+      if (params.has("at")) {
+        var n = Number(params.get("at"));
+        if (Number.isFinite(n)) slider.value = String(Math.max(0, Math.min(100, Math.round(n))));
+      }
+      render();
+    })();
+  </script>
+</body>
+</html>
