@@ -5,7 +5,7 @@
 - 状态：video_recreated
 - 原文：https://x.com/arnab_design/status/2124235064125034827
 - 素材 ID：2124235064125034827
-- 版本：1.0.0
+- 版本：1.0.1
 
 ## 许可
 

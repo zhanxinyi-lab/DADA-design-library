@@ -525,6 +525,7 @@
       }
 
       function closeBar() {
+        if (sheetPhase !== "closed") return;
         if (barPhase === "closed" || barPhase === "closing") return;
         if (reduced()) {
           generation += 1;
@@ -549,6 +550,7 @@
       }
 
       function releaseSheet() {
+        if (sheetPhase === "closed" && sheet.hidden && backdrop.hidden && !grid.inert && !dock.inert) return;
         sheet.hidden = true;
         backdrop.hidden = true;
         grid.inert = false;
@@ -560,7 +562,7 @@
       }
 
       function openSheet() {
-        if (sheetPhase === "open" || sheetPhase === "opening") return;
+        if (sheetPhase !== "closed") return;
         if (!barShown()) openBar();
         pending = applied;
         paintOptions();
@@ -614,6 +616,9 @@
           if (gen !== generation) return;
           releaseSheet();
         });
+        window.setTimeout(function () {
+          if (sheetPhase === "closing") releaseSheet();
+        }, DUR + 120);
       }
 
       function choose(id) {
@@ -688,6 +693,10 @@
       });
       document.addEventListener("keydown", function (e) {
         if (e.key !== "Escape") return;
+        if (sheetPhase === "closing") {
+          e.preventDefault();
+          return;
+        }
         if (sheetPhase === "open" || sheetPhase === "opening") {
           e.preventDefault();
           closeSheet(false);
