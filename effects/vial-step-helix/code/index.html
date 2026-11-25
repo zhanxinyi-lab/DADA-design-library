@@ -435,9 +435,8 @@
       });
 
       function onReduce() {
-        if (!reduced()) return;
         stop();
-        if (selected >= 0) {
+        if (reduced() && selected >= 0) {
           state.spiral = 1;
           state.phase = PHASES[selected];
         }
