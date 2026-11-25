@@ -65,6 +65,15 @@
     .orb span { pointer-events: none; }
     .orb.match { color: #1826b0; }
     .orb.dim { opacity: 0.42; }
+    .orb.picked {
+      box-shadow:
+        inset 0 -10px 16px rgba(62, 74, 120, 0.2),
+        0 0 0 3px #1d2bb8;
+    }
+    .orb:focus-visible {
+      outline: 3px solid #1d2bb8;
+      outline-offset: 4px;
+    }
     #find {
       position: absolute;
       left: 0;
@@ -181,6 +190,10 @@
     const balls = NOTES.map((note) => {
       const el = document.createElement("div");
       el.className = "orb";
+      el.tabIndex = 0;
+      el.setAttribute("role", "button");
+      el.setAttribute("aria-pressed", "false");
+      el.setAttribute("aria-label", note.title);
       const label = document.createElement("span");
       label.textContent = note.title;
       el.append(label);
@@ -194,6 +207,7 @@
         x: 0, y: 0, vx: 0, vy: 0,
         homeX: 0, homeY: 0, goalX: 0, goalY: 0,
         match: false,
+        picked: false,
         ready: false
       };
     });
@@ -401,7 +415,15 @@
       for (const ball of balls) {
         ball.el.style.transform = "translate(" + ball.x + "px, " + ball.y + "px) translate(-50%, -50%)";
         ball.el.classList.toggle("match", ball.match);
+        ball.el.classList.toggle("picked", ball.picked);
         ball.el.classList.toggle("dim", Boolean(q) && !ball.match);
+        const pressed = ball.picked || ball.match;
+        ball.el.setAttribute("aria-pressed", pressed ? "true" : "false");
+        let name = ball.title;
+        if (ball.picked && ball.match) name += "，已选中，匹配";
+        else if (ball.picked) name += "，已选中";
+        else if (ball.match) name += "，匹配";
+        ball.el.setAttribute("aria-label", name);
       }
     }
 
@@ -481,7 +503,18 @@
       }
     }
 
+    const MAX_SPEED = 240;
+
+    function capSpeed(ball) {
+      const speed = Math.hypot(ball.vx, ball.vy);
+      if (speed > MAX_SPEED) {
+        ball.vx *= MAX_SPEED / speed;
+        ball.vy *= MAX_SPEED / speed;
+      }
+    }
+
     function shove(x, y, dx, dy) {
+      if (reduced()) return;
       for (const ball of balls) {
         const ox = ball.x - x;
         const oy = ball.y - y;
@@ -495,6 +528,7 @@
           ball.vx += (ox / dist) * 36 * (1 - dist / ball.r);
           ball.vy += (oy / dist) * 36 * (1 - dist / ball.r);
         }
+        capSpeed(ball);
       }
     }
 
@@ -508,9 +542,13 @@
         ball.vy += ay * dt;
         ball.x += ball.vx * dt;
         ball.y += ball.vy * dt;
+        capSpeed(ball);
       }
       collide();
-      for (const ball of balls) walls(ball);
+      for (const ball of balls) {
+        walls(ball);
+        capSpeed(ball);
+      }
     }
 
     function movingFast() {
@@ -580,10 +618,55 @@
     function endPointer(event) {
       if (!pointerDown) return;
       pointerDown = false;
+      for (const ball of balls) {
+        ball.vx = 0;
+        ball.vy = 0;
+      }
       if (event.pointerId != null && stage.hasPointerCapture(event.pointerId)) {
         stage.releasePointerCapture(event.pointerId);
       }
+      render();
     }
+
+    function pickBall(ball) {
+      for (const other of balls) other.picked = other === ball;
+      live.textContent = "已选中" + ball.title;
+      render();
+    }
+
+    function nudgeBall(ball, dx, dy) {
+      const step = 16;
+      const w = stage.clientWidth;
+      const h = stage.clientHeight;
+      ball.x = clamp(ball.x + dx * step, ball.r + 4, w - ball.r - 4);
+      ball.y = clamp(ball.y + dy * step, ball.r + 4, h - ball.r - 4);
+      ball.vx = 0;
+      ball.vy = 0;
+      if (reduced()) {
+        ball.homeX = ball.x;
+        ball.homeY = ball.y;
+        ball.goalX = ball.x;
+        ball.goalY = ball.y;
+        render();
+        return;
+      }
+      render();
+      wake();
+    }
+
+    stage.addEventListener("keydown", (event) => {
+      const ball = balls.find((item) => item.el === event.target);
+      if (!ball) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        pickBall(ball);
+        return;
+      }
+      const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+      if (!dir) return;
+      event.preventDefault();
+      nudgeBall(ball, dir[0], dir[1]);
+    });
 
     stage.addEventListener("pointerup", endPointer);
     stage.addEventListener("pointercancel", endPointer);
@@ -604,7 +687,10 @@
 
     function onMotionChange() {
       if (reduced()) settleNow();
-      else wake();
+      else {
+        render();
+        wake();
+      }
     }
     if (typeof motion.addEventListener === "function") motion.addEventListener("change", onMotionChange);
     else motion.addListener(onMotionChange);
