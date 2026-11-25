@@ -100,6 +100,16 @@
         });
       }
     }
+    const cam0 = camera();
+    for (let i = 0; i < windows.length; i++) {
+      const win = windows[i];
+      const y = (win.y0 + win.y1) / 2;
+      const p = win.face === 'L'
+        ? raw(cam0, (win.x0 + win.x1) / 2, y, 0)
+        : raw(cam0, 0, y, (win.z0 + win.z1) / 2);
+      win.cz = p[2];
+    }
+    windows.sort((a, b) => b.cz - a.cz);
   }
 
   function camera() {
@@ -300,43 +310,66 @@
     place(cam);
     drawSky();
     drawShell(cam);
-    const order = windows.slice().sort((a, b) => b.cz - a.cz);
-    for (const win of order) drawWindow(win, cam);
+    for (let i = 0; i < windows.length; i++) drawWindow(windows[i], cam);
+  }
+
+  let paintMode = 'draw';
+
+  function applySize() {
+    const pw = Math.max(1, Math.floor(w * dpr));
+    const ph = Math.max(1, Math.floor(h * dpr));
+    if (canvas.width !== pw || canvas.height !== ph) {
+      canvas.width = pw;
+      canvas.height = ph;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function onFrame(now) {
+    raf = 0;
+    const mode = paintMode;
+    applySize();
+    if (reduced) {
+      for (let i = 0; i < windows.length; i++) windows[i].open = HALF;
+      draw();
+      return;
+    }
+    if (mode === 'step') advance(now);
+    else draw();
+  }
+
+  function schedule(mode) {
+    if (reduced && mode === 'step') return;
+    if (raf) {
+      if (mode === 'step' && paintMode !== 'step') {
+        paintMode = 'step';
+        last = performance.now();
+      }
+      return;
+    }
+    paintMode = reduced ? 'draw' : mode;
+    if (paintMode === 'step') last = performance.now();
+    raf = requestAnimationFrame(onFrame);
   }
 
   function resize() {
-    dpr = Math.min(2, window.devicePixelRatio || 1);
-    w = window.innerWidth;
-    h = window.innerHeight;
-    canvas.width = Math.max(1, Math.floor(w * dpr));
-    canvas.height = Math.max(1, Math.floor(h * dpr));
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (reduced) {
-      cancel();
-      for (const win of windows) win.open = HALF;
-    }
-    draw();
+    const ndpr = Math.min(2, window.devicePixelRatio || 1);
+    const nw = window.innerWidth;
+    const nh = window.innerHeight;
+    if (nw === w && nh === h && ndpr === dpr) return;
+    w = nw;
+    h = nh;
+    dpr = ndpr;
+    schedule(pointer ? 'step' : 'draw');
   }
 
-  function cancel() {
-    if (raf) cancelAnimationFrame(raf);
-    raf = 0;
-  }
-
-  function arm() {
-    if (reduced || raf) return;
-    last = performance.now();
-    raf = requestAnimationFrame(step);
-  }
-
-  function step(now) {
-    raf = 0;
-    if (reduced) return;
+  function advance(now) {
     const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
     last = now;
     const rad = radius();
     let moving = false;
-    for (const win of windows) {
+    for (let i = 0; i < windows.length; i++) {
+      const win = windows[i];
       const target = targetOf(win);
       const dist = pointer ? Math.hypot(pointer.x - win.sx, pointer.y - win.sy) : rad;
       const near = pointer ? clamp01(1 - dist / rad) : 0;
@@ -346,19 +379,29 @@
       win.open = next;
     }
     draw();
-    if (moving) raf = requestAnimationFrame(step);
+    if (moving) schedule('step');
   }
 
   function onPointer(e) {
     if (reduced) return;
     pointer = { x: e.clientX, y: e.clientY, type: e.pointerType || 'mouse' };
-    arm();
+    schedule('step');
+  }
+
+  function release() {
+    if (reduced || !pointer) return;
+    pointer = null;
+    schedule('step');
   }
 
   function onLeave(e) {
-    if (reduced || (e && e.pointerType === 'touch')) return;
-    pointer = null;
-    arm();
+    if (e && e.pointerType === 'touch') return;
+    release();
+  }
+
+  function onUp(e) {
+    if (e.pointerType !== 'touch') return;
+    release();
   }
 
   build();
@@ -366,15 +409,18 @@
   window.addEventListener('resize', resize);
   window.addEventListener('pointerdown', onPointer, { passive: true });
   window.addEventListener('pointermove', onPointer, { passive: true });
+  window.addEventListener('pointerup', onUp, { passive: true });
   window.addEventListener('pointerleave', onLeave);
-  window.addEventListener('pointercancel', onLeave);
+  window.addEventListener('pointercancel', release);
+  window.addEventListener('blur', release);
   motion.addEventListener('change', () => {
     reduced = motion.matches;
     pointer = null;
     if (reduced) {
-      cancel();
-      for (const win of windows) win.open = HALF;
-      draw();
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      for (let i = 0; i < windows.length; i++) windows[i].open = HALF;
+      schedule('draw');
     }
   });
 })();
