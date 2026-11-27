@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>镂空字母随滚动让开</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #0c0c0c;
+      color: #f4f4f1;
+      font: 15px/1.4 system-ui, "Segoe UI", sans-serif;
+    }
+    #stage {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background: #0c0c0c;
+      touch-action: none;
+      cursor: ns-resize;
+    }
+    #stage:focus { outline: none; }
+    #stage:focus-visible { outline: 2px solid #f4f4f1; outline-offset: -6px; }
+    #stream, #word { position: absolute; left: 0; top: 0; pointer-events: none; }
+    #stream { width: 100%; height: 100%; }
+    #word { display: block; overflow: visible; }
+    .piece {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .pair { display: flex; gap: 22px; align-items: center; }
+    .disk {
+      width: min(28vh, 168px);
+      height: min(28vh, 168px);
+      border-radius: 50%;
+      display: block;
+    }
+    .disk.sm { width: min(9vh, 54px); height: min(9vh, 54px); }
+    .bar {
+      width: min(52vw, 460px);
+      height: 26px;
+      border-radius: 999px;
+      background: #d7d2c8;
+    }
+    .tri {
+      width: 0;
+      height: 0;
+      border-left: min(11vh, 78px) solid transparent;
+      border-right: min(11vh, 78px) solid transparent;
+      border-bottom: min(16vh, 118px) solid #cbbba6;
+    }
+    .sq { width: min(14vh, 96px); height: min(14vh, 96px); background: #9aab9a; }
+    .card, .slab {
+      width: min(42vw, 300px);
+      background: #f3f0e8;
+      color: #1a1a1a;
+      padding: 16px 16px 14px;
+    }
+    .card b, .slab b { display: block; font-size: 15px; font-weight: 650; }
+    .card span, .slab span { display: block; margin-top: 6px; font-size: 13px; line-height: 1.45; }
+    .cap { margin: 0; font-size: 13px; letter-spacing: 0.04em; color: #f4f4f1; }
+    #hint {
+      position: absolute;
+      left: 16px;
+      top: 14px;
+      margin: 0;
+      max-width: calc(100% - 32px);
+      font-size: 12px;
+      color: #bdbdb8;
+      pointer-events: none;
+    }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage" tabindex="0" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="字母贴着下沿" aria-label="镂空字母滚动">
+    <div id="stream">
+      <div class="piece" data-anchor="0.74">
+        <span class="disk sm" style="background:#e4dfd6"></span>
+        <span class="bar"></span>
+      </div>
+      <div class="piece" data-anchor="1.00">
+        <div class="pair">
+          <span class="disk" style="background:#d9d3c7"></span>
+          <span class="disk" style="background:#c8b8a4"></span>
+        </div>
+        <p class="cap">两圆从字腔里上去</p>
+      </div>
+      <div class="piece" data-anchor="1.30">
+        <span class="tri"></span>
+        <p class="cap">三角继续穿</p>
+      </div>
+      <div class="piece" data-anchor="1.62">
+        <div class="pair">
+          <span class="disk" style="background:#c5d0c4"></span>
+          <span class="disk" style="background:#8ea0ae"></span>
+        </div>
+        <p class="cap">到顶时仍在字腔里</p>
+      </div>
+      <div class="piece" data-anchor="1.98">
+        <div class="card">
+          <b>一块平面</b>
+          <span>短说明贴在色块上，跟着同一段进度从空隙里走过去。</span>
+        </div>
+      </div>
+      <div class="piece" data-anchor="2.34">
+        <div class="slab">
+          <b>贴住之后还在穿</b>
+          <span>字母到上沿以后，色块仍连续往上，不会换一帧切掉。</span>
+        </div>
+      </div>
+    </div>
+    <svg id="word" viewBox="0 0 1280 280" aria-hidden="true">
+      <g fill="#f5f5f2" fill-rule="evenodd">
+        <path d="M16 18H188V122H100V214H16Z M96 50H154V98H96Z"/>
+        <path d="M206 18H420V214H206Z M262 52H364V180H262Z"/>
+        <path d="M438 18H616V118H530L650 214H580L516 150V214H438Z M512 48V94H578V48Z"/>
+        <path d="M678 18H900V72H812V214H766V72H678Z"/>
+        <path d="M918 18H1136V214H1064V158H990V214H918Z M990 62H1064V116H990Z"/>
+        <path d="M1154 18H1224V156H1264V214H1154Z"/>
+      </g>
+      <line x1="16" y1="236" x2="1264" y2="236" stroke="#f5f5f2" stroke-width="3"/>
+      <g fill="#f5f5f2" font-family="system-ui, sans-serif" font-size="18">
+        <text x="16" y="264">占位字</text>
+        <text x="548" y="264">随滚动上升</text>
+        <text x="980" y="264">从字腔穿过</text>
+      </g>
+    </svg>
+    <p id="hint">滚轮、拖动或方向键。字母从下沿升到顶上。</p>
+  </div>
+  <p class="sr" id="live" aria-live="polite"></p>
+  <script>
+    (function () {
+      var stage = document.getElementById("stage");
+      var stream = document.getElementById("stream");
+      var word = document.getElementById("word");
+      var hint = document.getElementById("hint");
+      var live = document.getElementById("live");
+      var pieces = Array.prototype.slice.call(stream.querySelectorAll(".piece"));
+      var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      var progress = 0;
+      var touchY = null;
+      var announced = "";
+      var SPAN = 980;
+
+      function clamp(n) { return n < 0 ? 0 : n > 1 ? 1 : n; }
+      function smooth(t) { return t * t * (3 - 2 * t); }
+      function liftOf(p) {
+        var t = (p - 0.18) / 0.4;
+        if (t < 0) t = 0;
+        if (t > 1) t = 1;
+        return smooth(t);
+      }
+      function shown() { return motion.matches ? 1 : progress; }
+
+      function layoutPieces() {
+        var h = stage.clientHeight;
+        pieces.forEach(function (el) {
+          el.style.top = (Number(el.getAttribute("data-anchor")) * h) + "px";
+        });
+      }
+
+      function phrase(p, lift) {
+        if (motion.matches) return "已直接停在顶上。字母贴着上沿，色块停在穿过之后。";
+        if (lift < 0.04) return "字母贴着下沿。进度 " + Math.round(p * 100) + "。";
+        if (lift > 0.96) return "字母贴着上沿。进度 " + Math.round(p * 100) + "。";
+        return "字母正在上升。进度 " + Math.round(p * 100) + "。";
+      }
+
+      function paint() {
+        var h = stage.clientHeight;
+        var w = stage.clientWidth;
+        var p = shown();
+        var lift = liftOf(p);
+        var letterH = Math.min(Math.max(h * 0.28, 108), h * 0.42);
+        var letterW = letterH * (1280 / 280);
+        var bottomY = h - letterH - Math.max(6, h * 0.012);
+        var topY = Math.max(6, h * 0.012);
+        var y = bottomY + (topY - bottomY) * lift;
+        word.style.width = letterW + "px";
+        word.style.height = letterH + "px";
+        word.style.left = ((w - letterW) / 2) + "px";
+        word.style.transform = "translate3d(0," + y + "px,0)";
+        stream.style.transform = "translate3d(0," + (-p * h * 1.5) + "px,0)";
+        var now = String(Math.round(p * 100));
+        var text = phrase(p, lift);
+        stage.setAttribute("aria-valuenow", now);
+        stage.setAttribute("aria-valuetext", text);
+        hint.hidden = p > 0.03;
+        if (text !== announced) {
+          announced = text;
+          live.textContent = text;
+        }
+      }
+
+      function setProgress(next) {
+        if (motion.matches) return;
+        progress = clamp(next);
+        paint();
+      }
+
+      function onMotion() { paint(); }
+
+      window.addEventListener("wheel", function (e) {
+        e.preventDefault();
+        var dy = e.deltaY;
+        if (e.deltaMode === 1) dy *= 16;
+        else if (e.deltaMode === 2) dy *= stage.clientHeight;
+        setProgress(progress + dy / SPAN);
+      }, { passive: false });
+
+      stage.addEventListener("touchstart", function (e) {
+        if (e.touches.length === 1) touchY = e.touches[0].clientY;
+      }, { passive: true });
+
+      stage.addEventListener("touchmove", function (e) {
+        if (touchY == null) return;
+        var y = e.touches[0].clientY;
+        var dy = touchY - y;
+        touchY = y;
+        e.preventDefault();
+        setProgress(progress + dy / SPAN);
+      }, { passive: false });
+
+      stage.addEventListener("touchend", function () { touchY = null; });
+      stage.addEventListener("touchcancel", function () { touchY = null; });
+
+      window.addEventListener("keydown", function (e) {
+        var step = null;
+        if (e.key === "ArrowDown") step = 0.06;
+        else if (e.key === "ArrowUp") step = -0.06;
+        else if (e.key === "PageDown" || e.key === " ") step = 0.18;
+        else if (e.key === "PageUp") step = -0.18;
+        else if (e.key === "Home") step = -progress;
+        else if (e.key === "End") step = 1 - progress;
+        if (step == null) return;
+        e.preventDefault();
+        setProgress(progress + step);
+      });
+
+      if (motion.addEventListener) motion.addEventListener("change", onMotion);
+      else if (motion.addListener) motion.addListener(onMotion);
+      window.addEventListener("resize", function () {
+        layoutPieces();
+        paint();
+      });
+
+      var params = new URLSearchParams(location.search);
+      if (params.has("at")) {
+        var n = Number(params.get("at"));
+        if (isFinite(n)) progress = clamp(n > 1 ? n / 100 : n);
+      }
+      layoutPieces();
+      paint();
+    })();
+  </script>
+</body>
+</html>
