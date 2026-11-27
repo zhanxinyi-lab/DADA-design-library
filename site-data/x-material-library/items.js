@@ -7305,5 +7305,1043 @@ window.ITEMS=[
     "library_name": "Parametric Sprite Stacking（Forge collection）",
     "source_label": "Forge",
     "code_note": "外链登记，不复刻，不保存对方的视频或截图。"
+  },
+  {
+    "id": "2124431846859813234",
+    "url": "https://x.com/MengTo/status/2124431846859813234",
+    "author": "MengTo",
+    "author_name": "Meng To",
+    "created_at": "2026-11-22T09:16:36.000Z",
+    "lang": "en",
+    "text": "GPT 6.2 Astra recreated this desk in three.js. Every desk object is interactive, down to the pen. Tap sunset on the Liquid Glass UI and the whole room warms up.\n\nSite: \n\nI open-sourced 3 skills for the liquid glass, shaders and 3d room:\n\nGlass \nPress shaders \n3D room",
+    "sources": [
+      "brief",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "场景",
+      "灯光",
+      "WebGL",
+      "官网",
+      "互动"
+    ],
+    "metrics": {
+      "bookmark_count": 996,
+      "impression_count": 84327,
+      "like_count": 956,
+      "quote_count": 14,
+      "reply_count": 61,
+      "repost_count": 81
+    },
+    "links": [
+      "https://threeui.com/studio-glass",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/ui/refract-liquid-glass",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/ui/shade-glass-button-press",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/light-a-threejs-workspace"
+    ],
+    "code_links": [
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/ui/refract-liquid-glass",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/ui/shade-glass-button-press",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/light-a-threejs-workspace"
+    ],
+    "code_snippets": [],
+    "images": [
+      "assets/2124431846859813234/poster0.jpg",
+      "assets/2124431846859813234/img2.jpg"
+    ],
+    "poster": "assets/2124431846859813234/poster0.jpg",
+    "video": "assets/2124431846859813234/preview.mp4",
+    "preview": "assets/2124431846859813234/preview.webm",
+    "duration_s": 33,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-24T23:04:36+08:00",
+    "effect_zh": "MengTo 用 three.js 做了一间能在网页里走进去的书房。桌上的物件都能点，点 Sunset 后窗外的光会收进去，房间慢慢暖成夜灯。适合做产品展示或品牌场景页：在房间里直接调光线，而不是另开一层设置。站点 threeui.com/studio-glass。",
+    "platform": "x",
+    "title": "互动书桌 Studio Glass：点一下光线，房间就会从白天转到夜灯",
+    "cindy_job": "cindy-jobs/2124431846859813234"
+  },
+  {
+    "id": "2125025159438577940",
+    "url": "https://x.com/viktoroddy/status/2125025159438577940",
+    "author": "viktoroddy",
+    "author_name": "Viktor Oddy",
+    "created_at": "2026-11-24T00:34:13.000Z",
+    "lang": "en",
+    "text": "Shopping for kids' clothes should feel like play.\n\nSo the store became a carousel you can fling 🎠\n\nTap a piece, swap the colour, add to bag.\n\nFree prompt below 👇",
+    "sources": [
+      "hotscan-1000",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "旋转木马",
+      "电商",
+      "换色",
+      "微交互",
+      "童装"
+    ],
+    "metrics": {
+      "bookmark_count": 77,
+      "impression_count": 5104,
+      "like_count": 106,
+      "quote_count": 1,
+      "reply_count": 9,
+      "repost_count": 2
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125025159438577940/poster0.jpg"
+    ],
+    "poster": "assets/2125025159438577940/poster0.jpg",
+    "video": "assets/2125025159438577940/preview.mp4",
+    "preview": "assets/2125025159438577940/preview.webm",
+    "duration_s": 8,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-24T23:04:36+08:00",
+    "effect_zh": "BUNTO 童装店把货架做成可以甩动的旋转木马：衣服在米白背景和大字 TINY 前面排成一圈，点开一件就能换颜色、放进购物袋。适合儿童用品或轻时装官网：把逛店做成玩耍，而不是静态货架。",
+    "platform": "x",
+    "title": "童装店 BUNTO：货架做成能甩动的旋转木马，点开就能换色加购",
+    "cindy_job": "cindy-jobs/2125025159438577940"
+  },
+  {
+    "id": "2125125308991090749",
+    "url": "https://x.com/MengTo/status/2125125308991090749",
+    "author": "MengTo",
+    "author_name": "Meng To",
+    "created_at": "2026-11-24T07:12:11.000Z",
+    "lang": "en",
+    "text": "After working for 5 days with Astra 6.2, I've come to love this model the most. It's extremely fast and has the best taste in 3D.\n\nHere's a landing page I built with it: \n\nI started making more skills as a result of this requiring more steering, which is not a bad thing.\n\nSkills I used, all open-sourced:\n\nParticle dissolve \n3D objects \nTopography \nBorder flashlight",
+    "sources": [
+      "hotscan-1600",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "滚动",
+      "WebGL",
+      "粒子",
+      "落地页",
+      "标本"
+    ],
+    "metrics": {
+      "bookmark_count": 410,
+      "impression_count": 21637,
+      "like_count": 388,
+      "quote_count": 0,
+      "reply_count": 33,
+      "repost_count": 30
+    },
+    "links": [
+      "https://threeui.com/saltmere",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/hover-particle-dissolve",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/3d-feature-objects",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/interactive-topography",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/web-design/gradient-border-flashlight"
+    ],
+    "code_links": [
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/hover-particle-dissolve",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/3d-feature-objects",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/interactive-topography",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/web-design/gradient-border-flashlight"
+    ],
+    "code_snippets": [],
+    "images": [
+      "assets/2125125308991090749/poster0.jpg",
+      "assets/2125125308991090749/img2.jpg",
+      "assets/2125125308991090749/img3.jpg"
+    ],
+    "poster": "assets/2125125308991090749/poster0.jpg",
+    "video": "assets/2125125308991090749/preview.mp4",
+    "preview": "assets/2125125308991090749/preview.webm",
+    "duration_s": 59,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-24T23:04:36+08:00",
+    "effect_zh": "MengTo 做的海边观测站落地页 Saltmere：首屏的雨伞、纸鹤和浑天仪可以拖着转，还会碎成粒子再聚合成下一件标本；往下滚还能看到潮汐仪表、年份等高线图，以及跟着光走的海床。适合自然、科研或品牌故事页：把 3D 标本和数据卡片放在同一屏里把玩。站点 threeui.com/saltmere。",
+    "platform": "x",
+    "title": "海边观测站 Saltmere：标本能拖转，碎成粒子后再聚成下一件",
+    "cindy_job": "cindy-jobs/2125125308991090749"
+  },
+  {
+    "id": "2125168311340282300",
+    "url": "https://x.com/greensock/status/2125168311340282300",
+    "author": "greensock",
+    "author_name": "GSAP",
+    "created_at": "2026-11-24T10:03:03.000Z",
+    "lang": "ro",
+    "text": "💚 Site of the Day - AI Ui(s)\n\nFederico — @ffmfed \n\n🛠️ WebGL, Astro, WebGPU\n\nsite → \nshowcase →",
+    "sources": [
+      "hotscan-2200",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "排版",
+      "搜索",
+      "WebGL",
+      "手册",
+      "互动"
+    ],
+    "metrics": {
+      "bookmark_count": 41,
+      "impression_count": 2509,
+      "like_count": 59,
+      "quote_count": 1,
+      "reply_count": 2,
+      "repost_count": 6
+    },
+    "links": [
+      "https://aiu.is/",
+      "https://gsap.com/showcase"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125168311340282300/poster0.jpg",
+      "assets/2125168311340282300/img2.jpg",
+      "assets/2125168311340282300/img3.jpg"
+    ],
+    "poster": "assets/2125168311340282300/poster0.jpg",
+    "video": "assets/2125168311340282300/preview.mp4",
+    "preview": "assets/2125168311340282300/preview.webm",
+    "duration_s": 20,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-24T23:04:36+08:00",
+    "effect_zh": "Federico 做的站点 aiu.is（GSAP Site of the Day）是一本讲「AI 界面」的在线手册。蓝墨水手写感的字会顺着阅读轻轻起伏，左边是可点的章节目录。后面还有可拖、可缩放的生成情绪板，以及「Find something about…」搜索——打字后对应章节会变成小球被吸到指针旁边，也可以用手推开。适合资料站、作品集或带检索的内容页。站点用了 WebGL、Astro 和 WebGPU。",
+    "platform": "x",
+    "title": "aiu.is 手册站：字会随阅读起伏，搜索时章节会变成小球被吸过来",
+    "cindy_job": "cindy-jobs/2125168311340282300"
+  },
+  {
+    "id": "2124822349568483743",
+    "url": "https://x.com/milosboyk/status/2124822349568483743",
+    "author": "milosboyk",
+    "author_name": "Milos Bojkovic",
+    "created_at": "2026-11-23T11:08:20.000Z",
+    "lang": "en",
+    "text": "Interactive parcel concept for the careers page",
+    "sources": [
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "招聘",
+      "信封",
+      "贴纸",
+      "微交互",
+      "官网"
+    ],
+    "metrics": {
+      "bookmark_count": 130,
+      "impression_count": 5969,
+      "like_count": 226,
+      "quote_count": 0,
+      "reply_count": 6,
+      "repost_count": 11
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2124822349568483743/poster0.jpg",
+      "assets/2124822349568483743/img2.jpg"
+    ],
+    "poster": "assets/2124822349568483743/poster0.jpg",
+    "video": "assets/2124822349568483743/preview.mp4",
+    "preview": "assets/2124822349568483743/preview.webm",
+    "duration_s": 17,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-24T23:04:36+08:00",
+    "effect_zh": "招聘页把公司介绍做成一个可点的牛皮纸信封。点开后，远程办公、异步协作、Notify all 等福利贴纸会从信封里飞出，再一张张贴回信封表面。适合招聘或品牌介绍页：用拆包裹的动作把福利讲完，而不是用列表堆文字。",
+    "platform": "x",
+    "title": "招聘页信封：打开包裹时，福利贴纸会从里面飞出来贴上",
+    "cindy_job": "cindy-jobs/2124822349568483743"
+  },
+  {
+    "id": "2124665007485116636",
+    "url": "https://x.com/viktoroddy/status/2124665007485116636",
+    "author": "viktoroddy",
+    "author_name": "Viktor Oddy",
+    "created_at": "2026-11-23T00:43:06.000Z",
+    "lang": "en",
+    "text": "Food websites don't need 20 photos. They need one dish that moves 🔥\n\nA twirl of noodles lifts off the chopsticks, spins apart into shrimp, lime and peanuts, and plates itself as you scroll\n\nAI web design is getting ridiculous",
+    "sources": [
+      "hotscan-1600",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "滚动",
+      "餐饮",
+      "官网",
+      "拆装",
+      "hotscan"
+    ],
+    "metrics": {
+      "bookmark_count": 109,
+      "impression_count": 6408,
+      "like_count": 132,
+      "quote_count": 3,
+      "reply_count": 12,
+      "repost_count": 10
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2124665007485116636/poster0.jpg",
+      "assets/2124665007485116636/img2.jpg",
+      "assets/2124665007485116636/img3.jpg"
+    ],
+    "poster": "assets/2124665007485116636/poster0.jpg",
+    "video": "assets/2124665007485116636/preview.mp4",
+    "preview": "assets/2124665007485116636/preview.webm",
+    "duration_s": 7,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-23T23:10:33+08:00",
+    "effect_zh": "餐厅官网「BAAN street kitchen」把滚动做成一道菜：筷子先把拌面提起，面条旋转拆成虾仁、青柠、花生和豆芽，再自行落回盘中。导航和标题会跟着场景一起换。很适合做美食或品牌官网的滚动主视觉：一屏把菜品拆装和排版讲完。",
+    "platform": "x",
+    "title": "餐厅站 BAAN：滚动时拌面会旋转拆开，再自行落盘",
+    "cindy_job": "cindy-jobs/2124665007485116636"
+  },
+  {
+    "id": "2124235064125034827",
+    "url": "https://x.com/arnab_design/status/2124235064125034827",
+    "author": "arnab_design",
+    "author_name": "Arnab Debnath",
+    "created_at": "2026-11-21T20:14:40.000Z",
+    "lang": "en",
+    "text": "Filter chips, but the sheet comes from the chip itself.\n\nWhen you close it, your selection folds back into the bar, so you always know what's applied.\n\n#InteractionDesign #buildinpublic",
+    "sources": [
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "筛选",
+      "芯片",
+      "面板",
+      "微交互",
+      "bookmark"
+    ],
+    "metrics": {
+      "bookmark_count": 566,
+      "impression_count": 18763,
+      "like_count": 618,
+      "quote_count": 0,
+      "reply_count": 25,
+      "repost_count": 29
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2124235064125034827/poster0.jpg",
+      "assets/2124235064125034827/img2.jpg",
+      "assets/2124235064125034827/img3.jpg"
+    ],
+    "poster": "assets/2124235064125034827/poster0.jpg",
+    "video": "assets/2124235064125034827/preview.mp4",
+    "preview": "assets/2124235064125034827/preview.webm",
+    "duration_s": 22,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-23T23:10:33+08:00",
+    "effect_zh": "在商品列表里点筛选芯片，筛选面板会从那颗芯片本身展开；选好条件后面板再折回条上，已选项会留在芯片里，让人一眼知道当前筛了什么。适合电商列表或筛选条：打开和收回都连着原按钮，不会跳到别处。",
+    "platform": "x",
+    "title": "筛选芯片：面板从芯片长出来，选完再折回条上",
+    "cindy_job": "cindy-jobs/2124235064125034827"
+  },
+  {
+    "id": "2125567393414189415",
+    "url": "https://x.com/greensock/status/2125567393414189415",
+    "author": "greensock",
+    "author_name": "GSAP",
+    "created_at": "2026-11-25T12:28:52.000Z",
+    "lang": "en",
+    "text": "💚 Site of the Day - Better Call Quang - Portfolio Ver.02\n\nby Quang Nguyen\n\n⚙️ ScrollTrigger, ScrollSmoother, Draggable, SplitText\n🛠️ Three.js, WebGL\n\nsite → \nshowcase →",
+    "sources": [
+      "brief",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "作品集",
+      "滚动",
+      "三维",
+      "开场",
+      "交互"
+    ],
+    "metrics": {
+      "bookmark_count": 12,
+      "impression_count": 1400,
+      "like_count": 20,
+      "quote_count": 0,
+      "reply_count": 2,
+      "repost_count": 1
+    },
+    "links": [
+      "https://quangdinh.im/",
+      "https://gsap.com/showcase",
+      "https://www.quangdinh.im/",
+      "https://gsap.com/showcase/"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125567393414189415/poster0.jpg",
+      "assets/2125567393414189415/img1.jpg",
+      "assets/2125567393414189415/img3.jpg"
+    ],
+    "poster": "assets/2125567393414189415/poster0.jpg",
+    "video": "assets/2125567393414189415/preview.mp4",
+    "preview": "assets/2125567393414189415/preview.webm",
+    "duration_s": 73,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-26T23:12:26+08:00",
+    "effect_zh": "GSAP 今日最佳：Quang Nguyen 的个人作品集《Better Call Quang》。整个站做成复古电视购物片：红地毯上的旧电视先显示加载，再播出「QUANG DINH Presents」，作品一张张出现在放射状黄底上，中间还会拉开红幕布。联系页写成「1-800-DESIGN-NOW」这种假热线广告。适合创意人作品集，或想把进入、作品切换和联系方式都统一成同一种节目感的官网。用了 GSAP 和 Three.js。站点 quangdinh.im。",
+    "platform": "x",
+    "title": "作品集 Better Call Quang：整站做成复古电视购物片，先播预告再拉开红幕布",
+    "cindy_job": "cindy-jobs/2125567393414189415"
+  },
+  {
+    "id": "2125589026262692212",
+    "url": "https://x.com/greensock/status/2125589026262692212",
+    "author": "greensock",
+    "author_name": "GSAP",
+    "created_at": "2026-11-25T13:54:50.000Z",
+    "lang": "en",
+    "text": "🏆 Site of the Week - FORMAT\n\n@obys_agency\n\n⚙️ ScrollTrigger, Observer\n🛠️ Lenis\n\nsite → \nshowcase →",
+    "sources": [
+      "brief",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "排版",
+      "滚动",
+      "目录",
+      "刊物",
+      "交互"
+    ],
+    "metrics": {
+      "bookmark_count": 22,
+      "impression_count": 2469,
+      "like_count": 38,
+      "quote_count": 1,
+      "reply_count": 2,
+      "repost_count": 5
+    },
+    "links": [
+      "https://format.obys.agency/",
+      "https://gsap.com/showcase",
+      "https://gsap.com/showcase/"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125589026262692212/poster0.jpg",
+      "assets/2125589026262692212/img2.jpg",
+      "assets/2125589026262692212/img3.jpg"
+    ],
+    "poster": "assets/2125589026262692212/poster0.jpg",
+    "video": "assets/2125589026262692212/preview.mp4",
+    "preview": "assets/2125589026262692212/preview.webm",
+    "duration_s": 12,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-26T23:12:26+08:00",
+    "effect_zh": "GSAP 本周最佳：Obys 做的「FORMAT」特殊项目。黑白页面上，超大的 FORMAT 字母和竖排、横排的版式说明会跟着滚动重新组合，中间还有一个像时钟一样的圆形目录，下面是「1.1 Usage」这种用法说明卡片。适合刊物、字体或版式展示站：用排版系统自己讲解排版，画面克制、层级清楚。用了 GSAP ScrollTrigger 和 Lenis。站点 format.obys.agency。",
+    "platform": "x",
+    "title": "Obys「FORMAT」版式站：超大字母和说明会跟着滚动重新组合",
+    "cindy_job": "cindy-jobs/2125589026262692212"
+  },
+  {
+    "id": "2125603009518579978",
+    "url": "https://x.com/codrops/status/2125603009518579978",
+    "author": "codrops",
+    "author_name": "Codrops",
+    "created_at": "2026-11-25T14:50:23.000Z",
+    "lang": "en",
+    "text": "A 3D portfolio built like a simulation, where a brutalist room draws itself in light and every project rains down as particles. 🌧️\n\n@brice_deg shows how he made it: \n\n#threejs #webgpu #portfolio",
+    "sources": [
+      "hotscan-0400",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "作品集",
+      "三维",
+      "粒子",
+      "WebGPU",
+      "交互"
+    ],
+    "metrics": {
+      "bookmark_count": 45,
+      "impression_count": 5137,
+      "like_count": 54,
+      "quote_count": 2,
+      "reply_count": 4,
+      "repost_count": 3
+    },
+    "links": [
+      "https://tympanus.net/codrops/?p=126514",
+      "https://www.bricelab.dev/",
+      "https://tympanus.net/codrops/2026/11/25/brice-deguigne-3d-portfolio/"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125603009518579978/poster0.jpg",
+      "assets/2125603009518579978/img1.jpg"
+    ],
+    "poster": "assets/2125603009518579978/poster0.jpg",
+    "video": "assets/2125603009518579978/preview.mp4",
+    "preview": "assets/2125603009518579978/preview.webm",
+    "duration_s": 15,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-26T23:12:26+08:00",
+    "effect_zh": "Brice Deguigne 的三维作品集 Bricelab：先按住进入一座暴风混凝土院子，项目会像粒子雨一样从空中落下，点到 AEGIS 时粒子会聚成作品。适合创意人作品集或需要沉浸感的官网：先进入一个完整空间，再用粒子把项目唤出来。站点用了 Three.js / WebGPU。站点 bricelab.dev。",
+    "platform": "x",
+    "title": "Bricelab 三维作品集：按住进入混凝土院子，项目会化成粒子雨再聚成作品",
+    "cindy_job": "cindy-jobs/2125603009518579978"
+  },
+  {
+    "id": "2125878745898586226",
+    "url": "https://x.com/awwwards/status/2125878745898586226",
+    "author": "awwwards",
+    "author_name": "awwwards.",
+    "created_at": "2026-11-26T09:06:04.000Z",
+    "lang": "en",
+    "text": "Today’s #SOTD goes to @studiofreight for \"Huxley Saga\".\n\n\n\nThe HUXLEY® saga is an original sci-fi universe created by renowned concept artist Ben Mauro.\n\nCongratulations!",
+    "sources": [
+      "hotscan-2200",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "官网",
+      "开场",
+      "标题",
+      "影视",
+      "滚动"
+    ],
+    "metrics": {
+      "bookmark_count": 6,
+      "impression_count": 1615,
+      "like_count": 17,
+      "quote_count": 0,
+      "reply_count": 0,
+      "repost_count": 1
+    },
+    "links": [
+      "https://www.awwwards.com/sites/huxley-saga",
+      "https://www.huxleysaga.com/"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125878745898586226/poster0.jpg",
+      "assets/2125878745898586226/img2.jpg",
+      "assets/2125878745898586226/img3.jpg"
+    ],
+    "poster": "assets/2125878745898586226/poster0.jpg",
+    "video": "assets/2125878745898586226/preview.mp4",
+    "preview": "assets/2125878745898586226/preview.webm",
+    "duration_s": 8,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-26T23:12:26+08:00",
+    "effect_zh": "Studio Freight 为概念艺术家 Ben Mauro 的科幻宇宙 Huxley Saga 做的官网（Awwwards 每日最佳）：血红废土上，超宽标题一个字母一个字母拼出 HUXLEY，再切到沙漠残骸和人物特写。适合游戏或影视官网的开场标题和滚动转场：把大字和影像压在一起，做成电影感的进入。站点 huxleysaga.com。",
+    "platform": "x",
+    "title": "科幻宇宙站 Huxley Saga：血红废土上，超宽标题一个字母一个字母拼出 HUXLEY",
+    "cindy_job": "cindy-jobs/2125878745898586226"
+  },
+  {
+    "id": "2125894395652358457",
+    "url": "https://x.com/viktoroddy/status/2125894395652358457",
+    "author": "viktoroddy",
+    "author_name": "Viktor Oddy",
+    "created_at": "2026-11-26T10:08:15.000Z",
+    "lang": "en",
+    "text": "This chocolate brand site is unreal 😮‍💨\n\na paper loader rips open, four giant bars sit tilted across the hero, and on scroll the dark one lifts out, turns upright and lands in the next section\n\nreal working website, not a motion design video",
+    "sources": [
+      "hotscan-2200",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "官网",
+      "产品",
+      "加载",
+      "滚动",
+      "食品"
+    ],
+    "metrics": {
+      "bookmark_count": 24,
+      "impression_count": 2281,
+      "like_count": 29,
+      "quote_count": 0,
+      "reply_count": 4,
+      "repost_count": 0
+    },
+    "links": [],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125894395652358457/poster0.jpg",
+      "assets/2125894395652358457/img2.jpg"
+    ],
+    "poster": "assets/2125894395652358457/poster0.jpg",
+    "video": "assets/2125894395652358457/preview.mp4",
+    "preview": "assets/2125894395652358457/preview.webm",
+    "duration_s": 7,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-26T23:12:26+08:00",
+    "effect_zh": "巧克力品牌站 COCOVEIL：开场像撕开包装纸，深棕色画面裂开后露出可可果，接着四块斜放的巧克力排在首页，滚动时深色那块会抬起来、转正，再落到下一屏。适合食品或快消官网的加载和产品切换：把包装动作做成转场。原帖未给出独立站点链接。",
+    "platform": "x",
+    "title": "巧克力品牌站 COCOVEIL：开场像撕开包装纸，滚动时斜放的巧克力会抬起来转正",
+    "cindy_job": "cindy-jobs/2125894395652358457"
+  },
+  {
+    "id": "2125995984400654658",
+    "url": "https://x.com/MengTo/status/2125995984400654658",
+    "author": "MengTo",
+    "author_name": "Meng To",
+    "created_at": "2026-11-26T16:51:56.000Z",
+    "lang": "en",
+    "text": "I built an endless three.js motorcycle ride with GPT-6.2 Astra. I used parallax and fisheye camera tricks to achieve this.\n\nUrl: \n\nSkills open-sourced:\nFisheye \nParallax \nParticles & sky \n\nInspiration:",
+    "sources": [
+      "hotscan-0400",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "开场",
+      "三维",
+      "滚动",
+      "游戏",
+      "官网"
+    ],
+    "metrics": {
+      "bookmark_count": 3857,
+      "impression_count": 174539,
+      "like_count": 3895,
+      "quote_count": 27,
+      "reply_count": 130,
+      "repost_count": 309
+    },
+    "links": [
+      "https://threeui.com/cloud-pass",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/scroll-fisheye-dolly-zoom",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/endless-riding-parallax",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/ride-particles-and-clouds",
+      "https://x.com/hi_personality/status/2123931908027646007"
+    ],
+    "code_links": [
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/scroll-fisheye-dolly-zoom",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/endless-riding-parallax",
+      "https://github.com/MengTo/Skills/tree/main/agent-skills/3d/ride-particles-and-clouds"
+    ],
+    "code_snippets": [],
+    "images": [
+      "assets/2125995984400654658/poster0.jpg",
+      "assets/2125995984400654658/img2.jpg",
+      "assets/2125995984400654658/img3.jpg"
+    ],
+    "poster": "assets/2125995984400654658/poster0.jpg",
+    "video": "assets/2125995984400654658/preview.mp4",
+    "preview": "assets/2125995984400654658/preview.webm",
+    "duration_s": 40,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-27T23:23:25+08:00",
+    "effect_zh": "MengTo 做的网页「Cloud Pass」：你跟着一辆红摩托在云雾山道上一直骑，镜头带一点鱼眼，白天、黄昏到夜里风景会跟着变。左下角大标题和「和 Lin 一起骑」的按钮一直叠在画面上。做游戏或旅游官网的开场时，可以借鉴这种人在风景里走、标题又不挡路的长镜头。用了 three.js。站点 threeui.com/cloud-pass。",
+    "platform": "x",
+    "title": "Cloud Pass 云中骑行：红摩托沿着邮路一直开，白天到夜里风景会跟着变",
+    "cindy_job": "cindy-jobs/2125995984400654658"
+  },
+  {
+    "id": "2125997425643126994",
+    "url": "https://x.com/techartist_/status/2125997425643126994",
+    "author": "techartist_",
+    "author_name": "Techartist",
+    "created_at": "2026-11-26T16:57:40.000Z",
+    "lang": "en",
+    "text": "Static textbook diagrams make evolution look boring. \n\nSo I turned the entire chapter into a tactile, interactive field journal. 10 hands-on lessons, real museum and field measurements, and a visual chapter test.\n\nBuilt with Gemini 4 Neon. All lessons ↓",
+    "sources": [
+      "hotscan-0400",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "交互",
+      "教育",
+      "手账",
+      "拖拽",
+      "翻页"
+    ],
+    "metrics": {
+      "bookmark_count": 1021,
+      "impression_count": 52752,
+      "like_count": 1050,
+      "quote_count": 12,
+      "reply_count": 46,
+      "repost_count": 118
+    },
+    "links": [
+      "https://iamtechartist.com/evolution/"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125997425643126994/poster0.jpg",
+      "assets/2125997425643126994/img2.jpg",
+      "assets/2125997425643126994/img3.jpg"
+    ],
+    "poster": "assets/2125997425643126994/poster0.jpg",
+    "video": "assets/2125997425643126994/preview.mp4",
+    "preview": "assets/2125997425643126994/preview.webm",
+    "duration_s": 30,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-27T23:23:25+08:00",
+    "effect_zh": "techartist 把进化论整章做成一本可翻的野外笔记：左边是课文和目标，右边可以拖动手骨看它变成蝙蝠翅膀或鲸鳍，也可以量蜗牛壳、点开鸡蛋里的胚胎。课与课之间会像卷轴一样收起来再展开。做教育产品、博物馆或需要边看边动手的说明页时，这种把教材做成完整手账的办法很值得看。站点 iamtechartist.com/evolution。",
+    "platform": "x",
+    "title": "进化论野外笔记：拖动手骨，它会慢慢变成翅膀或鱼鳍",
+    "cindy_job": "cindy-jobs/2125997425643126994"
+  },
+  {
+    "id": "2126118398203727896",
+    "url": "https://x.com/tobi/status/2126118398203727896",
+    "author": "tobi",
+    "author_name": "tobi lutke",
+    "created_at": "2026-11-27T00:58:22.000Z",
+    "lang": "en",
+    "text": "It’s Black Friday (GMT) which means the BFCM globe is live.\n\nMore data this year and a new game. We put the globe in the middle of a skate park. Play with your friends.\n\nIt uses WebGPU with HDR, so the arcs really shine.",
+    "sources": [
+      "hotscan-2200",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "三维",
+      "活动",
+      "数据",
+      "漫游",
+      "交互"
+    ],
+    "metrics": {
+      "bookmark_count": 419,
+      "impression_count": 129799,
+      "like_count": 1341,
+      "quote_count": 74,
+      "reply_count": 149,
+      "repost_count": 115
+    },
+    "links": [
+      "https://bfcm.shop/"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2126118398203727896/poster0.jpg",
+      "assets/2126118398203727896/img2.jpg",
+      "assets/2126118398203727896/img3.jpg"
+    ],
+    "poster": "assets/2126118398203727896/poster0.jpg",
+    "video": "assets/2126118398203727896/preview.mp4",
+    "preview": "assets/2126118398203727896/preview.webm",
+    "duration_s": 27,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-27T23:23:25+08:00",
+    "effect_zh": "Shopify 今年的黑五地球仪被放到一座海边滑板公园里：你可以滑过坡道，路边大屏和广告牌上会实时跳出每分钟销售额，点进去还能看到那个会发光的地球数据看板。做活动官网或需要把数据变得可玩的时候，这种把看板嵌进一座能逛的小世界的办法很值得看。站点 bfcm.shop。",
+    "platform": "x",
+    "title": "Shopify 黑五滑板公园：滑过坡道时，路边大屏会跳出每分钟销售额",
+    "cindy_job": "cindy-jobs/2126118398203727896"
+  },
+  {
+    "id": "2126055785860137135",
+    "url": "https://x.com/jeffgrimes9/status/2126055785860137135",
+    "author": "jeffgrimes9",
+    "author_name": "Jeff Grimes",
+    "created_at": "2026-11-26T20:49:34.000Z",
+    "lang": "en",
+    "text": "Perplexity made an introductory physics textbook with interactive 3D illustrations.\n\nThe interactive components are built in Three.js, rendering text and illustrations onto Canvas textures. Perplexity used Playwright to drive the interactions frame by frame, and FFmpeg to encode the 60fps walkthrough video.",
+    "sources": [
+      "hotscan-2200",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "交互",
+      "教育",
+      "三维",
+      "翻页",
+      "控件"
+    ],
+    "metrics": {
+      "bookmark_count": 67,
+      "impression_count": 36028,
+      "like_count": 77,
+      "quote_count": 6,
+      "reply_count": 2,
+      "repost_count": 12
+    },
+    "links": [
+      "https://curious-machines.pplx.app/"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2126055785860137135/poster0.jpg",
+      "assets/2126055785860137135/img2.jpg",
+      "assets/2126055785860137135/img3.jpg"
+    ],
+    "poster": "assets/2126055785860137135/poster0.jpg",
+    "video": "assets/2126055785860137135/preview.mp4",
+    "preview": "assets/2126055785860137135/preview.webm",
+    "duration_s": 90,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-27T23:23:25+08:00",
+    "effect_zh": "Perplexity 做的可动手物理入门书「Curious Machines」：左边是课文，右边是齿轮组、陀螺仪、行星轨道这些立体模型，下面有转速、比例、正转反转的滑杆，拨一下模型就会跟着动。做教育产品或需要把原理讲清楚的说明页时，这种把教材做成一本真正能翻、能拧的书的办法很值得看。站点 curious-machines.pplx.app。",
+    "platform": "x",
+    "title": "Curious Machines 立体教材：翻开书页，齿轮和陀螺仪可以用滑杆拧着看",
+    "cindy_job": "cindy-jobs/2126055785860137135"
+  },
+  {
+    "id": "2125978426372952133",
+    "url": "https://x.com/jesper_alpacka/status/2125978426372952133",
+    "author": "jesper_alpacka",
+    "author_name": "JesperLandberg",
+    "created_at": "2026-11-26T15:42:10.000Z",
+    "lang": "fr",
+    "text": "Needed a résumé 👉",
+    "sources": [
+      "hotscan-2200",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "交互",
+      "作品集",
+      "联系",
+      "折叠",
+      "微动效"
+    ],
+    "metrics": {
+      "bookmark_count": 23,
+      "impression_count": 3130,
+      "like_count": 89,
+      "quote_count": 0,
+      "reply_count": 11,
+      "repost_count": 5
+    },
+    "links": [
+      "https://resume.jesperlandberg.com"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125978426372952133/poster0.jpg",
+      "assets/2125978426372952133/img1.jpg",
+      "assets/2125978426372952133/img3.jpg"
+    ],
+    "poster": "assets/2125978426372952133/poster0.jpg",
+    "video": "assets/2125978426372952133/preview.mp4",
+    "preview": "assets/2125978426372952133/preview.webm",
+    "duration_s": 6,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-27T23:23:25+08:00",
+    "effect_zh": "Jesper Landberg 的在线简历：先是干净的排版和作品列表，一点下载，整页就会折成一架纸飞机，飞进 Inbox 的方框里，表示邮箱已经复制好了。做个人站或联系页时，这种把「复制邮箱」做成一个完整小动作的办法很可参考。站点 resume.jesperlandberg.com。",
+    "platform": "x",
+    "title": "在线简历一点下载，整页就会折成纸飞机飞进 Inbox",
+    "cindy_job": "cindy-jobs/2125978426372952133"
+  },
+  {
+    "id": "2125974894902923567",
+    "url": "https://x.com/codrops/status/2125974894902923567",
+    "author": "codrops",
+    "author_name": "Codrops",
+    "created_at": "2026-11-26T15:28:08.000Z",
+    "lang": "en",
+    "text": "How do you show client work you can't show? 🌐\n\n@houma_hani rebuilt the interactions instead. On her new portfolio, one sphere changes shape for every project, from a planet you can turn to a blob and balloons, wrapped in contour lines inspired by West African wax prints.\n\nSee how she made it with Three.js and custom shaders: \n\n#threejs #shaders #portfolio",
+    "sources": [
+      "hotscan-2200",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "作品集",
+      "三维",
+      "变形",
+      "交互",
+      "开场"
+    ],
+    "metrics": {
+      "bookmark_count": 17,
+      "impression_count": 3315,
+      "like_count": 29,
+      "quote_count": 1,
+      "reply_count": 2,
+      "repost_count": 1
+    },
+    "links": [
+      "https://tympanus.net/codrops/?p=126670",
+      "https://houmahani.com/",
+      "https://tympanus.net/codrops/2026/11/26/houmahani-kane-portfolio/"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125974894902923567/poster0.jpg",
+      "assets/2125974894902923567/img2.jpg",
+      "assets/2125974894902923567/img3.jpg"
+    ],
+    "poster": "assets/2125974894902923567/poster0.jpg",
+    "video": "assets/2125974894902923567/preview.mp4",
+    "preview": "assets/2125974894902923567/preview.webm",
+    "duration_s": 5,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-27T23:23:25+08:00",
+    "effect_zh": "设计师 Houmahani Kane 的作品集只用一颗球来介绍项目：球面是西非蜡染一样的蓝白等高线，点不同客户名称时，球会变成行星、软团或气球，颜色也跟着换。做作品集或需要把不能公开展示的客户项目换成一种抽象预览时，这种办法很巧妙。站点 houmahani.com。Codrops 有介绍。",
+    "platform": "x",
+    "title": "Houmahani Kane 作品集：一颗蜡染等高线的球，会随项目改变形状",
+    "cindy_job": "cindy-jobs/2125974894902923567"
+  },
+  {
+    "id": "2125965920547840252",
+    "url": "https://x.com/greensock/status/2125965920547840252",
+    "author": "greensock",
+    "author_name": "GSAP",
+    "created_at": "2026-11-26T14:52:28.000Z",
+    "lang": "en",
+    "text": "💚 Site of the Day - Made By Igor\n\nMade By Igor — @madeByIgor \n\n⚙️ ScrollTrigger, ScrollSmoother, Observer, Flip, ScrambleText, useGSAP\n🛠️ @threejs, React\n\nsite → \nshowcase →",
+    "sources": [
+      "hotscan-2200",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "作品集",
+      "开场",
+      "滚动",
+      "标题",
+      "转场"
+    ],
+    "metrics": {
+      "bookmark_count": 6,
+      "impression_count": 1282,
+      "like_count": 23,
+      "quote_count": 0,
+      "reply_count": 0,
+      "repost_count": 1
+    },
+    "links": [
+      "https://madebyigor.com/",
+      "https://gsap.com/showcase"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2125965920547840252/poster0.jpg",
+      "assets/2125965920547840252/img1.jpg",
+      "assets/2125965920547840252/img3.jpg"
+    ],
+    "poster": "assets/2125965920547840252/poster0.jpg",
+    "video": "assets/2125965920547840252/preview.mp4",
+    "preview": "assets/2125965920547840252/preview.webm",
+    "duration_s": 15,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-27T23:23:25+08:00",
+    "effect_zh": "GSAP 今日最佳：Igor Kovačević 的个人作品集。墨绿色画面上压着很大的 CREATIVE DEVELOPER，作品预览会像老电视一样扭曲着飞进来，再切到选中作品。做个人站或作品集的开场转场时，可以参考这种把大标题和略带干扰的预览叠在一起的办法。用了 GSAP ScrollTrigger。站点 madebyigor.com。",
+    "platform": "x",
+    "title": "Igor 作品集：超大标题压在墨绿底上，作品预览会像老电视一样扭曲着飞进来",
+    "cindy_job": "cindy-jobs/2125965920547840252"
+  },
+  {
+    "id": "2126240633761259972",
+    "url": "https://x.com/awwwards/status/2126240633761259972",
+    "author": "awwwards",
+    "author_name": "awwwards.",
+    "created_at": "2026-11-27T09:04:05.000Z",
+    "lang": "de",
+    "text": "Today’s #SOTD goes to @FlyCherAmi for \"Prägen Hätlen\".\n\n\n\nPrägen Hätlen is a Swiss watchmaking brand at the intersection of fine horology and Web3 technology.\n\nCongratulations!",
+    "sources": [
+      "hotscan-2200",
+      "bookmark"
+    ],
+    "category": "品牌 · 网页交互",
+    "tags": [
+      "官网",
+      "加载",
+      "开场",
+      "产品",
+      "滚动"
+    ],
+    "metrics": {
+      "bookmark_count": 2,
+      "impression_count": 1528,
+      "like_count": 16,
+      "quote_count": 0,
+      "reply_count": 0,
+      "repost_count": 0
+    },
+    "links": [
+      "https://www.awwwards.com/sites/pragen-hatlen",
+      "https://www.pragenhatlen.com/"
+    ],
+    "code_links": [],
+    "code_snippets": [],
+    "images": [
+      "assets/2126240633761259972/poster0.jpg",
+      "assets/2126240633761259972/img2.jpg"
+    ],
+    "poster": "assets/2126240633761259972/poster0.jpg",
+    "video": "assets/2126240633761259972/preview.mp4",
+    "preview": "assets/2126240633761259972/preview.webm",
+    "duration_s": 8,
+    "has_animation": true,
+    "code_status": "pending_cindy",
+    "code": null,
+    "added_at": "2026-11-27T23:23:25+08:00",
+    "effect_zh": "Awwwards 今日最佳：cher ami 为瑞士手表品牌 Prägen Hätlen 做的官网。先是蓝灰色网格上慢慢画出一块表的线稿，再切到修表特写，细导航和「THE SCARCEST ASSET, ON YOUR WRIST」叠在影像上。做高端产品或工艺官网的加载和开场时，这种先出结构图、再进实拍的节奏很值得看。站点 pragenhatlen.com。",
+    "platform": "x",
+    "title": "瑞士手表站 Prägen Hätlen：加载时先画出表的线稿，再切到修表实拍",
+    "cindy_job": "cindy-jobs/2126240633761259972"
   }
 ];

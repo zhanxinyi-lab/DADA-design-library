@@ -2,9 +2,16 @@
 
 此目录用于在 DADA 仓库中跟踪 x-material-library 的目录数据。`items.js` 是网站读取的 `window.ITEMS` 清单，`items.json` 是同一份清单的可读 JSON；本批保留网站 basePath `/s/rjqagsc0hcqp/`，没有改动站点 UI。
 
-## 当前 canonical 快照（2026-11-13）
+## 当前 canonical 快照（2026-11-27）
 
-- 当前清单包含 131 条保留素材记录、11 条仅代码预览记录，以及 2026-11-13 包新增的 8 条待复刻记录，共 150 条、150 个唯一 ID。其中 5 条代码预览是追加的原创交互：`effect-morph-pill-card`、`effect-spotlight-carousel`、`effect-button-proximity-feedback`、`effect-nav-card-highlight`、`effect-file-progress-cancel`。锚点弹出菜单沿用已有 `jh3yy-anchor-popover`，没有新建副本。PR #85 批准删除的 114 个素材 ID 仍全部缺席。
+- 当前清单 182 条、182 个唯一 ID。本次在原有 169 条之后追加 13 条（2026-11-26 补交 5 条，2026-11-27 新增 8 条），既有 169 条的内容和顺序没有改。
+- `items.js` 与 `items.json` 语义一致。写入前 `items.js` 比 `items.json` 少 7 条（2026-11-23 的 2 条和 2026-11-24 的 5 条，那两次只写进了 JSON）；这次按 JSON 补齐，两份都是 182 条。
+- `assets/` 现为 75 个目录、309 个文件（导入前 62 个目录、247 个文件）。本批实际落盘 13 个目录、62 个文件。
+- 站点 UI、布局、功能和 basePath `/s/rjqagsc0hcqp/` 没有改。历史导入 manifest 仍只记当时的事实，不代表当前条数。
+
+## 2026-11-13 快照（历史，不是当前条数）
+
+- 当时清单包含 131 条保留素材记录、11 条仅代码预览记录，以及 2026-11-13 包新增的 8 条待复刻记录，共 150 条、150 个唯一 ID。其中 5 条代码预览是追加的原创交互：`effect-morph-pill-card`、`effect-spotlight-carousel`、`effect-button-proximity-feedback`、`effect-nav-card-highlight`、`effect-file-progress-cancel`。锚点弹出菜单沿用已有 `jh3yy-anchor-popover`，没有新建副本。PR #85 批准删除的 114 个素材 ID 仍全部缺席。
 - 67 个 `effects/<slug>/code/index.html` 均有且仅有一个带 `code` 字段的记录：56 条映射到保留素材记录；其余 11 条为 `code_only_preview`。后 5 条是追加的原创交互。代码专用预览不恢复被删除条目的来源 ID 或素材数据。
 - PR #86 已将 62 条代码预览映射到 canonical `effects/<slug>/code/index.html`；站点数据 PR 不复制代码实现，部署仍须使用完整静态站点树并另行验证。
 - 历史浏览器显示 129 条对应 PR #86 之前的 131 条线上基线及本地隐藏状态；未读取或修改浏览器本地存储，不把该历史数字当作当前清单数。
@@ -37,8 +44,17 @@
 - 许可未核验（8/8），没有推断授权；8 条状态均保留为 `pending_cindy`，无代码实现。
 - 本 PR 只更新清单、导入 manifest 与新增媒体；整站发布在 PR 合并后单独执行。
 
+## 2026-11-26/27 数据增量
+
+- 来源包：补交 `x-material-library-newitems-20261126.zip`（2,444,033 字节，MD5 `dd49e506d59614f4780c5c1bf616ef78`，5 条）；`x-material-library-newitems-20261127.zip`（7,594,647 字节，MD5 `621793c96c83f6f80ca2d8164c1616c8`，8 条）。11 月 26 日那个包当晚已打包，未在当天入库，这次一起记。
+- 13 个 id 原先都不在清单里。清单由 169 条增至 182 条，没有更新旧记录。
+- 新增条目：`2125567393414189415` Better Call Quang 电视购物片；`2125589026262692212` Obys FORMAT 版式站；`2125603009518579978` Bricelab 三维作品集；`2125878745898586226` Huxley Saga；`2125894395652358457` COCOVEIL；`2125995984400654658` Cloud Pass；`2125997425643126994` 进化论野外笔记；`2126118398203727896` Shopify 黑五滑板公园；`2126055785860137135` Curious Machines；`2125978426372952133` 简历折成纸飞机；`2125974894902923567` Houmahani Kane；`2125965920547840252` Igor 作品集；`2126240633761259972` Prägen Hätlen。
+- 媒体落盘 13 个目录、62 个文件（9,252,079 字节）。每个 id 都有一张与同目录 `poster0.jpg` 字节完全相同的 `imgN.jpg`，没有重复保存；这 13 条路径已从 `images` 去掉，海报仍指向 `poster0.jpg`。包内没有 `preview.gif` 和 `video.mp4`，因此去掉了 13 个 `gif_local` 和 13 个 `full_video_local`，没有留下悬空路径。
+- 13 条 `code` 为 null，`code_status` 为 `pending_cindy`，`has_animation` 为 true。标题和中文说明来自包内 `new_items.json`，原帖 URL、作者和 `added_at` 原样保留。许可未核验，没有推断授权，也没有写代码。
+- 明细见 `import-manifest-20261127.json`。本次只更新清单、导入 manifest 与新增媒体；整站发布在 PR 合并后单独执行。
+
 ## 部署边界（PR #84 历史说明，2026-11-12）
 
 本节描述的是 2026-11-12 的 PR #84（11/10–11/12 导入批次）当时的部署边界，不代表后续 PR #85 的名单删减与 PR #86 的预览映射。PR #84 只包含 `site-data/x-material-library/` 数据清单、导入 manifest 与新增素材，不是完整静态站点包或整站覆盖。目录内的 14 个新增素材目录（含 x6sense 原有条目的媒体补充）应叠加到完整站点已有资源树；不得将本目录单独作为部署根目录，也不得删除或覆盖其余站点资源。既有 187 条线上基线及 DADA 站点 UI、布局、功能和 basePath `/s/rjqagsc0hcqp/` 必须保留。PR #84 不包含 UI/效果代码修改，也不包含部署操作；应在独立审核及 CI 门禁通过后再决定发布。
 
-PR #85 是按批准名单对现有清单做删减（见上文「当前 canonical 快照」），不复用本节所述的 14 个新增目录，也不包含 UI/效果代码修改与部署操作。
+PR #85 是按批准名单对现有清单做删减（见上文「2026-11-13 快照」），不复用本节所述的 14 个新增目录，也不包含 UI/效果代码修改与部署操作。
