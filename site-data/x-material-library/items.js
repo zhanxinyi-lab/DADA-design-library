@@ -1040,12 +1040,13 @@ window.ITEMS=[
     "preview": "assets/2120626950092083630/preview.webm",
     "duration_s": 15,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "video_recreated",
+    "code": "effects/techartist-sound-barrier/code/index.html",
     "added_at": "2026-11-12T23:00:38+08:00",
     "effect_zh": "techartist_：「Breaking the Sound Barrier」交互课，拖速度条看喷气机前方声波聚成激波墙，左侧同步讲解阻力系数",
     "platform": "x",
-    "cindy_job": "cindy-jobs/2120626950092083630"
+    "cindy_job": "cindy-jobs/2120626950092083630",
+    "title": "拖速度条越过声速，机头前的声波收成激波墙，再收成锥"
   },
   {
     "id": "2120607242860757135",
@@ -1084,12 +1085,13 @@ window.ITEMS=[
     "preview": "assets/2120607242860757135/preview.webm",
     "duration_s": 23,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/stacked-ascii-starmap/code/index.html",
     "added_at": "2026-11-12T23:00:38+08:00",
     "effect_zh": "stackedlol：ASCII 字符排成可动的星图/排版动效",
     "platform": "x",
-    "cindy_job": "cindy-jobs/2120607242860757135"
+    "cindy_job": "cindy-jobs/2120607242860757135",
+    "title": "等宽字符铺成一张会缓缓移动的星图"
   },
   {
     "id": "2120553374286594292",
@@ -1175,12 +1177,13 @@ window.ITEMS=[
     "preview": "assets/2120518489022595177/preview.webm",
     "duration_s": 14,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/bricelab-shutter-tower/code/index.html",
     "added_at": "2026-11-12T23:00:38+08:00",
     "effect_zh": "brice_deg：Shuttered Building，黄昏转角塔楼的钢制百叶窗跟着鼠标成片翻开，透出暖黄灯光（three.js + WebGPU + TSL 实时渲染）",
     "platform": "x",
-    "cindy_job": "cindy-jobs/2120518489022595177"
+    "cindy_job": "cindy-jobs/2120518489022595177",
+    "title": "指针靠近时，塔楼百叶按窗口成片翻开，离开后再合上"
   },
   {
     "id": "2120411877985681812",
@@ -1220,12 +1223,13 @@ window.ITEMS=[
     "preview": "assets/2120411877985681812/preview.webm",
     "duration_s": 7,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "video_recreated",
+    "code": "effects/cloud-runway-board/code/index.html",
     "added_at": "2026-11-12T23:00:38+08:00",
     "effect_zh": "kevserctk：Altura 落地页，蓝天云层里托出现金跑道预测看板，出现与滚动动效很稳，SaaS 英雄区把复杂仪表盘做成主视觉",
     "platform": "x",
-    "cindy_job": "cindy-jobs/2120411877985681812"
+    "cindy_job": "cindy-jobs/2120411877985681812",
+    "title": "预测看板从云层后面升起，柱子和说明卡再依次长出来"
   },
   {
     "id": "2120345620116308381",
@@ -1732,12 +1736,13 @@ window.ITEMS=[
     "preview": "assets/2120144786460205501/preview.webm",
     "duration_s": 30,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/sabosugi-armillary/code/index.html",
     "added_at": "2026-11-11T23:07:38+08:00",
     "effect_zh": "sabosugi：Armillary，Three.js 浑天仪式着色器（CodePen 已给开源 demo 与源码，金属环仪在浏览器里转）",
     "platform": "x",
-    "cindy_job": "cindy-jobs/2120144786460205501"
+    "cindy_job": "cindy-jobs/2120144786460205501",
+    "title": "金属环仪自己转，指针移动时整组跟着倾斜"
   },
   {
     "id": "2120109458638712924",
@@ -2051,11 +2056,12 @@ window.ITEMS=[
     "preview": "assets/2119850623315456188/preview.webm",
     "duration_s": 26,
     "has_animation": true,
-    "code_status": "needs_recreation",
-    "code": null,
+    "code_status": "video_recreated",
+    "code": "effects/gait-phase-line/code/index.html",
     "added_at": "2026-11-10T23:07:21+08:00",
     "effect_zh": "techartist_：骨骼肌肉 3D 互动课本（10 课，从关节杠杆到肌肉蛋白，带测验）",
-    "platform": "x"
+    "platform": "x",
+    "title": "拖动步态线，两条腿换成这一刻的姿势"
   },
   {
     "id": "2119831380276523207",
@@ -3727,17 +3733,18 @@ window.ITEMS=[
     ],
     "poster": "assets/2118358010447757619/poster0.jpg",
     "video": "assets/2118358010447757619/preview.mp4",
-    "preview": "assets/2118358010447757619/preview.webm",
-    "gif_local": "assets/2118358010447757619/preview.gif",
-    "full_video_local": "assets/2118358010447757619/video.mp4",
+    "preview": null,
+    "gif_local": null,
+    "full_video_local": null,
     "duration_s": 13,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/codrops-barrel-carousel/code/index.html",
     "added_at": "2026-11-06T23:05:34+08:00",
     "effect_zh": "Codrops 3D 桶状作品集轮播（Nuxt+WebGPU+GSAP），案例墙交互教科书。",
     "platform": "x",
-    "cindy_job": "cindy-jobs/2118358010447757619"
+    "cindy_job": "cindy-jobs/2118358010447757619",
+    "title": "拖拽把作品卡弯成弧形轮播，点开后画廊随滚动变成桶状"
   },
   {
     "id": "2118353894506180923",
@@ -4722,17 +4729,18 @@ window.ITEMS=[
     ],
     "poster": "assets/2117859983371165947/poster0.jpg",
     "video": "assets/2117859983371165947/preview.mp4",
-    "preview": "assets/2117859983371165947/preview.webm",
-    "gif_local": "assets/2117859983371165947/preview.gif",
-    "full_video_local": "assets/2117859983371165947/video.mp4",
+    "preview": null,
+    "gif_local": null,
+    "full_video_local": null,
     "duration_s": 118,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/forme-spatial-canvas/code/index.html",
     "added_at": "2026-11-04T23:04:00+08:00",
     "effect_zh": "forme® 空间画布电商：漂浮产品散点拖拽/滚动探索 + 左右分屏详情，品牌电商可换货换色。",
     "platform": "x",
-    "cindy_job": "cindy-jobs/2117859983371165947"
+    "cindy_job": "cindy-jobs/2117859983371165947",
+    "title": "拖动画布看散落的产品，点开后左右分屏，色点会改颜色"
   },
   {
     "id": "2117847004827017415",
@@ -5407,17 +5415,18 @@ window.ITEMS=[
     ],
     "poster": "assets/2117410285971517625/poster0.jpg",
     "video": "assets/2117410285971517625/preview.mp4",
-    "preview": "assets/2117410285971517625/preview.webm",
-    "gif_local": "assets/2117410285971517625/preview.gif",
-    "full_video_local": "assets/2117410285971517625/video.mp4",
+    "preview": null,
+    "gif_local": null,
+    "full_video_local": null,
     "duration_s": 30,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "video_recreated",
+    "code": "effects/sonia-offerpost-landing/code/index.html",
     "added_at": "2026-11-03T23:04:32+08:00",
     "effect_zh": "Sonia 品牌落地页一次过稿成片：字标、版式与动效节奏干净，可复用品牌网页叙事。",
     "platform": "x",
-    "cindy_job": "cindy-jobs/2117410285971517625"
+    "cindy_job": "cindy-jobs/2117410285971517625",
+    "title": "求职落地页自己往下滚过看板和价格，滚轮或暂停会停住"
   },
   {
     "id": "2117325961578614798",
@@ -6000,21 +6009,20 @@ window.ITEMS=[
     ],
     "code_links": [],
     "code_snippets": [],
-    "images": [
-      "assets/2116473151584436394/poster0.jpg"
-    ],
-    "poster": "assets/2116473151584436394/poster0.jpg",
-    "video": "assets/2116473151584436394/preview.mp4",
-    "preview": "assets/2116473151584436394/preview.webm",
-    "gif_local": "assets/2116473151584436394/preview.gif",
-    "full_video_local": "assets/2116473151584436394/video.mp4",
+    "images": [],
+    "poster": null,
+    "video": null,
+    "preview": null,
+    "gif_local": null,
+    "full_video_local": null,
     "duration_s": 12,
     "has_animation": true,
-    "code_status": "needs_recreation",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/codrops-scroll-layouts/code/index.html",
     "added_at": "2026-11-02T11:29:55+08:00",
     "effect_zh": "基于滚动的版式动画（GSAP）：随滚动，图片与文字块在网格版式之间重新排布、缩放、位移过渡。",
-    "platform": "x"
+    "platform": "x",
+    "title": "向下滚动时，竖幅先拉成横排，再收成一整幅"
   },
   {
     "id": "2116466349337706878",
@@ -6051,16 +6059,17 @@ window.ITEMS=[
     ],
     "poster": "assets/2116466349337706878/poster0.jpg",
     "video": "assets/2116466349337706878/preview.mp4",
-    "preview": "assets/2116466349337706878/preview.webm",
-    "gif_local": "assets/2116466349337706878/preview.gif",
-    "full_video_local": "assets/2116466349337706878/video.mp4",
+    "preview": null,
+    "gif_local": null,
+    "full_video_local": null,
     "duration_s": 10,
     "has_animation": true,
-    "code_status": "needs_recreation",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/codrops-lookbook-hover/code/index.html",
     "added_at": "2026-11-02T11:29:55+08:00",
-    "effect_zh": "时装 Lookbook 网格的 8 种悬停效果：卡片接管照片时依次做融化、揭皮、液态玻璃涌入、电视换台式闪切等转场（WebGL + GSAP）。",
-    "platform": "x"
+    "effect_zh": "六格时装格子悬停时只有一种波浪边缘接管：上中从底边进来，其余五格从左边进来。没有融化、揭皮、液态玻璃或电视换台。",
+    "platform": "x",
+    "title": "悬停时只沿一种波浪边缘接管，五格从左边、一格从底边进入"
   },
   {
     "id": "2116404959277433240",
