@@ -231,9 +231,9 @@ window.ITEMS=[
       "assets/2123418601713762583/img4.jpg"
     ],
     "poster": "assets/2123418601713762583/poster0.jpg",
-    "video": "assets/2123418601713762583/preview.mp4",
-    "preview": "assets/2123418601713762583/preview.webm",
-    "duration_s": 22,
+    "video": "assets/2123418601713762583/polish-20261128.webm",
+    "preview": "assets/2123418601713762583/polish-20261128.webm",
+    "duration_s": 7,
     "has_animation": true,
     "code_status": "video_recreated",
     "code": "effects/jaenam-iced-pay-card/code/index.html",
