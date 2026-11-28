@@ -7822,12 +7822,12 @@ window.ITEMS=[
     "preview": "assets/2125878745898586226/preview.webm",
     "duration_s": 8,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/letter-stagger-title/code/index.html",
     "added_at": "2026-11-26T23:12:26+08:00",
-    "effect_zh": "Studio Freight 为概念艺术家 Ben Mauro 的科幻宇宙 Huxley Saga 做的官网（Awwwards 每日最佳）：血红废土上，超宽标题一个字母一个字母拼出 HUXLEY，再切到沙漠残骸和人物特写。适合游戏或影视官网的开场标题和滚动转场：把大字和影像压在一起，做成电影感的进入。站点 huxleysaga.com。",
+    "effect_zh": "只抽出超宽标题逐字落到位置：字母按滚动、点击或键盘的同一进度逐个出现并落定，往回就收回。页面用中性词，不包含废土场景和整站。自录预览 8.28 秒，时长按整秒记为 8。",
     "platform": "x",
-    "title": "科幻宇宙站 Huxley Saga：血红废土上，超宽标题一个字母一个字母拼出 HUXLEY",
+    "title": "超宽标题逐字落到位置",
     "cindy_job": "cindy-jobs/2125878745898586226"
   },
   {
