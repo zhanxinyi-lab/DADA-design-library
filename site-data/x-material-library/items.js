@@ -1322,7 +1322,7 @@ window.ITEMS=[
     "code_status": "ai_recreated",
     "code": "effects/shared-title-transition/code/index.html",
     "added_at": "2026-11-11T23:07:38+08:00",
-    "effect_zh": "Kubai087：共享元素页面转场，列表标题放大成下页大标题、卡片图长成头图，并标了时长和缓动，可直接换成品牌转场",
+    "effect_zh": "Kubai087：共享元素转场，点一行时行标题放大成页标题、原标题缩成返回标签，滚动时标题收进顶栏",
     "platform": "x",
     "title": "点一行，行标题放大成页面标题，原标题缩成返回，滚动再收进顶栏",
     "cindy_job": "cindy-jobs/2120320609255043510"
