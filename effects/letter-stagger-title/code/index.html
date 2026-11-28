@@ -90,8 +90,8 @@
   </style>
 </head>
 <body>
-  <div id="stage" tabindex="0" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="还没有字母落下" aria-label="超宽标题逐字落到位置">
-    <p id="hint">滚动或点击横向位置改变进度，方向键走同一进度。往回，字母收回。</p>
+  <div id="stage" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="还没有字母落下" aria-label="标题出现进度">
+    <p id="hint">滚动或点击横向位置改变进度。先点这一行，方向键才走同一进度。往回，字母收回。</p>
     <div id="word"></div>
     <div id="track" aria-hidden="true"><i id="fill"></i></div>
   </div>
@@ -186,7 +186,7 @@
         stage.setAttribute("aria-valuetext", text);
         hint.textContent = reduce
           ? "已直接给出完整标题，不再排动画帧。"
-          : "滚动或点击横向位置改变进度，方向键走同一进度。往回，字母收回。";
+          : "滚动或点击横向位置改变进度。先点这一行，方向键才走同一进度。往回，字母收回。";
         if (text !== announced) {
           announced = text;
           live.textContent = text;
@@ -233,7 +233,8 @@
       stage.addEventListener("pointerup", endDrag);
       stage.addEventListener("pointercancel", function () { drag = null; });
 
-      window.addEventListener("keydown", function (e) {
+      stage.addEventListener("keydown", function (e) {
+        if (document.activeElement !== stage) return;
         var step = null;
         if (e.key === "ArrowDown" || e.key === "ArrowRight") step = 0.06;
         else if (e.key === "ArrowUp" || e.key === "ArrowLeft") step = -0.06;
