@@ -850,8 +850,15 @@
   window.addEventListener('pointerup', pointerUp);
   window.addEventListener('pointercancel', pointerUp);
 
-  nextBtn.addEventListener('click', () => { if (beginFlip(1)) animateFlip(1, true); });
-  prevBtn.addEventListener('click', () => { if (beginFlip(-1)) animateFlip(0, true); });
+  function activate(dir) {
+    if (beginFlip(dir)) animateFlip(dir > 0 ? 1 : 0, true);
+  }
+
+  nextBtn.addEventListener('click', () => activate(1));
+  prevBtn.addEventListener('click', () => activate(-1));
+  // 鼠标点击已经由 pointerup 翻页。click 的 detail 为 0 才是键盘 Enter/Space。
+  dogNext.addEventListener('click', (ev) => { if (ev.detail === 0) activate(1); });
+  dogPrev.addEventListener('click', (ev) => { if (ev.detail === 0) activate(-1); });
 
   leafLeft.addEventListener('input', (ev) => {
     const input = ev.target;
