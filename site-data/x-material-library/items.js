@@ -2099,13 +2099,14 @@ window.ITEMS=[
     "poster": "assets/2119831380276523207/poster0.jpg",
     "video": "assets/2119831380276523207/preview.mp4",
     "preview": "assets/2119831380276523207/preview.webm",
-    "duration_s": 13,
+    "duration_s": 8,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/card-exit-four/code/index.html",
     "added_at": "2026-11-10T23:07:21+08:00",
     "effect_zh": "Kubai087：卡片删除离场四种做法（燃烧、火焰、碎块、撕贴纸），含周围热浪扭曲和删完后的补位重排",
     "platform": "x",
+    "title": "点一张卡片，它按燃烧、火焰、碎块或撕贴纸离场，下面的补上",
     "cindy_job": "cindy-jobs/2119831380276523207"
   },
   {
@@ -5821,28 +5822,22 @@ window.ITEMS=[
     "code_links": [],
     "code_snippets": [],
     "images": [
-      "assets/2116551748848345362/poster0.jpg",
-      "assets/2116551748848345362/poster1.jpg",
-      "assets/2116551748848345362/poster2.jpg",
-      "assets/2116551748848345362/poster3.jpg"
+      "assets/2116551748848345362/poster0.jpg"
     ],
     "poster": "assets/2116551748848345362/poster0.jpg",
-    "video": "assets/2116551748848345362/preview.mp4",
+    "video": "assets/2116551748848345362/preview.webm",
     "preview": "assets/2116551748848345362/preview.webm",
-    "gif_local": "assets/2116551748848345362/preview.gif",
-    "full_video_local": "assets/2116551748848345362/video.mp4",
-    "duration_s": 6,
+    "gif_local": null,
+    "full_video_local": null,
+    "duration_s": 7,
     "has_animation": true,
-    "code_status": "needs_recreation",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/october-interaction-studies/code/index.html",
     "added_at": "2026-11-02T11:29:55+08:00",
     "effect_zh": "十月交互探索：旋钮（dial）选择器、弹层（modal）交互、团队规模选择、Agent 思考态微交互。",
     "platform": "x",
-    "extra_videos_local": [
-      "assets/2116551748848345362/video1.mp4",
-      "assets/2116551748848345362/video2.mp4",
-      "assets/2116551748848345362/video3.mp4"
-    ]
+    "extra_videos_local": [],
+    "title": "交互研究：拨盘、对话框、人数选择与思考动画"
   },
   {
     "id": "2116523080931475887",
