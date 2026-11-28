@@ -19,15 +19,15 @@
     .slot:has(.pill.is-open) { z-index: 2; }
     .pill {
       position: absolute; top: 0; bottom: auto; left: 0; z-index: 1;
-      width: max-content; max-width: min(460px, calc(100vw - 32px));
+      width: max-content; max-width: min(460px, calc(100vw - 32px)); height: 44px; overflow: hidden;
       padding: 6px 14px 6px 6px; border: 0; border-radius: 999px;
       background: #f7f4ee; color: #1c1916; font: inherit; text-align: left; cursor: pointer;
       display: grid; grid-template-columns: 32px auto; column-gap: 8px; align-items: center;
-      transition: width .5s cubic-bezier(.16,1.15,.32,1), border-radius .5s cubic-bezier(.16,1.15,.32,1), padding .5s cubic-bezier(.16,1.15,.32,1);
+      transition: width .5s cubic-bezier(.16,1.15,.32,1), height .5s cubic-bezier(.16,1.15,.32,1), border-radius .5s cubic-bezier(.16,1.15,.32,1), padding .5s cubic-bezier(.16,1.15,.32,1);
     }
     .pill.is-open {
-      top: auto; bottom: 0; z-index: 1; width: min(460px, calc(100vw - 32px)); height: 176px; overflow: hidden; border-radius: 22px;
-      grid-template-columns: 128px minmax(0, 1fr); padding: 14px 14px 52px; align-items: start;
+      top: 0; bottom: auto; z-index: 1; width: min(460px, calc(100vw - 32px)); height: 176px; overflow: hidden; border-radius: 22px;
+      grid-template-columns: 128px minmax(0, 1fr); padding: 50px 14px 14px; align-items: start;
     }
     .pill.is-closing { pointer-events: none; }
     .mark {

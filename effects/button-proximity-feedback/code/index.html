@@ -11,7 +11,12 @@
       display: grid; place-items: center; background: #f4efe6; color: #201c18;
       font: 16px/1.4 "Segoe UI", "PingFang SC", sans-serif;
     }
-    .wrap { position: relative; display: grid; place-items: center; width: min(100%, 320px); height: 220px; }
+    .wrap { --near: 0; position: relative; display: grid; place-items: center; width: min(100%, 320px); height: 220px; }
+    .ring {
+      position: absolute; left: 50%; top: 50%; border-radius: 999px; pointer-events: none;
+      border: 1.5px solid #201c18; opacity: calc(var(--near) * .9);
+      transform: translate(-50%, -50%) scale(calc(.9 + var(--near) * .12));
+    }
     .cta {
       --wipe: 0;
       position: relative; display: inline-grid; place-items: center; overflow: clip;
@@ -47,15 +52,16 @@
     .cta:focus-visible { --wipe: 1; outline: 2px solid #201c18; outline-offset: 5px; }
     .cta:active { transform: translateY(1px); }
     .status { position: absolute; left: 16px; right: 16px; bottom: 16px; margin: 0; text-align: center; color: #6d665c; }
-    @media (pointer: coarse) { .fizz { display: none; } }
+    @media (pointer: coarse) { .ring, .fizz { display: none; } }
     @media (prefers-reduced-motion: reduce) {
-      .fizz { display: none; }
+      .ring, .fizz { display: none; }
       .cta, .fill, .face, .ink { transition: none; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
+    <span class="ring" aria-hidden="true"></span>
     <button class="cta" type="button" id="cta">
       <span class="fill" aria-hidden="true"></span>
       <canvas class="fizz" id="fizz" aria-hidden="true"></canvas>
@@ -66,16 +72,14 @@
   <p class="status" id="status" role="status"></p>
   <script>
     const button = document.querySelector("#cta");
+    const ring = document.querySelector(".ring");
+    const wrap = document.querySelector(".wrap");
     const canvas = document.querySelector("#fizz");
     const status = document.querySelector("#status");
     const ctx = canvas.getContext("2d");
-    const scratch = document.createElement("canvas");
-    const hidden = scratch.getContext("2d");
     const fineQuery = matchMedia("(hover: hover) and (pointer: fine)");
     const reduceQuery = matchMedia("(prefers-reduced-motion: reduce)");
     const WAKE = 130;
-    const REVEAL = 65;
-    const ON_DARK = ["#f4efe6", "#e0a15a", "#d4654a"];
     const ON_LIGHT = ["#201c18", "#3f6f5b", "#8c3d32"];
     let pointer = null;
     let particles = [];
@@ -96,11 +100,14 @@
     function phase() {
       if (!fineQuery.matches || reduceQuery.matches) return "off";
       if (button.matches(":hover") || button.matches(":focus-visible")) return "hot";
-      if (!pointer) return "idle";
-      const dist = edgeDistance(pointer.x, pointer.y);
-      if (dist >= WAKE) return "idle";
-      if (dist > REVEAL) return "wake";
-      return "reveal";
+      return "idle";
+    }
+
+    function syncNear() {
+      const dist = pointer ? edgeDistance(pointer.x, pointer.y) : WAKE;
+      const near = !fineQuery.matches || reduceQuery.matches || dist >= WAKE ? 0 : 1 - dist / WAKE;
+      wrap.style.setProperty("--near", near.toFixed(3));
+      button.dataset.near = near.toFixed(3);
     }
 
     function fit() {
@@ -108,8 +115,8 @@
       dpr = Math.min(2, window.devicePixelRatio || 1);
       canvas.width = Math.max(1, Math.round(rect.width * dpr));
       canvas.height = Math.max(1, Math.round(rect.height * dpr));
-      scratch.width = canvas.width;
-      scratch.height = canvas.height;
+      ring.style.width = Math.round(rect.width + 28) + "px";
+      ring.style.height = Math.round(rect.height + 28) + "px";
     }
 
     function makeParticles() {
@@ -157,17 +164,9 @@
       target.restore();
     }
 
-    function paint(current) {
-      const dist = pointer ? edgeDistance(pointer.x, pointer.y) : 0;
-      const alpha = current === "hot" ? 1 : Math.max(0, 1 - dist / REVEAL);
-      button.dataset.fizz = alpha.toFixed(3);
-      if (current === "wake") {
-        draw(hidden, 1, ON_DARK);
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, button.clientWidth, button.clientHeight);
-        return;
-      }
-      draw(ctx, alpha, current === "hot" ? ON_LIGHT : ON_DARK);
+    function paint() {
+      button.dataset.fizz = "1";
+      draw(ctx, 1, ON_LIGHT);
     }
 
     function stop() {
@@ -185,17 +184,16 @@
       button.dataset.phase = current;
       button.dataset.dist = pointer ? dist.toFixed(1) : "";
       button.dataset.sim = String(sim);
-      if (current === "off" || current === "idle") {
+      if (current !== "hot") {
         stop();
         button.dataset.phase = current;
         return;
       }
       const dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016);
       last = now;
-      const speed = current === "hot" ? 2.7 : 1;
-      button.dataset.speed = String(speed);
-      step(dt, speed);
-      paint(current);
+      button.dataset.speed = "2.7";
+      step(dt, 2.7);
+      paint();
       button.dataset.sim = String(sim);
       raf = requestAnimationFrame(frame);
     }
@@ -205,7 +203,8 @@
       const dist = pointer ? edgeDistance(pointer.x, pointer.y) : 0;
       button.dataset.phase = current;
       button.dataset.dist = pointer ? dist.toFixed(1) : "";
-      if (current === "off" || current === "idle") {
+      syncNear();
+      if (current !== "hot") {
         stop();
         button.dataset.phase = current;
         return;
