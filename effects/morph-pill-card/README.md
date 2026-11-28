@@ -5,7 +5,7 @@
 - 状态：ai_recreated
 - 原文：https://x.com/himanshubuildss/status/2104305030115594419
 - 素材 ID：effect-morph-pill-card
-- 版本：1.0.0
+- 版本：1.0.1
 
 ## 复刻说明
 
