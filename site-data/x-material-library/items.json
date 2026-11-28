@@ -3454,6 +3454,7 @@
     "added_at": "2026-11-06T23:05:34+08:00",
     "effect_zh": "纯 CSS container anchor 变形 Popover，品牌站菜单/浮层微交互标杆。",
     "platform": "x",
+    "title": "锚点弹出菜单：从触发点长开，靠近边缘自动换角",
     "cindy_job": "cindy-jobs/2118488118257172710"
   },
   {
