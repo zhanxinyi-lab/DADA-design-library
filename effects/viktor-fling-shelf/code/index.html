@@ -57,7 +57,7 @@
     .detail-art { min-width: 0; color: #efc3c6; }
     .detail-art svg { display: block; width: min(220px, 100%); height: auto; margin: 0 auto; }
     .detail-copy { min-width: 0; }
-    .back, .swatch {
+    .back, .swatch, .add {
       font: inherit;
       color: inherit;
       cursor: pointer;
@@ -71,6 +71,35 @@
     }
     .name { margin: 0 0 10px; font-size: 20px; font-weight: 650; }
     .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+    .add {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 8px 14px;
+      border: 1px solid rgba(58, 52, 44, .35);
+      border-radius: 999px;
+      background: #fff;
+    }
+    .bag {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 40;
+      margin: 0;
+      padding: 6px 12px;
+      border: 1px solid rgba(58, 52, 44, .28);
+      border-radius: 999px;
+      background: #fffdf8;
+      font-size: 14px;
+    }
+    .ghost {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 50;
+      width: 92px;
+      pointer-events: none;
+    }
+    .ghost svg { display: block; width: 100%; height: auto; }
     .swatch {
       position: relative;
       width: 44px;
@@ -92,7 +121,7 @@
       background: #2a241e;
       transform: translate(-50%, -50%);
     }
-    .piece:focus, .swatch:focus, .back:focus, .rail:focus {
+    .piece:focus, .swatch:focus, .back:focus, .rail:focus, .add:focus {
       outline: 2px solid #24362c;
       outline-offset: 3px;
     }
@@ -118,7 +147,7 @@
 </head>
 <body>
   <div class="page">
-    <p class="lede">拖动或甩动货架。点开一件再选颜色。方向键可以翻页，打开后用来换色。</p>
+    <p class="lede">拖动或甩动货架。点开一件，换个颜色，再放进购物袋。方向键可以翻页，打开后用来换色。</p>
     <div class="stage" id="stage">
       <div class="shelf" id="shelf">
         <div class="rail" id="rail" tabindex="0" role="group" aria-label="服装货架，左右方向键转动"></div>
@@ -129,8 +158,10 @@
           <button type="button" class="back" id="back">返回货架</button>
           <p class="name" id="pieceName"></p>
           <div class="swatches" id="swatches" role="radiogroup" aria-label="颜色"></div>
+          <button type="button" class="add" id="add">放入购物袋</button>
         </div>
       </div>
+      <p class="bag" id="bag" aria-hidden="true">袋 <b id="bagCount">0</b></p>
     </div>
     <p class="sr" id="status" aria-live="polite"></p>
   </div>
@@ -166,8 +197,12 @@
     const swatches = document.querySelector("#swatches");
     const status = document.querySelector("#status");
     const back = document.querySelector("#back");
+    const addBtn = document.querySelector("#add");
+    const bagCountEl = document.querySelector("#bagCount");
+    const stage = document.querySelector("#stage");
 
     let position = 2;
+    let bagCount = 0;
     let velocity = 0;
     let target = 2;
     let springing = false;
@@ -583,6 +618,38 @@
       else if (event.key === "ArrowLeft" || event.key === "ArrowUp") { event.preventDefault(); cycleColor(-1); }
     });
 
+    function flyToBag() {
+      const from = detailArt.getBoundingClientRect();
+      const to = bagCountEl.getBoundingClientRect();
+      const stageBox = stage.getBoundingClientRect();
+      const ghost = document.createElement("div");
+      ghost.className = "ghost";
+      ghost.innerHTML = detailArt.innerHTML;
+      ghost.style.color = rgbCss(displayed);
+      stage.appendChild(ghost);
+      const sx = from.left - stageBox.left + from.width / 2;
+      const sy = from.top - stageBox.top + from.height / 2;
+      const ex = to.left - stageBox.left + to.width / 2;
+      const ey = to.top - stageBox.top + to.height / 2;
+      ghost.style.transform = "translate(" + sx + "px, " + sy + "px) translate(-50%, -50%) scale(0.55)";
+      requestAnimationFrame(() => {
+        ghost.style.transition = "transform 420ms cubic-bezier(.2,.8,.2,1), opacity 420ms linear";
+        ghost.style.transform = "translate(" + ex + "px, " + ey + "px) translate(-50%, -50%) scale(0.16)";
+        ghost.style.opacity = "0.15";
+      });
+      window.setTimeout(() => ghost.remove(), 460);
+    }
+
+    function addToBag() {
+      if (detail.hidden) return;
+      bagCount += 1;
+      bagCountEl.textContent = String(bagCount);
+      const piece = pieces[active];
+      say(piece.name + "已放入购物袋，共 " + bagCount + " 件");
+      if (reduced()) return;
+      flyToBag();
+    }
+
     function closeDetail() {
       shelf.inert = false;
       position = active;
@@ -611,6 +678,7 @@
       focusPiece(active);
     }
     back.addEventListener("click", closeDetail);
+    addBtn.addEventListener("click", addToBag);
 
     reduce.addEventListener("change", () => {
       if (!reduced()) return;

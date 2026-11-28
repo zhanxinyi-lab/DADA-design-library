@@ -82,7 +82,8 @@
       position: absolute;
       left: 0;
       right: 0;
-      top: 40%;
+      top: 40vh;
+      top: 40dvh;
       z-index: 2;
       display: flex;
       justify-content: center;
@@ -225,6 +226,9 @@
     let pointerDown = false;
     let pushX = 0;
     let pushY = 0;
+    let pressBall = null;
+    let pressX = 0;
+    let pressY = 0;
 
     function flowLines() {
       const width = reading.clientWidth;
@@ -385,24 +389,43 @@
 
     function assignGoals() {
       const w = stage.clientWidth;
-      const h = stage.clientHeight;
       const q = query();
       const matched = q ? balls.filter((ball) => matches(ball, q)) : [];
       const r = balls[0].r;
       const gap = r * 2 + 10;
       const cols = Math.max(1, Math.floor((w - 12) / gap));
+      const field = document.getElementById("field");
       form.classList.toggle("searching", matched.length > 0);
-      const stageBox = stage.getBoundingClientRect();
-      const box = input.getBoundingClientRect();
-      const cx = box.left + box.width / 2 - stageBox.left;
+      if (!matched.length) {
+        if (field.style.minHeight) field.style.minHeight = "";
+        for (const ball of balls) {
+          ball.match = false;
+          ball.goalX = ball.homeX;
+          ball.goalY = ball.homeY;
+        }
+        return;
+      }
+      const placeRow = () => {
+        const stageBox = stage.getBoundingClientRect();
+        const panel = form.querySelector(".panel").getBoundingClientRect();
+        const box = input.getBoundingClientRect();
+        const panelBottom = panel.bottom - stageBox.top;
+        const rows = Math.ceil(matched.length / cols);
+        const firstY = panelBottom + r + 12;
+        const lastY = firstY + (rows - 1) * gap;
+        return { firstY, lastY, cx: box.left + box.width / 2 - stageBox.left };
+      };
+      let placed = placeRow();
+      const need = placed.lastY + r + 16;
+      if (need > stage.clientHeight + 0.5) field.style.minHeight = Math.ceil(need) + "px";
+      placed = placeRow();
       matched.forEach((ball, i) => {
-        const row = Math.floor(i / cols);
+        const line = Math.floor(i / cols);
         const col = i % cols;
-        const rowCount = Math.min(cols, matched.length - row * cols);
-        const x = cx - ((rowCount - 1) * gap) / 2 + col * gap;
-        const y = box.bottom - stageBox.top + r * 0.9 + row * gap;
+        const rowCount = Math.min(cols, matched.length - line * cols);
+        const x = placed.cx - ((rowCount - 1) * gap) / 2 + col * gap;
         ball.goalX = clamp(x, r + 4, w - r - 4);
-        ball.goalY = clamp(y, r + 4, h - r - 4);
+        ball.goalY = placed.firstY + line * gap;
         ball.match = true;
       });
       for (const ball of balls) {
@@ -592,7 +615,11 @@
     }
 
     stage.addEventListener("pointerdown", (event) => {
-      if (reduced() || event.button !== 0) return;
+      if (event.button !== 0) return;
+      pressBall = event.target.closest ? event.target.closest(".orb") : null;
+      pressX = event.clientX;
+      pressY = event.clientY;
+      if (reduced()) return;
       pointerDown = true;
       const p = localPoint(event);
       pushX = p.x;
@@ -671,8 +698,16 @@
       nudgeBall(ball, dir[0], dir[1]);
     });
 
-    stage.addEventListener("pointerup", endPointer);
-    stage.addEventListener("pointercancel", endPointer);
+    function finishPointer(event, cancel) {
+      const ball = pressBall;
+      const moved = Math.hypot(event.clientX - pressX, event.clientY - pressY);
+      pressBall = null;
+      endPointer(event);
+      if (!cancel && ball && moved < 8) pickBall(balls.find((item) => item.el === ball));
+    }
+
+    stage.addEventListener("pointerup", (event) => finishPointer(event, false));
+    stage.addEventListener("pointercancel", (event) => finishPointer(event, true));
 
     input.addEventListener("input", () => {
       live.textContent = summary();
