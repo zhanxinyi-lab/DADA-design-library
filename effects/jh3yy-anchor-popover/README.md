@@ -5,7 +5,7 @@
 - 状态：ai_recreated
 - 原文：https://x.com/jh3yy/status/2118488118257172710
 - 素材 ID：2118488118257172710
-- 版本：1.0.0
+- 版本：1.0.1
 
 ## 复刻说明
 
@@ -21,4 +21,4 @@
 
 看不清因此没有照搬的部分：品牌名、导航原文、产品图。菜单用「外观 / 结构 / 位置」和色块代替，页眉用 01–04。卡片角落的小字是当前生效的 fallback 名，用来看见锚点查询的结果，不是原片字幕。
 
-基础定位故意溢出，让命名的 `@position-try`（`--top-left` / `--top-right` / `--bottom-left` / `--bottom-right`）始终成为生效项，这样 `@container anchored(fallback: …)` 才能匹配。不支持 `container-type: anchored` 时，脚本按按钮在视口里的位置选择同一套原点。
+基础定位故意溢出，让命名的 `@position-try`（`--top-left` / `--top-right` / `--bottom-left` / `--bottom-right`）始终成为生效项，这样 `@container anchored(fallback: …)` 才能匹配。某个角放不下整张菜单时，浏览器会退回这个溢出位置，菜单会出界。这时脚本把菜单拉回视口内，生长角仍取离触发点更近的那一角。不支持 `container-type: anchored` 时，一律走这条收回视口的放置。

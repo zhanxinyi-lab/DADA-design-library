@@ -197,14 +197,19 @@
         radial-gradient(120% 80% at 20% 10%, #efe7dc 0%, transparent 46%),
         linear-gradient(160deg, #8d8478 0%, #2a2724 48%, #0e0d0c 100%);
     }
-    html[data-manual-anchor] .menu {
+    html[data-manual-anchor] .menu,
+    .menu.is-fit {
       position: fixed;
       margin: 0;
+      inset: auto;
       top: var(--top, 4.5rem);
       left: var(--left, 1rem);
       right: auto;
       bottom: auto;
+      position-area: none;
+      position-try-fallbacks: none;
     }
+    .origin[data-origin]::before { content: attr(data-origin); }
     @media (max-width: 640px) {
       .stage { padding: 0.8rem; }
       .hero h1 { font-size: 3.4rem; }
@@ -250,33 +255,78 @@
     const buttons = [...document.querySelectorAll("[popovertarget]")];
     const manual = !CSS.supports("container-type", "anchored");
     if (manual) document.documentElement.dataset.manualAnchor = "1";
+    const PAD = 8;
+    const GAP = 10;
 
-    function placeManual(menu) {
-      const id = menu.id;
-      const button = buttons.find((b) => b.getAttribute("popovertarget") === id);
+    function buttonFor(menu) {
+      return buttons.find((b) => b.getAttribute("popovertarget") === menu.id);
+    }
+
+    function outside(rect) {
+      return rect.width < 2 || rect.height < 2
+        || rect.left < -1 || rect.top < -1
+        || rect.right > innerWidth + 1 || rect.bottom > innerHeight + 1;
+    }
+
+    function releaseFit(menu) {
+      menu.classList.remove("is-fit");
+      const card = menu.querySelector(".card");
+      if (card) card.style.transformOrigin = "";
+      menu.querySelector(".origin")?.removeAttribute("data-origin");
+    }
+
+    function placeFitted(menu) {
+      const button = buttonFor(menu);
       if (!button) return;
       const r = button.getBoundingClientRect();
       const w = menu.offsetWidth || Math.min(576, innerWidth - 20);
       const h = menu.offsetHeight || Math.min(280, innerHeight - 72);
-      const below = r.bottom + 10 + h <= innerHeight - 8;
-      const rightRoom = r.left + w <= innerWidth - 8;
-      const origin = (below ? "top" : "bottom") + "-" + (rightRoom ? "left" : "right");
-      const top = below ? r.bottom + 10 : Math.max(8, r.top - 10 - h);
-      const left = rightRoom ? r.left : Math.max(8, r.right - w);
+      const spaceBelow = innerHeight - r.bottom - PAD - GAP;
+      const spaceAbove = r.top - PAD - GAP;
+      const below = spaceBelow >= h || spaceBelow >= spaceAbove;
+      let top = below ? r.bottom + GAP : r.top - GAP - h;
+      top = Math.max(PAD, Math.min(top, Math.max(PAD, innerHeight - PAD - h)));
+      let left;
+      let originX;
+      if (r.left + w <= innerWidth - PAD) {
+        left = r.left;
+        originX = "left";
+      } else if (r.right - w >= PAD) {
+        left = r.right - w;
+        originX = "right";
+      } else {
+        const maxLeft = Math.max(PAD, innerWidth - PAD - w);
+        left = Math.min(Math.max(PAD, r.left), maxLeft);
+        const btnCx = r.left + r.width / 2;
+        originX = Math.abs(btnCx - left) <= Math.abs(btnCx - (left + w)) ? "left" : "right";
+      }
+      const originY = below ? "top" : "bottom";
       menu.style.setProperty("--top", top + "px");
       menu.style.setProperty("--left", left + "px");
-      menu.querySelector(".card").style.transformOrigin = origin.replace("-", " ");
+      menu.classList.add("is-fit");
+      menu.querySelector(".card").style.transformOrigin = originY + " " + originX;
       const label = menu.querySelector(".origin");
-      if (label) label.textContent = "--" + origin;
+      if (label) label.dataset.origin = "--" + originY + "-" + originX;
     }
 
-    if (manual) {
-      for (const menu of menus) {
-        menu.addEventListener("toggle", () => {
-          if (menu.matches(":popover-open")) placeManual(menu);
-        });
+    function fitMenu(menu) {
+      if (!menu.matches(":popover-open")) return;
+      if (!manual) {
+        releaseFit(menu);
+        if (!outside(menu.getBoundingClientRect())) return;
       }
+      placeFitted(menu);
     }
+
+    for (const menu of menus) {
+      menu.addEventListener("toggle", () => {
+        if (!menu.matches(":popover-open")) releaseFit(menu);
+        else fitMenu(menu);
+      });
+    }
+    addEventListener("resize", () => {
+      for (const menu of menus) if (menu.matches(":popover-open")) fitMenu(menu);
+    });
 
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     let stopped = false;
