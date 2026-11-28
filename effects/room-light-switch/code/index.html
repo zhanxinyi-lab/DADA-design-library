@@ -52,7 +52,7 @@
     font: 600 14px/1 system-ui, sans-serif;
     cursor: pointer;
   }
-  .modes button[aria-pressed="true"] {
+  .modes button[aria-checked="true"] {
     background: #f3eee6;
     color: #1a1714;
     border-color: #f3eee6;
@@ -96,9 +96,9 @@
     <h1>房间光照</h1>
     <p class="note">同一间房间。白天、傍晚和线框共用一套状态，切换时光照连续过渡。</p>
     <div class="modes" role="radiogroup" aria-label="房间状态">
-      <button type="button" id="mode-day" role="radio" aria-pressed="true">白天</button>
-      <button type="button" id="mode-evening" role="radio" aria-pressed="false">傍晚</button>
-      <button type="button" id="mode-wire" role="radio" aria-pressed="false">线框</button>
+      <button type="button" id="mode-day" role="radio" aria-checked="true" tabindex="0">白天</button>
+      <button type="button" id="mode-evening" role="radio" aria-checked="false" tabindex="-1">傍晚</button>
+      <button type="button" id="mode-wire" role="radio" aria-checked="false" tabindex="-1">线框</button>
     </div>
     <p class="hint">方向键或 1 / 2 / 3</p>
     <p id="live" class="live" aria-live="polite">当前是白天</p>
@@ -346,7 +346,9 @@
 
   function sync(name) {
     ORDER.forEach(function (id) {
-      buttons[id].setAttribute('aria-pressed', id === name ? 'true' : 'false');
+      var on = id === name;
+      buttons[id].setAttribute('aria-checked', on ? 'true' : 'false');
+      buttons[id].tabIndex = on ? 0 : -1;
     });
     document.body.dataset.mode = name;
     live.textContent = '当前是' + NAMES[name];
@@ -390,15 +392,19 @@
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     const index = ORDER.indexOf(mode);
+    function pick(name) {
+      go(name);
+      if (buttons[name]) buttons[name].focus();
+    }
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       e.preventDefault();
-      go(ORDER[(index + 1) % ORDER.length]);
+      pick(ORDER[(index + 1) % ORDER.length]);
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
       e.preventDefault();
-      go(ORDER[(index + ORDER.length - 1) % ORDER.length]);
-    } else if (e.key === '1') go('day');
-    else if (e.key === '2') go('evening');
-    else if (e.key === '3') go('wire');
+      pick(ORDER[(index + ORDER.length - 1) % ORDER.length]);
+    } else if (e.key === '1') pick('day');
+    else if (e.key === '2') pick('evening');
+    else if (e.key === '3') pick('wire');
   });
 
   function onMotionChange() {
