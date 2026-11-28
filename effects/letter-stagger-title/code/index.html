@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>逐字落到一行</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #121418;
+      color: #f3f1ea;
+      font: 15px/1.4 system-ui, "Segoe UI", sans-serif;
+    }
+    #stage {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(120% 80% at 50% 42%, #1c1f26 0%, #121418 62%);
+      touch-action: none;
+      cursor: ew-resize;
+    }
+    #stage:focus { outline: none; }
+    #stage:focus-visible { outline: 2px solid #f3f1ea; outline-offset: -6px; }
+    #hint {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      top: 14px;
+      margin: 0;
+      max-width: 36em;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #c4c2ba;
+      pointer-events: none;
+    }
+    #word {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      transform: translateY(-54%);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      width: 100%;
+      padding: 0 3vw;
+      pointer-events: none;
+      font-family: "Arial Black", Impact, "Arial Narrow", "Liberation Sans", "Nimbus Sans", sans-serif;
+      font-weight: 900;
+      line-height: 0.8;
+      letter-spacing: -0.045em;
+    }
+    .ch {
+      flex: 1 1 0;
+      display: block;
+      text-align: center;
+      color: #f4f2eb;
+      will-change: transform, opacity;
+    }
+    #track {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      height: 3px;
+      background: #2c3038;
+      pointer-events: none;
+    }
+    #fill {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: #f3f1ea;
+    }
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="还没有字母落下" aria-label="标题出现进度">
+    <p id="hint">滚动或点击横向位置改变进度。先点这一行，方向键才走同一进度。往回，字母收回。</p>
+    <div id="word"></div>
+    <div id="track" aria-hidden="true"><i id="fill"></i></div>
+  </div>
+  <p id="live" class="sr" aria-live="polite"></p>
+  <script>
+    (function () {
+      var WORD = "VECTOR";
+      var ORDER = [2, 0, 5, 1, 4, 3];
+      var FROM = [
+        { x: -0.36, y: 0.05 },
+        { x: -0.18, y: 0.14 },
+        { x: 0.00, y: -0.20 },
+        { x: 0.16, y: 0.16 },
+        { x: 0.24, y: 0.08 },
+        { x: 0.38, y: 0.04 }
+      ];
+      var stage = document.getElementById("stage");
+      var hint = document.getElementById("hint");
+      var word = document.getElementById("word");
+      var fill = document.getElementById("fill");
+      var live = document.getElementById("live");
+      var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      var letters = [];
+      var progress = 0;
+      var announced = "";
+      var drag = null;
+      var i;
+
+      for (i = 0; i < WORD.length; i++) {
+        var el = document.createElement("span");
+        el.className = "ch";
+        el.textContent = WORD.charAt(i);
+        word.appendChild(el);
+        letters.push(el);
+      }
+
+      function clamp(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+      function reduceOn() { return motion.matches; }
+
+      function rawOf(index, p) {
+        var slot = ORDER.indexOf(index);
+        var start = slot * 0.15;
+        var end = slot === ORDER.length - 1 ? 1 : Math.min(1, start + 0.28);
+        return clamp((p - start) / (end - start));
+      }
+
+      function ease(t) { return 1 - Math.pow(1 - t, 3); }
+
+      function fit() {
+        var h = stage.clientHeight;
+        var n;
+        for (n = 0; n < letters.length; n++) letters[n].style.transform = "none";
+        var size = Math.max(48, Math.min(h * 0.78, stage.clientWidth * 0.42));
+        var guard = 0;
+        word.style.fontSize = size + "px";
+        while (word.scrollWidth > word.clientWidth + 1 && size > 36 && guard < 60) {
+          size *= 0.96;
+          word.style.fontSize = size + "px";
+          guard++;
+        }
+      }
+
+      function phrase(p, landed) {
+        if (reduceOn()) return "完整标题 " + WORD + " 已就位，不再排动画帧。";
+        if (landed <= 0) return "还没有字母落下。进度 " + Math.round(p * 100) + "。";
+        if (landed >= WORD.length) return "标题 " + WORD + " 已全部落到位置。进度 " + Math.round(p * 100) + "。";
+        return "标题 " + WORD + " 已落到 " + landed + " 个字母。进度 " + Math.round(p * 100) + "。";
+      }
+
+      function paint() {
+        var w = stage.clientWidth;
+        var h = stage.clientHeight;
+        var p = progress;
+        var reduce = reduceOn();
+        var landed = 0;
+        fit();
+        for (var n = 0; n < letters.length; n++) {
+          var raw = reduce ? 1 : rawOf(n, p);
+          var u = reduce ? 1 : ease(raw);
+          var from = FROM[n];
+          var x = (1 - u) * from.x * w;
+          var y = (1 - u) * from.y * h;
+          var scale = 1 + (1 - u) * 0.14;
+          if (raw >= 0.999) landed++;
+          letters[n].style.opacity = raw < 0.02 ? "0" : String(Math.min(1, 0.15 + raw * 1.1));
+          letters[n].style.transform = "translate3d(" + x.toFixed(2) + "px," + y.toFixed(2) + "px,0) scale(" + scale.toFixed(3) + ")";
+        }
+        fill.style.width = (reduce ? 100 : p * 100) + "%";
+        var text = phrase(p, reduce ? WORD.length : landed);
+        stage.setAttribute("aria-valuenow", String(reduce ? 100 : Math.round(p * 100)));
+        stage.setAttribute("aria-valuetext", text);
+        hint.textContent = reduce
+          ? "已直接给出完整标题，不再排动画帧。"
+          : "滚动或点击横向位置改变进度。先点这一行，方向键才走同一进度。往回，字母收回。";
+        if (text !== announced) {
+          announced = text;
+          live.textContent = text;
+        }
+      }
+
+      function setProgress(next) {
+        if (reduceOn()) return;
+        progress = clamp(next);
+        paint();
+      }
+
+      window.addEventListener("wheel", function (e) {
+        e.preventDefault();
+        var dy = e.deltaY;
+        if (e.deltaMode === 1) dy *= 16;
+        else if (e.deltaMode === 2) dy *= stage.clientHeight;
+        setProgress(progress + dy / 1100);
+      }, { passive: false });
+
+      stage.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        stage.setPointerCapture(e.pointerId);
+        drag = { x: e.clientX, y: e.clientY, p: progress, moved: false };
+      });
+
+      stage.addEventListener("pointermove", function (e) {
+        if (!drag) return;
+        var dx = e.clientX - drag.x;
+        var dy = e.clientY - drag.y;
+        if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
+        setProgress(drag.p + (dx - dy) / Math.max(stage.clientWidth, 320));
+      });
+
+      function endDrag(e) {
+        if (!drag) return;
+        if (!drag.moved) {
+          var rect = stage.getBoundingClientRect();
+          setProgress((e.clientX - rect.left) / rect.width);
+        }
+        drag = null;
+      }
+
+      stage.addEventListener("pointerup", endDrag);
+      stage.addEventListener("pointercancel", function () { drag = null; });
+
+      stage.addEventListener("keydown", function (e) {
+        if (document.activeElement !== stage) return;
+        var step = null;
+        if (e.key === "ArrowDown" || e.key === "ArrowRight") step = 0.06;
+        else if (e.key === "ArrowUp" || e.key === "ArrowLeft") step = -0.06;
+        else if (e.key === "PageDown" || e.key === " ") step = 0.16;
+        else if (e.key === "PageUp") step = -0.16;
+        else if (e.key === "Home") step = -progress;
+        else if (e.key === "End") step = 1 - progress;
+        if (step == null) return;
+        e.preventDefault();
+        setProgress(progress + step);
+      });
+
+      function onMotion() { paint(); }
+      if (motion.addEventListener) motion.addEventListener("change", onMotion);
+      else if (motion.addListener) motion.addListener(onMotion);
+      window.addEventListener("resize", paint);
+
+      var params = new URLSearchParams(location.search);
+      if (params.has("at")) {
+        var n = Number(params.get("at"));
+        if (isFinite(n)) progress = clamp(n > 1 ? n / 100 : n);
+      }
+
+      window.__titleProgress = function (v) { setProgress(v); };
+      paint();
+    })();
+  </script>
+</body>
+</html>
