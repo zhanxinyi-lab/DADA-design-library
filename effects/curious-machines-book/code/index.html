@@ -1,0 +1,901 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>机构手记 · 翻页与滑杆</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --desk: #12141a;
+    --cover: #1b3330;
+    --paper: #f4efe6;
+    --ink: #241c16;
+    --brass: #c6a36a;
+    --copper: #8c3d24;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    min-height: 100%;
+    background:
+      radial-gradient(ellipse at 50% 38%, #2c3342 0%, var(--desk) 62%);
+    color: #efe8dc;
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .stage {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 28px 18px 26px;
+  }
+  .kicker {
+    margin: 0;
+    font-size: 13px;
+    letter-spacing: 0.22em;
+    text-indent: 0.22em;
+    color: var(--brass);
+  }
+  .kicker b { color: #f4efe6; font-weight: 600; letter-spacing: 0.14em; }
+  .book { width: min(1040px, 100%); }
+  .cover {
+    position: relative;
+    background: linear-gradient(180deg, #245049 0%, var(--cover) 40%, #142824 100%);
+    border-radius: 4px 16px 16px 4px;
+    padding: 16px 18px 18px 14px;
+    box-shadow:
+      0 28px 60px rgba(0, 0, 0, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+  .cover::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 12px;
+    border-radius: 4px 0 0 4px;
+    background: linear-gradient(90deg, #0e1c1a, #2d524b 70%, #16302c);
+  }
+  .ribbon {
+    position: absolute;
+    z-index: 7;
+    left: 42px;
+    top: 0;
+    width: 14px;
+    height: 78px;
+    background: var(--copper);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 84%, 0 100%);
+    pointer-events: none;
+  }
+  .spread {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: min(520px, calc(100vh - 168px));
+    min-height: 440px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--paper);
+  }
+  .leaf { position: relative; min-width: 0; min-height: 0; color: var(--ink); background: var(--paper); }
+  .leaf-left { overflow: auto; padding: 28px 26px 18px 34px; display: flex; flex-direction: column; user-select: none; }
+  .leaf-right { touch-action: none; cursor: grab; }
+  .leaf-right:active { cursor: grabbing; }
+  .chapter { margin: 0; font-size: 12px; letter-spacing: 0.16em; color: #8a735c; }
+  h1 { margin: 8px 0 0; font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif; font-size: 34px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; }
+  .lede { margin: 12px 0 0; font-size: 14.5px; line-height: 1.55; color: #3a3128; }
+  .stat {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(36, 28, 22, 0.14);
+  }
+  .stat b {
+    font-family: Georgia, "Iowan Old Style", Palatino, serif;
+    font-size: 40px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    color: var(--copper);
+  }
+  .stat span { font-size: 12px; letter-spacing: 0.18em; color: #6d5c4c; }
+  .sliders { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 12px; }
+  .slider-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+  .slider-top .val { font-variant-numeric: tabular-nums; color: #5c4b3c; }
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 22px;
+    margin: 2px 0 0;
+    background: transparent;
+    cursor: pointer;
+    touch-action: pan-x;
+  }
+  input[type="range"]:focus-visible { outline: 2px solid var(--cover); outline-offset: 2px; }
+  input[type="range"]::-webkit-slider-runnable-track { height: 3px; background: #d9d0c2; border-radius: 99px; }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px; margin-top: -7px;
+    border-radius: 50%;
+    background: #fffaf3;
+    border: 2px solid var(--ink);
+  }
+  input[type="range"]::-moz-range-track { height: 3px; background: #d9d0c2; border: none; border-radius: 99px; }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #fffaf3; border: 2px solid var(--ink);
+  }
+  .mech, .curl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .curl { z-index: 6; pointer-events: none; visibility: hidden; }
+  .curl.on { visibility: visible; }
+  .spine {
+    position: absolute; left: 50%; top: 0; bottom: 0; width: 22px;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, transparent, rgba(36, 24, 14, 0.13), rgba(36, 24, 14, 0.28), rgba(36, 24, 14, 0.13), transparent);
+    pointer-events: none; z-index: 4;
+  }
+  .dog {
+    position: absolute; z-index: 5; width: 64px; height: 64px; padding: 0; border: 0;
+    background: linear-gradient(135deg, transparent 46%, #e7d3b4 46%, #b08968 78%, #8c3d24 100%);
+    cursor: grab; touch-action: none;
+  }
+  .dog:focus-visible { outline: 2px solid var(--cover); outline-offset: -6px; }
+  .dog.next { right: 0; bottom: 0; }
+  .dog.prev { left: 0; bottom: 0; transform: scaleX(-1); }
+  .dog:disabled { opacity: 0.25; cursor: default; }
+  .nav { width: min(1040px, 100%); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .nav button {
+    appearance: none; border: 1px solid rgba(232, 214, 180, 0.35);
+    background: rgba(255, 255, 255, 0.04); color: #f4efe6;
+    border-radius: 999px; padding: 8px 16px; font: inherit; cursor: pointer;
+  }
+  .nav button:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+  .nav button:disabled { opacity: 0.35; cursor: default; }
+  .hint { margin: 0; text-align: center; color: #cbbfaa; font-size: 13px; }
+  .hint b { color: #f4efe6; font-weight: 600; }
+  @media (max-width: 760px) {
+    .stage { justify-content: flex-start; padding: 16px 12px 20px; gap: 10px; }
+    .spread { grid-template-columns: 1fr; height: auto; min-height: 0; }
+    .spine { display: none; }
+    .leaf-right { height: 210px; }
+    .leaf-left { padding: 16px 14px 12px; }
+    h1 { font-size: 26px; }
+    .lede { font-size: 13px; }
+    .stat { margin-top: 10px; }
+    .stat b { font-size: 30px; }
+    .nav { flex-wrap: wrap; justify-content: center; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .curl { visibility: hidden !important; }
+  }
+</style>
+</head>
+<body>
+  <main class="stage">
+    <p class="kicker">机构手记 · <b id="pager">1 / 3</b></p>
+    <div class="book" id="book" data-page="0">
+      <div class="cover">
+        <div class="ribbon" aria-hidden="true"></div>
+        <div class="spread" id="spread">
+          <section class="leaf leaf-left" id="leafLeft"></section>
+          <div class="leaf leaf-right" id="leafRight">
+            <canvas class="mech" id="mech" aria-hidden="true"></canvas>
+            <button type="button" class="dog next" id="dogNext" aria-label="拖拽或点击，翻到下一页"></button>
+          </div>
+          <button type="button" class="dog prev" id="dogPrev" aria-label="拖拽或点击，翻回上一页"></button>
+          <div class="spine" aria-hidden="true"></div>
+          <canvas class="curl" id="curl" aria-hidden="true"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="nav">
+      <button type="button" id="prev">上一页</button>
+      <p class="hint" id="hint">拖页角翻页，或点两侧按钮。滑杆可用 <b>方向键</b> 微调。</p>
+      <button type="button" id="next">下一页</button>
+    </div>
+  </main>
+<script>
+(() => {
+  const PAGES = [
+    {
+      id: 'gears',
+      chapter: '01  啮合',
+      title: '齿咬着齿走',
+      lede: '主动轮让过几齿，从动轮就只能前进几齿。齿数翻倍时，它转得只有一半快。中间的惰轮再把方向翻一次，于是两端同向。',
+      lede2: '拨齿比，从动轮会变大或变小，但始终和旁边的齿咬在一起。',
+      stat: '从动转速',
+      accent: '#8c3d24',
+      sliders: [
+        { key: 'speed', label: '转速', min: 0.2, max: 3, step: 0.01, format: (v) => v.toFixed(2) + '×' },
+        { key: 'ratio', label: '齿比', min: 1, max: 3, step: 0.01, format: (v) => v.toFixed(2) + ' : 1' },
+        { key: 'dir', label: '转向', min: -1, max: 1, step: 0.01, format: formatDir }
+      ]
+    },
+    {
+      id: 'gyro',
+      chapter: '02  进动',
+      title: '轴往旁边让',
+      lede: '转子转得越快，同样一份力矩越难把它的轴立刻扳倒，进动就跟着变慢。倾角把转子歪出竖直方向。',
+      lede2: '力矩换向时，进动和自转一起反过来。',
+      stat: '进动',
+      accent: '#1f4f48',
+      sliders: [
+        { key: 'spin', label: '自转', min: 0.4, max: 4, step: 0.01, format: (v) => v.toFixed(2) + '×' },
+        { key: 'tilt', label: '倾角', min: 12, max: 72, step: 1, format: (v) => Math.round(v) + '°' },
+        { key: 'torque', label: '力矩', min: -2, max: 2, step: 0.01, format: formatTorque }
+      ]
+    },
+    {
+      id: 'orbit',
+      chapter: '03  公转',
+      title: '星在焦点上',
+      lede: '行星画的是椭圆，恒星待在焦点里，不在正中。偏心率越大，轨道越瘦，近星点越贴近恒星。',
+      lede2: '倾角只改变你看这枚椭圆的角度。公转滑杆决定它跑起来有多快。',
+      stat: '角速度',
+      accent: '#8a5a12',
+      sliders: [
+        { key: 'speed', label: '公转', min: 0.2, max: 3, step: 0.01, format: (v) => v.toFixed(2) + '×' },
+        { key: 'ecc', label: '偏心率', min: 0, max: 0.78, step: 0.01, format: (v) => v.toFixed(2) },
+        { key: 'incl', label: '倾角', min: 0, max: 72, step: 1, format: (v) => Math.round(v) + '°' }
+      ]
+    }
+  ];
+
+  const values = {
+    gears: { speed: 1.2, ratio: 2, dir: 1 },
+    gyro: { spin: 2.2, tilt: 48, torque: 1 },
+    orbit: { speed: 1, ecc: 0.55, incl: 38 }
+  };
+  const ang = { gear: 0.7, spin: 0.4, precess: 0.4, mean: 1.1 };
+
+  const reducedMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let reduced = reducedMQ.matches;
+  let committed = 0;
+  let shownRight = 0;
+  let flip = null;
+  let last = 0;
+  const NX = 46;
+
+  const book = document.getElementById('book');
+  const spread = document.getElementById('spread');
+  const leafLeft = document.getElementById('leafLeft');
+  const leafRight = document.getElementById('leafRight');
+  const mech = document.getElementById('mech');
+  const curl = document.getElementById('curl');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const dogPrev = document.getElementById('dogPrev');
+  const dogNext = document.getElementById('dogNext');
+  const pager = document.getElementById('pager');
+  const mctx = mech.getContext('2d');
+  const cctx = curl.getContext('2d');
+
+  function formatDir(v) {
+    if (v > 0.08) return '正转 ' + v.toFixed(2);
+    if (v < -0.08) return '反转 ' + Math.abs(v).toFixed(2);
+    return '停住';
+  }
+  function formatTorque(v) {
+    const word = v > 0.05 ? '顺 ' : v < -0.05 ? '逆 ' : '零 ';
+    return word + v.toFixed(2);
+  }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function statOf(index) {
+    const id = PAGES[index].id;
+    const v = values[id];
+    if (id === 'gears') {
+      const out = v.speed / v.ratio * v.dir;
+      return (out > 0 ? '' : out < 0 ? '−' : '') + Math.abs(out).toFixed(2) + '×';
+    }
+    if (id === 'gyro') {
+      const rate = v.torque / v.spin * 32;
+      return (rate < 0 ? '−' : '') + Math.abs(rate).toFixed(1) + '°/s';
+    }
+    return (v.speed * 36).toFixed(1) + '°/s';
+  }
+
+  function renderLeft() {
+    const page = PAGES[committed];
+    const v = values[page.id];
+    leafLeft.innerHTML =
+      '<p class="chapter">' + page.chapter + '</p>' +
+      '<h1 id="pageTitle">' + page.title + '</h1>' +
+      '<p class="lede">' + page.lede + '</p>' +
+      '<p class="lede">' + page.lede2 + '</p>' +
+      '<div class="stat"><b id="stat" data-stat>' + statOf(committed) + '</b><span id="statLabel">' + page.stat + '</span></div>' +
+      '<div class="sliders">' + page.sliders.map((s) =>
+        '<label class="slider"><span class="slider-top"><span>' + s.label + '</span><span class="val" id="val-' + s.key + '">' + s.format(v[s.key]) + '</span></span>' +
+        '<input type="range" data-key="' + s.key + '" min="' + s.min + '" max="' + s.max + '" step="' + s.step + '" value="' + v[s.key] + '" aria-label="' + s.label + '" aria-valuetext="' + s.format(v[s.key]) + '"></label>'
+      ).join('') + '</div>';
+    const stat = document.getElementById('stat');
+    if (stat) stat.style.color = page.accent;
+    syncChrome();
+  }
+
+  function updateReadouts() {
+    const page = PAGES[committed];
+    const v = values[page.id];
+    page.sliders.forEach((s) => {
+      const text = s.format(v[s.key]);
+      const val = document.getElementById('val-' + s.key);
+      const input = leafLeft.querySelector('input[data-key="' + s.key + '"]');
+      if (val && val.textContent !== text) val.textContent = text;
+      if (input) input.setAttribute('aria-valuetext', text);
+    });
+    const text = statOf(committed);
+    const stat = document.getElementById('stat');
+    if (stat && stat.textContent !== text) stat.textContent = text;
+  }
+
+  function syncChrome() {
+    book.dataset.page = String(committed);
+    book.dataset.flip = flip ? 'arc' : 'idle';
+    document.documentElement.dataset.reduced = reduced ? '1' : '0';
+    pager.textContent = (committed + 1) + ' / ' + PAGES.length;
+    const busy = !!flip;
+    prevBtn.disabled = busy || committed === 0;
+    nextBtn.disabled = busy || committed === PAGES.length - 1;
+    dogPrev.disabled = prevBtn.disabled;
+    dogNext.disabled = nextBtn.disabled;
+    curl.classList.toggle('on', !!flip && !reduced);
+    curl.dataset.active = flip && !reduced ? '1' : '0';
+  }
+
+  function fitCanvas(canvas, cssW, cssH) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(2, Math.round(cssW * dpr));
+    const h = Math.max(2, Math.round(cssH * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return ctx;
+  }
+
+  function resize() {
+    const rw = leafRight.clientWidth;
+    const rh = leafRight.clientHeight;
+    const sw = spread.clientWidth;
+    const sh = spread.clientHeight;
+    if (rw < 2 || rh < 2 || sw < 2 || sh < 2) return;
+    fitCanvas(mech, rw, rh);
+    fitCanvas(curl, sw, sh);
+  }
+
+  function pose(dt) {
+    const g = values.gears;
+    const y = values.gyro;
+    const o = values.orbit;
+    if (reduced) {
+      ang.gear = g.speed * g.dir * 1.35;
+      ang.spin = y.spin * Math.sign(y.torque || 1) * 0.85;
+      ang.precess = y.torque * 0.85;
+      ang.mean = o.speed * 0.95;
+      return;
+    }
+    ang.gear += dt * g.speed * g.dir * 1.7;
+    ang.spin += dt * y.spin * (Math.sign(y.torque) || 1) * 3.4;
+    ang.precess += dt * (y.torque / y.spin) * 0.85;
+    ang.mean += dt * o.speed * 0.72;
+  }
+
+  function traceGear(ctx, teeth, outer, inner, angle) {
+    const step = Math.PI * 2 / teeth;
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a = angle + i * step;
+      const pts = [0, 0.16, 0.46, 0.62];
+      const rads = [inner, outer, outer, inner];
+      for (let k = 0; k < 4; k++) {
+        const ang = a + step * pts[k];
+        const x = Math.cos(ang) * rads[k];
+        const y = Math.sin(ang) * rads[k];
+        if (i === 0 && k === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+    }
+    ctx.closePath();
+  }
+
+  function paintGear(ctx, x, y, teeth, pitch, angle, fill) {
+    const add = pitch / teeth * 2.05;
+    ctx.save();
+    ctx.translate(x, y);
+    traceGear(ctx, teeth, pitch + add, pitch - add * 1.15, angle);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(20, 14, 10, 0.35)';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, pitch * 0.34, 0, Math.PI * 2);
+    ctx.fillStyle = '#f7f1e6';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0, pitch * 0.12, 0, Math.PI * 2);
+    ctx.fillStyle = '#2a241c';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawGears(ctx, w, h) {
+    const v = values.gears;
+    const n1 = 14;
+    const n2 = 12;
+    const n3 = Math.max(10, Math.round(n1 * v.ratio));
+    const maxW = w * 0.86;
+    const maxH = h * 0.46;
+    const m = Math.min(maxW / (n1 + n2 + n3), maxH / Math.max(n1, n2, n3));
+    const rOf = (n) => n * m / 2;
+    const r1 = rOf(n1), r2 = rOf(n2), r3 = rOf(n3);
+    const mesh = m * 0.8;
+    const visual = (r1 + r2 - mesh) + (r2 + r3 - mesh) + r1 + r3;
+    const x1 = (w - visual) / 2 + r1;
+    const x2 = x1 + r1 + r2 - mesh;
+    const x3 = x2 + r2 + r3 - mesh;
+    const y = h * 0.43;
+    const bedTop = y + Math.max(r1, r2, r3) * 0.62;
+    ctx.fillStyle = '#2c2823';
+    roundRect(ctx, w * 0.08, bedTop, w * 0.84, Math.min(h * 0.18, h - bedTop - 16), 14);
+    ctx.fill();
+    const th1 = ang.gear;
+    const th2 = -th1 * (n1 / n2) + Math.PI / n2;
+    const th3 = -th2 * (n2 / n3) + Math.PI / n3;
+    paintGear(ctx, x3, y, n3, r3, th3, '#1e655c');
+    paintGear(ctx, x2, y, n2, r2, th2, '#8d5a38');
+    paintGear(ctx, x1, y, n1, r1, th1, '#3d4d5c');
+    ctx.save();
+    ctx.translate(x1, y);
+    ctx.rotate(th1);
+    ctx.fillStyle = '#241c16';
+    ctx.fillRect(0, -3.5, r1 * 0.86, 7);
+    ctx.beginPath();
+    ctx.arc(r1 * 0.68, 0, Math.max(4, r1 * 0.12), 0, Math.PI * 2);
+    ctx.fillStyle = '#a24b32';
+    ctx.fill();
+    ctx.restore();
+    const labelY = y - Math.max(r1, r2, r3) - 16;
+    ctx.fillStyle = '#5c4b3c';
+    ctx.font = '13px "Segoe UI", "PingFang SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(n1 + ' 齿', x1, labelY);
+    ctx.fillText(n2 + ' 齿', x2, labelY);
+    ctx.fillText(n3 + ' 齿', x3, labelY);
+    ctx.textAlign = 'left';
+  }
+
+  function projectPoint(x, y, z, precess, tilt, useTilt) {
+    let X = x, Y = y, Z = z;
+    if (useTilt) {
+      const ct = Math.cos(tilt), st = Math.sin(tilt);
+      const y1 = Y * ct - Z * st;
+      const z1 = Y * st + Z * ct;
+      Y = y1;
+      Z = z1;
+    }
+    const cp = Math.cos(precess), sp = Math.sin(precess);
+    const x2 = X * cp + Z * sp;
+    const z2 = -X * sp + Z * cp;
+    const persp = 520 / (520 + z2);
+    return { x: x2 * persp, y: -Y * persp, z: z2 };
+  }
+
+  function ringPath(ctx, R, precess, tilt, useTilt, spin) {
+    ctx.beginPath();
+    for (let i = 0; i <= 72; i++) {
+      const a = spin + (i / 72) * Math.PI * 2;
+      const p = projectPoint(Math.cos(a) * R, Math.sin(a) * R, 0, precess, tilt, useTilt);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+  }
+
+  function drawGyro(ctx, w, h) {
+    const v = values.gyro;
+    const tilt = v.tilt * Math.PI / 180;
+    const precess = ang.precess;
+    const R = Math.min(w, h) * 0.30;
+    const cx = w * 0.52;
+    const cy = h * 0.48;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = 'rgba(36, 28, 22, 0.10)';
+    ctx.beginPath();
+    ctx.ellipse(8, R * 0.95, R * 0.72, R * 0.18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#2a2824';
+    ctx.beginPath();
+    ctx.ellipse(0, R * 0.86, R * 0.62, R * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(-R * 0.08, R * 0.35, R * 0.16, R * 0.52);
+    ctx.lineWidth = Math.max(7, R * 0.07);
+    ctx.strokeStyle = '#c6a36a';
+    ctx.lineJoin = 'round';
+    ringPath(ctx, R, precess, 0, false, 0);
+    ctx.stroke();
+    ctx.strokeStyle = '#314155';
+    ringPath(ctx, R * 0.78, precess, tilt, true, 0);
+    ctx.stroke();
+    ctx.beginPath();
+    for (let i = 0; i <= 48; i++) {
+      const a = ang.spin + (i / 48) * Math.PI * 2;
+      const p = projectPoint(Math.cos(a) * R * 0.46, 0, Math.sin(a) * R * 0.46, precess, tilt, true);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#a33b32';
+    ctx.fill();
+    ctx.beginPath();
+    for (let i = 0; i <= 16; i++) {
+      const a = ang.spin + (i / 16) * 0.9;
+      const p = projectPoint(Math.cos(a) * R * 0.46, 0, Math.sin(a) * R * 0.46, precess, tilt, true);
+      if (i === 0) ctx.moveTo(0, 0);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#f3e2c4';
+    ctx.fill();
+    const a0 = projectPoint(0, -R * 0.62, 0, precess, tilt, true);
+    const a1 = projectPoint(0, R * 0.62, 0, precess, tilt, true);
+    ctx.beginPath();
+    ctx.moveTo(a0.x, a0.y);
+    ctx.lineTo(a1.x, a1.y);
+    ctx.strokeStyle = '#e6d3a4';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function orbitMap(x, y, a, incl) {
+    const y1 = y * Math.cos(incl);
+    const z = y * Math.sin(incl);
+    const node = incl * 0.28;
+    return [
+      x * Math.cos(node) - y1 * Math.sin(node),
+      x * Math.sin(node) + y1 * Math.cos(node) - z * 0.18
+    ];
+  }
+
+  function drawOrbit(ctx, w, h) {
+    const v = values.orbit;
+    const a = Math.min(w, h) * 0.33;
+    const e = v.ecc;
+    const incl = v.incl * Math.PI / 180;
+    const b = a * Math.sqrt(Math.max(0.05, 1 - e * e));
+    const cx = w * 0.52;
+    const cy = h * 0.50;
+    const map = (x, y) => {
+      const p = orbitMap(x, y, a, incl);
+      return [cx + p[0], cy + p[1]];
+    };
+    ctx.beginPath();
+    for (let i = 0; i <= 140; i++) {
+      const E = (i / 140) * Math.PI * 2;
+      const p = map(a * (Math.cos(E) - e), b * Math.sin(E));
+      if (i === 0) ctx.moveTo(p[0], p[1]);
+      else ctx.lineTo(p[0], p[1]);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(36, 32, 28, 0.62)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    let E = ang.mean;
+    for (let k = 0; k < 6; k++) E = ang.mean + e * Math.sin(E);
+    const planet = map(a * (Math.cos(E) - e), b * Math.sin(E));
+    const star = map(0, 0);
+    const moonA = ang.mean * 4.2;
+    const moon = map(
+      a * (Math.cos(E) - e) + Math.cos(moonA) * a * 0.16,
+      b * Math.sin(E) + Math.sin(moonA) * a * 0.16
+    );
+    const glow = ctx.createRadialGradient(star[0], star[1], 2, star[0], star[1], 28);
+    glow.addColorStop(0, '#f0c36a');
+    glow.addColorStop(1, 'rgba(240, 195, 106, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(star[0], star[1], 28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e2a63a';
+    ctx.beginPath();
+    ctx.arc(star[0], star[1], 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1f6f68';
+    ctx.beginPath();
+    ctx.arc(planet[0], planet[1], 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.arc(planet[0] - 3, planet[1] - 3, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#8d5a38';
+    ctx.beginPath();
+    ctx.arc(moon[0], moon[1], 4.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawPage(ctx, w, h, index) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#f4efe6';
+    ctx.fillRect(0, 0, w, h);
+    const g = ctx.createLinearGradient(0, 0, 26, 0);
+    g.addColorStop(0, 'rgba(40, 30, 18, 0.16)');
+    g.addColorStop(1, 'rgba(40, 30, 18, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 26, h);
+    const id = PAGES[index].id;
+    if (id === 'gears') drawGears(ctx, w, h);
+    else if (id === 'gyro') drawGyro(ctx, w, h);
+    else drawOrbit(ctx, w, h);
+    ctx.fillStyle = 'rgba(36, 28, 22, 0.45)';
+    ctx.font = '12px Georgia, serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(String(index + 1).padStart(2, '0'), w - 16, h - 14);
+    ctx.textAlign = 'left';
+  }
+
+  function drawMech() {
+    const w = leafRight.clientWidth;
+    const h = leafRight.clientHeight;
+    if (w < 2 || h < 2) return;
+    drawPage(mctx, w, h, shownRight);
+  }
+
+  function angleAt(x, t) {
+    const k = 0.33;
+    const local = (t * (1 + k) - (1 - x)) / k;
+    return clamp(local, 0, 1) * Math.PI;
+  }
+
+  function drawCurl(snap) {
+    const sw = spread.clientWidth;
+    const sh = spread.clientHeight;
+    const pageX = leafRight.offsetLeft;
+    const pageY = leafRight.offsetTop;
+    const pageW = leafRight.clientWidth;
+    const pageH = leafRight.clientHeight;
+    if (!snap || sw < 2 || pageW < 2) return;
+    cctx.clearRect(0, 0, sw, sh);
+    const t = flip.t;
+    let foldX = null;
+    let cursor = pageX;
+    const positions = [pageX];
+    const angles = [];
+    for (let i = 0; i < NX; i++) {
+      const a = angleAt((i + 0.5) / NX, t);
+      angles.push(a);
+      cursor += Math.cos(a) * (pageW / NX);
+      positions.push(cursor);
+      if (foldX === null && a > Math.PI / 2) foldX = cursor;
+    }
+    if (t > 0.04 && t < 0.96 && foldX !== null) {
+      const grad = cctx.createLinearGradient(foldX - 36, 0, foldX + 28, 0);
+      grad.addColorStop(0, 'rgba(30, 20, 12, 0)');
+      grad.addColorStop(0.55, 'rgba(30, 20, 12, 0.22)');
+      grad.addColorStop(1, 'rgba(30, 20, 12, 0)');
+      cctx.fillStyle = grad;
+      cctx.fillRect(foldX - 36, pageY, 64, pageH);
+    }
+    for (let i = 0; i < NX; i++) {
+      const a = angles[i];
+      const x0 = positions[i];
+      const x1 = positions[i + 1];
+      const destX = Math.min(x0, x1);
+      const destW = Math.max(0.8, Math.abs(x1 - x0) + 0.65);
+      const bow = Math.sin(a) * Math.min(28, pageH * 0.06);
+      const destY = pageY + bow * 0.22;
+      const destH = pageH - bow;
+      const sx0 = Math.round(i * snap.width / NX);
+      const sx1 = Math.round((i + 1) * snap.width / NX);
+      const shade = Math.sin(a);
+      if (bow > 1) {
+        cctx.fillStyle = 'rgba(30, 20, 12, ' + (0.08 + shade * 0.12).toFixed(3) + ')';
+        cctx.fillRect(destX, destY + destH - 2, destW, bow + 6);
+      }
+      if (Math.cos(a) >= 0) {
+        cctx.drawImage(snap, sx0, 0, Math.max(1, sx1 - sx0), snap.height, destX, destY, destW, destH);
+        if (shade > 0.02) {
+          cctx.fillStyle = 'rgba(32, 22, 12, ' + (shade * 0.40).toFixed(3) + ')';
+          cctx.fillRect(destX, destY, destW, destH);
+        }
+        if (shade > 0.65) {
+          cctx.fillStyle = 'rgba(255, 244, 220, 0.28)';
+          cctx.fillRect(destX, destY, destW, destH);
+        }
+      } else {
+        cctx.fillStyle = '#e6dccb';
+        cctx.fillRect(destX, destY, destW, destH);
+        cctx.fillStyle = 'rgba(40, 28, 18, ' + (0.08 + shade * 0.22).toFixed(3) + ')';
+        cctx.fillRect(destX, destY, destW, destH);
+      }
+    }
+    const lead = positions[NX];
+    cctx.fillStyle = '#cbbba4';
+    cctx.fillRect(lead - 1.5, pageY, 3, pageH);
+  }
+
+  function snapshotOf(index) {
+    const c = document.createElement('canvas');
+    c.width = mech.width;
+    c.height = mech.height;
+    const ctx = c.getContext('2d');
+    const dpr = mech.width / Math.max(1, leafRight.clientWidth);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawPage(ctx, leafRight.clientWidth, leafRight.clientHeight, index);
+    return c;
+  }
+
+  function finishFlip(commit) {
+    if (!flip) return;
+    if (commit) {
+      committed = flip.to;
+      shownRight = committed;
+    } else {
+      shownRight = committed;
+    }
+    flip = null;
+    renderLeft();
+    drawMech();
+    cctx.clearRect(0, 0, spread.clientWidth, spread.clientHeight);
+    syncChrome();
+  }
+
+  function animateFlip(toT, commit) {
+    if (!flip) return;
+    if (reduced) {
+      finishFlip(!!commit);
+      return;
+    }
+    const from = flip.t;
+    const t0 = performance.now();
+    const dur = 760;
+    const step = (now) => {
+      if (!flip) return;
+      const u = clamp((now - t0) / dur, 0, 1);
+      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      flip.t = from + (toT - from) * e;
+      drawCurl(flip.snap);
+      if (u < 1) requestAnimationFrame(step);
+      else finishFlip(!!commit);
+    };
+    requestAnimationFrame(step);
+  }
+
+  function beginFlip(dir) {
+    if (flip) return false;
+    const to = committed + dir;
+    if (to < 0 || to >= PAGES.length) return false;
+    if (reduced) {
+      committed = to;
+      shownRight = to;
+      renderLeft();
+      drawMech();
+      syncChrome();
+      book.dataset.flip = 'snap';
+      return true;
+    }
+    resize();
+    const snap = snapshotOf(dir > 0 ? committed : to);
+    if (dir > 0) shownRight = to;
+    drawMech();
+    flip = { dir, t: dir > 0 ? 0 : 1, to, snap };
+    syncChrome();
+    drawCurl(snap);
+    return true;
+  }
+
+  let gesture = null;
+  function pointerDown(ev, dir) {
+    if (ev.button !== undefined && ev.button !== 0) return;
+    if (ev.target.closest('input, label')) return;
+    if (flip) return;
+    if (dir > 0 && committed >= PAGES.length - 1) return;
+    if (dir < 0 && committed <= 0) return;
+    gesture = { dir, x: ev.clientX, y: ev.clientY, moved: false, id: ev.pointerId };
+    if (reduced) return;
+    if (!beginFlip(dir)) gesture = null;
+  }
+  function pointerMove(ev) {
+    if (!gesture || !flip || ev.pointerId !== gesture.id) return;
+    const pageW = Math.max(1, leafRight.getBoundingClientRect().width);
+    const dx = ev.clientX - gesture.x;
+    if (Math.hypot(dx, ev.clientY - gesture.y) > 6) gesture.moved = true;
+    flip.t = gesture.dir > 0 ? clamp(-dx / pageW, 0, 1) : clamp(1 - dx / pageW, 0, 1);
+    drawCurl(flip.snap);
+  }
+  function pointerUp(ev) {
+    if (!gesture || (ev && ev.pointerId !== gesture.id)) return;
+    const g = gesture;
+    gesture = null;
+    if (reduced) {
+      if (beginFlip(g.dir)) book.dataset.flip = 'snap';
+      return;
+    }
+    if (!flip) return;
+    if (!g.moved) {
+      animateFlip(g.dir > 0 ? 1 : 0, true);
+      return;
+    }
+    const complete = g.dir > 0 ? flip.t > 0.32 : flip.t < 0.68;
+    if (g.dir > 0) animateFlip(complete ? 1 : 0, complete);
+    else animateFlip(complete ? 0 : 1, complete);
+  }
+
+  leafRight.addEventListener('pointerdown', (ev) => pointerDown(ev, 1));
+  dogPrev.addEventListener('pointerdown', (ev) => pointerDown(ev, -1));
+  leafLeft.addEventListener('pointerdown', (ev) => {
+    if (ev.target.closest('input, label, a, button')) return;
+    pointerDown(ev, -1);
+  });
+  window.addEventListener('pointermove', pointerMove);
+  window.addEventListener('pointerup', pointerUp);
+  window.addEventListener('pointercancel', pointerUp);
+
+  nextBtn.addEventListener('click', () => { if (beginFlip(1)) animateFlip(1, true); });
+  prevBtn.addEventListener('click', () => { if (beginFlip(-1)) animateFlip(0, true); });
+
+  leafLeft.addEventListener('input', (ev) => {
+    const input = ev.target;
+    if (!input.dataset || !input.dataset.key) return;
+    values[PAGES[committed].id][input.dataset.key] = Number(input.value);
+    updateReadouts();
+    if (reduced) drawMech();
+  });
+
+  window.addEventListener('keydown', (ev) => {
+    if (ev.target.closest('input, textarea')) return;
+    if (ev.key === 'ArrowRight') { ev.preventDefault(); if (beginFlip(1)) animateFlip(1, true); }
+    if (ev.key === 'ArrowLeft') { ev.preventDefault(); if (beginFlip(-1)) animateFlip(0, true); }
+  });
+
+  reducedMQ.addEventListener('change', () => {
+    reduced = reducedMQ.matches;
+    if (reduced && flip) finishFlip(flip.t >= 0.5);
+    syncChrome();
+    drawMech();
+  });
+
+  window.addEventListener('resize', () => { resize(); drawMech(); });
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => { resize(); drawMech(); });
+    ro.observe(spread);
+    ro.observe(leafRight);
+  }
+
+  renderLeft();
+  resize();
+  syncChrome();
+  function frame(now) {
+    const dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
+    last = now;
+    if (!flip) {
+      pose(dt);
+      drawMech();
+      updateReadouts();
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

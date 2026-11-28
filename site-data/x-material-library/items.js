@@ -8134,12 +8134,12 @@ window.ITEMS=[
     "preview": "assets/2126055785860137135/preview.webm",
     "duration_s": 90,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/curious-machines-book/code/index.html",
     "added_at": "2026-11-27T23:23:25+08:00",
     "effect_zh": "Perplexity 做的可动手物理入门书「Curious Machines」：左边是课文，右边是齿轮组、陀螺仪、行星轨道这些立体模型，下面有转速、比例、正转反转的滑杆，拨一下模型就会跟着动。做教育产品或需要把原理讲清楚的说明页时，这种把教材做成一本真正能翻、能拧的书的办法很值得看。站点 curious-machines.pplx.app。",
     "platform": "x",
-    "title": "Curious Machines 立体教材：翻开书页，齿轮和陀螺仪可以用滑杆拧着看",
+    "title": "翻开手册，滑杆驱动齿轮啮合、陀螺进动和轨道旋转",
     "cindy_job": "cindy-jobs/2126055785860137135"
   },
   {
