@@ -38,19 +38,21 @@
   #receipt {
     position: fixed; z-index: 4; left: 50%; top: 46%;
     width: min(300px, 88vw); max-height: 76vh; overflow: auto;
-    color: #1c1e22; filter: drop-shadow(0 22px 28px rgba(0, 0, 0, 0.5));
+    color: #1c1e22;
     transform-origin: center center; pointer-events: none;
+    --spark-x: 0px; --spark-y: 0px;
   }
   #receipt.on { pointer-events: auto; }
   .paper {
     position: relative;
     padding: 22px 18px 28px;
+    filter: drop-shadow(0 22px 28px rgba(0, 0, 0, 0.5));
     background:
-      radial-gradient(circle at 18% 22%, rgba(176, 226, 255, 0.95), transparent 28%),
-      radial-gradient(circle at 78% 16%, rgba(255, 186, 214, 0.9), transparent 26%),
-      radial-gradient(circle at 62% 48%, rgba(255, 226, 160, 0.85), transparent 30%),
-      radial-gradient(circle at 28% 72%, rgba(176, 255, 220, 0.8), transparent 26%),
-      radial-gradient(circle at 80% 80%, rgba(186, 176, 255, 0.55), transparent 24%),
+      radial-gradient(circle at 18% 22%, rgba(150, 220, 255, 0.98), transparent 26%),
+      radial-gradient(circle at 78% 16%, rgba(255, 150, 196, 0.95), transparent 24%),
+      radial-gradient(circle at 62% 48%, rgba(255, 214, 120, 0.92), transparent 28%),
+      radial-gradient(circle at 28% 72%, rgba(140, 255, 210, 0.9), transparent 24%),
+      radial-gradient(circle at 80% 80%, rgba(176, 150, 255, 0.72), transparent 22%),
       #f6f3ee;
     clip-path: polygon(0 0, 100% 0, 100% 93%,
       95% 100%, 90% 93.5%, 85% 100%, 80% 93.5%, 75% 100%, 70% 93.5%,
@@ -60,17 +62,26 @@
   }
   .sheen {
     position: absolute; inset: 0; pointer-events: none; z-index: 2;
-    background: linear-gradient(115deg,
-      rgba(255, 90, 170, 0.28) 0%,
-      rgba(255, 214, 110, 0.32) 16%,
-      rgba(110, 255, 214, 0.34) 34%,
-      rgba(120, 160, 255, 0.34) 52%,
-      rgba(255, 130, 210, 0.3) 70%,
-      rgba(255, 236, 140, 0.28) 86%,
-      rgba(120, 255, 220, 0.3) 100%);
-    background-size: 220% 220%;
+    background-image: repeating-linear-gradient(112deg,
+      rgba(255, 64, 150, 0.78) 0px,
+      rgba(255, 210, 70, 0.84) 16px,
+      rgba(70, 255, 200, 0.8) 32px,
+      rgba(90, 140, 255, 0.84) 48px,
+      rgba(255, 100, 220, 0.76) 64px,
+      rgba(255, 64, 150, 0.78) 80px);
+    background-size: 180% 180%;
     mix-blend-mode: color;
-    opacity: 0.72;
+    opacity: 0.92;
+  }
+  .paper::after {
+    content: "";
+    position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    background-image: var(--sparks);
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    background-position: var(--spark-x) var(--spark-y);
+    mix-blend-mode: plus-lighter;
+    opacity: 0.9;
   }
   .sheet { position: relative; z-index: 1; }
   .brand { text-align: center; letter-spacing: 0.14em; font-weight: 750; font-size: 15px; line-height: 1.25; }
@@ -168,6 +179,8 @@
   var audioCtx = null;
   var sheenPhase = 0;
   var pointer = { x: 0, y: 0, ready: false };
+  var tilt = { rx: 0, ry: 0 };
+  var tiltAim = { rx: 0, ry: 0 };
   var last = 0;
   var receiptAge = 0;
   var receiptDelay = 0;
@@ -794,8 +807,8 @@
     receiptEl.hidden = false;
     receiptEl.className = 'on';
     receiptAge = reduced() ? 1 : 0;
-    receiptDelay = reduced() ? 0 : 0.2;
-    hint.textContent = '小票会跟着指针轻轻倾斜，虹彩从纸面扫过。';
+    receiptDelay = reduced() ? 0 : 0.05;
+    hint.textContent = '小票从碎裂处弹出，跟着指针在空间里倾斜，松手后缓缓回正。';
     againBtn.hidden = false;
   }
 
@@ -827,43 +840,77 @@
     receiptDelay = 0;
     receiptEl.hidden = true;
     receiptEl.className = '';
+    receiptEl.style.transform = '';
+    receiptEl.style.opacity = '';
+    tilt.rx = 0;
+    tilt.ry = 0;
+    tiltAim.rx = 0;
+    tiltAim.ry = 0;
     againBtn.hidden = true;
     payBtn.hidden = false;
     hint.textContent = '点冰面，裂纹从落点散开。点 Pay，整张卡碎落，掉出一张全息小票。';
     layout();
   }
 
+  function easeOutBack(t) {
+    var c1 = 1.55;
+    var c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  }
+
+  function trackTilt(dt) {
+    if (receiptEl.hidden || !pointer.ready) {
+      tiltAim.rx = 0;
+      tiltAim.ry = 0;
+    } else {
+      var restX = window.innerWidth * 0.5;
+      var restY = window.innerHeight * 0.46;
+      var dx = Math.max(-1, Math.min(1, (pointer.x - restX) / 180));
+      var dy = Math.max(-1, Math.min(1, (pointer.y - restY) / 200));
+      var yaw = reduced() ? 6.5 : 20;
+      var pitch = reduced() ? 5 : 16;
+      tiltAim.ry = dx * yaw;
+      tiltAim.rx = -dy * pitch;
+    }
+    var rate = pointer.ready ? 14 : 5.2;
+    var blend = 1 - Math.exp(-rate * Math.max(0.001, dt));
+    tilt.rx += (tiltAim.rx - tilt.rx) * blend;
+    tilt.ry += (tiltAim.ry - tilt.ry) * blend;
+  }
+
   function placeReceipt(dt) {
     if (receiptEl.hidden) return;
     receiptAge += dt;
     var shown = receiptAge - receiptDelay;
+    var restX = window.innerWidth * 0.5;
+    var restY = window.innerHeight * 0.46;
+    var fromX = box.x + box.w * 0.5 - restX;
+    var fromY = box.y + box.h * 0.48 - restY;
     if (shown <= 0) {
       receiptEl.style.opacity = '0';
+      receiptEl.style.transform = 'perspective(640px) translate(calc(-50% + ' + fromX.toFixed(2) + 'px), calc(-50% + ' + fromY.toFixed(2) + 'px)) scale(0.58)';
       return;
     }
-    var k = reduced() ? 1 : Math.max(0, Math.min(1, shown / 0.62));
-    var ease = 1 - Math.pow(1 - k, 3);
-    var drop = (1 - ease) * -78;
-    var rx = 0;
-    var ry = 0;
-    var hx = 50;
-    var hy = 42;
-    if (pointer.ready) {
-      var rect = receiptEl.getBoundingClientRect();
-      var cx = rect.left + rect.width * 0.5;
-      var cy = rect.top + rect.height * 0.5;
-      var dx = Math.max(-1, Math.min(1, (pointer.x - cx) / 280));
-      var dy = Math.max(-1, Math.min(1, (pointer.y - cy) / 280));
-      ry = dx * 9;
-      rx = -dy * 7;
-      hx = 50 + dx * 28;
-      hy = 42 + dy * 22;
-    }
-    receiptEl.style.opacity = String(ease);
-    receiptEl.style.transform = 'translate(-50%, calc(-50% + ' + drop.toFixed(2) + 'px)) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+    var k = reduced() ? 1 : Math.max(0, Math.min(1, shown / 0.4));
+    var popped = reduced() ? 1 : easeOutBack(k);
+    var fade = reduced() ? 1 : Math.max(0, Math.min(1, shown / 0.08));
+    var slide = 1 - popped;
+    var ox = fromX * slide;
+    var oy = fromY * slide;
+    var scale = reduced() ? 1 : (0.58 + 0.42 * popped);
+    trackTilt(dt);
+    receiptEl.style.opacity = String(fade);
+    receiptEl.style.transform =
+      'perspective(640px) translate(calc(-50% + ' + ox.toFixed(2) + 'px), calc(-50% + ' + oy.toFixed(2) + 'px)) rotateX(' +
+      tilt.rx.toFixed(2) + 'deg) rotateY(' + tilt.ry.toFixed(2) + 'deg) scale(' + scale.toFixed(4) + ')';
     if (!reduced()) sheenPhase += dt;
-    var shift = (sheenPhase * 22 + hx) % 100;
-    sheenEl.style.backgroundPosition = shift.toFixed(1) + '% ' + hy.toFixed(1) + '%';
+    var sweep = reduced() ? 16 : sheenPhase * 36;
+    var bandX = sweep + tilt.ry * 2.4;
+    var bandY = 24 - tilt.rx * 2;
+    sheenEl.style.backgroundPosition = bandX.toFixed(1) + '% ' + bandY.toFixed(1) + '%';
+    var drift = reduced() ? 0 : sheenPhase * 24;
+    receiptEl.style.setProperty('--spark-x', (tilt.ry * 1.5 + drift).toFixed(2) + 'px');
+    receiptEl.style.setProperty('--spark-y', (-tilt.rx * 1.25 + drift * 0.4).toFixed(2) + 'px');
   }
 
   function frame(now) {
@@ -876,6 +923,7 @@
       updateChips(dt);
       drawChips(ctx);
     } else if (phase === 'fall' && snap) {
+      if (reduced()) chips = [];
       if (!reduced()) {
         updateShards(dt);
         drawShards(ctx);
@@ -888,6 +936,28 @@
       placeReceipt(dt);
     }
     requestAnimationFrame(frame);
+  }
+
+  function paintSparkles() {
+    var seed = 7282;
+    function rnd() {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    }
+    var parts = [];
+    var i;
+    for (i = 0; i < 46; i++) {
+      var x = (6 + rnd() * 88).toFixed(1);
+      var y = (4 + rnd() * 90).toFixed(1);
+      var radius = 0.35 + rnd() * 0.85;
+      var edge = radius + 0.45;
+      var color = 'rgba(255,255,255,0.96)';
+      var pick = rnd();
+      if (pick > 0.82) color = 'rgba(186,248,255,0.95)';
+      else if (pick > 0.68) color = 'rgba(255,214,236,0.92)';
+      parts.push('radial-gradient(circle ' + radius.toFixed(2) + 'px at ' + x + '% ' + y + '%, ' + color + ' 0 ' + radius.toFixed(2) + 'px, transparent ' + edge.toFixed(2) + 'px)');
+    }
+    receiptEl.style.setProperty('--sparks', parts.join(','));
   }
 
   function paintBarcode() {
@@ -923,17 +993,28 @@
   });
   payBtn.addEventListener('click', pay);
   againBtn.addEventListener('click', resetCard);
+  function releasePointer() {
+    pointer.ready = false;
+  }
   window.addEventListener('pointermove', function (event) {
     pointer.x = event.clientX;
     pointer.y = event.clientY;
     pointer.ready = true;
   });
+  window.addEventListener('pointerup', releasePointer);
+  window.addEventListener('pointercancel', releasePointer);
+  window.addEventListener('blur', releasePointer);
   window.addEventListener('resize', layout);
   if (reduceQuery.addEventListener) {
     reduceQuery.addEventListener('change', function () {
       reduce = reduceQuery.matches;
+      if (reduce) {
+        chips = [];
+        if (phase === 'fall') finishToReceipt();
+      }
     });
   }
+  paintSparkles();
   paintBarcode();
   if (!ctx) {
     hint.textContent = '这块画布没有准备好，结冰的卡画不出来。';
