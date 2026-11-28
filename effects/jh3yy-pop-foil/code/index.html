@@ -17,9 +17,48 @@
   }
   #frame {
     position: relative;
+    display: block;
     width: 100%;
     height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    appearance: none;
+    cursor: default;
     touch-action: none;
+  }
+  #frame:focus { outline: none; }
+  #frame:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: -8px;
+  }
+  #frame.is-pulsed:focus-visible { outline-width: 4px; }
+  #mark {
+    position: absolute;
+    z-index: 2;
+    width: 18px;
+    height: 18px;
+    margin: -11px 0 0 -11px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px #000;
+    pointer-events: none;
+  }
+  .status {
+    position: absolute;
+    z-index: 3;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    margin: 0;
+    color: #fff;
+    font: 600 14px/1.3 system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    text-align: center;
+    pointer-events: none;
   }
   canvas {
     position: absolute;
@@ -41,15 +80,22 @@
     white-space: nowrap;
     border: 0;
   }
+  @media (forced-colors: active) {
+    #frame:focus-visible { outline: 2px solid Highlight; }
+  }
 </style>
 </head>
 <body>
   <h1 class="sr">make it pop</h1>
-  <p class="sr">黑色背景上两行字。make 和 it 是白色。pop 三个字母里面是流动的彩虹镭射，指针靠近时颜色在字母内部搅动。</p>
-  <div id="frame">
+  <p class="sr" id="how">黑色背景上两行字。make 和 it 是白色。pop 三个字母里面是流动的彩虹镭射。指针靠近，或用键盘聚焦后，颜色在字母内部搅动。方向键移动搅动中心，回车或空格沿字母搅动一次再退去。</p>
+  <button type="button" id="frame" aria-describedby="how">
+    <span class="sr">悬停或聚焦时搅动字母里的虹彩</span>
     <canvas id="stage" aria-hidden="true"></canvas>
     <canvas id="cpu" aria-hidden="true"></canvas>
-  </div>
+    <span id="mark" hidden></span>
+  </button>
+  <p class="status" id="status" hidden></p>
+  <p class="sr" id="live" aria-live="polite"></p>
   <script>
     (function () {
       var frame = document.getElementById('frame');
@@ -85,6 +131,13 @@
       var near = 0;
       var nearTarget = 0;
       var pointerSeen = false;
+      var keyX = 0;
+      var keyY = 0;
+      var pulse = 0;
+      var pulsing = false;
+      var mark = document.getElementById('mark');
+      var live = document.getElementById('live');
+      var status = document.getElementById('status');
 
       var VERT = [
         'attribute vec2 a;',
@@ -548,12 +601,15 @@
         var dpr = Math.min(window.devicePixelRatio || 1, 2);
         var w = Math.max(2, Math.round(cssW * dpr));
         var h = Math.max(2, Math.round(cssH * dpr));
-        if (w === canvas.width && h === canvas.height && layout) return;
-        canvas.width = w;
-        canvas.height = h;
-        if (mode === 'gl' && gl && !gl.isContextLost()) gl.viewport(0, 0, w, h);
-        rebuild();
-        if (reduced()) drawStill();
+        var same = w === canvas.width && h === canvas.height && layout;
+        if (!same) {
+          canvas.width = w;
+          canvas.height = h;
+          if (mode === 'gl' && gl && !gl.isContextLost()) gl.viewport(0, 0, w, h);
+          rebuild();
+          if (reduced()) drawStill();
+        }
+        reclampKeyboard();
       }
 
       function tick(now) {
@@ -578,24 +634,190 @@
         drawStill();
       }
 
+      function aim(canvasX, canvasY) {
+        if (!layout) return;
+        pointerSeen = true;
+        tx = canvasX;
+        ty = canvasY;
+        nearTarget = reduced() ? 0 : proximity(tx, ty);
+      }
+
       function setPointer(clientX, clientY) {
         if (!layout) return;
         var rect = frame.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
-        pointerSeen = true;
-        tx = (clientX - rect.left) * (canvas.width / rect.width);
-        ty = (clientY - rect.top) * (canvas.height / rect.height);
-        nearTarget = reduced() ? 0 : proximity(tx, ty);
+        keyX = (clientX - rect.left) * (canvas.width / rect.width);
+        keyY = (clientY - rect.top) * (canvas.height / rect.height);
+        aim(keyX, keyY);
+        if (reduced() && document.activeElement === frame) showMark();
+      }
+
+      function say(text) {
+        live.textContent = text;
+        if (reduced() && text) {
+          status.hidden = false;
+          status.textContent = text;
+        } else {
+          status.hidden = true;
+        }
+      }
+
+      function clampToMark(canvasX, canvasY) {
+        var rect = frame.getBoundingClientRect();
+        if (!rect.width || !rect.height || !canvas.width || !canvas.height) {
+          return { x: canvasX, y: canvasY };
+        }
+        var inset = 16;
+        var maxX = rect.width - inset;
+        var maxY = rect.height - inset;
+        var cssX = canvasX * rect.width / canvas.width;
+        var cssY = canvasY * rect.height / canvas.height;
+        if (maxX < inset) cssX = rect.width * 0.5;
+        else cssX = clamp(cssX, inset, maxX);
+        if (maxY < inset) cssY = rect.height * 0.5;
+        else cssY = clamp(cssY, inset, maxY);
+        return {
+          x: cssX * canvas.width / rect.width,
+          y: cssY * canvas.height / rect.height
+        };
+      }
+
+      function reclampKeyboard() {
+        if (!layout) return;
+        var held = clampToMark(keyX, keyY);
+        keyX = held.x;
+        keyY = held.y;
+        var keyboard = document.activeElement === frame && frame.matches(':focus-visible');
+        if (keyboard && !pulsing) aim(keyX, keyY);
+        if (reduced()) showMark();
+      }
+
+      function showMark() {
+        if (!reduced() || !layout || document.activeElement !== frame) {
+          mark.hidden = true;
+          return;
+        }
+        var rect = frame.getBoundingClientRect();
+        if (!rect.width || !rect.height || !canvas.width || !canvas.height) return;
+        var held = clampToMark(tx, ty);
+        mark.hidden = false;
+        mark.style.left = (held.x * rect.width / canvas.width) + 'px';
+        mark.style.top = (held.y * rect.height / canvas.height) + 'px';
+      }
+
+      function popCenter() {
+        var box = layout.popBox;
+        return { x: box.x + box.w * 0.5, y: box.y + box.h * 0.5 };
+      }
+
+      function playPulse() {
+        if (!layout) return;
+        var box = layout.popBox;
+        var fromX = box.x - box.w * 0.2;
+        var toX = box.x + box.w + Math.max(box.h * 0.95, 72);
+        var y = box.y + box.h * 0.5;
+        var id = ++pulse;
+        pulsing = true;
+        frame.classList.add('is-pulsed');
+        if (reduced()) {
+          var held = clampToMark(toX, y);
+          keyX = held.x;
+          keyY = held.y;
+          aim(keyX, keyY);
+          showMark();
+          say('已沿字母搅动并退去');
+          pulsing = false;
+          return;
+        }
+        var t0 = performance.now();
+        var dur = 1100;
+        function step(now) {
+          if (id !== pulse) return;
+          var t = Math.min(1, (now - t0) / dur);
+          aim(fromX + (toX - fromX) * t, y);
+          if (t < 1) {
+            window.requestAnimationFrame(step);
+            return;
+          }
+          nearTarget = 0;
+          window.setTimeout(function () {
+            if (id !== pulse) return;
+            pulsing = false;
+            frame.classList.remove('is-pulsed');
+            if (document.activeElement === frame) aim(keyX, keyY);
+          }, 420);
+        }
+        say('沿字母搅动一次');
+        window.requestAnimationFrame(step);
+      }
+
+      function cancelPulse() {
+        if (!pulsing) return;
+        pulse += 1;
+        pulsing = false;
+        frame.classList.remove('is-pulsed');
       }
 
       frame.addEventListener('pointermove', function (event) {
+        cancelPulse();
         setPointer(event.clientX, event.clientY);
       });
       frame.addEventListener('pointerdown', function (event) {
+        cancelPulse();
         setPointer(event.clientX, event.clientY);
       });
       frame.addEventListener('pointerleave', function () {
+        if (pulsing) return;
+        if (document.activeElement === frame && frame.matches(':focus-visible')) return;
         nearTarget = 0;
+      });
+      frame.addEventListener('focus', function () {
+        if (!layout) return;
+        if (!frame.matches(':focus-visible')) return;
+        var center = popCenter();
+        keyX = center.x;
+        keyY = center.y;
+        aim(keyX, keyY);
+        showMark();
+        say(reduced() ? '聚焦，搅动位置已标出' : '聚焦，字母里的虹彩开始搅动');
+      });
+      frame.addEventListener('blur', function () {
+        pulse += 1;
+        pulsing = false;
+        frame.classList.remove('is-pulsed');
+        nearTarget = 0;
+        mark.hidden = true;
+        say('');
+      });
+      frame.addEventListener('keydown', function (event) {
+        var key = event.key;
+        var arrows = key === 'ArrowLeft' || key === 'ArrowRight' || key === 'ArrowUp' || key === 'ArrowDown';
+        var pulseKey = key === 'Enter' || key === ' ' || key === 'Spacebar';
+        if (!arrows && !pulseKey) return;
+        event.preventDefault();
+        if (!layout) return;
+        cancelPulse();
+        if (pulseKey) {
+          if (event.repeat) return;
+          playPulse();
+          return;
+        }
+        var box = layout.popBox;
+        var step = Math.max(18, Math.min(box.w, box.h) * 0.12);
+        var pad = Math.max(box.h, 72);
+        if (key === 'ArrowLeft') keyX -= step;
+        else if (key === 'ArrowRight') keyX += step;
+        else if (key === 'ArrowUp') keyY -= step;
+        else keyY += step;
+        keyX = clamp(keyX, box.x - pad, box.x + box.w + pad);
+        keyY = clamp(keyY, box.y - pad, box.y + box.h + pad);
+        var held = clampToMark(keyX, keyY);
+        keyX = held.x;
+        keyY = held.y;
+        aim(keyX, keyY);
+        showMark();
+        var name = key === 'ArrowLeft' ? '左' : key === 'ArrowRight' ? '右' : key === 'ArrowUp' ? '上' : '下';
+        say(reduced() ? '搅动中心：' + name : '搅动中心移向' + name);
       });
       canvas.addEventListener('webglcontextlost', function (event) {
         event.preventDefault();
@@ -618,9 +840,22 @@
 
       if (typeof reduceQuery.addEventListener === 'function') {
         reduceQuery.addEventListener('change', function () {
-          nearTarget = 0;
-          if (reduced()) stopStill();
-          else start();
+          pulse += 1;
+          pulsing = false;
+          frame.classList.remove('is-pulsed');
+          if (reduced()) {
+            nearTarget = 0;
+            stopStill();
+            if (document.activeElement === frame) {
+              showMark();
+              say('减少动态，虹彩停住。方向键移动标记。');
+            }
+            return;
+          }
+          mark.hidden = true;
+          status.hidden = true;
+          if (document.activeElement === frame) aim(keyX, keyY);
+          start();
         });
       }
 
