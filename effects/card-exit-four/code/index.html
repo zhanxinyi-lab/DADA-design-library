@@ -110,7 +110,10 @@
     const status = document.getElementById("status");
     const reduceQuery = matchMedia("(prefers-reduced-motion: reduce)");
     let reduced = reduceQuery.matches;
-    reduceQuery.addEventListener("change", () => { reduced = reduceQuery.matches; });
+    reduceQuery.addEventListener("change", () => {
+      reduced = reduceQuery.matches;
+      if (reduced) haltForReducedMotion();
+    });
 
     let jobs = [];
     let motes = [];
@@ -736,30 +739,67 @@
       airCtx.clearRect(0, 0, w, h);
     }
 
+    function haltForReducedMotion() {
+      generation += 1;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      jobs = [];
+      motes = [];
+      debris = [];
+      setHeat(false);
+      for (const el of stack.querySelectorAll("li")) {
+        for (const anim of el.getAnimations()) anim.cancel();
+      }
+      const leaving = [...stack.querySelectorAll("button.card.leaving")];
+      for (const button of leaving) {
+        const li = button.closest("li");
+        if (!li) continue;
+        const wasFocused = document.activeElement === button;
+        const next = li.nextElementSibling?.querySelector("button.card")
+          || li.previousElementSibling?.querySelector("button.card")
+          || document.getElementById("reset");
+        const hasBelow = !!li.nextElementSibling;
+        const name = button._card.name;
+        li.remove();
+        if (wasFocused && next && next.isConnected) next.focus();
+        announce(name + (hasBelow ? "直接消失了，下面的卡片已经补上。" : "直接消失了。"));
+      }
+      clearAir();
+      busy = false;
+    }
+
     function frame(now) {
+      if (reduced) {
+        raf = 0;
+        return;
+      }
       const dt = Math.min(0.034, last ? (now - last) / 1000 : 0.016);
       last = now;
       clearAir();
       for (const job of jobs) {
+        if (reduced) break;
         if (!job.button.isConnected && job.finished) continue;
         if (job.kind === "burn") drawBurn(job, now);
         else if (job.kind === "plume") drawPlume(job, now);
         else if (job.kind === "blocks") drawBlocks(job, now);
         else drawPeel(job, now);
       }
+      if (reduced) {
+        raf = 0;
+        return;
+      }
       stepDebris(dt);
       paintDebris();
       stepMotes(dt, now);
       jobs = jobs.filter((job) => !job.finished);
-      if (jobs.length || debris.length || motes.length) raf = requestAnimationFrame(frame);
+      if (!reduced && (jobs.length || debris.length || motes.length)) raf = requestAnimationFrame(frame);
       else { raf = 0; clearAir(); }
     }
 
     function kick() {
-      if (!raf) {
-        last = 0;
-        raf = requestAnimationFrame(frame);
-      }
+      if (reduced || raf) return;
+      last = 0;
+      raf = requestAnimationFrame(frame);
     }
 
     document.getElementById("reset").addEventListener("click", () => {
