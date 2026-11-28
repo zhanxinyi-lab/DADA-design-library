@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>按住聚合成形</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: #141516; color: #e7e2da; }
+  #stage { position: fixed; inset: 0; touch-action: none; cursor: pointer; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .hud {
+    position: absolute; left: 16px; right: 16px; bottom: 16px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    max-width: 100%;
+    font: 15px/1.4 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    pointer-events: none;
+  }
+  button {
+    pointer-events: auto;
+    width: min(280px, 100%);
+    border: 0; border-radius: 999px; padding: 14px 18px;
+    background: #ece7df; color: #1c1b19; cursor: pointer;
+    font: inherit; letter-spacing: .08em;
+  }
+  button:focus { outline: none; }
+  button:focus-visible { outline: 2px solid #ece7df; outline-offset: 3px; }
+  #meter {
+    pointer-events: none;
+    width: min(280px, 100%);
+    height: 4px; border-radius: 999px; background: #2a2c30; overflow: hidden;
+  }
+  #fill { display: block; height: 100%; width: 0; background: #d9c7a6; }
+  .hint {
+    margin: 0; width: 100%; max-width: 34em;
+    color: #b7b3ac; font-size: 13px; line-height: 1.45; text-align: center;
+  }
+</style>
+</head>
+<body>
+<main id="stage">
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div class="hud">
+    <button id="hold" type="button" aria-pressed="false" aria-controls="meter">按住聚合</button>
+    <div id="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="聚合进度"><span id="fill"></span></div>
+    <p class="hint" id="hint">按住画面会推进，松开后落回。点按按钮会完整聚合并落回。空格或回车同样是按住。</p>
+  </div>
+</main>
+<script>
+(() => {
+  const RISE_MS = 1200;
+  const FALL_MIN_MS = 450;
+  const FALL_MAX_MS = 1100;
+  const COUNT = 520;
+
+  const stage = document.getElementById('stage');
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const hold = document.getElementById('hold');
+  const meter = document.getElementById('meter');
+  const fill = document.getElementById('fill');
+  const hint = document.getElementById('hint');
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  let w = 1, h = 1, dpr = 1;
+  let progress = 0;
+  let falling = false;
+  let fallFrom = 0;
+  let fallElapsed = 0;
+  let fallDur = FALL_MIN_MS;
+  let raf = 0;
+  let last = 0;
+  let shown = -1;
+  let labelMode = '';
+  let reduced = motion.matches;
+  let scripted = false;
+  let swallowClick = false;
+  const pointers = new Set();
+  const keys = new Set();
+  const dots = [];
+
+  function rand(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function easeInOut2(t) {
+    return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
+  }
+  function clamp01(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }
+  function realPressing() { return pointers.size > 0 || keys.size > 0; }
+  function pressing() { return realPressing() || scripted; }
+  function holdKey(event) {
+    return event.code === 'Space' || event.code === 'Enter' || event.code === 'NumpadEnter';
+  }
+
+  function buildDots() {
+    const next = rand(2125603009);
+    const outline = Math.floor(COUNT * 0.42);
+    const inner = Math.floor(COUNT * 0.22);
+    for (let i = 0; i < COUNT; i++) {
+      let x, y;
+      if (i < outline) {
+        const t = (i + next() * 0.35) / outline;
+        const side = Math.floor(t * 4) % 4;
+        const u = (t * 4) % 1;
+        const c = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+        const a = c[side];
+        const b = c[(side + 1) % 4];
+        const j = (next() - 0.5) * 0.06;
+        x = a[0] * (1 - u) + b[0] * u + j;
+        y = a[1] * (1 - u) + b[1] * u + j * 0.6;
+      } else if (i < outline + inner) {
+        const t = (i + next()) / inner;
+        const side = Math.floor(t * 4) % 4;
+        const u = (t * 4) % 1;
+        const c = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+        const a = c[side];
+        const b = c[(side + 1) % 4];
+        const s = 0.52;
+        x = (a[0] * (1 - u) + b[0] * u) * s + (next() - 0.5) * 0.04;
+        y = (a[1] * (1 - u) + b[1] * u) * s + (next() - 0.5) * 0.04;
+      } else {
+        do {
+          x = (next() - 0.5) * 1.7;
+          y = (next() - 0.5) * 1.7;
+        } while (Math.abs(x) + Math.abs(y) > 0.82);
+      }
+      dots.push({
+        tx: x,
+        ty: y,
+        rx: (next() - 0.5) * 1.55,
+        delay: next() * 0.22,
+        scatter: (next() - 0.5) * 6,
+        size: 1.1 + next() * 1.6,
+        lift: 0
+      });
+    }
+  }
+
+  function place() {
+    const ground = Math.min(h * 0.74, h - 118);
+    const scale = Math.min(150, Math.max(64, Math.min(w * 0.22, (ground - 40) * 0.42)));
+    const cy = ground - scale - 28;
+    const cx = w / 2;
+    const span = Math.min(w * 0.72, 640);
+    for (const dot of dots) {
+      dot.px = cx + dot.tx * scale;
+      dot.py = cy + dot.ty * scale;
+      dot.gx = cx + dot.rx * span;
+      dot.gy = ground + (dot.delay - 0.11) * 10;
+    }
+  }
+
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = Math.max(1, Math.floor(w * dpr));
+    canvas.height = Math.max(1, Math.floor(h * dpr));
+    place();
+    draw();
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#1b1d21');
+    sky.addColorStop(1, '#121314');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+
+    const ground = Math.min(h * 0.74, h - 118);
+    ctx.strokeStyle = 'rgba(232, 226, 216, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.12, ground);
+    ctx.lineTo(w * 0.88, ground);
+    ctx.stroke();
+
+    const glow = clamp01((progress - 0.35) / 0.65);
+    if (glow > 0) {
+      const g = ctx.createRadialGradient(w / 2, ground - 90, 10, w / 2, ground - 70, Math.min(w, h) * 0.34);
+      g.addColorStop(0, `rgba(232, 220, 196, ${0.16 * glow})`);
+      g.addColorStop(1, 'rgba(232, 220, 196, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    for (const dot of dots) {
+      const local = clamp01((progress - dot.delay) / (1 - dot.delay));
+      const e = local * local * (3 - 2 * local);
+      const scatter = Math.sin(Math.PI * e) * dot.scatter;
+      const x = dot.gx + (dot.px - dot.gx) * e + scatter;
+      const y = dot.gy + (dot.py - dot.gy) * e;
+      ctx.fillStyle = `rgba(236, 231, 222, ${0.28 + e * 0.7})`;
+      ctx.beginPath();
+      ctx.arc(x, y, dot.size * (0.75 + e * 0.45), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    syncUi();
+  }
+
+  function syncUi() {
+    const pct = Math.round(clamp01(progress) * 100);
+    fill.style.width = pct + '%';
+    if (pct !== shown) {
+      shown = pct;
+      meter.setAttribute('aria-valuenow', String(pct));
+    }
+    const down = pressing();
+    hold.setAttribute('aria-pressed', down ? 'true' : 'false');
+    const mode = reduced ? 'reduced' : down ? 'down' : 'up';
+    if (mode === labelMode) return;
+    labelMode = mode;
+    if (mode === 'reduced') {
+      hold.textContent = '已成形';
+      hint.textContent = '已开启减少动态效果，直接显示聚好的图形，不再播放过渡。';
+    } else if (mode === 'down') {
+      hold.textContent = '松开回落';
+      hint.textContent = '按住时进度向前。松开后粒子落回地面。空格或回车与指针是同一段进度。';
+    } else {
+      hold.textContent = '按住聚合';
+      hint.textContent = '按住画面会推进，松开后落回。点按按钮会完整聚合并落回。空格或回车同样是按住。';
+    }
+  }
+
+  function arm() {
+    if (reduced || raf) return;
+    last = performance.now();
+    raf = requestAnimationFrame(tick);
+  }
+
+  function stop() {
+    if (!raf) return;
+    cancelAnimationFrame(raf);
+    raf = 0;
+  }
+
+  function tick(now) {
+    const dt = Math.min(48, now - last);
+    last = now;
+    raf = 0;
+    if (reduced) { draw(); return; }
+    if (pressing()) {
+      falling = false;
+      if (progress < 1) progress = Math.min(1, progress + dt / RISE_MS);
+      if (scripted && progress >= 1 && !realPressing()) {
+        scripted = false;
+        beginFall();
+      }
+    } else if (falling) {
+      fallElapsed += dt;
+      const u = Math.min(1, fallElapsed / fallDur);
+      progress = fallFrom * (1 - easeInOut2(u));
+      if (u >= 1) { progress = 0; falling = false; }
+    }
+    draw();
+    if (pressing() && progress < 1) arm();
+    else if (falling) arm();
+  }
+
+  function press() {
+    if (reduced) { syncUi(); return; }
+    falling = false;
+    arm();
+  }
+
+  function beginFall() {
+    falling = true;
+    fallFrom = progress;
+    fallElapsed = 0;
+    fallDur = FALL_MIN_MS + (FALL_MAX_MS - FALL_MIN_MS) * progress;
+    arm();
+  }
+
+  function release() {
+    if (pressing() || reduced) { if (reduced) syncUi(); return; }
+    if (falling) return;
+    if (progress <= 0.001) {
+      progress = 0;
+      falling = false;
+      draw();
+      return;
+    }
+    beginFall();
+  }
+
+  function finishGesture() {
+    queueMicrotask(() => { swallowClick = false; });
+  }
+
+  function playClick() {
+    if (swallowClick) { swallowClick = false; return; }
+    if (reduced) { syncUi(); return; }
+    scripted = true;
+    press();
+  }
+
+  function applyMotion() {
+    reduced = motion.matches;
+    pointers.clear();
+    keys.clear();
+    scripted = false;
+    swallowClick = false;
+    falling = false;
+    stop();
+    progress = reduced ? 1 : 0;
+    draw();
+  }
+
+  stage.addEventListener('pointerdown', (event) => {
+    if (!event.isPrimary || event.button !== 0) return;
+    if (event.pointerType !== 'mouse') event.preventDefault();
+    try { stage.setPointerCapture(event.pointerId); } catch { /* 捕获失败时仍靠松开事件 */ }
+    swallowClick = true;
+    scripted = false;
+    pointers.add(event.pointerId);
+    press();
+  });
+  stage.addEventListener('pointerup', (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.delete(event.pointerId);
+    release();
+    finishGesture();
+  });
+  function endPointer(event) {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.delete(event.pointerId);
+    release();
+    finishGesture();
+  }
+  stage.addEventListener('pointercancel', endPointer);
+  window.addEventListener('pointerup', endPointer);
+  window.addEventListener('pointercancel', endPointer);
+  stage.addEventListener('lostpointercapture', (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.delete(event.pointerId);
+    release();
+    finishGesture();
+  });
+  stage.addEventListener('contextmenu', (event) => event.preventDefault());
+
+  window.addEventListener('keydown', (event) => {
+    if (!holdKey(event) || event.repeat || keys.has(event.code)) return;
+    event.preventDefault();
+    swallowClick = true;
+    scripted = false;
+    keys.add(event.code);
+    press();
+  });
+  window.addEventListener('keyup', (event) => {
+    if (!holdKey(event)) return;
+    keys.delete(event.code);
+    release();
+    finishGesture();
+  });
+  hold.addEventListener('click', playClick);
+  window.addEventListener('blur', () => {
+    if (!pressing()) return;
+    pointers.clear();
+    keys.clear();
+    scripted = false;
+    swallowClick = false;
+    release();
+  });
+  motion.addEventListener('change', applyMotion);
+  window.addEventListener('resize', resize);
+
+  buildDots();
+  if (reduced) progress = 1;
+  resize();
+})();
+</script>
+</body>
+</html>
