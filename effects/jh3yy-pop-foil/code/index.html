@@ -601,12 +601,15 @@
         var dpr = Math.min(window.devicePixelRatio || 1, 2);
         var w = Math.max(2, Math.round(cssW * dpr));
         var h = Math.max(2, Math.round(cssH * dpr));
-        if (w === canvas.width && h === canvas.height && layout) return;
-        canvas.width = w;
-        canvas.height = h;
-        if (mode === 'gl' && gl && !gl.isContextLost()) gl.viewport(0, 0, w, h);
-        rebuild();
-        if (reduced()) drawStill();
+        var same = w === canvas.width && h === canvas.height && layout;
+        if (!same) {
+          canvas.width = w;
+          canvas.height = h;
+          if (mode === 'gl' && gl && !gl.isContextLost()) gl.viewport(0, 0, w, h);
+          rebuild();
+          if (reduced()) drawStill();
+        }
+        reclampKeyboard();
       }
 
       function tick(now) {
@@ -659,6 +662,36 @@
         }
       }
 
+      function clampToMark(canvasX, canvasY) {
+        var rect = frame.getBoundingClientRect();
+        if (!rect.width || !rect.height || !canvas.width || !canvas.height) {
+          return { x: canvasX, y: canvasY };
+        }
+        var inset = 16;
+        var maxX = rect.width - inset;
+        var maxY = rect.height - inset;
+        var cssX = canvasX * rect.width / canvas.width;
+        var cssY = canvasY * rect.height / canvas.height;
+        if (maxX < inset) cssX = rect.width * 0.5;
+        else cssX = clamp(cssX, inset, maxX);
+        if (maxY < inset) cssY = rect.height * 0.5;
+        else cssY = clamp(cssY, inset, maxY);
+        return {
+          x: cssX * canvas.width / rect.width,
+          y: cssY * canvas.height / rect.height
+        };
+      }
+
+      function reclampKeyboard() {
+        if (!layout) return;
+        var held = clampToMark(keyX, keyY);
+        keyX = held.x;
+        keyY = held.y;
+        var keyboard = document.activeElement === frame && frame.matches(':focus-visible');
+        if (keyboard && !pulsing) aim(keyX, keyY);
+        if (reduced()) showMark();
+      }
+
       function showMark() {
         if (!reduced() || !layout || document.activeElement !== frame) {
           mark.hidden = true;
@@ -666,9 +699,10 @@
         }
         var rect = frame.getBoundingClientRect();
         if (!rect.width || !rect.height || !canvas.width || !canvas.height) return;
+        var held = clampToMark(tx, ty);
         mark.hidden = false;
-        mark.style.left = (tx * rect.width / canvas.width) + 'px';
-        mark.style.top = (ty * rect.height / canvas.height) + 'px';
+        mark.style.left = (held.x * rect.width / canvas.width) + 'px';
+        mark.style.top = (held.y * rect.height / canvas.height) + 'px';
       }
 
       function popCenter() {
@@ -686,7 +720,10 @@
         pulsing = true;
         frame.classList.add('is-pulsed');
         if (reduced()) {
-          aim(toX, y);
+          var held = clampToMark(toX, y);
+          keyX = held.x;
+          keyY = held.y;
+          aim(keyX, keyY);
           showMark();
           say('已沿字母搅动并退去');
           pulsing = false;
@@ -774,6 +811,9 @@
         else keyY += step;
         keyX = clamp(keyX, box.x - pad, box.x + box.w + pad);
         keyY = clamp(keyY, box.y - pad, box.y + box.h + pad);
+        var held = clampToMark(keyX, keyY);
+        keyX = held.x;
+        keyY = held.y;
         aim(keyX, keyY);
         showMark();
         var name = key === 'ArrowLeft' ? '左' : key === 'ArrowRight' ? '右' : key === 'ArrowUp' ? '上' : '下';
