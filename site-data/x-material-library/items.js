@@ -5879,8 +5879,8 @@ window.ITEMS=[
     "full_video_local": "assets/2116551748848345362/video.mp4",
     "duration_s": 6,
     "has_animation": true,
-    "code_status": "ai_recreated",
-    "code": "effects/wura-dial-ui/code/index.html",
+    "code_status": "needs_recreation",
+    "code": null,
     "added_at": "2026-11-02T11:29:55+08:00",
     "effect_zh": "十月交互探索：旋钮（dial）选择器、弹层（modal）交互、团队规模选择、Agent 思考态微交互。",
     "platform": "x",
@@ -5888,8 +5888,7 @@ window.ITEMS=[
       "assets/2116551748848345362/video1.mp4",
       "assets/2116551748848345362/video2.mp4",
       "assets/2116551748848345362/video3.mp4"
-    ],
-    "title": "横滑选药型，也能点开弹层、选团队规模、看思考态往下走"
+    ]
   },
   {
     "id": "2116523080931475887",
