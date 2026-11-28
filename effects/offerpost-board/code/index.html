@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>跟进看板切换</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #17181d;
+    --muted: #5c6270;
+    --line: #e6e8f2;
+    --card: #ffffff;
+    --board: #f3f4fb;
+    --page: #d5dcf3;
+    --blue: #3c6dff;
+    --blue-soft: #d9e4ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    background: var(--page);
+    color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .wrap {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .board {
+    width: min(880px, 100%);
+    background: var(--board);
+    border-radius: 28px;
+    padding: clamp(14px, 3vw, 28px);
+    box-shadow: 0 18px 50px rgba(48, 56, 110, 0.12);
+  }
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 18px;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .kicker {
+    margin: 0;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .title {
+    position: relative;
+    min-height: 1.15em;
+    margin: 2px 0 0;
+  }
+  .title span {
+    display: block;
+    font-size: clamp(28px, 6vw, 40px);
+    font-weight: 720;
+    letter-spacing: -0.04em;
+    line-height: 1.15;
+  }
+  .title .in { position: absolute; left: 0; top: 0; }
+  .note {
+    position: relative;
+    min-height: 1.4em;
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .note span { display: block; max-width: 36em; }
+  .note .in { position: absolute; left: 0; top: 0; right: 0; }
+  .switch {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    flex: 1 1 240px;
+    max-width: 100%;
+    padding: 4px;
+    background: var(--card);
+    border-radius: 999px;
+  }
+  .pill {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 0;
+    width: 0;
+    border-radius: 999px;
+    background: var(--ink);
+  }
+  .switch button {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 6px;
+    border-radius: 999px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .switch button:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .metric {
+    min-width: 0;
+    background: var(--card);
+    border-radius: 18px;
+    padding: 14px 14px 12px;
+  }
+  .metric h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .num {
+    margin: 8px 0 4px;
+    font-size: clamp(26px, 7vw, 40px);
+    font-weight: 720;
+    letter-spacing: -0.045em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .num small {
+    margin-left: 4px;
+    font-size: 0.42em;
+    font-weight: 650;
+    letter-spacing: 0;
+  }
+  .detail {
+    position: relative;
+    min-height: 2.5em;
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .detail span { display: block; }
+  .detail .in { position: absolute; left: 0; right: 0; top: 0; }
+  .chart {
+    margin-top: 10px;
+    background: var(--card);
+    border-radius: 18px;
+    padding: 14px 14px 12px;
+  }
+  .chart h2 {
+    margin: 0 0 12px;
+    font-size: 15px;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+    align-items: end;
+  }
+  .col { min-width: 0; text-align: center; }
+  .pct {
+    font-size: 11px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 6px;
+  }
+  .track {
+    height: 96px;
+    display: flex;
+    align-items: flex-end;
+  }
+  .bar {
+    width: 100%;
+    height: 8%;
+    border-radius: 9px 9px 5px 5px;
+    background: var(--blue-soft);
+  }
+  .bar.on { background: var(--blue); }
+  .day {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .hint {
+    width: min(880px, 100%);
+    margin: 10px auto 0;
+    color: #3e4558;
+    font-size: 12px;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  @media (max-width: 720px) {
+    .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .board { border-radius: 22px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="board" id="board">
+      <header class="head">
+        <div class="intro">
+          <p class="kicker">投递状态</p>
+          <h1 class="title"><span class="out" id="title-out"></span><span class="in" id="title-in"></span></h1>
+          <p class="note"><span class="out" id="note-out"></span><span class="in" id="note-in"></span></p>
+        </div>
+        <div class="switch" id="switch" role="tablist" aria-label="时间范围">
+          <span class="pill" id="pill" aria-hidden="true"></span>
+          <button type="button" role="tab" id="tab-0" aria-controls="panel">本周</button>
+          <button type="button" role="tab" id="tab-1" aria-controls="panel">本月</button>
+          <button type="button" role="tab" id="tab-2" aria-controls="panel">全部</button>
+        </div>
+      </header>
+      <div id="panel" role="tabpanel">
+        <div class="metrics">
+          <article class="metric">
+            <h2>已发出</h2>
+            <p class="num" id="n0"></p>
+            <p class="detail"><span class="out" id="d0-out"></span><span class="in" id="d0-in"></span></p>
+          </article>
+          <article class="metric">
+            <h2>有回复</h2>
+            <p class="num" id="n1"></p>
+            <p class="detail"><span class="out" id="d1-out"></span><span class="in" id="d1-in"></span></p>
+          </article>
+          <article class="metric">
+            <h2>等待</h2>
+            <p class="num" id="n2"></p>
+            <p class="detail"><span class="out" id="d2-out"></span><span class="in" id="d2-in"></span></p>
+          </article>
+          <article class="metric">
+            <h2>已约面</h2>
+            <p class="num" id="n3"></p>
+            <p class="detail"><span class="out" id="d3-out"></span><span class="in" id="d3-in"></span></p>
+          </article>
+        </div>
+        <section class="chart" aria-label="按星期的回复比例">
+          <h2>哪天更容易收到回复</h2>
+          <div class="cols" id="cols"></div>
+        </section>
+      </div>
+    </main>
+  <p class="hint">点「本周 / 本月 / 全部」，或在按钮上按左右方向键。滑块、数字和柱形走同一段进度。</p>
+  </div>
+  <p class="sr" id="live" aria-live="polite"></p>
+<script>
+(function () {
+  var RANGES = [
+    {
+      label: "本周",
+      note: "近几天有 3 条新回复。",
+      metrics: [
+        { kind: "int", value: 12, detail: "比上周多 2" },
+        { kind: "pair", value: 3, of: 8, detail: "大约四成有回音" },
+        { kind: "day", value: 1.6, detail: "比之前快一点" },
+        { kind: "int", value: 1, detail: "下一场在周四" }
+      ],
+      bars: [28, 64, 46, 22, 10, 4]
+    },
+    {
+      label: "本月",
+      note: "这个月的回复比上个月多一些。",
+      metrics: [
+        { kind: "int", value: 40, detail: "比上月多 6" },
+        { kind: "pair", value: 11, of: 26, detail: "回复比上月多" },
+        { kind: "day", value: 2.5, detail: "和上月差不多" },
+        { kind: "int", value: 3, detail: "最近一场在周四" }
+      ],
+      bars: [32, 54, 40, 30, 18, 8]
+    },
+    {
+      label: "全部",
+      note: "全部记录里，约面只占一小部分。",
+      metrics: [
+        { kind: "int", value: 96, detail: "从开始记到现在" },
+        { kind: "pair", value: 22, of: 70, detail: "多数还在等" },
+        { kind: "day", value: 3.2, detail: "跨度更长" },
+        { kind: "int", value: 7, detail: "有的已经结束" }
+      ],
+      bars: [24, 42, 36, 33, 20, 14]
+    }
+  ];
+  var DAYS = ["周一", "周二", "周三", "周四", "周五", "周六"];
+  var DUR = 520;
+  var tabs = [0, 1, 2].map(function (i) { return document.getElementById("tab-" + i); });
+  var pill = document.getElementById("pill");
+  var switchEl = document.getElementById("switch");
+  var panel = document.getElementById("panel");
+  var cols = document.getElementById("cols");
+  var live = document.getElementById("live");
+  var mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var bars = [];
+  var pcts = [];
+  var shown = null;
+  var from = null;
+  var to = null;
+  var textFrom = 1;
+  var textTo = 1;
+  var fadeP = 1;
+  var pillFrom = { x: 0, w: 0 };
+  var pillToIndex = 1;
+  var targetIndex = 1;
+  var raf = 0;
+  var started = 0;
+
+  DAYS.forEach(function (day) {
+    var col = document.createElement("div");
+    col.className = "col";
+    var pct = document.createElement("div");
+    pct.className = "pct";
+    var track = document.createElement("div");
+    track.className = "track";
+    var bar = document.createElement("div");
+    bar.className = "bar";
+    var label = document.createElement("div");
+    label.className = "day";
+    label.textContent = day;
+    track.appendChild(bar);
+    col.appendChild(pct);
+    col.appendChild(track);
+    col.appendChild(label);
+    cols.appendChild(col);
+    bars.push(bar);
+    pcts.push(pct);
+  });
+
+  function reduced() { return mq.matches; }
+
+  function cloneState(index) {
+    var src = RANGES[index];
+    return {
+      metrics: src.metrics.map(function (m) {
+        return { kind: m.kind, value: m.value, of: m.of || 0 };
+      }),
+      bars: src.bars.slice()
+    };
+  }
+
+  function lerp(a, b, p) { return a + (b - a) * p; }
+
+  function mix(a, b, p) {
+    return {
+      metrics: a.metrics.map(function (m, i) {
+        var n = b.metrics[i];
+        return {
+          kind: n.kind,
+          value: lerp(m.value, n.value, p),
+          of: lerp(m.of || 0, n.of || 0, p)
+        };
+      }),
+      bars: a.bars.map(function (v, i) { return lerp(v, b.bars[i], p); })
+    };
+  }
+
+  function ease(p) { return 1 - Math.pow(1 - p, 3); }
+
+  function measure(index) {
+    var host = switchEl.getBoundingClientRect();
+    var box = tabs[index].getBoundingClientRect();
+    return { x: box.left - host.left, w: box.width };
+  }
+
+  function readPill() {
+    return {
+      x: parseFloat(pill.style.left) || 0,
+      w: parseFloat(pill.style.width) || 0
+    };
+  }
+
+  function fmt(metric) {
+    if (metric.kind === "pair") return Math.round(metric.value) + " / " + Math.round(metric.of);
+    if (metric.kind === "day") return (Math.round(metric.value * 10) / 10).toFixed(1);
+    return String(Math.round(metric.value));
+  }
+
+  function setPair(outId, inId, outText, inText, p) {
+    var out = document.getElementById(outId);
+    var inn = document.getElementById(inId);
+    if (out.textContent !== outText) out.textContent = outText;
+    if (inn.textContent !== inText) inn.textContent = inText;
+    out.style.opacity = String(1 - p);
+    inn.style.opacity = String(p);
+  }
+
+  function paint(state, p) {
+    for (var i = 0; i < 4; i++) {
+      var el = document.getElementById("n" + i);
+      var metric = state.metrics[i];
+      var text = fmt(metric);
+      if (metric.kind === "day") el.innerHTML = text + "<small>天</small>";
+      else el.textContent = text;
+      setPair(
+        "d" + i + "-out",
+        "d" + i + "-in",
+        RANGES[textFrom].metrics[i].detail,
+        RANGES[textTo].metrics[i].detail,
+        p
+      );
+    }
+    var max = Math.max.apply(null, state.bars);
+    state.bars.forEach(function (v, i) {
+      bars[i].style.height = Math.max(6, v) + "%";
+      bars[i].classList.toggle("on", v === max);
+      pcts[i].textContent = Math.round(v) + "%";
+    });
+    setPair("title-out", "title-in", RANGES[textFrom].label, RANGES[textTo].label, p);
+    setPair("note-out", "note-in", RANGES[textFrom].note, RANGES[textTo].note, p);
+    var a = pillFrom;
+    var b = measure(pillToIndex);
+    var x = lerp(a.x, b.x, p);
+    var w = lerp(a.w, b.w, p);
+    pill.style.left = x + "px";
+    pill.style.width = w + "px";
+    var host = switchEl.getBoundingClientRect();
+    var center = host.left + x + w / 2;
+    tabs.forEach(function (tab) {
+      var box = tab.getBoundingClientRect();
+      var on = center >= box.left && center <= box.right;
+      tab.style.color = on ? "#fff" : "";
+    });
+  }
+
+  function syncTabs(index) {
+    tabs.forEach(function (tab, i) {
+      var on = i === index;
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+      tab.tabIndex = on ? 0 : -1;
+    });
+    panel.setAttribute("aria-labelledby", tabs[index].id);
+  }
+
+  function finish(index) {
+    shown = cloneState(index);
+    textFrom = index;
+    textTo = index;
+    fadeP = 1;
+    pillFrom = measure(index);
+    pillToIndex = index;
+    targetIndex = index;
+    paint(shown, 1);
+    live.textContent = RANGES[index].label + "。" + RANGES[index].note;
+  }
+
+  function step(now) {
+    if (reduced()) {
+      raf = 0;
+      finish(targetIndex);
+      return;
+    }
+    var raw = Math.min(1, (now - started) / DUR);
+    var p = ease(raw);
+    fadeP = p;
+    shown = mix(from, to, p);
+    paint(shown, p);
+    if (raw < 1) raf = requestAnimationFrame(step);
+    else {
+      raf = 0;
+      finish(targetIndex);
+    }
+  }
+
+  function select(index) {
+    if (index === targetIndex && !raf) return;
+    syncTabs(index);
+    targetIndex = index;
+    if (reduced()) {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      finish(index);
+      return;
+    }
+    from = shown;
+    to = cloneState(index);
+    textFrom = fadeP >= 0.5 ? textTo : textFrom;
+    textTo = index;
+    fadeP = 0;
+    pillFrom = readPill();
+    if (!pillFrom.w) pillFrom = measure(index);
+    pillToIndex = index;
+    started = performance.now();
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(step);
+  }
+
+  tabs.forEach(function (tab, i) {
+    tab.addEventListener("click", function () { select(i); });
+  });
+
+  switchEl.addEventListener("keydown", function (e) {
+    var current = tabs.indexOf(document.activeElement);
+    if (current < 0) current = targetIndex;
+    var next = null;
+    if (e.key === "ArrowRight") next = (current + 1) % 3;
+    else if (e.key === "ArrowLeft") next = (current + 2) % 3;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = 2;
+    else return;
+    e.preventDefault();
+    tabs[next].focus();
+    select(next);
+  });
+
+  mq.addEventListener("change", function () {
+    if (!reduced() || !raf) return;
+    cancelAnimationFrame(raf);
+    raf = 0;
+    finish(targetIndex);
+  });
+
+  window.addEventListener("resize", function () {
+    if (raf) return;
+    pillFrom = measure(targetIndex);
+    pillToIndex = targetIndex;
+    paint(shown, 1);
+  });
+
+  finish(1);
+})();
+</script>
+</body>
+</html>
