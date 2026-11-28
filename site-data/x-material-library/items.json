@@ -1317,7 +1317,7 @@
     "poster": "assets/2120320609255043510/poster0.jpg",
     "video": "assets/2120320609255043510/preview.mp4",
     "preview": "assets/2120320609255043510/preview.webm",
-    "duration_s": 31,
+    "duration_s": 8,
     "has_animation": true,
     "code_status": "ai_recreated",
     "code": "effects/shared-title-transition/code/index.html",
