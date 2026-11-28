@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>斜放卡片抬升</title>
+  <style>
+    html {
+      overflow-x: hidden;
+      background: #e6e1da;
+    }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background: #e6e1da;
+      color: #2c2926;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .stage {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .hint {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 36rem;
+      margin: 2.4rem auto 0;
+      padding: 0 1rem;
+      font-size: clamp(0.92rem, 2.8vw, 1.05rem);
+      line-height: 1.45;
+      text-align: center;
+    }
+    .row {
+      --gap: clamp(6px, 1.6vw, 22px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: var(--gap);
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 0 24px;
+      box-sizing: border-box;
+      list-style: none;
+    }
+    .card {
+      width: calc((100% - 3 * var(--gap)) / 4);
+      max-width: 148px;
+      aspect-ratio: 5 / 8;
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 32%),
+        var(--fill);
+      transform-origin: 50% 78%;
+      box-shadow: 0 10px 18px rgba(40, 32, 24, 0.1);
+    }
+    .card::after {
+      content: "";
+      display: block;
+      width: 46%;
+      height: 9%;
+      margin: 16% auto 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.22);
+    }
+    .rail {
+      position: absolute;
+      left: 0.7rem;
+      top: 18vh;
+      bottom: 18vh;
+      width: 2px;
+      background: rgba(44, 41, 38, 0.16);
+      pointer-events: none;
+    }
+    .rail i {
+      display: block;
+      width: 100%;
+      height: 100%;
+      transform: scaleY(0);
+      transform-origin: top center;
+      background: #2c2926;
+    }
+    #track { height: 280vh; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <ul class="row">
+      <li class="card" data-tilt="-12" style="--fill:#6a655f"></li>
+      <li class="card" data-tilt="-8" style="--fill:#b3aca3"></li>
+      <li class="card" data-tilt="-15" style="--fill:#3a3835"></li>
+      <li class="card" data-tilt="-10" style="--fill:#8a847c"></li>
+    </ul>
+    <p class="hint">向下滚动，斜放的卡片抬起来转平，再落到座位上。往回滚动，沿同一段退回倾斜。</p>
+    <div class="rail" aria-hidden="true"><i id="mark"></i></div>
+  </div>
+  <div id="track"></div>
+  <script>
+    const cards = Array.from(document.querySelectorAll(".card"));
+    const mark = document.getElementById("mark");
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduce = motion.matches;
+    let queued = false;
+    let frame = 0;
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function smooth(t) { return t * t * (3 - 2 * t); }
+    function progress() {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (max <= 0) return 0;
+      return clamp(window.scrollY / max, 0, 1);
+    }
+    function localT(t, index) {
+      return clamp((t - index * 0.025) / 0.9, 0, 1);
+    }
+    function pose(u, tilt) {
+      if (u < 0.58) {
+        const k = smooth(u / 0.58);
+        return { rot: tilt * (1 - k), y: 22 * (1 - k) - 40 * k, scale: 1 + 0.04 * k };
+      }
+      const k = smooth((u - 0.58) / 0.42);
+      return { rot: 0, y: -40 * (1 - k) + 18 * k, scale: 1.04 * (1 - k) + 1 * k };
+    }
+    function paint() {
+      const t = progress();
+      for (let i = 0; i < cards.length; i++) {
+        const tilt = Number(cards[i].dataset.tilt);
+        const p = pose(localT(t, i), tilt);
+        const lift = clamp((22 - p.y) / 62, 0, 1);
+        cards[i].style.transform = "translateY(" + p.y.toFixed(2) + "px) rotate(" + p.rot.toFixed(2) + "deg) scale(" + p.scale.toFixed(3) + ")";
+        cards[i].style.boxShadow = "0 " + (8 + lift * 16).toFixed(1) + "px " + (14 + lift * 18).toFixed(1) + "px rgba(40, 32, 24, " + (0.08 + lift * 0.1).toFixed(3) + ")";
+      }
+      mark.style.transform = "scaleY(" + t.toFixed(4) + ")";
+    }
+    function requestPaint() {
+      if (reduce) {
+        if (frame) cancelAnimationFrame(frame);
+        frame = 0;
+        queued = false;
+        paint();
+        return;
+      }
+      if (queued) return;
+      queued = true;
+      frame = requestAnimationFrame(() => {
+        queued = false;
+        frame = 0;
+        paint();
+      });
+    }
+    function nudge(dy) {
+      window.scrollBy({ top: dy, left: 0, behavior: "auto" });
+      if (reduce) paint();
+    }
+    window.addEventListener("scroll", requestPaint, { passive: true });
+    window.addEventListener("resize", requestPaint);
+    window.addEventListener("keydown", (event) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const steps = { ArrowDown: 1, ArrowUp: -1 };
+      if (!(event.key in steps)) return;
+      event.preventDefault();
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      nudge(steps[event.key] * Math.max(48, max * 0.08));
+    });
+    if (typeof motion.addEventListener === "function") {
+      motion.addEventListener("change", () => {
+        reduce = motion.matches;
+        if (reduce && frame) {
+          cancelAnimationFrame(frame);
+          frame = 0;
+          queued = false;
+        }
+        paint();
+      });
+    }
+    if (reduce) paint();
+    else requestPaint();
+  </script>
+</body>
+</html>
