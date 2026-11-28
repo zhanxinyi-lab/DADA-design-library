@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>选座视角</title>
+  <style>
+    :root {
+      --ink: #1c1a17;
+      --muted: #6d675e;
+      --paper: #e6e0d4;
+      --panel: #f7f4ee;
+      --navy: #1e3356;
+      --head: #f6f3ed;
+      --mark: #c4552a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; max-width: 100%; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    button { font: inherit; }
+    .stage {
+      width: min(1040px, 100%);
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 16px;
+      align-items: start;
+    }
+    h1, h2 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .hint, .place { margin: 6px 0 0; color: var(--muted); line-height: 1.45; }
+    .panel {
+      min-width: 0;
+      background: var(--panel);
+      border-radius: 18px;
+      padding: 14px;
+    }
+    .carriage { min-width: 0; margin-top: 12px; }
+    .end {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+    }
+    .body {
+      display: grid;
+      grid-template-columns: 8px minmax(0, 1fr) 8px;
+      gap: 6px;
+      min-width: 0;
+      margin: 6px 0;
+    }
+    .win {
+      border-radius: 6px;
+      background: linear-gradient(#d5e4ef, #c5d6c6);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 12px minmax(0, 1fr) minmax(0, 1fr);
+      gap: 6px 4px;
+      margin: 0 0 6px;
+    }
+    .aisle { min-width: 0; }
+    .seat {
+      min-width: 0;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--head);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .cushion {
+      min-width: 0;
+      min-height: 44px;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 3px;
+      padding: 4px 2px 6px;
+      border-radius: 8px 8px 10px 10px;
+      background: var(--navy);
+    }
+    .rest {
+      width: 72%;
+      height: 7px;
+      border-radius: 4px;
+      background: var(--head);
+    }
+    .seat b { font-size: 12px; font-weight: 650; }
+    .seat[aria-selected="true"] .cushion { box-shadow: inset 0 0 0 2px var(--mark); }
+    .seat:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+      border-radius: 10px;
+    }
+    .view { display: grid; gap: 8px; }
+    canvas {
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      aspect-ratio: 4 / 3;
+      display: block;
+      border-radius: 12px;
+      background: #d5cec2;
+    }
+    .readout {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+      margin: 0;
+    }
+    .readout strong {
+      font-size: clamp(28px, 4vw, 40px);
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    @media (max-width: 760px) {
+      .stage { grid-template-columns: minmax(0, 1fr); padding: 12px; gap: 12px; }
+    }
+    @media (max-width: 360px) {
+      .panel { padding: 10px; }
+      .seat b { font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="panel" aria-labelledby="map-title">
+      <h1 id="map-title">选一个座位</h1>
+      <p class="hint">点座位，或用方向键移动。Home 到前排靠窗，End 到后排靠窗。</p>
+      <div class="carriage">
+        <div class="end">前</div>
+        <div class="body">
+          <div class="win" aria-hidden="true"></div>
+          <div id="car" role="grid" aria-rowcount="6" aria-colcount="4" aria-label="车厢座位"></div>
+          <div class="win" aria-hidden="true"></div>
+        </div>
+        <div class="end">后</div>
+      </div>
+    </section>
+    <section class="panel view" aria-labelledby="view-title">
+      <h2 id="view-title">从这个座位看出去</h2>
+      <canvas id="cabin" width="800" height="600" aria-hidden="true"></canvas>
+      <p class="readout" aria-live="polite">
+        <strong id="name">1A</strong>
+        <span class="place" id="place">左侧靠窗</span>
+      </p>
+    </section>
+  </main>
+  <script>
+    const ROWS = 6;
+    const PITCH = 1.18;
+    const COLS = [
+      { id: "A", x: -1.02, yaw: -0.58, place: "左侧靠窗" },
+      { id: "B", x: -0.46, yaw: -0.14, place: "左侧靠过道" },
+      { id: "C", x: 0.46, yaw: 0.14, place: "右侧靠过道" },
+      { id: "D", x: 1.02, yaw: 0.58, place: "右侧靠窗" }
+    ];
+    const car = document.querySelector("#car");
+    const cabin = document.querySelector("#cabin");
+    const nameEl = document.querySelector("#name");
+    const placeEl = document.querySelector("#place");
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const buttons = [];
+    let selected = { row: 0, col: 0 };
+    let cam = null;
+    let goal = null;
+    let rafId = 0;
+    let lastNow = 0;
+
+    function seatZ(row) { return 1.7 + row * PITCH; }
+    function goalFor(row, col) {
+      const spec = COLS[col];
+      return { x: spec.x, z: seatZ(row), yaw: spec.yaw };
+    }
+
+    function buildMap() {
+      for (let r = 0; r < ROWS; r++) {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.setAttribute("role", "row");
+        for (let c = 0; c < COLS.length; c++) {
+          if (c === 2) {
+            const aisle = document.createElement("div");
+            aisle.className = "aisle";
+            aisle.setAttribute("aria-hidden", "true");
+            row.appendChild(aisle);
+          }
+          const spec = COLS[c];
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "seat";
+          btn.dataset.row = String(r);
+          btn.dataset.col = String(c);
+          btn.setAttribute("role", "gridcell");
+          btn.setAttribute("aria-rowindex", String(r + 1));
+          btn.setAttribute("aria-colindex", String(c + 1));
+          btn.setAttribute("aria-label", (r + 1) + spec.id + "，" + spec.place);
+          btn.innerHTML = '<span class="cushion"><span class="rest"></span><b>' + (r + 1) + spec.id + "</b></span>";
+          btn.addEventListener("click", () => select(r, c, false));
+          row.appendChild(btn);
+          buttons.push(btn);
+        }
+        car.appendChild(row);
+      }
+    }
+
+    function select(row, col, moveFocus) {
+      selected = { row: row, col: col };
+      goal = goalFor(row, col);
+      if (!cam) cam = { x: goal.x, y: 0.98, z: goal.z, yaw: goal.yaw };
+      const spec = COLS[col];
+      nameEl.textContent = (row + 1) + spec.id;
+      placeEl.textContent = spec.place;
+      for (const btn of buttons) {
+        const on = Number(btn.dataset.row) === row && Number(btn.dataset.col) === col;
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+        btn.tabIndex = on ? 0 : -1;
+        if (on && moveFocus) btn.focus();
+      }
+      syncView();
+    }
+
+    function atGoal() {
+      return Math.abs(cam.x - goal.x) < 0.0015
+        && Math.abs(cam.z - goal.z) < 0.0015
+        && Math.abs(cam.yaw - goal.yaw) < 0.0015;
+    }
+
+    function snap() {
+      cam.x = goal.x;
+      cam.z = goal.z;
+      cam.yaw = goal.yaw;
+    }
+
+    function syncView() {
+      if (motion.matches || atGoal()) {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = 0;
+        lastNow = 0;
+        snap();
+        draw();
+        return;
+      }
+      if (!rafId) rafId = requestAnimationFrame(step);
+    }
+
+    function step(now) {
+      rafId = 0;
+      if (motion.matches) {
+        lastNow = 0;
+        snap();
+        draw();
+        return;
+      }
+      const dt = lastNow ? Math.min(0.05, (now - lastNow) / 1000) : 0.016;
+      lastNow = now;
+      const k = 1 - Math.exp(-dt / 0.22);
+      let live = false;
+      for (const key of ["x", "z", "yaw"]) {
+        const delta = goal[key] - cam[key];
+        if (Math.abs(delta) > 0.0015) live = true;
+        cam[key] += delta * k;
+      }
+      draw();
+      if (live && !motion.matches) rafId = requestAnimationFrame(step);
+      else lastNow = 0;
+    }
+
+    function bitmap() {
+      const cssW = cabin.clientWidth;
+      const cssH = cabin.clientHeight;
+      if (cssW < 2 || cssH < 2) return null;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const bw = Math.round(cssW * dpr);
+      const bh = Math.round(cssH * dpr);
+      if (cabin.width !== bw || cabin.height !== bh) {
+        cabin.width = bw;
+        cabin.height = bh;
+      }
+      const ctx = cabin.getContext("2d");
+      if (!ctx) return null;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx: ctx, w: cssW, h: cssH };
+    }
+
+    function toCam(p) {
+      const dx = p.x - cam.x;
+      const ahead = cam.z - p.z;
+      return {
+        x: dx * Math.cos(cam.yaw) - ahead * Math.sin(cam.yaw),
+        y: p.y - cam.y,
+        depth: dx * Math.sin(cam.yaw) + ahead * Math.cos(cam.yaw)
+      };
+    }
+
+    function clipNear(pts) {
+      const near = 0.42;
+      const out = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        const aIn = a.depth >= near;
+        const bIn = b.depth >= near;
+        if (aIn && bIn) out.push(b);
+        else if (aIn !== bIn) {
+          const t = (a.depth - near) / (a.depth - b.depth);
+          const hit = {
+            x: a.x + (b.x - a.x) * t,
+            y: a.y + (b.y - a.y) * t,
+            depth: near
+          };
+          out.push(hit);
+          if (bIn) out.push(b);
+        }
+      }
+      return out;
+    }
+
+    function project(p, w, h) {
+      const f = (w * 0.82) / p.depth;
+      return { x: w / 2 + p.x * f, y: h * 0.46 - p.y * f };
+    }
+
+    function trace(ctx, poly) {
+      ctx.beginPath();
+      ctx.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
+      ctx.closePath();
+    }
+
+    function draw() {
+      const box = bitmap();
+      if (!box) return;
+      const ctx = box.ctx;
+      const w = box.w;
+      const h = box.h;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#cfc6b8";
+      ctx.fillRect(0, 0, w, h);
+      const faces = [];
+      const front = 0.28;
+      const back = seatZ(ROWS - 1) + 1.35;
+
+      function addFace(pts, paint) {
+        const clipped = clipNear(pts.map(toCam));
+        if (clipped.length < 3) return;
+        let depth = 0;
+        for (const p of clipped) depth += p.depth;
+        depth /= clipped.length;
+        faces.push({
+          depth: depth,
+          paint: function (context) {
+            paint(context, clipped.map(function (p) { return project(p, w, h); }));
+          }
+        });
+      }
+
+      function fill(pts, color) {
+        addFace(pts, function (context, poly) {
+          trace(context, poly);
+          context.fillStyle = color;
+          context.fill();
+        });
+      }
+
+      function windowFace(pts, side) {
+        addFace(pts, function (context, poly) {
+          context.save();
+          trace(context, poly);
+          context.clip();
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const p of poly) {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+          }
+          const sky = context.createLinearGradient(0, minY, 0, maxY);
+          if (side < 0) {
+            sky.addColorStop(0, "#f3d2a8");
+            sky.addColorStop(0.55, "#9ec0d8");
+            sky.addColorStop(1, "#6e93b0");
+          } else if (side > 0) {
+            sky.addColorStop(0, "#d7ebf6");
+            sky.addColorStop(0.48, "#8fb8c9");
+            sky.addColorStop(1, "#3e7c78");
+          } else {
+            sky.addColorStop(0, "#f7e7cf");
+            sky.addColorStop(0.5, "#b9d0c4");
+            sky.addColorStop(1, "#7ea38d");
+          }
+          context.fillStyle = sky;
+          context.fillRect(minX - 2, minY - 2, maxX - minX + 4, maxY - minY + 4);
+          const shift = cam.x * 90 + cam.yaw * 160 - cam.z * 22;
+          const horizon = side < 0 ? 0.5 : side > 0 ? 0.4 : 0.46;
+          context.beginPath();
+          context.moveTo(minX - 8, maxY + 8);
+          for (let i = 0; i <= 18; i++) {
+            const x = minX - 8 + (maxX - minX + 16) * i / 18;
+            const wave = Math.sin((x + shift) * 0.028) * (h * 0.035) + Math.sin((x - shift * 0.4) * 0.012) * (h * 0.02);
+            context.lineTo(x, minY + (maxY - minY) * horizon + wave);
+          }
+          context.lineTo(maxX + 8, maxY + 8);
+          context.closePath();
+          context.fillStyle = side < 0 ? "#c56a3a" : side > 0 ? "#2f6d62" : "#6d8f68";
+          context.fill();
+          const bar = minY + (maxY - minY) * 0.62;
+          context.beginPath();
+          context.moveTo(minX, bar);
+          context.lineTo(maxX, bar);
+          context.strokeStyle = "rgba(255,255,255,.55)";
+          context.lineWidth = Math.max(1.5, w * 0.004);
+          context.stroke();
+          context.restore();
+          trace(context, poly);
+          context.strokeStyle = "#8a8174";
+          context.lineWidth = Math.max(2, w * 0.006);
+          context.stroke();
+        });
+      }
+
+      fill([
+        { x: -1.58, y: 0, z: front },
+        { x: 1.58, y: 0, z: front },
+        { x: 1.58, y: 0, z: back },
+        { x: -1.58, y: 0, z: back }
+      ], "#cfc6b8");
+      fill([
+        { x: -0.16, y: 0.02, z: front },
+        { x: 0.16, y: 0.02, z: front },
+        { x: 0.16, y: 0.02, z: back },
+        { x: -0.16, y: 0.02, z: back }
+      ], "#b7aea0");
+      fill([
+        { x: -1.58, y: 1.7, z: front },
+        { x: 1.58, y: 1.7, z: front },
+        { x: 1.58, y: 1.7, z: back },
+        { x: -1.58, y: 1.7, z: back }
+      ], "#f3efe8");
+      fill([
+        { x: -1.58, y: 0, z: front },
+        { x: -1.58, y: 0, z: back },
+        { x: -1.58, y: 1.7, z: back },
+        { x: -1.58, y: 1.7, z: front }
+      ], "#e7e1d6");
+      fill([
+        { x: 1.58, y: 0, z: front },
+        { x: 1.58, y: 0, z: back },
+        { x: 1.58, y: 1.7, z: back },
+        { x: 1.58, y: 1.7, z: front }
+      ], "#ddd6c8");
+      fill([
+        { x: -1.58, y: 0, z: front },
+        { x: 1.58, y: 0, z: front },
+        { x: 1.58, y: 1.7, z: front },
+        { x: -1.58, y: 1.7, z: front }
+      ], "#d9d3c6");
+      windowFace([
+        { x: -0.78, y: 0.7, z: front + 0.06 },
+        { x: 0.78, y: 0.7, z: front + 0.06 },
+        { x: 0.78, y: 1.32, z: front + 0.06 },
+        { x: -0.78, y: 1.32, z: front + 0.06 }
+      ], 0);
+      for (let i = 0; i < 8; i++) {
+        const z0 = 0.55 + i * 1.12;
+        const z1 = z0 + 0.8;
+        if (z1 > back - 0.2) break;
+        windowFace([
+          { x: -1.52, y: 0.58, z: z0 },
+          { x: -1.52, y: 0.58, z: z1 },
+          { x: -1.52, y: 1.28, z: z1 },
+          { x: -1.52, y: 1.28, z: z0 }
+        ], -1);
+        windowFace([
+          { x: 1.52, y: 0.58, z: z0 },
+          { x: 1.52, y: 0.58, z: z1 },
+          { x: 1.52, y: 1.28, z: z1 },
+          { x: 1.52, y: 1.28, z: z0 }
+        ], 1);
+      }
+      for (let r = 0; r < ROWS; r++) {
+        const z = seatZ(r) + 0.2;
+        for (const spec of COLS) {
+          const hw = 0.19;
+          fill([
+            { x: spec.x - hw, y: 0.32, z: z },
+            { x: spec.x + hw, y: 0.32, z: z },
+            { x: spec.x + hw, y: 1.08, z: z },
+            { x: spec.x - hw, y: 1.08, z: z }
+          ], "#1e3356");
+          fill([
+            { x: spec.x - hw + 0.03, y: 0.9, z: z + 0.02 },
+            { x: spec.x + hw - 0.03, y: 0.9, z: z + 0.02 },
+            { x: spec.x + hw - 0.03, y: 1.1, z: z + 0.02 },
+            { x: spec.x - hw + 0.03, y: 1.1, z: z + 0.02 }
+          ], "#f6f3ed");
+        }
+      }
+      faces.sort(function (a, b) { return b.depth - a.depth; });
+      for (const face of faces) face.paint(ctx);
+
+      const shift = -cam.yaw * w * 0.22;
+      const seatX = w * 0.5 + shift;
+      roundPath(ctx, seatX - w * 0.28, h * 0.8, w * 0.56, h * 0.26, 16);
+      ctx.fillStyle = "#1e3356";
+      ctx.fill();
+      roundPath(ctx, seatX - w * 0.22, h * 0.8, w * 0.44, h * 0.06, 8);
+      ctx.fillStyle = "#f6f3ed";
+      ctx.fill();
+    }
+
+    function roundPath(ctx, x, y, rw, rh, radius) {
+      const r = Math.min(radius, rw / 2, rh / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + rw, y, x + rw, y + rh, r);
+      ctx.arcTo(x + rw, y + rh, x, y + rh, r);
+      ctx.arcTo(x, y + rh, x, y, r);
+      ctx.arcTo(x, y, x + rw, y, r);
+      ctx.closePath();
+    }
+
+    document.addEventListener("keydown", function (event) {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const tag = event.target && event.target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      let row = selected.row;
+      let col = selected.col;
+      if (event.key === "ArrowLeft") col -= 1;
+      else if (event.key === "ArrowRight") col += 1;
+      else if (event.key === "ArrowUp") row -= 1;
+      else if (event.key === "ArrowDown") row += 1;
+      else if (event.key === "Home") { row = 0; col = 0; }
+      else if (event.key === "End") { row = ROWS - 1; col = COLS.length - 1; }
+      else return;
+      event.preventDefault();
+      if (row < 0 || row >= ROWS || col < 0 || col >= COLS.length) return;
+      select(row, col, true);
+    });
+
+    motion.addEventListener("change", syncView);
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = 0;
+        lastNow = 0;
+        return;
+      }
+      syncView();
+    });
+    window.addEventListener("resize", draw);
+    buildMap();
+    select(0, 0, false);
+  </script>
+</body>
+</html>
