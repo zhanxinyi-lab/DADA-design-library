@@ -1641,13 +1641,14 @@ window.ITEMS=[
     "poster": "assets/2120161062721052942/poster0.jpg",
     "video": "assets/2120161062721052942/preview.mp4",
     "preview": "assets/2120161062721052942/preview.webm",
-    "duration_s": 14,
+    "duration_s": 7,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/halftone-heart/code/index.html",
     "added_at": "2026-11-11T23:07:38+08:00",
     "effect_zh": "AdelineAstraOS：WebGL 半色调 3D 心脏，跟着 WHOOP 数据跳动，是真实网页主视觉而不是预渲染片子",
     "platform": "x",
+    "title": "半调点阵心脏：指针改视角，心率改跳动",
     "cindy_job": "cindy-jobs/2120161062721052942"
   },
   {
