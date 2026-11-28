@@ -2283,14 +2283,15 @@ window.ITEMS=[
     ],
     "poster": "assets/2119746949121495303/poster0.jpg",
     "video": "assets/2119746949121495303/preview.mp4",
-    "preview": null,
-    "duration_s": 60,
+    "preview": "assets/2119746949121495303/preview.webm",
+    "duration_s": 8,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/room-light-switch/code/index.html",
     "added_at": "2026-11-09T22:56:59+08:00",
-    "effect_zh": "把公寓做成可在浏览器里走动的 three.js 场景（Opus 5.5 生成）：可切换白天/傍晚光照与线框等渲染风格，家具全由代码生成",
-    "platform": "x"
+    "effect_zh": "固定的一间房间：点击或键盘在白天、傍晚、线框之间切换，光照连续过渡，三者共用同一套状态",
+    "platform": "x",
+    "title": "一间房间里切换白天、傍晚和线框，光照连续过渡"
   },
   {
     "id": "2119725117588623633",
