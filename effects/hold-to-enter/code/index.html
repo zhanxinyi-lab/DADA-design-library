@@ -43,7 +43,7 @@
   <div class="hud">
     <button id="hold" type="button" aria-pressed="false" aria-controls="meter">按住聚合</button>
     <div id="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="聚合进度"><span id="fill"></span></div>
-    <p class="hint" id="hint">按住画面或这个按钮，粒子从地面升起并聚成图形。松开后落回。空格或回车同样是按住。</p>
+    <p class="hint" id="hint">按住画面会推进，松开后落回。点按按钮会完整聚合并落回。空格或回车同样是按住。</p>
   </div>
 </main>
 <script>
@@ -73,6 +73,8 @@
   let shown = -1;
   let labelMode = '';
   let reduced = motion.matches;
+  let scripted = false;
+  let swallowClick = false;
   const pointers = new Set();
   const keys = new Set();
   const dots = [];
@@ -90,7 +92,8 @@
     return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
   }
   function clamp01(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }
-  function pressing() { return pointers.size > 0 || keys.size > 0; }
+  function realPressing() { return pointers.size > 0 || keys.size > 0; }
+  function pressing() { return realPressing() || scripted; }
   function holdKey(event) {
     return event.code === 'Space' || event.code === 'Enter' || event.code === 'NumpadEnter';
   }
@@ -222,7 +225,7 @@
       hint.textContent = '按住时进度向前。松开后粒子落回地面。空格或回车与指针是同一段进度。';
     } else {
       hold.textContent = '按住聚合';
-      hint.textContent = '按住画面或这个按钮，粒子从地面升起并聚成图形。松开后落回。空格或回车同样是按住。';
+      hint.textContent = '按住画面会推进，松开后落回。点按按钮会完整聚合并落回。空格或回车同样是按住。';
     }
   }
 
@@ -246,6 +249,10 @@
     if (pressing()) {
       falling = false;
       if (progress < 1) progress = Math.min(1, progress + dt / RISE_MS);
+      if (scripted && progress >= 1 && !realPressing()) {
+        scripted = false;
+        beginFall();
+      }
     } else if (falling) {
       fallElapsed += dt;
       const u = Math.min(1, fallElapsed / fallDur);
@@ -263,6 +270,14 @@
     arm();
   }
 
+  function beginFall() {
+    falling = true;
+    fallFrom = progress;
+    fallElapsed = 0;
+    fallDur = FALL_MIN_MS + (FALL_MAX_MS - FALL_MIN_MS) * progress;
+    arm();
+  }
+
   function release() {
     if (pressing() || reduced) { if (reduced) syncUi(); return; }
     if (falling) return;
@@ -272,17 +287,26 @@
       draw();
       return;
     }
-    falling = true;
-    fallFrom = progress;
-    fallElapsed = 0;
-    fallDur = FALL_MIN_MS + (FALL_MAX_MS - FALL_MIN_MS) * progress;
-    arm();
+    beginFall();
+  }
+
+  function finishGesture() {
+    queueMicrotask(() => { swallowClick = false; });
+  }
+
+  function playClick() {
+    if (swallowClick) { swallowClick = false; return; }
+    if (reduced) { syncUi(); return; }
+    scripted = true;
+    press();
   }
 
   function applyMotion() {
     reduced = motion.matches;
     pointers.clear();
     keys.clear();
+    scripted = false;
+    swallowClick = false;
     falling = false;
     stop();
     progress = reduced ? 1 : 0;
@@ -293,17 +317,22 @@
     if (!event.isPrimary || event.button !== 0) return;
     if (event.pointerType !== 'mouse') event.preventDefault();
     try { stage.setPointerCapture(event.pointerId); } catch { /* 捕获失败时仍靠松开事件 */ }
+    swallowClick = true;
+    scripted = false;
     pointers.add(event.pointerId);
     press();
   });
   stage.addEventListener('pointerup', (event) => {
+    if (!pointers.has(event.pointerId)) return;
     pointers.delete(event.pointerId);
     release();
+    finishGesture();
   });
   function endPointer(event) {
     if (!pointers.has(event.pointerId)) return;
     pointers.delete(event.pointerId);
     release();
+    finishGesture();
   }
   stage.addEventListener('pointercancel', endPointer);
   window.addEventListener('pointerup', endPointer);
@@ -312,12 +341,15 @@
     if (!pointers.has(event.pointerId)) return;
     pointers.delete(event.pointerId);
     release();
+    finishGesture();
   });
   stage.addEventListener('contextmenu', (event) => event.preventDefault());
 
   window.addEventListener('keydown', (event) => {
     if (!holdKey(event) || event.repeat || keys.has(event.code)) return;
     event.preventDefault();
+    swallowClick = true;
+    scripted = false;
     keys.add(event.code);
     press();
   });
@@ -325,11 +357,15 @@
     if (!holdKey(event)) return;
     keys.delete(event.code);
     release();
+    finishGesture();
   });
+  hold.addEventListener('click', playClick);
   window.addEventListener('blur', () => {
-    if (pointers.size === 0 && keys.size === 0) return;
+    if (!pressing()) return;
     pointers.clear();
     keys.clear();
+    scripted = false;
+    swallowClick = false;
     release();
   });
   motion.addEventListener('change', applyMotion);
