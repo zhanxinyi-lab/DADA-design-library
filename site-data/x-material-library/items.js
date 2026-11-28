@@ -2093,12 +2093,13 @@ window.ITEMS=[
     "preview": "assets/2119831380276523207/preview.webm",
     "duration_s": 13,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/card-exit-four/code/index.html",
     "added_at": "2026-11-10T23:07:21+08:00",
     "effect_zh": "Kubai087：卡片删除离场四种做法（燃烧、火焰、碎块、撕贴纸），含周围热浪扭曲和删完后的补位重排",
     "platform": "x",
-    "cindy_job": "cindy-jobs/2119831380276523207"
+    "cindy_job": "cindy-jobs/2119831380276523207",
+    "title": "四种卡片离场：燃烧、火焰、碎块与撕贴纸，走后其余补位"
   },
   {
     "id": "2119801430890389638",

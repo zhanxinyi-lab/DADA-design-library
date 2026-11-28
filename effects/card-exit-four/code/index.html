@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>四种卡片离场</title>
+  <style>
+    :root {
+      --bg: #e6dfd3;
+      --ink: #1d1a16;
+      --muted: #6a6156;
+      --card: #fbf7f1;
+      --line: #e4d9cb;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      min-height: 100%;
+      background:
+        radial-gradient(700px 240px at 80% -10%, #f3ebe0, transparent 60%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    .page { width: min(560px, calc(100% - 28px)); margin: 0 auto; padding: 28px 0 40px; }
+    h1 { margin: 0; font-size: 28px; letter-spacing: -0.04em; }
+    .lede { margin: 8px 0 18px; color: var(--muted); line-height: 1.5; }
+    .stack { display: flex; flex-direction: column; gap: 10px; }
+    .card {
+      position: relative;
+      display: block;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #cbb59a;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      perspective: 900px;
+      transition: transform .42s cubic-bezier(.2, .8, .2, 1);
+    }
+    .card[hidden] { display: none !important; }
+    .card:focus-visible { outline: 2px solid #b5481f; outline-offset: 3px; }
+    .card[data-kind="burn"] { background: #3a2a22; }
+    .card[data-kind="flame"] { background: #8d3b16; }
+    .card[data-kind="shards"] { background: #b7a48e; }
+    .card[data-kind="peel"] { background: #d8c3a0; }
+    .sheet {
+      position: relative;
+      z-index: 1;
+      display: block;
+      min-height: 92px;
+      padding: 14px 16px 16px;
+      border-radius: 17px;
+      background: var(--card);
+      transform-style: preserve-3d;
+    }
+    .card[data-kind="flame"] .sheet { background: #fff6ee; }
+    .card[data-kind="shards"] .sheet { background: #f4efe8; }
+    .card[data-kind="peel"] .sheet { background: #fff4d8; }
+    .kicker { display: block; color: #b5481f; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+    .name { display: block; margin-top: 4px; font-size: 18px; letter-spacing: -0.03em; font-weight: 700; }
+    .line { display: block; margin-top: 4px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .fx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+    .frag {
+      position: absolute;
+      z-index: 3;
+      border-radius: 6px;
+      background: #efe4d4;
+      box-shadow: 0 6px 14px rgba(40, 24, 8, .16);
+      pointer-events: none;
+    }
+    .card.is-warm .sheet { animation: haze .7s ease-in-out; }
+    @keyframes haze {
+      0%, 100% { transform: none; }
+      35% { transform: translateY(-2px) skewX(-0.6deg); }
+      70% { transform: translateY(1px) skewX(0.4deg); }
+    }
+    .empty { margin: 8px 0 0; color: var(--muted); }
+    .empty[hidden] { display: none; }
+    .reset {
+      margin-top: 16px;
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      background: var(--ink);
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }
+    .reset:focus-visible { outline: 2px solid #b5481f; outline-offset: 3px; }
+    .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+    @media (prefers-reduced-motion: reduce) {
+      .card, .sheet, .frag { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>四种离场</h1>
+    <p class="lede">点一张卡片，或用键盘确认。它离开之后，剩下的会补上这个空位。</p>
+    <div class="stack" id="stack">
+      <button class="card" type="button" data-kind="burn">
+        <span class="sheet">
+          <span class="kicker">燃烧</span>
+          <span class="name">焦痕从落点铺开</span>
+          <span class="line">白热的边先走，然后碳化。旁边会热一下。</span>
+        </span>
+        <canvas class="fx" width="2" height="2" aria-hidden="true"></canvas>
+      </button>
+      <button class="card" type="button" data-kind="flame">
+        <span class="sheet">
+          <span class="kicker">火焰</span>
+          <span class="name">火舌往上卷</span>
+          <span class="line">卡片烧穿，周围跟着晃一下。</span>
+        </span>
+        <canvas class="fx" width="2" height="2" aria-hidden="true"></canvas>
+      </button>
+      <button class="card" type="button" data-kind="shards">
+        <span class="sheet">
+          <span class="kicker">碎块</span>
+          <span class="name">裂成小块落下</span>
+          <span class="line">块还在掉的时候，空位先留着。</span>
+        </span>
+        <canvas class="fx" width="2" height="2" aria-hidden="true"></canvas>
+      </button>
+      <button class="card" type="button" data-kind="peel">
+        <span class="sheet">
+          <span class="kicker">撕贴纸</span>
+          <span class="name">从一角揭起来</span>
+          <span class="line">揭开背面，再整张离开。</span>
+        </span>
+        <canvas class="fx" width="2" height="2" aria-hidden="true"></canvas>
+      </button>
+    </div>
+    <p class="empty" id="empty" hidden>四张都离开了。</p>
+    <button class="reset" id="reset" type="button">全部排回</button>
+    <p class="sr" id="live" aria-live="polite"></p>
+  </div>
+  <script>
+    const stack = document.getElementById("stack");
+    const empty = document.getElementById("empty");
+    const resetBtn = document.getElementById("reset");
+    const live = document.getElementById("live");
+    const cards = Array.from(stack.querySelectorAll(".card"));
+    const labels = { burn: "燃烧", flame: "火焰", shards: "碎块", peel: "撕贴纸" };
+    const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let busy = false;
+    let ticket = 0;
+
+    function visibleCards() {
+      return cards.filter((card) => !card.hidden);
+    }
+    function syncEmpty() {
+      empty.hidden = visibleCards().length > 0;
+    }
+    function clearCard(card) {
+      const sheet = card.querySelector(".sheet");
+      sheet.style.maskImage = "";
+      sheet.style.webkitMaskImage = "";
+      sheet.style.opacity = "";
+      sheet.style.transform = "";
+      sheet.style.transformOrigin = "";
+      card.getAnimations({ subtree: true }).forEach((anim) => anim.cancel());
+      card.querySelectorAll(".frag").forEach((node) => node.remove());
+      const canvas = card.querySelector(".fx");
+      const ctx = canvas.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      card.classList.remove("is-warm");
+    }
+    function warmOthers(card) {
+      visibleCards().forEach((other) => {
+        if (other !== card) other.classList.add("is-warm");
+      });
+    }
+    function settleOthers(card) {
+      const before = new Map(visibleCards().map((el) => [el, el.getBoundingClientRect()]));
+      card.hidden = true;
+      clearCard(card);
+      syncEmpty();
+      if (reduceMotion()) return;
+      visibleCards().forEach((el) => {
+        const from = before.get(el);
+        if (!from) return;
+        const to = el.getBoundingClientRect();
+        const dy = from.top - to.top;
+        if (Math.abs(dy) < 1) return;
+        el.style.transition = "none";
+        el.style.transform = "translateY(" + dy + "px)";
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            el.style.transition = "";
+            el.style.transform = "";
+          });
+        });
+      });
+    }
+    function sizeCanvas(card) {
+      const canvas = card.querySelector(".fx");
+      const rect = card.getBoundingClientRect();
+      canvas.width = Math.max(2, Math.round(rect.width));
+      canvas.height = Math.max(2, Math.round(rect.height));
+      return { canvas, ctx: canvas.getContext("2d"), w: canvas.width, h: canvas.height };
+    }
+    function playBurn(card, x, y, mine) {
+      return new Promise((resolve) => {
+        const sheet = card.querySelector(".sheet");
+        const view = sizeCanvas(card);
+        const maxR = Math.hypot(Math.max(x, view.w - x), Math.max(y, view.h - y)) + 28;
+        const start = performance.now();
+        const frame = (now) => {
+          if (mine !== ticket) { resolve(); return; }
+          const t = Math.min(1, (now - start) / 760);
+          const r = maxR * t;
+          const hole = Math.max(0, r - 16);
+          const mask = "radial-gradient(circle at " + x + "px " + y + "px, transparent " + hole + "px, #000 " + (r + 8) + "px)";
+          sheet.style.maskImage = mask;
+          sheet.style.webkitMaskImage = mask;
+          view.ctx.clearRect(0, 0, view.w, view.h);
+          const ring = view.ctx.createRadialGradient(x, y, Math.max(0, r - 18), x, y, r + 6);
+          ring.addColorStop(0, "rgba(255,246,230,0)");
+          ring.addColorStop(0.55, "rgba(255,250,236,.95)");
+          ring.addColorStop(0.78, "rgba(255,122,36,.85)");
+          ring.addColorStop(1, "rgba(255,80,16,0)");
+          view.ctx.fillStyle = ring;
+          view.ctx.beginPath();
+          view.ctx.arc(x, y, r + 10, 0, Math.PI * 2);
+          view.ctx.fill();
+          if (t < 1) requestAnimationFrame(frame);
+          else resolve();
+        };
+        requestAnimationFrame(frame);
+      });
+    }
+    function playFlame(card, mine) {
+      return new Promise((resolve) => {
+        const sheet = card.querySelector(".sheet");
+        const view = sizeCanvas(card);
+        const parts = [];
+        for (let i = 0; i < 34; i += 1) {
+          parts.push({
+            x: Math.random() * view.w,
+            y: view.h - 6 - Math.random() * 16,
+            vy: -1.1 - Math.random() * 2.1,
+            vx: (Math.random() - 0.5) * 0.7,
+            life: 0.55 + Math.random() * 0.45,
+            radius: 3 + Math.random() * 5
+          });
+        }
+        const start = performance.now();
+        const frame = (now) => {
+          if (mine !== ticket) { resolve(); return; }
+          const t = Math.min(1, (now - start) / 820);
+          sheet.style.opacity = String(1 - t * 0.92);
+          view.ctx.clearRect(0, 0, view.w, view.h);
+          parts.forEach((part) => {
+            part.x += part.vx;
+            part.y += part.vy;
+            part.life -= 0.012;
+            if (part.life <= 0) return;
+            view.ctx.fillStyle = "rgba(255," + Math.round(80 + part.radius * 14) + ",24," + Math.max(0, part.life).toFixed(3) + ")";
+            view.ctx.beginPath();
+            view.ctx.arc(part.x, part.y, part.radius * part.life, 0, Math.PI * 2);
+            view.ctx.fill();
+          });
+          if (t < 1) requestAnimationFrame(frame);
+          else resolve();
+        };
+        requestAnimationFrame(frame);
+      });
+    }
+    function playShards(card, mine) {
+      return new Promise((resolve) => {
+        card.querySelector(".sheet").style.opacity = "0";
+        const rect = card.getBoundingClientRect();
+        const cols = 4;
+        const rows = 3;
+        const width = rect.width / cols;
+        const height = rect.height / rows;
+        for (let row = 0; row < rows; row += 1) {
+          for (let col = 0; col < cols; col += 1) {
+            const frag = document.createElement("i");
+            frag.className = "frag";
+            frag.style.left = (col * width + 2) + "px";
+            frag.style.top = (row * height + 2) + "px";
+            frag.style.width = Math.max(8, width - 6) + "px";
+            frag.style.height = Math.max(8, height - 6) + "px";
+            card.appendChild(frag);
+            const dx = (col - 1.5) * 26 + (Math.random() - 0.5) * 16;
+            const dy = 36 + Math.random() * 64;
+            const rot = (Math.random() - 0.5) * 48;
+            frag.animate([
+              { transform: "translate(0,0) rotate(0deg)", opacity: 1 },
+              { transform: "translate(" + dx + "px," + dy + "px) rotate(" + rot + "deg)", opacity: 0 }
+            ], { duration: 680, easing: "cubic-bezier(.16,.7,.3,1)", fill: "forwards" });
+          }
+        }
+        window.setTimeout(() => {
+          if (mine === ticket) resolve();
+        }, 700);
+      });
+    }
+    function playPeel(card, x, y, mine) {
+      return new Promise((resolve) => {
+        const sheet = card.querySelector(".sheet");
+        const rect = card.getBoundingClientRect();
+        sheet.style.transformOrigin = (x < rect.width / 2 ? "0%" : "100%") + " " + (y < rect.height / 2 ? "0%" : "100%");
+        const anim = sheet.animate([
+          { transform: "none", opacity: 1 },
+          { transform: "rotateX(16deg) translateY(-8px)", opacity: 1, offset: 0.32 },
+          { transform: "rotateX(68deg) translateY(-42px) rotateZ(-7deg)", opacity: 0 }
+        ], { duration: 700, easing: "cubic-bezier(.2,.75,.2,1)", fill: "forwards" });
+        anim.onfinish = () => { if (mine === ticket) resolve(); };
+      });
+    }
+    function localPoint(card, event) {
+      const rect = card.getBoundingClientRect();
+      if (!event || event.detail === 0) return { x: rect.width / 2, y: rect.height / 2 };
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+    }
+    async function dismiss(card, event) {
+      if (busy || card.hidden) return;
+      const mine = ++ticket;
+      busy = true;
+      const kind = card.dataset.kind;
+      const point = localPoint(card, event);
+      live.textContent = labels[kind] + "正在离开";
+      if (!reduceMotion() && (kind === "burn" || kind === "flame")) warmOthers(card);
+      if (!reduceMotion()) {
+        if (kind === "burn") await playBurn(card, point.x, point.y, mine);
+        else if (kind === "flame") await playFlame(card, mine);
+        else if (kind === "shards") await playShards(card, mine);
+        else await playPeel(card, point.x, point.y, mine);
+      }
+      if (mine !== ticket) { busy = false; return; }
+      cards.forEach((other) => other.classList.remove("is-warm"));
+      settleOthers(card);
+      live.textContent = labels[kind] + "已离开，其余卡片补上";
+      busy = false;
+    }
+    cards.forEach((card) => {
+      card.addEventListener("click", (event) => { dismiss(card, event); });
+    });
+    resetBtn.addEventListener("click", () => {
+      ticket += 1;
+      busy = false;
+      cards.forEach((card) => {
+        card.hidden = false;
+        clearCard(card);
+        card.classList.remove("is-warm");
+      });
+      syncEmpty();
+      live.textContent = "四张卡片都排回来了";
+    });
+    syncEmpty();
+  </script>
+</body>
+</html>
