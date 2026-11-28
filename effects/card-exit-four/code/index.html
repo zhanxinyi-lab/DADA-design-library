@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>四种卡片离场</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: #14110f; color: #f6efe6; }
+    body {
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.45;
+    }
+    .wrap { max-width: 480px; margin: 0 auto; padding: 36px 16px 48px; }
+    h1 { margin: 0; font-size: 28px; letter-spacing: -0.04em; font-weight: 650; }
+    .lede { margin: 8px 0 0; color: #d9cbbd; max-width: 38em; }
+    .hint { margin: 6px 0 0; color: #a89888; font-size: 14px; }
+    .stage {
+      margin-top: 22px;
+      padding: 18px 14px 14px;
+      border-radius: 28px;
+      background:
+        radial-gradient(120% 80% at 50% 0%, rgba(255, 214, 170, 0.08), transparent 55%),
+        #241c17;
+      box-shadow: inset 0 0 0 1px rgba(255, 236, 214, 0.06);
+    }
+    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+    button.card {
+      display: block;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      border-radius: 18px;
+      background: transparent;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      color: inherit;
+      text-align: left;
+    }
+    button.card canvas { display: block; width: 100%; height: auto; }
+    button.card:focus { outline: none; }
+    button.card:focus-visible { outline: 2px solid #f3d7b0; outline-offset: 4px; }
+    button.card.heat { filter: url(#heat); }
+    button.reset {
+      margin-top: 14px;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(243, 215, 176, 0.4);
+      background: transparent;
+      color: #f6efe6;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.reset:focus { outline: none; }
+    button.reset:focus-visible { outline: 2px solid #f3d7b0; outline-offset: 3px; }
+    #air { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; }
+    .sr {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      button.card:active:not(.leaving) { transform: scale(0.985); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button.card.heat { filter: none; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" focusable="false">
+    <filter id="heat" x="-15%" y="-20%" width="130%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.055" numOctaves="2" seed="4" result="noise">
+        <animate attributeName="baseFrequency" dur="0.38s" values="0.01 0.04;0.022 0.08;0.01 0.04" repeatCount="indefinite"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="2" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
+  <main class="wrap">
+    <h1>四种卡片离场</h1>
+    <p class="lede">点一张卡片，它会离开。下面的卡片随后补上这个空位。</p>
+    <p class="hint">也可以用 Tab 选中，再按 Enter 或空格。开启减少动态效果时，卡片会直接消失。</p>
+    <div class="stage">
+      <ul id="stack" aria-label="四张可以删除的卡片"></ul>
+      <button class="reset" id="reset" type="button">再摆一组</button>
+    </div>
+  </main>
+  <canvas id="air" aria-hidden="true"></canvas>
+  <p id="status" class="sr" role="status"></p>
+  <script>
+    const CARDS = [
+      { kind: "burn", name: "燃烧", kicker: "从落点铺开", line: "焦边向前走，中间是一条白热的线，过去以后只剩炭。" },
+      { kind: "plume", name: "火焰", kicker: "从底边升起", line: "一簇软火贴着底边往上走，把整张卡片托走。" },
+      { kind: "blocks", name: "碎块", kicker: "撞一下再裂开", line: "先短促地撞一下，再裂成大小不一的块，翻滚着落下。" },
+      { kind: "peel", name: "撕贴纸", kicker: "从一角揭起", line: "像贴纸那样从一角揭开，撕到头就离开。" }
+    ];
+    const INK = {
+      burn: "#e4572e",
+      plume: "#e39b12",
+      blocks: "#d8573f",
+      peel: "#3c7f72"
+    };
+    const DUR = { burn: 1480, plume: 1360, blocks: 1180, peel: 1280, hit: 70, reflow: 460 };
+
+    const stack = document.getElementById("stack");
+    const air = document.getElementById("air");
+    const airCtx = air.getContext("2d");
+    const status = document.getElementById("status");
+    const reduceQuery = matchMedia("(prefers-reduced-motion: reduce)");
+    let reduced = reduceQuery.matches;
+    reduceQuery.addEventListener("change", () => {
+      reduced = reduceQuery.matches;
+      if (reduced) haltForReducedMotion();
+    });
+
+    let jobs = [];
+    let motes = [];
+    let debris = [];
+    let raf = 0;
+    let busy = false;
+    let generation = 0;
+    let last = 0;
+    let airW = 0;
+    let airH = 0;
+
+    function announce(text) { status.textContent = text; }
+
+    function dprOf() { return Math.min(2, window.devicePixelRatio || 1); }
+
+    function clipRound(ctx, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.arcTo(w, 0, w, h, r);
+      ctx.arcTo(w, h, 0, h, r);
+      ctx.arcTo(0, h, 0, 0, r);
+      ctx.arcTo(0, 0, w, 0, r);
+      ctx.closePath();
+    }
+
+    function wrap(ctx, text, max) {
+      const lines = [];
+      let line = "";
+      for (const ch of text) {
+        const next = line + ch;
+        if (line && ctx.measureText(next).width > max) {
+          lines.push(line);
+          line = ch;
+        } else line = next;
+      }
+      if (line) lines.push(line);
+      return lines.slice(0, 3);
+    }
+
+    function paintCard(ctx, w, h, card) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.save();
+      clipRound(ctx, w, h, 18);
+      ctx.clip();
+      ctx.fillStyle = "#f4efe6";
+      ctx.fillRect(0, 0, w, h);
+      const shine = ctx.createLinearGradient(0, 0, 0, h);
+      shine.addColorStop(0, "rgba(255,255,255,.55)");
+      shine.addColorStop(0.42, "rgba(255,255,255,0)");
+      ctx.fillStyle = shine;
+      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 70; i++) {
+        ctx.fillStyle = "rgba(90, 60, 30, 0.035)";
+        ctx.fillRect(Math.random() * w, Math.random() * h, 1.4, 1.4);
+      }
+      ctx.fillStyle = INK[card.kind];
+      ctx.beginPath();
+      ctx.arc(22, 28, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#2c241c";
+      ctx.font = "600 18px Segoe UI, PingFang SC, Microsoft YaHei, sans-serif";
+      ctx.fillText(card.name, 36, 34);
+      ctx.fillStyle = "#8a7b6c";
+      ctx.font = "13px Segoe UI, PingFang SC, Microsoft YaHei, sans-serif";
+      ctx.fillText(card.kicker, 36, 54);
+      ctx.strokeStyle = "rgba(44, 36, 28, 0.14)";
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(w - 28, 22);
+      ctx.lineTo(w - 16, 34);
+      ctx.moveTo(w - 16, 22);
+      ctx.lineTo(w - 28, 34);
+      ctx.stroke();
+      ctx.fillStyle = "#3a3128";
+      ctx.font = "15px Segoe UI, PingFang SC, Microsoft YaHei, sans-serif";
+      const lines = wrap(ctx, card.line, w - 44);
+      lines.forEach((line, i) => ctx.fillText(line, 22, 86 + i * 22));
+      ctx.restore();
+    }
+
+    function makeSprite(card, w, h) {
+      const dpr = dprOf();
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(w * dpr));
+      canvas.height = Math.max(1, Math.round(h * dpr));
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      paintCard(ctx, w, h, card);
+      return canvas;
+    }
+
+    function drawIdle(button) {
+      const ctx = button._ctx;
+      ctx.clearRect(0, 0, button._w, button._h);
+      ctx.drawImage(button._sprite, 0, 0, button._w, button._h);
+    }
+
+    function fitCard(button) {
+      const canvas = button.querySelector("canvas");
+      const w = Math.max(1, button.clientWidth);
+      const h = 156;
+      const dpr = dprOf();
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.height = h + "px";
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      button._ctx = ctx;
+      button._w = w;
+      button._h = h;
+      button._dpr = dpr;
+      button._sprite = makeSprite(button._card, w, h);
+      if (!button.classList.contains("leaving")) drawIdle(button);
+    }
+
+    function build() {
+      generation += 1;
+      jobs = [];
+      motes = [];
+      debris = [];
+      busy = false;
+      clearAir();
+      stack.replaceChildren();
+      for (const card of CARDS) {
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "card";
+        button.dataset.kind = card.kind;
+        button._card = card;
+        button.setAttribute("aria-label", card.name + "。" + card.line + " 按 Enter 或空格让这张卡片离场。");
+        const canvas = document.createElement("canvas");
+        canvas.setAttribute("aria-hidden", "true");
+        button.append(canvas);
+        button.addEventListener("click", onClick);
+        li.append(button);
+        stack.append(li);
+        fitCard(button);
+      }
+    }
+
+    function onClick(event) {
+      const button = event.currentTarget;
+      const rect = button.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const inside = x >= 0 && y >= 0 && x <= rect.width && y <= rect.height && event.detail !== 0;
+      leave(button, inside ? { x, y } : null);
+    }
+
+    function originFor(kind, pointer, w, h) {
+      if (pointer) return pointer;
+      if (kind === "peel") return { x: w - 10, y: 12 };
+      if (kind === "plume") return { x: w / 2, y: h - 6 };
+      return { x: w / 2, y: h / 2 };
+    }
+
+    function leave(button, pointer) {
+      if (busy || !button.isConnected || button.classList.contains("leaving")) return;
+      const card = button._card;
+      button.classList.add("leaving");
+      button.setAttribute("aria-disabled", "true");
+      button.tabIndex = -1;
+      if (reduced) {
+        const li = button.closest("li");
+        const wasFocused = document.activeElement === button;
+        const next = li.nextElementSibling?.querySelector("button.card")
+          || li.previousElementSibling?.querySelector("button.card")
+          || document.getElementById("reset");
+        const hasBelow = !!li.nextElementSibling;
+        li.remove();
+        if (wasFocused && next) next.focus();
+        announce(card.name + (hasBelow ? "直接消失了，下面的卡片已经补上。" : "直接消失了。"));
+        return;
+      }
+      busy = true;
+      const job = {
+        kind: card.kind,
+        name: card.name,
+        button,
+        started: performance.now(),
+        origin: originFor(card.kind, pointer, button._w, button._h),
+        fromLeft: pointer ? pointer.x < button._w / 2 : false,
+        rect: button.getBoundingClientRect(),
+        pieces: null,
+        finished: false
+      };
+      if (card.kind === "burn" || card.kind === "plume") setHeat(true, button);
+      jobs.push(job);
+      kick();
+    }
+
+    function setHeat(on, source) {
+      for (const button of stack.querySelectorAll("button.card")) {
+        button.classList.toggle("heat", on && button !== source && !button.classList.contains("leaving"));
+      }
+    }
+
+    function easeOut(t) { return 1 - (1 - t) ** 3; }
+
+    function noisyPath(ctx, x, y, r, seed) {
+      ctx.beginPath();
+      const radius = Math.max(0.5, r);
+      const steps = 48;
+      for (let i = 0; i <= steps; i++) {
+        const a = (i / steps) * Math.PI * 2;
+        const n = Math.sin(a * 3 + seed) * 0.46 + Math.sin(a * 7 - seed * 1.5) * 0.28 + Math.sin(a * 12 + 1.2) * 0.14;
+        const rr = radius * (1 + n * 0.18);
+        const px = x + Math.cos(a) * rr;
+        const py = y + Math.sin(a) * rr * 0.94;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    }
+
+    function drawBurn(job, now) {
+      const button = job.button;
+      const ctx = button._ctx;
+      const w = button._w;
+      const h = button._h;
+      const t = Math.min(1, (now - job.started) / DUR.burn);
+      const far = Math.hypot(Math.max(job.origin.x, w - job.origin.x), Math.max(job.origin.y, h - job.origin.y));
+      const front = easeOut(t) * (far + 28);
+      job.front = front;
+      const seed = now * 0.008;
+      ctx.clearRect(0, 0, w, h);
+      ctx.save();
+      clipRound(ctx, w, h, 18);
+      ctx.clip();
+      ctx.drawImage(button._sprite, 0, 0, w, h);
+      ctx.save();
+      noisyPath(ctx, job.origin.x, job.origin.y, Math.max(1, front), seed);
+      ctx.clip();
+      const stain = ctx.createRadialGradient(job.origin.x, job.origin.y, Math.max(0, front - 42), job.origin.x, job.origin.y, front + 2);
+      stain.addColorStop(0, "rgba(22, 12, 8, 0.94)");
+      stain.addColorStop(0.62, "rgba(110, 48, 18, 0.72)");
+      stain.addColorStop(1, "rgba(190, 84, 24, 0)");
+      ctx.fillStyle = stain;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "rgba(0,0,0,.97)";
+      noisyPath(ctx, job.origin.x, job.origin.y, Math.max(0, front - 15), seed);
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = "rgba(255, 112, 28, 0.45)";
+      noisyPath(ctx, job.origin.x, job.origin.y, front + 2, seed);
+      ctx.stroke();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = "rgba(255, 246, 226, 0.95)";
+      noisyPath(ctx, job.origin.x, job.origin.y, front - 1, seed);
+      ctx.stroke();
+      ctx.restore();
+      if (Math.random() < 0.5) spawnEmbers(job, now, 2);
+      if (t >= 1) finish(job, now);
+    }
+
+    function spawnEmbers(job, now, count) {
+      const rect = job.button.getBoundingClientRect();
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const n = 0.85 + Math.random() * 0.3;
+        motes.push({
+          x: rect.left + job.origin.x + Math.cos(a) * job.front * n,
+          y: rect.top + job.origin.y + Math.sin(a) * job.front * n,
+          vx: (Math.random() - 0.5) * 36,
+          vy: -30 - Math.random() * 80,
+          life: 520 + Math.random() * 420,
+          born: now,
+          size: 1.4 + Math.random() * 2.4,
+          hot: Math.random()
+        });
+      }
+      if (motes.length > 90) motes.splice(0, motes.length - 90);
+    }
+
+    function drawPlume(job, now) {
+      const button = job.button;
+      const t = Math.min(1, (now - job.started) / DUR.plume);
+      const w = button._w;
+      const h = button._h;
+      const ctx = button._ctx;
+      const eaten = Math.min(0.98, t);
+      const remain = h * (1 - eaten);
+      const lift = eaten * 24;
+      ctx.clearRect(0, 0, w, h);
+      ctx.save();
+      clipRound(ctx, w, h, 18);
+      ctx.clip();
+      if (remain > 1) {
+        ctx.drawImage(
+          button._sprite,
+          0, 0, button._sprite.width, Math.max(1, button._sprite.height * (1 - eaten)),
+          0, -lift, w, remain
+        );
+      }
+      const base = Math.max(10, remain - lift);
+      const sway = Math.sin(now * 0.006) * 6;
+      softFlame(ctx, w / 2 + sway, h - 1, w * 0.58, Math.max(52, h - base + 18), now);
+      ctx.restore();
+      const rect = job.rect;
+      if (Math.random() < 0.6) {
+        motes.push({
+          x: rect.left + w * (0.3 + Math.random() * 0.4),
+          y: rect.top + base,
+          vx: (Math.random() - 0.5) * 14,
+          vy: -28 - Math.random() * 40,
+          life: 420,
+          born: now,
+          size: 1.4 + Math.random() * 1.6,
+          hot: 0.85
+        });
+      }
+      if (t >= 1) finish(job, now);
+    }
+
+    function softFlame(ctx, x, y, width, height, now) {
+      ctx.save();
+      const sway = Math.sin(now * 0.009) * 7;
+      const glow = ctx.createRadialGradient(x, y - height * 0.25, 6, x, y - height * 0.35, height * 0.75);
+      glow.addColorStop(0, "rgba(255, 186, 70, 0.95)");
+      glow.addColorStop(0.5, "rgba(255, 96, 24, 0.55)");
+      glow.addColorStop(1, "rgba(255, 70, 16, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.ellipse(x, y - height * 0.32, width * 0.46, height * 0.48, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x - width * 0.36, y);
+      ctx.bezierCurveTo(x - width * 0.3, y - height * 0.5, x - width * 0.18, y - height * 0.78, x - width * 0.1 + sway, y - height);
+      ctx.quadraticCurveTo(x + sway, y - height - 10, x + width * 0.1 + sway, y - height);
+      ctx.bezierCurveTo(x + width * 0.18, y - height * 0.76, x + width * 0.3, y - height * 0.46, x + width * 0.36, y);
+      ctx.closePath();
+      const tongue = ctx.createLinearGradient(x, y, x, y - height);
+      tongue.addColorStop(0, "rgba(180, 42, 12, 0.2)");
+      tongue.addColorStop(0.28, "rgba(255, 92, 18, 0.9)");
+      tongue.addColorStop(0.68, "rgba(255, 176, 64, 0.95)");
+      tongue.addColorStop(1, "rgba(255, 236, 190, 0.15)");
+      ctx.fillStyle = tongue;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function cutBlocks(w, h) {
+      const pieces = [];
+      const cols = [0.36, 0.28, 0.36];
+      const rows = [0.4, 0.22, 0.38];
+      let y = 0;
+      rows.forEach((rh, row) => {
+        const sh = row === rows.length - 1 ? h - y : h * rh;
+        let x = 0;
+        cols.forEach((cw, col) => {
+          const sw = col === cols.length - 1 ? w - x : w * cw;
+          if (row === 1 && col === 1) {
+            pieces.push({ x, y, sw: 18, sh: Math.min(18, sh) });
+            pieces.push({ x: x + 18, y, sw: 9, sh: 9 });
+            pieces.push({ x: x + 27, y, sw: Math.max(8, sw - 27), sh });
+            if (sh > 18) pieces.push({ x, y: y + 18, sw: 18, sh: sh - 18 });
+          } else {
+            pieces.push({ x, y, sw, sh });
+          }
+          x += sw;
+        });
+        y += sh;
+      });
+      return pieces;
+    }
+
+    function drawBlocks(job, now) {
+      const button = job.button;
+      const elapsed = now - job.started;
+      const ctx = button._ctx;
+      if (elapsed < DUR.hit) {
+        const k = elapsed / DUR.hit;
+        const squash = Math.sin(k * Math.PI);
+        ctx.clearRect(0, 0, button._w, button._h);
+        ctx.save();
+        ctx.translate(button._w / 2, button._h / 2);
+        ctx.scale(1 + squash * 0.035, 1 - squash * 0.07);
+        ctx.translate(-button._w / 2, -button._h / 2);
+        ctx.drawImage(button._sprite, 0, 0, button._w, button._h);
+        ctx.fillStyle = "rgba(255, 244, 230, " + ((1 - k) * 0.38) + ")";
+        clipRound(ctx, button._w, button._h, 18);
+        ctx.fill();
+        ctx.restore();
+        return;
+      }
+      if (!job.pieces) {
+        ctx.clearRect(0, 0, button._w, button._h);
+        const rect = job.rect;
+        const floor = Math.min(window.innerHeight - 28, rect.bottom + 52);
+        job.pieces = cutBlocks(button._w, button._h).map((piece) => {
+          const cx = piece.x + piece.sw / 2;
+          const cy = piece.y + piece.sh / 2;
+          const dx = cx - job.origin.x;
+          const dy = cy - job.origin.y;
+          const mag = Math.hypot(dx, dy) || 1;
+          const speed = 50 + Math.random() * 90;
+          return {
+            ...piece,
+            px: rect.left + piece.x,
+            py: rect.top + piece.y,
+            vx: (dx / mag) * speed,
+            vy: (dy / mag) * speed * 0.25 - (30 + Math.random() * 70),
+            rot: (Math.random() - 0.5) * 0.3,
+            spin: (Math.random() - 0.5) * 6,
+            bounced: false,
+            alpha: 1,
+            floor
+          };
+        });
+        debris.push({ kind: "blocks", sprite: button._sprite, dpr: button._dpr, pieces: job.pieces, w: button._w, h: button._h });
+      }
+      if (elapsed >= DUR.hit + 520) finish(job, now);
+    }
+
+    function stepDebris(dt) {
+      for (const group of debris) {
+        for (const piece of group.pieces) {
+          piece.vy += 2500 * dt;
+          piece.px += piece.vx * dt;
+          piece.py += piece.vy * dt;
+          piece.rot += piece.spin * dt;
+          if (!piece.bounced && piece.py + piece.sh >= piece.floor) {
+            piece.py = piece.floor - piece.sh;
+            piece.vy = -Math.abs(piece.vy) * 0.42;
+            piece.vx *= 0.86;
+            piece.bounced = true;
+          } else if (piece.bounced) {
+            piece.alpha = Math.max(0, piece.alpha - dt * 1.35);
+          }
+        }
+      }
+      debris = debris.filter((group) => group.pieces.some((piece) => piece.alpha > 0.04 && piece.py < window.innerHeight + 40));
+    }
+
+    function paintDebris() {
+      for (const group of debris) {
+        const dpr = group.dpr;
+        for (const piece of group.pieces) {
+          if (piece.alpha <= 0.04) continue;
+          airCtx.save();
+          airCtx.globalAlpha = piece.alpha;
+          airCtx.translate(piece.px + piece.sw / 2, piece.py + piece.sh / 2);
+          airCtx.rotate(piece.rot);
+          airCtx.shadowColor = "rgba(0,0,0,.28)";
+          airCtx.shadowBlur = 8;
+          airCtx.drawImage(
+            group.sprite,
+            piece.x * dpr, piece.y * dpr, Math.max(1, piece.sw * dpr), Math.max(1, piece.sh * dpr),
+            -piece.sw / 2, -piece.sh / 2, piece.sw, piece.sh
+          );
+          airCtx.shadowBlur = 0;
+          airCtx.strokeStyle = "rgba(70, 52, 36, 0.28)";
+          airCtx.strokeRect(-piece.sw / 2 + 0.5, -piece.sh / 2 + 0.5, piece.sw - 1, piece.sh - 1);
+          airCtx.restore();
+        }
+      }
+    }
+
+    function jagAt(y, h, seed) {
+      const n = y / Math.max(1, h);
+      return Math.sin(n * 28 + seed) * 7 + Math.sin(n * 9 + 2) * 4;
+    }
+
+    function traceJag(ctx, x, h, seed, fromTop) {
+      const steps = 18;
+      for (let i = 0; i <= steps; i++) {
+        const y = fromTop ? (h * i) / steps : h - (h * i) / steps;
+        ctx.lineTo(x + jagAt(y, h, seed), y);
+      }
+    }
+
+    function ensureFlap(job) {
+      if (job.flap) return job.flap;
+      const button = job.button;
+      const canvas = document.createElement("canvas");
+      canvas.width = button._sprite.width;
+      canvas.height = button._sprite.height;
+      job.flap = canvas;
+      return canvas;
+    }
+
+    function drawPeel(job, now) {
+      const button = job.button;
+      const t = Math.min(1, (now - job.started) / DUR.peel);
+      const w = button._w;
+      const h = button._h;
+      const ctx = button._ctx;
+      const tear = job.fromLeft ? w * t : w * (1 - t);
+      const seed = 2.2;
+      ctx.clearRect(0, 0, w, h);
+      ctx.save();
+      clipRound(ctx, w, h, 18);
+      ctx.clip();
+      ctx.save();
+      ctx.beginPath();
+      if (job.fromLeft) {
+        ctx.moveTo(tear, 0);
+        traceJag(ctx, tear, h, seed, true);
+        ctx.lineTo(w, h);
+        ctx.lineTo(w, 0);
+      } else {
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, h);
+        traceJag(ctx, tear, h, seed, false);
+      }
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(button._sprite, 0, 0, w, h);
+      ctx.restore();
+      const shade = ctx.createLinearGradient(tear - 16, 0, tear + 14, 0);
+      shade.addColorStop(0, "rgba(48, 28, 14, 0)");
+      shade.addColorStop(1, "rgba(48, 28, 14, 0.28)");
+      ctx.fillStyle = shade;
+      ctx.fillRect(Math.min(tear, w) - 20, 0, 34, h);
+      ctx.restore();
+
+      const flap = ensureFlap(job);
+      const fg = flap.getContext("2d");
+      const dpr = button._dpr;
+      fg.setTransform(dpr, 0, 0, dpr, 0, 0);
+      fg.clearRect(0, 0, w, h);
+      fg.save();
+      fg.beginPath();
+      if (job.fromLeft) {
+        fg.moveTo(0, 0);
+        fg.lineTo(0, h);
+        traceJag(fg, tear, h, seed, false);
+      } else {
+        fg.moveTo(tear, 0);
+        traceJag(fg, tear, h, seed, true);
+        fg.lineTo(w, h);
+        fg.lineTo(w, 0);
+      }
+      fg.closePath();
+      fg.clip();
+      fg.drawImage(button._sprite, 0, 0, w, h);
+      fg.restore();
+
+      const rect = job.rect;
+      const lift = t * t;
+      airCtx.save();
+      const anchorX = rect.left + tear;
+      const anchorY = rect.top + 18;
+      airCtx.translate(anchorX, anchorY);
+      airCtx.rotate((job.fromLeft ? 1 : -1) * lift * 0.75);
+      airCtx.translate((job.fromLeft ? -1 : 1) * lift * 36, -lift * 78);
+      airCtx.transform(1, 0, (job.fromLeft ? 1 : -1) * lift * 0.18, 1 - lift * 0.04, 0, 0);
+      airCtx.translate(-anchorX, -anchorY);
+      airCtx.fillStyle = "#e6d2b2";
+      airCtx.fillRect(rect.left + (job.fromLeft ? 0 : tear) - 2, rect.top + 3, Math.max(8, job.fromLeft ? tear : w - tear), h - 8);
+      airCtx.drawImage(flap, rect.left, rect.top, w, h);
+      airCtx.restore();
+      if (t >= 1) finish(job, now);
+    }
+
+    function finish(job, now) {
+      if (job.finished) return;
+      job.finished = true;
+      setHeat(false);
+      const li = job.button.closest("li");
+      const name = job.name;
+      const wasFocused = document.activeElement === job.button;
+      const next = li.nextElementSibling?.querySelector("button.card")
+        || li.previousElementSibling?.querySelector("button.card")
+        || document.getElementById("reset");
+      const others = [...stack.querySelectorAll("li")].filter((el) => el !== li);
+      const before = new Map(others.map((el) => [el, el.getBoundingClientRect().top]));
+      const gen = generation;
+      li.remove();
+      if (wasFocused && next) next.focus();
+      const animations = [];
+      for (const el of others) {
+        const dy = before.get(el) - el.getBoundingClientRect().top;
+        if (Math.abs(dy) < 0.5) continue;
+        animations.push(el.animate(
+          [{ transform: "translateY(" + dy + "px)" }, { transform: "translateY(0)" }],
+          { duration: DUR.reflow, easing: "cubic-bezier(.2,.8,.2,1)", fill: "both" }
+        ).finished);
+      }
+      announce(name + (animations.length ? "离开了，下面的卡片正在补上。" : "离开了。"));
+      const release = () => { if (gen === generation) busy = false; };
+      if (!animations.length) release();
+      else Promise.all(animations).catch(() => {}).then(release);
+    }
+
+    function stepMotes(dt, now) {
+      motes = motes.filter((mote) => {
+        const age = now - mote.born;
+        if (age > mote.life) return false;
+        mote.x += mote.vx * dt;
+        mote.y += mote.vy * dt;
+        mote.vy -= 40 * dt;
+        const k = 1 - age / mote.life;
+        airCtx.save();
+        airCtx.globalCompositeOperation = "lighter";
+        airCtx.globalAlpha = Math.max(0, k);
+        airCtx.fillStyle = mote.hot > 0.55 ? "#ffe6b0" : "#ff8a32";
+        airCtx.beginPath();
+        airCtx.arc(mote.x, mote.y, mote.size * (0.6 + k), 0, Math.PI * 2);
+        airCtx.fill();
+        airCtx.restore();
+        return true;
+      });
+    }
+
+    function clearAir() {
+      const w = document.documentElement.clientWidth;
+      const h = document.documentElement.clientHeight;
+      const dpr = dprOf();
+      if (w !== airW || h !== airH || air.width !== Math.round(w * dpr)) {
+        air.width = Math.max(1, Math.round(w * dpr));
+        air.height = Math.max(1, Math.round(h * dpr));
+        airW = w;
+        airH = h;
+      }
+      airCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      airCtx.clearRect(0, 0, w, h);
+    }
+
+    function haltForReducedMotion() {
+      generation += 1;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      jobs = [];
+      motes = [];
+      debris = [];
+      setHeat(false);
+      for (const el of stack.querySelectorAll("li")) {
+        for (const anim of el.getAnimations()) anim.cancel();
+      }
+      const leaving = [...stack.querySelectorAll("button.card.leaving")];
+      for (const button of leaving) {
+        const li = button.closest("li");
+        if (!li) continue;
+        const wasFocused = document.activeElement === button;
+        const next = li.nextElementSibling?.querySelector("button.card")
+          || li.previousElementSibling?.querySelector("button.card")
+          || document.getElementById("reset");
+        const hasBelow = !!li.nextElementSibling;
+        const name = button._card.name;
+        li.remove();
+        if (wasFocused && next && next.isConnected) next.focus();
+        announce(name + (hasBelow ? "直接消失了，下面的卡片已经补上。" : "直接消失了。"));
+      }
+      clearAir();
+      busy = false;
+    }
+
+    function frame(now) {
+      if (reduced) {
+        raf = 0;
+        return;
+      }
+      const dt = Math.min(0.034, last ? (now - last) / 1000 : 0.016);
+      last = now;
+      clearAir();
+      for (const job of jobs) {
+        if (reduced) break;
+        if (!job.button.isConnected && job.finished) continue;
+        if (job.kind === "burn") drawBurn(job, now);
+        else if (job.kind === "plume") drawPlume(job, now);
+        else if (job.kind === "blocks") drawBlocks(job, now);
+        else drawPeel(job, now);
+      }
+      if (reduced) {
+        raf = 0;
+        return;
+      }
+      stepDebris(dt);
+      paintDebris();
+      stepMotes(dt, now);
+      jobs = jobs.filter((job) => !job.finished);
+      if (!reduced && (jobs.length || debris.length || motes.length)) raf = requestAnimationFrame(frame);
+      else { raf = 0; clearAir(); }
+    }
+
+    function kick() {
+      if (reduced || raf) return;
+      last = 0;
+      raf = requestAnimationFrame(frame);
+    }
+
+    document.getElementById("reset").addEventListener("click", () => {
+      build();
+      announce("四张卡片又摆好了。");
+      const first = stack.querySelector("button.card");
+      if (first) first.focus();
+    });
+
+    window.addEventListener("resize", () => {
+      if (busy) return;
+      for (const button of stack.querySelectorAll("button.card")) fitCard(button);
+    });
+
+    build();
+  </script>
+</body>
+</html>
