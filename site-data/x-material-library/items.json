@@ -660,14 +660,14 @@
     "poster": "assets/2120896116711727557/poster0.jpg",
     "video": "assets/2120896116711727557/preview.mp4",
     "preview": "assets/2120896116711727557/preview.webm",
-    "duration_s": 67,
+    "duration_s": 7,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/scroll-scrub-hero/code/index.html",
     "added_at": "2026-11-13T23:02:00+08:00",
     "effect_zh": "MengTo 把一段 30 秒一镜到底的 2K 视频做成北欧建筑工作室落地页 Hero：往下滚动即播放，往回滚就倒放，后面还有大字滚动、作品区和联系区。",
     "platform": "x",
-    "title": "滚动驱动视频落地页 Hero",
+    "title": "滚动推动的可倒放建筑镜头",
     "cindy_job": "cindy-jobs/2120896116711727557"
   },
   {
