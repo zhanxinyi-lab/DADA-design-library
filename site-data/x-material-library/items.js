@@ -5863,11 +5863,11 @@ window.ITEMS=[
       "assets/2116551748848345362/poster0.jpg"
     ],
     "poster": "assets/2116551748848345362/poster0.jpg",
-    "video": "assets/2116551748848345362/preview.webm",
+    "video": "assets/2116551748848345362/preview.mp4",
     "preview": "assets/2116551748848345362/preview.webm",
     "gif_local": null,
     "full_video_local": null,
-    "duration_s": 8,
+    "duration_s": 6,
     "has_animation": true,
     "code_status": "ai_recreated",
     "code": "effects/october-interaction-studies/code/index.html",
