@@ -5865,21 +5865,18 @@ window.ITEMS=[
     ],
     "poster": "assets/2116551748848345362/poster0.jpg",
     "video": "assets/2116551748848345362/preview.mp4",
-    "preview": "assets/2116551748848345362/preview.webm",
-    "gif_local": "assets/2116551748848345362/preview.gif",
-    "full_video_local": "assets/2116551748848345362/video.mp4",
+    "preview": null,
+    "gif_local": null,
+    "full_video_local": null,
     "duration_s": 6,
     "has_animation": true,
-    "code_status": "needs_recreation",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/october-interaction-studies/code/index.html",
     "added_at": "2026-11-02T11:29:55+08:00",
     "effect_zh": "十月交互探索：旋钮（dial）选择器、弹层（modal）交互、团队规模选择、Agent 思考态微交互。",
     "platform": "x",
-    "extra_videos_local": [
-      "assets/2116551748848345362/video1.mp4",
-      "assets/2116551748848345362/video2.mp4",
-      "assets/2116551748848345362/video3.mp4"
-    ]
+    "extra_videos_local": [],
+    "title": "交互研究：拨盘、对话框、人数选择与思考动画"
   },
   {
     "id": "2116523080931475887",
