@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>盖子抬起</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  html { overflow-x: clip; }
+  body {
+    background: #efe8dc;
+    color: #243042;
+    font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  }
+  main {
+    width: min(440px, 100%);
+    margin: 0 auto;
+    padding: 20px 16px 28px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 680;
+    letter-spacing: 0.01em;
+  }
+  .note, .readout {
+    margin: 8px 0 0;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .note { color: #5c675f; }
+  .readout { min-height: 1.5em; font-weight: 650; }
+  .lid {
+    display: block;
+    width: 100%;
+    margin-top: 16px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+  .lid:focus { outline: none; }
+  .lid:focus-visible .scene {
+    outline: 2px solid #243042;
+    outline-offset: 4px;
+  }
+  .scene {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 280 / 420;
+    border-radius: 28px;
+    background:
+      radial-gradient(120% 80% at 50% 100%, rgba(36, 48, 66, 0.06), transparent 55%),
+      #fffaf3;
+    border: 1px solid rgba(36, 48, 66, 0.12);
+    overflow: hidden;
+  }
+  svg {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+  }
+  .tok {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 3;
+    width: 18px;
+    height: 18px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .sq { background: #2f6f62; border-radius: 5px; }
+  .dot { background: #d4654a; border-radius: 50%; }
+  .dia { background: #243042; border-radius: 3px; }
+  .bubble {
+    display: block;
+    position: absolute;
+    z-index: 4;
+    left: 16px;
+    right: 16px;
+    top: 16px;
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: #243042;
+    color: #fffaf3;
+    font-size: 13px;
+    line-height: 1.35;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    overflow-wrap: anywhere;
+  }
+  .live {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  @media (max-width: 390px) {
+    main { padding: 16px 12px 24px; }
+    h1 { font-size: 20px; }
+    .bubble { font-size: 12px; left: 12px; right: 12px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>盖子抬起</h1>
+  <p class="note">悬停、点击，或按 Enter / 空格，都改同一段开合。</p>
+  <button class="lid" id="lid" type="button" aria-label="盖子" aria-pressed="false" aria-expanded="false">
+    <span class="scene" id="scene">
+      <i class="tok sq" data-i="0"></i>
+      <i class="tok dot" data-i="1"></i>
+      <i class="tok dia" data-i="2"></i>
+      <svg viewBox="0 0 280 420" aria-hidden="true">
+        <g transform="translate(0 36)">
+        <ellipse cx="140" cy="348" rx="72" ry="14" fill="#e4d9c8"/>
+        <rect x="92" y="268" width="96" height="72" rx="40" fill="#243042"/>
+        <rect x="124" y="236" width="32" height="48" rx="16" fill="#243042"/>
+        <circle cx="140" cy="186" r="70" fill="#f3d5c0"/>
+        <ellipse id="well" cx="140" cy="148" rx="34" ry="12" fill="#2c241f"/>
+        <g id="cap">
+          <ellipse cx="140" cy="172" rx="84" ry="16" fill="#c9843e"/>
+          <path d="M58 154c0-62 164-62 164 0 0 14-164 14-164 0z" fill="#e2a15a"/>
+        </g>
+        </g>
+      </svg>
+      <span class="bubble" id="bubble">三件小事停在上面。</span>
+    </span>
+  </button>
+  <p class="readout" id="readout">盖子合着。</p>
+  <p class="live" id="live" aria-live="polite">盖子合着。</p>
+</main>
+<script>
+(function () {
+  var reduceMq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  var btn = document.getElementById("lid");
+  var scene = document.getElementById("scene");
+  var cap = document.getElementById("cap");
+  var well = document.getElementById("well");
+  var bubble = document.getElementById("bubble");
+  var readout = document.getElementById("readout");
+  var live = document.getElementById("live");
+  var toks = Array.prototype.slice.call(document.querySelectorAll(".tok"));
+  var slots = [
+    { x: 112, y0: 196, y1: 164, rot: 0 },
+    { x: 146, y0: 190, y1: 148, rot: 0 },
+    { x: 176, y0: 202, y1: 178, rot: 45 }
+  ];
+  var hover = false;
+  var pinned = false;
+  var shown = 0;
+  var target = 0;
+  var raf = 0;
+  var announced = "盖子合着。";
+
+  function reduce() { return reduceMq.matches; }
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
+  function smooth(v) {
+    var t = clamp(v, 0, 1);
+    return t * t * (3 - 2 * t);
+  }
+
+  function desired() { return (hover || pinned) ? 1 : 0; }
+
+  function paint() {
+    var rect = scene.getBoundingClientRect();
+    var sx = rect.width / 280;
+    var sy = rect.height / 420;
+    var lift = -88 * shown;
+    var rot = -8 * shown;
+    cap.setAttribute("transform", "translate(140 154) rotate(" + rot + ") translate(-140 -154) translate(0 " + lift + ")");
+    well.setAttribute("opacity", String(shown));
+    for (var i = 0; i < toks.length; i++) {
+      var slot = slots[i];
+      var delay = i * 0.16;
+      var local = smooth((shown - delay) / (1 - delay));
+      var y = slot.y0 + (slot.y1 - slot.y0) * local;
+      var size = 16 * sx;
+      toks[i].style.width = size + "px";
+      toks[i].style.height = size + "px";
+      toks[i].style.opacity = String(local);
+      toks[i].style.transform = "translate(" + (slot.x * sx) + "px, " + (y * sy) + "px) translate(-50%, -50%) rotate(" + slot.rot + "deg) scale(" + (0.7 + 0.3 * local) + ")";
+    }
+    bubble.style.opacity = String(smooth((shown - 0.42) / 0.58));
+    readout.textContent = shown > 0.5 ? "盖子抬起了。" : "盖子合着。";
+  }
+
+  function say(open) {
+    var msg = open ? "盖子抬起了。" : "盖子合着。";
+    if (msg === announced) return;
+    announced = msg;
+    live.textContent = msg;
+  }
+
+  function kick() {
+    target = desired();
+    btn.setAttribute("aria-pressed", pinned ? "true" : "false");
+    btn.setAttribute("aria-expanded", target === 1 ? "true" : "false");
+    say(target === 1);
+    if (reduce()) {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      shown = target;
+      paint();
+      return;
+    }
+    if (!raf) raf = requestAnimationFrame(step);
+  }
+
+  function step() {
+    if (reduce()) {
+      raf = 0;
+      shown = target;
+      paint();
+      return;
+    }
+    var delta = target - shown;
+    if (Math.abs(delta) < 0.006) {
+      shown = target;
+      raf = 0;
+      paint();
+      return;
+    }
+    shown += delta * 0.14;
+    paint();
+    raf = requestAnimationFrame(step);
+  }
+
+  if (finePointer) {
+    btn.addEventListener("pointerenter", function () { hover = true; kick(); });
+    btn.addEventListener("pointerleave", function () { hover = false; kick(); });
+  }
+  btn.addEventListener("click", function () {
+    pinned = !pinned;
+    kick();
+  });
+  reduceMq.addEventListener("change", function () { kick(); });
+  window.addEventListener("resize", paint);
+  paint();
+})();
+</script>
+</body>
+</html>

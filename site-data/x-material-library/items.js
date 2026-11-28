@@ -2906,14 +2906,15 @@ window.ITEMS=[
     ],
     "poster": "assets/2119115914566382058/poster0.jpg",
     "video": "assets/2119115914566382058/preview.mp4",
-    "preview": null,
-    "duration_s": 13,
+    "preview": "assets/2119115914566382058/preview.webm",
+    "duration_s": 5,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/framer-pick-transition/code/index.html",
     "added_at": "2026-11-09T22:56:59+08:00",
-    "effect_zh": "Framer 官方精选的 4 个强互动落地页合集：滚动、悬停、转场都很重",
-    "platform": "x"
+    "effect_zh": "四格合集里的右上格：悬停、点击或键盘让盖子抬起，里面的东西沿同一段进度浮出并停住，离开后合上",
+    "platform": "x",
+    "title": "盖子抬起，里面的东西沿同一段进度浮出来"
   },
   {
     "id": "2119046101445795945",
