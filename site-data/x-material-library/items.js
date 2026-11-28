@@ -5179,11 +5179,12 @@ window.ITEMS=[
     "full_video_local": "assets/brief-filip-search/video.mp4",
     "duration_s": 40,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/filip-search-filter/code/index.html",
     "added_at": "2026-11-03T23:04:32+08:00",
     "effect_zh": "Filip 搜索/过滤 UI 动效演示：输入与结果反馈节奏清晰，可复刻成产品搜索交互。",
     "platform": "brief",
+    "title": "搜索筛选：边打边过滤，结果重排带缓动",
     "cindy_job": "cindy-jobs/brief-filip-search"
   },
   {
