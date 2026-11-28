@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>粒子编辑器</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #000;
+      color: #f4f4f6;
+      overflow-x: hidden;
+    }
+    #sheet {
+      position: relative;
+      box-sizing: border-box;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: 36px 14px 32px;
+      cursor: text;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: pan-y;
+    }
+    #src {
+      position: fixed;
+      width: 1px;
+      height: 1px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      opacity: 0;
+      resize: none;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .line {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      max-width: 100%;
+    }
+    .ln {
+      flex: 0 0 2.2ch;
+      text-align: right;
+      color: #6d6d76;
+      font: 16px/1.65 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    }
+    .body {
+      flex: 1 1 auto;
+      min-width: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: 16px/1.65 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    }
+    .ch { white-space: pre; }
+    .sel { background: rgba(255, 72, 104, 0.16); }
+    .tail { display: inline-block; width: 1px; height: 1em; }
+    #caret {
+      position: absolute;
+      z-index: 2;
+      width: 1.5px;
+      background: #f3f0ff;
+      pointer-events: none;
+      display: none;
+    }
+    #fx {
+      position: absolute;
+      z-index: 1;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    @media (min-width: 800px) {
+      #sheet { padding: 52px 28px 48px; }
+      .ln, .body { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="sheet">
+    <div id="rows"></div>
+    <canvas id="fx"></canvas>
+    <div id="caret"></div>
+  </div>
+  <textarea id="src" aria-label="笔记" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+  <script>
+    const sheet = document.getElementById('sheet')
+    const rows = document.getElementById('rows')
+    const src = document.getElementById('src')
+    const caretEl = document.getElementById('caret')
+    const canvas = document.getElementById('fx')
+    const ctx = canvas.getContext('2d')
+    const reduceMq = matchMedia('(prefers-reduced-motion: reduce)')
+
+    const initial = 'notes stay with the caret\n\ndrag across a short phrase'
+    let reduce = reduceMq.matches
+    let prev = initial
+    let heat = new Map()
+    let particles = []
+    let field = 0
+    let phraseTarget = []
+    let wordTarget = []
+    let phraseView = []
+    let wordView = []
+    let caretBox = null
+    let raf = 0
+    let lastTick = 0
+    let dragging = false
+    let dragAnchor = 0
+
+    src.value = initial
+    const firstBreak = initial.indexOf('\n')
+    src.setSelectionRange(firstBreak, firstBreak)
+
+    function units(str) {
+      const out = []
+      for (let i = 0; i < str.length; i++) {
+        const pair = str.charCodeAt(i) >= 0xD800 && str.charCodeAt(i) <= 0xDBFF && i + 1 < str.length
+        out.push({ i, ch: pair ? str.slice(i, i + 2) : str[i] })
+        if (pair) i++
+      }
+      return out
+    }
+
+    function caretIndex() {
+      return src.selectionDirection === 'backward' ? src.selectionStart : src.selectionEnd
+    }
+
+    function indexToPos(value, index) {
+      const lines = value.split('\n')
+      let left = Math.max(0, index)
+      for (let i = 0; i < lines.length; i++) {
+        if (left <= lines[i].length) return { line: i + 1, col: left + 1 }
+        left -= lines[i].length + 1
+      }
+      const last = lines[lines.length - 1] || ''
+      return { line: lines.length, col: last.length + 1 }
+    }
+
+    function isWord(ch) {
+      return !!ch && ch !== '\n' && !/\s/.test(ch)
+    }
+
+    function wordBounds(value, index) {
+      let a = Math.max(0, Math.min(index, value.length))
+      if (a > 0 && !isWord(value[a]) && isWord(value[a - 1])) a -= 1
+      if (!isWord(value[a]) && !(a > 0 && isWord(value[a - 1]))) return { a: index, b: index, empty: true }
+      if (!isWord(value[a])) a -= 1
+      while (a > 0 && isWord(value[a - 1])) a -= 1
+      let b = a
+      while (b < value.length && isWord(value[b])) b += 1
+      return { a, b, empty: false }
+    }
+
+    function phraseBounds(value, word) {
+      if (word.empty) return word
+      let a = word.a
+      let p = a
+      while (p > 0 && value[p - 1] !== '\n' && /\s/.test(value[p - 1])) p -= 1
+      if (p > 0 && value[p - 1] !== '\n' && isWord(value[p - 1])) {
+        while (p > 0 && isWord(value[p - 1])) p -= 1
+        a = p
+      }
+      return { a, b: word.b, empty: false }
+    }
+
+    function activeSpans() {
+      const value = src.value
+      const s = src.selectionStart
+      const e = src.selectionEnd
+      if (s !== e) {
+        const span = { a: s, b: e, empty: false }
+        return { phrase: span, word: span, caret: caretIndex() }
+      }
+      const caret = caretIndex()
+      const word = wordBounds(value, caret)
+      return { phrase: phraseBounds(value, word), word, caret }
+    }
+
+    function render() {
+      const value = src.value
+      const lines = value.split('\n')
+      const { phrase, word } = activeSpans()
+      const caret = caretIndex()
+      rows.replaceChildren()
+      let base = 0
+      lines.forEach((line, li) => {
+        const row = document.createElement('div')
+        row.className = 'line'
+        const num = document.createElement('span')
+        num.className = 'ln'
+        num.textContent = String(li + 1)
+        const body = document.createElement('span')
+        body.className = 'body'
+        for (const u of units(line)) {
+          const el = document.createElement('span')
+          el.className = 'ch'
+          el.dataset.i = String(base + u.i)
+          el.dataset.n = String(u.ch.length)
+          if (rangesOverlap(base + u.i, base + u.i + u.ch.length, word)) el.classList.add('live')
+          if (src.selectionStart !== src.selectionEnd && rangesOverlap(base + u.i, base + u.i + u.ch.length, { a: src.selectionStart, b: src.selectionEnd })) el.classList.add('sel')
+          el.textContent = u.ch
+          body.appendChild(el)
+        }
+        const tail = document.createElement('span')
+        tail.className = 'ch tail'
+        tail.dataset.i = String(base + line.length)
+        tail.dataset.n = '0'
+        body.appendChild(tail)
+        row.append(num, body)
+        rows.appendChild(row)
+        base += line.length + 1
+      })
+      phraseTarget = lineRects(phrase)
+      wordTarget = lineRects(word.empty ? { a: caret, b: caret, empty: true } : word)
+      caretBox = spanRect({ a: caret, b: caret, empty: true })
+      placeCaret()
+      if (reduce) settle()
+      else {
+        if (!phraseView.length) phraseView = copyLines(phraseTarget)
+        if (!wordView.length) wordView = copyLines(wordTarget)
+        applyHeat()
+        draw()
+      }
+    }
+
+    function rangesOverlap(a, b, span) {
+      return span && !span.empty && a < span.b && b > span.a
+    }
+
+    function spanRect(span) {
+      const host = sheet.getBoundingClientRect()
+      if (!span) return null
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      let any = false
+      for (const el of rows.querySelectorAll('.ch')) {
+        const i = Number(el.dataset.i)
+        const n = Number(el.dataset.n)
+        const hit = span.empty ? i === span.a : (n > 0 && i < span.b && i + n > span.a)
+        if (!hit) continue
+        const r = el.getBoundingClientRect()
+        any = true
+        minX = Math.min(minX, r.left)
+        minY = Math.min(minY, r.top)
+        maxX = Math.max(maxX, r.right)
+        maxY = Math.max(maxY, r.bottom)
+      }
+      if (!any) return null
+      return {
+        x: minX - host.left + sheet.scrollLeft,
+        y: minY - host.top + sheet.scrollTop,
+        w: Math.max(6, maxX - minX),
+        h: Math.max(8, maxY - minY)
+      }
+    }
+
+    function placeCaret() {
+      const on = document.activeElement === src
+      caretEl.style.display = on && caretBox ? 'block' : 'none'
+      if (!caretBox) return
+      caretEl.style.left = caretBox.x + 'px'
+      caretEl.style.top = caretBox.y + 'px'
+      caretEl.style.height = caretBox.h + 'px'
+      const vis = caretEl.getBoundingClientRect()
+      src.style.left = vis.left + 'px'
+      src.style.top = vis.top + 'px'
+    }
+
+    function indexAt(x, y) {
+      const chars = [...rows.querySelectorAll('.ch')]
+      let best = null
+      for (const el of chars) {
+        const r = el.getBoundingClientRect()
+        const dx = el.classList.contains('tail') ? Math.abs(x - r.left) : Math.abs(x - (r.left + r.width / 2))
+        const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0
+        const score = dy * 800 + dx
+        if (!best || score < best.score) best = { score, el, r }
+      }
+      if (!best) return 0
+      const i = Number(best.el.dataset.i)
+      const n = Number(best.el.dataset.n)
+      if (!n || best.el.classList.contains('tail')) return i
+      return x > best.r.left + best.r.width / 2 ? i + n : i
+    }
+
+    function setRange(anchor, index) {
+      const len = src.value.length
+      const a = Math.max(0, Math.min(anchor, len))
+      const b = Math.max(0, Math.min(index, len))
+      src.setSelectionRange(Math.min(a, b), Math.max(a, b), b < a ? 'backward' : 'forward')
+      render()
+      kick()
+    }
+
+    function lineRects(span) {
+      const host = sheet.getBoundingClientRect()
+      const map = new Map()
+      for (const el of rows.querySelectorAll('.ch')) {
+        const i = Number(el.dataset.i)
+        const n = Number(el.dataset.n)
+        const hit = span && (span.empty ? i === span.a : (n > 0 && i < span.b && i + n > span.a))
+        if (!hit) continue
+        const row = el.closest('.line')
+        const r = el.getBoundingClientRect()
+        const g = map.get(row) || { x: Infinity, y: Infinity, r: -Infinity, b: -Infinity }
+        g.x = Math.min(g.x, r.left)
+        g.y = Math.min(g.y, r.top)
+        g.r = Math.max(g.r, Math.max(r.right, r.left + 6))
+        g.b = Math.max(g.b, r.bottom)
+        map.set(row, g)
+      }
+      return [...map.values()].map((g) => ({
+        x: g.x - host.left + sheet.scrollLeft,
+        y: g.y - host.top + sheet.scrollTop,
+        w: Math.max(6, g.r - g.x),
+        h: Math.max(8, g.b - g.y)
+      }))
+    }
+
+    function copyLines(list) {
+      return (list || []).map((r) => ({ ...r }))
+    }
+
+    function lerpLines(view, target, k) {
+      if (!target || !target.length) return []
+      if (!view || view.length !== target.length) return copyLines(target)
+      return target.map((t, i) => lerpRect(view[i], t, k))
+    }
+
+    function linesMoved(view, target) {
+      if (!target || !target.length) return false
+      if (!view || view.length !== target.length) return true
+      return target.some((t, i) => moved(view[i], t))
+    }
+
+    function sameLines(a, b) {
+      if (!a || !b || a.length !== b.length) return false
+      return a.every((r, i) => sameRect(r, b[i]))
+    }
+
+    function sameRect(a, b) {
+      if (!a || !b) return false
+      return Math.abs(a.x - b.x) < 2 && Math.abs(a.y - b.y) < 2 && Math.abs(a.w - b.w) < 2 && Math.abs(a.h - b.h) < 2
+    }
+
+    function lerpRect(a, b, k) {
+      return {
+        x: a.x + (b.x - a.x) * k,
+        y: a.y + (b.y - a.y) * k,
+        w: a.w + (b.w - a.w) * k,
+        h: a.h + (b.h - a.h) * k
+      }
+    }
+
+    function moved(a, b) {
+      if (!a || !b) return true
+      return Math.abs(a.x - b.x) > 0.4 || Math.abs(a.y - b.y) > 0.4 || Math.abs(a.w - b.w) > 0.4 || Math.abs(a.h - b.h) > 0.4
+    }
+
+    function clearMotionStyles() {
+      for (const el of rows.querySelectorAll('.ch')) {
+        el.style.transform = ''
+        el.style.textShadow = ''
+      }
+    }
+
+    function applyHeat() {
+      if (reduce) { clearMotionStyles(); return }
+      const now = performance.now()
+      for (const el of rows.querySelectorAll('.ch')) {
+        const i = Number(el.dataset.i)
+        const h = heat.get(i) || 0
+        const live = el.classList.contains('live') || el.classList.contains('sel')
+        if (h > 0.02) {
+          const j = h * 1.7
+          const t = now / 40 + i
+          el.style.transform = 'translate(' + (Math.sin(t) * j).toFixed(2) + 'px,' + (Math.cos(t) * j * 0.35).toFixed(2) + 'px)'
+        } else el.style.transform = ''
+        if (live && field > 0.03) {
+          const o = (field * 1.8).toFixed(2)
+          el.style.textShadow = o + 'px 0 rgba(150,255,200,' + (0.45 * field).toFixed(2) + '), -' + o + 'px 0 rgba(255,80,110,' + (0.4 * field).toFixed(2) + ')'
+        } else el.style.textShadow = ''
+      }
+    }
+
+    function burstAt(rect, ch) {
+      if (reduce || !rect) return
+      field = 1
+      for (let n = 0; n < 8; n++) {
+        const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.4
+        const speed = 0.015 + Math.random() * 0.045
+        particles.push({
+          x: rect.x + rect.w * 0.5 + (Math.random() - 0.5) * rect.w,
+          y: rect.y + rect.h * 0.45,
+          vx: Math.cos(ang) * speed,
+          vy: Math.sin(ang) * speed,
+          life: 180 + Math.random() * 220,
+          max: 400,
+          color: n % 5 === 0 ? '#ff8aa3' : n % 4 === 0 ? '#c8ffe2' : '#ececf1',
+          ch: n === 0 ? ch : '',
+          size: 1.3
+        })
+      }
+      if (particles.length > 220) particles.splice(0, particles.length - 220)
+    }
+
+    function onInput() {
+      const next = src.value
+      let i = 0
+      while (i < prev.length && i < next.length && prev[i] === next[i]) i++
+      let j = 0
+      while (j < prev.length - i && j < next.length - i && prev[prev.length - 1 - j] === next[next.length - 1 - j]) j++
+      const inserted = next.slice(i, next.length - j)
+      prev = next
+      render()
+      if (!reduce && inserted) {
+        field = 1
+        for (const u of units(inserted)) {
+          heat.set(i + u.i, 1)
+          burstAt(spanRect({ a: i + u.i, b: i + u.i + u.ch.length, empty: false }), u.ch)
+        }
+      }
+      kick()
+    }
+
+    function settle() {
+      if (raf) cancelAnimationFrame(raf)
+      raf = 0
+      lastTick = 0
+      particles = []
+      heat.clear()
+      field = 0
+      phraseView = copyLines(phraseTarget)
+      wordView = copyLines(wordTarget)
+      clearMotionStyles()
+      draw()
+    }
+
+    function kick() {
+      if (reduce) { settle(); return }
+      if (!raf) raf = requestAnimationFrame(loop)
+    }
+
+    function loop(now) {
+      const dt = Math.min(34, lastTick ? now - lastTick : 16)
+      lastTick = now
+      const k = 1 - Math.exp(-dt / 90)
+      phraseView = lerpLines(phraseView, phraseTarget, k)
+      wordView = lerpLines(wordView, wordTarget, k)
+      field += (0 - field) * (1 - Math.exp(-dt / 260))
+      for (const [key, h] of heat) {
+        const n = h * Math.exp(-dt / 200)
+        if (n < 0.02) heat.delete(key)
+        else heat.set(key, n)
+      }
+      particles = particles.filter((p) => {
+        p.life -= dt
+        p.x += p.vx * dt
+        p.y += p.vy * dt
+        return p.life > 0
+      })
+      applyHeat()
+      draw()
+      const calm = field < 0.02 && heat.size === 0 && particles.length === 0 && !linesMoved(phraseView, phraseTarget) && !linesMoved(wordView, wordTarget)
+      if (calm || reduce) {
+        if (reduce) settle()
+        else {
+          cancelAnimationFrame(raf)
+          raf = 0
+          lastTick = 0
+          phraseView = copyLines(phraseTarget)
+          wordView = copyLines(wordTarget)
+          draw()
+        }
+        return
+      }
+      raf = requestAnimationFrame(loop)
+    }
+
+    function resizeCanvas() {
+      const dpr = Math.min(2, devicePixelRatio || 1)
+      const w = sheet.clientWidth
+      const h = sheet.clientHeight
+      canvas.width = Math.max(1, Math.floor(w * dpr))
+      canvas.height = Math.max(1, Math.floor(h * dpr))
+      canvas.style.width = w + 'px'
+      canvas.style.height = h + 'px'
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    }
+
+    function corners(rect, color, len, width) {
+      const pad = 5
+      const x = rect.x - pad
+      const y = rect.y - pad
+      const w = rect.w + pad * 2
+      const h = rect.h + pad * 2
+      const L = Math.max(4, Math.min(len, w / 2, h / 2))
+      ctx.strokeStyle = color
+      ctx.lineWidth = width
+      ctx.beginPath()
+      ctx.moveTo(x, y + L); ctx.lineTo(x, y); ctx.lineTo(x + L, y)
+      ctx.moveTo(x + w - L, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + L)
+      ctx.moveTo(x + w, y + h - L); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - L, y + h)
+      ctx.moveTo(x + L, y + h); ctx.lineTo(x, y + h); ctx.lineTo(x, y + h - L)
+      ctx.stroke()
+    }
+
+    function draw() {
+      resizeCanvas()
+      ctx.clearRect(0, 0, sheet.clientWidth, sheet.clientHeight)
+      const origin = caretBox || wordView[0]
+      if (!reduce && origin && field > 0.02) {
+        const x0 = origin.x + origin.w + 10 - sheet.scrollLeft
+        const y0 = origin.y - 8 - sheet.scrollTop
+        for (let r = 0; r < 5; r++) {
+          for (let c = 0; c < 16; c++) {
+            const fade = (1 - c / 16) * field
+            ctx.fillStyle = c % 7 === 0 ? 'rgba(255,130,156,' + (fade * 0.7) + ')' : 'rgba(226,226,232,' + (fade * 0.55) + ')'
+            ctx.fillRect(x0 + c * 7, y0 + r * 7, 1.5, 1.5)
+          }
+        }
+      }
+      const font = getComputedStyle(rows.querySelector('.body') || document.body).font
+      ctx.textBaseline = 'top'
+      for (const p of particles) {
+        const alpha = Math.max(0, p.life / p.max)
+        ctx.globalAlpha = alpha
+        ctx.fillStyle = p.color
+        const x = p.x - sheet.scrollLeft
+        const y = p.y - sheet.scrollTop
+        if (p.ch) {
+          ctx.font = font
+          ctx.fillText(p.ch, x, y)
+        } else ctx.fillRect(x, y, p.size, p.size)
+      }
+      ctx.globalAlpha = 1
+      const phrase = phraseView.length === phraseTarget.length ? phraseView : phraseTarget
+      const word = wordView.length === wordTarget.length ? wordView : wordTarget
+      if (phrase.length && !sameLines(phraseTarget, wordTarget)) {
+        for (const rect of phrase) {
+          corners({
+            x: rect.x - sheet.scrollLeft,
+            y: rect.y - sheet.scrollTop,
+            w: rect.w,
+            h: rect.h
+          }, 'rgba(255,150,170,0.85)', 8, 1)
+        }
+      }
+      word.forEach((rect, idx) => {
+        const box = {
+          x: rect.x - sheet.scrollLeft,
+          y: rect.y - sheet.scrollTop,
+          w: rect.w,
+          h: rect.h
+        }
+        corners(box, '#ff5c78', 7, 1.35)
+        const srcRect = wordTarget[idx] || rect
+        if (!caretBox || Math.abs(srcRect.y - caretBox.y) > 4) return
+        const pos = indexToPos(src.value, caretIndex())
+        const label = 'X:' + pos.col + ' Y:' + pos.line
+        ctx.font = '11px ui-monospace, Consolas, monospace'
+        const tw = ctx.measureText(label).width
+        let lx = box.x + box.w - tw
+        let ly = box.y - 16
+        if (ly < 8) {
+          lx = box.x + box.w + 8
+          ly = box.y + 2
+        }
+        lx = Math.max(4, Math.min(lx, sheet.clientWidth - tw - 4))
+        ctx.fillStyle = '#ff5c78'
+        ctx.fillText(label, lx, ly)
+      })
+    }
+
+    sheet.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return
+      dragging = true
+      const index = indexAt(e.clientX, e.clientY)
+      const anchorNow = src.selectionDirection === 'backward' ? src.selectionEnd : src.selectionStart
+      dragAnchor = e.shiftKey ? anchorNow : index
+      src.focus({ preventScroll: true })
+      setRange(dragAnchor, index)
+      sheet.setPointerCapture(e.pointerId)
+      e.preventDefault()
+    })
+    sheet.addEventListener('pointermove', (e) => {
+      if (!dragging) return
+      setRange(dragAnchor, indexAt(e.clientX, e.clientY))
+    })
+    sheet.addEventListener('pointerup', () => { dragging = false })
+    sheet.addEventListener('pointercancel', () => { dragging = false })
+    src.addEventListener('input', onInput)
+    src.addEventListener('keyup', () => { render(); kick() })
+    src.addEventListener('focus', () => { render(); kick() })
+    src.addEventListener('blur', () => { caretEl.style.display = 'none' })
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement !== src || dragging) return
+      render()
+      kick()
+    })
+    reduceMq.addEventListener('change', () => {
+      reduce = reduceMq.matches
+      render()
+      if (reduce) settle()
+      else kick()
+    })
+    window.addEventListener('resize', () => { render(); draw() })
+    render()
+    if (reduce) settle()
+    else draw()
+  </script>
+</body>
+</html>
