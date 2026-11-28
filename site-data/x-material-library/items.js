@@ -5867,7 +5867,7 @@ window.ITEMS=[
     "preview": "assets/2116551748848345362/preview.webm",
     "gif_local": null,
     "full_video_local": null,
-    "duration_s": 7,
+    "duration_s": 6,
     "has_animation": true,
     "code_status": "ai_recreated",
     "code": "effects/october-interaction-studies/code/index.html",
