@@ -480,6 +480,7 @@
         li.append(name, note);
         return li;
       }));
+      if (motion.matches) paint(0, true);
     }
 
     document.querySelector("#form").addEventListener("submit", (event) => event.preventDefault());

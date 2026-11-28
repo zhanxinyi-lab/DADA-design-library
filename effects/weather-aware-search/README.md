@@ -5,7 +5,7 @@
 - 状态：ai_recreated
 - 原文：Weather-aware search bar。https://x.com/stevelauda_/status/2118749725902184703
 - 素材 ID：2118749725902184703
-- 版本：1.0.1
+- 版本：1.0.2
 
 ## 复刻说明
 
