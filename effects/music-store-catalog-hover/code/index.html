@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>目录悬停让位</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(120% 80% at 50% 0%, #3c4638 0%, transparent 55%),
+        #1c211c;
+      color: #f4efe4;
+      font: 16px/1.4 "Segoe UI", "PingFang SC", sans-serif;
+    }
+    .stage {
+      width: min(1080px, calc(100% - 32px));
+    }
+    .kicker {
+      margin: 0 0 14px;
+      color: #c9c2b2;
+      font-size: 13px;
+      letter-spacing: .14em;
+    }
+    .row {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      height: 460px;
+      padding: 18px 8px 8px;
+    }
+    .card {
+      position: relative;
+      flex: 0.16 1 0;
+      height: 86%;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 6px 6px 2px 2px;
+      background: var(--paper);
+      color: #1b1712;
+      cursor: pointer;
+      overflow: hidden;
+      transform-origin: 50% 100%;
+      transition: flex-grow .42s cubic-bezier(.2,.7,.2,1), height .42s cubic-bezier(.2,.7,.2,1), transform .42s cubic-bezier(.2,.7,.2,1);
+    }
+    .card.is-active {
+      flex-grow: 1.7;
+      height: 100%;
+      transform: translateY(-18px);
+      z-index: 2;
+    }
+    .spine {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      transition: opacity .25s ease;
+    }
+    .card.is-active .spine { opacity: 0; }
+    .spine b {
+      writing-mode: vertical-rl;
+      font-size: 15px;
+      letter-spacing: .18em;
+    }
+    .face {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 18px 16px;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity .28s ease .08s, transform .28s ease .08s;
+    }
+    .card.is-active .face { opacity: 1; transform: none; }
+    .swatch {
+      flex: 1;
+      border-radius: 4px;
+      background:
+        linear-gradient(160deg, rgba(255,255,255,.28), transparent 42%),
+        var(--ink);
+    }
+    .meta { margin-top: 14px; }
+    .meta small { display: block; color: #5c564c; letter-spacing: .08em; font-size: 12px; }
+    .meta strong { display: block; margin-top: 4px; font-size: 28px; line-height: 1.05; }
+    .meta span { display: block; margin-top: 6px; color: #3d3832; }
+    .card:focus-visible { outline: 3px solid #f4efe4; outline-offset: 4px; }
+    @media (max-width: 720px) {
+      .row { height: 420px; gap: 6px; }
+      .meta strong { font-size: 22px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card, .spine, .face { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <p class="kicker">LISTEN · 目录随指针让位</p>
+    <div class="row" id="row" role="listbox" aria-label="本季目录" aria-activedescendant="card-0" tabindex="0">
+      <button class="card" id="card-0" role="option" type="button" style="--paper:#e7d7bf;--ink:#8c3b2a" aria-selected="false">
+        <span class="spine"><b>晨雾</b></span>
+        <span class="face">
+          <span class="swatch"></span>
+          <span class="meta"><small>01 · 室内</small><strong>晨雾</strong><span>四件套，慢板</span></span>
+        </span>
+      </button>
+      <button class="card" id="card-1" role="option" type="button" style="--paper:#d9e2d2;--ink:#2f5d45" aria-selected="false">
+        <span class="spine"><b>北窗</b></span>
+        <span class="face">
+          <span class="swatch"></span>
+          <span class="meta"><small>02 · 二重奏</small><strong>北窗</strong><span>木管与低音</span></span>
+        </span>
+      </button>
+      <button class="card" id="card-2" role="option" type="button" style="--paper:#f0e7c8;--ink:#a15c18" aria-selected="false">
+        <span class="spine"><b>午市</b></span>
+        <span class="face">
+          <span class="swatch"></span>
+          <span class="meta"><small>03 · 现场</small><strong>午市</strong><span>录于旧菜场</span></span>
+        </span>
+      </button>
+      <button class="card" id="card-3" role="option" type="button" style="--paper:#e4d4cc;--ink:#6d3148" aria-selected="false">
+        <span class="spine"><b>晚班</b></span>
+        <span class="face">
+          <span class="swatch"></span>
+          <span class="meta"><small>04 · 独奏</small><strong>晚班</strong><span>一架走调的琴</span></span>
+        </span>
+      </button>
+      <button class="card" id="card-4" role="option" type="button" style="--paper:#d5dbe6;--ink:#243e66" aria-selected="false">
+        <span class="spine"><b>潮声</b></span>
+        <span class="face">
+          <span class="swatch"></span>
+          <span class="meta"><small>05 · 录音</small><strong>潮声</strong><span>码头，夜</span></span>
+        </span>
+      </button>
+      <button class="card" id="card-5" role="option" type="button" style="--paper:#efe6da;--ink:#3e3428" aria-selected="false">
+        <span class="spine"><b>末班</b></span>
+        <span class="face">
+          <span class="swatch"></span>
+          <span class="meta"><small>06 · 合奏</small><strong>末班</strong><span>收摊之后</span></span>
+        </span>
+      </button>
+    </div>
+  </main>
+  <script>
+    const row = document.querySelector("#row");
+    const cards = [...row.querySelectorAll(".card")];
+    const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
+    let active = -1;
+    let pinned = -1;
+
+    function setActive(index) {
+      active = index;
+      cards.forEach((card, i) => {
+        const on = i === index;
+        card.classList.toggle("is-active", on);
+        card.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      if (index >= 0) row.setAttribute("aria-activedescendant", cards[index].id);
+      else row.removeAttribute("aria-activedescendant");
+    }
+
+    cards.forEach((card, index) => {
+      card.addEventListener("pointerenter", (event) => {
+        if (!fine || event.pointerType !== "mouse") return;
+        pinned = -1;
+        setActive(index);
+      });
+      card.addEventListener("click", () => {
+        if (fine) return;
+        pinned = pinned === index ? -1 : index;
+        setActive(pinned);
+      });
+    });
+
+    row.addEventListener("pointerleave", (event) => {
+      if (!fine || event.pointerType !== "mouse") return;
+      if (pinned < 0) setActive(-1);
+    });
+
+    row.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      const delta = event.key === "ArrowRight" ? 1 : -1;
+      const next = active < 0 ? (delta > 0 ? 0 : cards.length - 1) : (active + delta + cards.length) % cards.length;
+      pinned = next;
+      setActive(next);
+      cards[next].focus();
+    });
+  </script>
+</body>
+</html>
