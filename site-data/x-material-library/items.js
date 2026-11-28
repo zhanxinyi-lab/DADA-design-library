@@ -1128,14 +1128,15 @@ window.ITEMS=[
     "poster": "assets/2120553374286594292/poster0.jpg",
     "video": "assets/2120553374286594292/preview.mp4",
     "preview": "assets/2120553374286594292/preview.webm",
-    "duration_s": 11,
+    "duration_s": 8,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/seat-view-picker/code/index.html",
     "added_at": "2026-11-12T23:00:38+08:00",
     "effect_zh": "jaimintf：用 Fable 5.2 一次生成的订票 App，选座前可预览火车座位视角（3D 车厢俯视/视角切换）",
     "platform": "x",
-    "cindy_job": "cindy-jobs/2120553374286594292"
+    "cindy_job": "cindy-jobs/2120553374286594292",
+    "title": "点选座位，车厢视角跟着换"
   },
   {
     "id": "2120518489022595177",
