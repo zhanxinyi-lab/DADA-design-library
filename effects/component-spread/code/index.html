@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>组件铺页</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #f3ecdf;
+    --ink: #1e2430;
+    --muted: #5e564c;
+    --card: #fffaf3;
+    --line: rgba(30, 36, 48, 0.12);
+    --key: #d7cfc2;
+    --glyph: #1e2430;
+    --glyph-hot: #b8432f;
+    --well: #efe6d6;
+    --focus: #b8432f;
+    --move: 340ms ease;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; overflow-x: clip; }
+  body {
+    min-height: 100vh;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: system-ui, "Segoe UI", "PingFang SC", sans-serif;
+  }
+  main {
+    width: min(920px, 100%);
+    margin: 0 auto;
+    padding: 28px 16px 40px;
+    min-width: 0;
+  }
+  .kicker {
+    margin: 0;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  h1 {
+    margin: 6px 0 0;
+    font-size: clamp(28px, 8vw, 44px);
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    overflow-wrap: anywhere;
+  }
+  .note, .status {
+    margin: 10px 0 0;
+    max-width: 38em;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .status { color: var(--ink); font-weight: 650; }
+  h2 {
+    margin: 28px 0 12px;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+  }
+  button { font: inherit; color: inherit; }
+  .spot, .card, .pill {
+    max-width: 100%;
+    min-width: 0;
+    cursor: pointer;
+  }
+  .spot:focus-visible, .card:focus-visible, .pill:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+  }
+  .spot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-top: 18px;
+    padding: 8px 0 0;
+    border: 0;
+    background: transparent;
+  }
+  .spot-name { font-size: 13px; color: var(--muted); }
+  .mark {
+    --size: 168px;
+    width: var(--size);
+    max-width: 100%;
+    aspect-ratio: 1;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    border-radius: 28%;
+    background: var(--well);
+    box-shadow: inset 0 0 0 1px var(--line);
+    transition: transform var(--move);
+  }
+  .spot .mark { --size: clamp(148px, 56vw, 220px); }
+  .cells {
+    width: 78%;
+    aspect-ratio: 1;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 7%;
+  }
+  .cell {
+    border-radius: 28%;
+    background: var(--key);
+    transform: scale(0.86);
+    transition: background-color var(--move), transform var(--move);
+  }
+  .cell.on {
+    background: var(--glyph);
+    transform: scale(1);
+  }
+  html[data-hot="1"] .cell.on { background: var(--glyph-hot); }
+  html[data-hot="1"] .mark { transform: translateY(-3px); }
+  html[data-pressed="1"] .mark { transform: scale(0.96); }
+  html[data-hot="1"][data-pressed="1"] .mark { transform: translateY(-1px) scale(0.96); }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    text-align: left;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+  }
+  .card .mark { --size: 72px; }
+  .card-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .card-k { font-size: 12px; color: var(--muted); }
+  .card-t { font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px 8px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    font-weight: 650;
+  }
+  .pill .mark { --size: 36px; }
+  @media (max-width: 640px) {
+    .cards { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mark, .cell { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <p class="kicker">可复用组件</p>
+  <h1>一个记号，铺开这一页</h1>
+  <p class="note">悬停、点击，或用 Tab 聚焦后按 Enter、空格、左右方向键，走的是同一套状态。页眉、三张卡片和底部按钮会一起变。</p>
+  <p class="status" id="status" aria-live="polite"></p>
+  <button class="spot" type="button" data-mark data-place="页眉记号">
+    <span class="mark" aria-hidden="true"><span class="cells" data-grid></span></span>
+    <span class="spot-name">页眉</span>
+  </button>
+  <h2>三处一起变</h2>
+  <section class="cards">
+    <button class="card" type="button" data-mark data-place="入口卡片">
+      <span class="mark" aria-hidden="true"><span class="cells" data-grid></span></span>
+      <span class="card-copy"><span class="card-k">入口</span><span class="card-t">先认出记号</span></span>
+    </button>
+    <button class="card" type="button" data-mark data-place="说明卡片">
+      <span class="mark" aria-hidden="true"><span class="cells" data-grid></span></span>
+      <span class="card-copy"><span class="card-k">说明</span><span class="card-t">再看它出现在哪</span></span>
+    </button>
+    <button class="card" type="button" data-mark data-place="行动卡片">
+      <span class="mark" aria-hidden="true"><span class="cells" data-grid></span></span>
+      <span class="card-copy"><span class="card-k">行动</span><span class="card-t">按同一个记号</span></span>
+    </button>
+  </section>
+  <h2>底部也是它</h2>
+  <section class="actions">
+    <button class="pill" type="button" data-mark data-place="查看按钮"><span class="mark" aria-hidden="true"><span class="cells" data-grid></span></span><span>查看</span></button>
+    <button class="pill" type="button" data-mark data-place="留下按钮"><span class="mark" aria-hidden="true"><span class="cells" data-grid></span></span><span>留下</span></button>
+    <button class="pill" type="button" data-mark data-place="继续按钮"><span class="mark" aria-hidden="true"><span class="cells" data-grid></span></span><span>继续</span></button>
+  </section>
+</main>
+<script>
+(function () {
+  var STEPS = [
+    { id: "ring", name: "环", bits: "0111110110001110000011000001100000111000110111110" },
+    { id: "plus", name: "十字", bits: "0001000000100000111001111111001110000010000001000" },
+    { id: "corners", name: "四角", bits: "1110111110001110000010001000100000111000111110111" },
+    { id: "diamond", name: "菱形", bits: "0001000001110001111101111111011111000111000001000" }
+  ];
+  var marks = Array.prototype.slice.call(document.querySelectorAll("[data-mark]"));
+  var grids = Array.prototype.slice.call(document.querySelectorAll("[data-grid]"));
+  var status = document.getElementById("status");
+  var root = document.documentElement;
+  var step = 0;
+
+  grids.forEach(function (grid) {
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < 49; i++) {
+      var cell = document.createElement("span");
+      cell.className = "cell";
+      frag.appendChild(cell);
+    }
+    grid.replaceChildren(frag);
+  });
+
+  function paint() {
+    var current = STEPS[step];
+    root.dataset.step = current.id;
+    grids.forEach(function (grid) {
+      var cells = grid.children;
+      for (var i = 0; i < 49; i++) cells[i].classList.toggle("on", current.bits.charAt(i) === "1");
+    });
+    marks.forEach(function (mark) {
+      mark.setAttribute("aria-label", mark.dataset.place + "，当前是" + current.name + "。激活后全页换成下一种");
+    });
+    status.textContent = "当前是" + current.name + "。页眉、三张卡片和底部按钮一起显示。";
+  }
+
+  function go(delta) {
+    step = (step + delta + STEPS.length) % STEPS.length;
+    paint();
+  }
+
+  function syncHot() {
+    var hot = marks.some(function (el) { return el.matches(":hover") || el.matches(":focus-visible"); });
+    root.dataset.hot = hot ? "1" : "0";
+  }
+
+  marks.forEach(function (mark) {
+    mark.addEventListener("click", function () { go(1); });
+    mark.addEventListener("pointerenter", syncHot);
+    mark.addEventListener("pointerleave", syncHot);
+    mark.addEventListener("focus", syncHot);
+    mark.addEventListener("blur", syncHot);
+    mark.addEventListener("keydown", function (e) {
+      if (e.repeat) return;
+      if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
+      else if (e.key === "Enter" || e.key === " ") root.dataset.pressed = "1";
+    });
+    mark.addEventListener("keyup", function (e) {
+      if (e.key === "Enter" || e.key === " ") root.dataset.pressed = "0";
+    });
+  });
+
+  document.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) return;
+    if (e.target.closest("[data-mark]")) root.dataset.pressed = "1";
+  });
+  window.addEventListener("pointerup", function () { root.dataset.pressed = "0"; });
+  window.addEventListener("pointercancel", function () { root.dataset.pressed = "0"; });
+
+  paint();
+})();
+</script>
+</body>
+</html>
