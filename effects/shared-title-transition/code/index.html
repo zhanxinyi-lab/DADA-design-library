@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>行标题延续成页面标题</title>
+  <style>
+    :root {
+      --large: 34px;
+      --bg: #efeee9;
+      --ink: #1c1c1c;
+      --muted: #7c786f;
+      --line: #e4e1da;
+      --card: #fff;
+      --bar-h: 48px;
+      --band: 64px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    body {
+      font-family: system-ui, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    }
+    button { font: inherit; color: inherit; }
+    .app {
+      position: relative;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .bar {
+      height: var(--bar-h);
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      background: var(--bg);
+      z-index: 4;
+    }
+    .back {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 32px;
+      padding: 0 10px 0 6px;
+      border: 0;
+      border-radius: 999px;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(28, 28, 28, 0.08);
+      cursor: pointer;
+    }
+    .back svg { display: block; }
+    .back-slot {
+      opacity: 0;
+      font-size: calc(var(--large) * 0.47);
+      font-weight: 700;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+    .search {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #fff;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 1px 2px rgba(28, 28, 28, 0.08);
+    }
+    .stage {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .page {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+    }
+    .library, .detail-scroll {
+      height: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
+    }
+    .detail-scroll { overflow-y: hidden; }
+    .detail-scroll.is-open { overflow-y: auto; }
+    .library { padding: 0 16px 28px; }
+    .title-slot {
+      height: var(--band);
+      margin: 0;
+      display: flex;
+      align-items: flex-end;
+      padding: 0 4px 8px;
+      font-size: var(--large);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+      opacity: 0;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      overflow: hidden;
+    }
+    .row {
+      width: 100%;
+      min-height: 60px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+    .card .row:last-child { border-bottom: 0; }
+    .swatch {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      flex: none;
+    }
+    .row-label, .note-label {
+      font-size: calc(var(--large) * 0.53);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    .count, .note-meta {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .note {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 68px;
+      padding: 12px 4px;
+      border-bottom: 1px solid var(--line);
+    }
+    .detail-scroll { padding: 0 16px 32px; }
+    .floater {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 6;
+      margin: 0;
+      pointer-events: none;
+      transform-origin: 0 0;
+      font-size: var(--large);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    .floater.is-off { visibility: hidden; }
+    :focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 3px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="bar" id="bar">
+      <button class="back" id="back" type="button" aria-label="返回目录">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M10 3 L5 8 L10 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="back-slot" id="back-slot">目录</span>
+      </button>
+      <div class="search" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 16 16">
+          <circle cx="7" cy="7" r="4.2" fill="none" stroke="#1c1c1c" stroke-width="1.6"/>
+          <path d="M10.2 10.2 L13 13" stroke="#1c1c1c" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </header>
+    <div class="stage" id="stage">
+      <div class="page library can-scroll" id="library">
+        <h1 class="title-slot"><span id="library-slot">目录</span></h1>
+        <div class="card" id="rows">
+          <button class="row" type="button" data-title="文集" data-color="#c4a574">
+            <span class="swatch" style="background:#c4a574"></span>
+            <span class="row-label">文集</span>
+            <span class="count">12</span>
+          </button>
+          <button class="row" type="button" data-title="随笔" data-color="#d8c3a5">
+            <span class="swatch" style="background:#d8c3a5"></span>
+            <span class="row-label">随笔</span>
+            <span class="count">08</span>
+          </button>
+          <button class="row" type="button" data-title="书信" data-color="#d07a45">
+            <span class="swatch" style="background:#d07a45"></span>
+            <span class="row-label">书信</span>
+            <span class="count">05</span>
+          </button>
+          <button class="row" type="button" data-title="速记" data-color="#6d8f99">
+            <span class="swatch" style="background:#6d8f99"></span>
+            <span class="row-label">速记</span>
+            <span class="count">21</span>
+          </button>
+          <button class="row" type="button" data-title="声音" data-color="#7e9a78">
+            <span class="swatch" style="background:#7e9a78"></span>
+            <span class="row-label">声音</span>
+            <span class="count">03</span>
+          </button>
+        </div>
+      </div>
+      <div class="page" id="detail">
+        <div class="detail-scroll" id="detail-scroll">
+          <h2 class="title-slot"><span id="detail-slot">文集</span></h2>
+          <article class="note"><span class="swatch" style="background:#c4a574"></span><span class="note-label">记录 01</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#8e9a78"></span><span class="note-label">记录 02</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#6e8ea0"></span><span class="note-label">记录 03</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#c9845a"></span><span class="note-label">记录 04</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#b7b0a4"></span><span class="note-label">记录 05</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#8a7568"></span><span class="note-label">记录 06</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#6f8f86"></span><span class="note-label">记录 07</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#a3847a"></span><span class="note-label">记录 08</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#7d8f6a"></span><span class="note-label">记录 09</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#c4b07a"></span><span class="note-label">记录 10</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#6e7f8a"></span><span class="note-label">记录 11</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#b58a78"></span><span class="note-label">记录 12</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#8f7e99"></span><span class="note-label">记录 13</span><span class="note-meta">色块</span></article>
+          <article class="note"><span class="swatch" style="background:#6f8f86"></span><span class="note-label">记录 14</span><span class="note-meta">色块</span></article>
+        </div>
+      </div>
+    </div>
+    <div class="floater" id="parent-title">目录</div>
+    <div class="floater is-off" id="child-title">文集</div>
+  </div>
+  <script>
+    const DURATION = 580;
+    const ROW_SCALE = 0.53;
+    const BACK_SCALE = 0.47;
+    const BAR_SCALE = 0.5;
+    const TUCK_AT = 64;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+
+    const app = document.getElementById("app");
+    const bar = document.getElementById("bar");
+    const stage = document.getElementById("stage");
+    const library = document.getElementById("library");
+    const detail = document.getElementById("detail");
+    const detailScroll = document.getElementById("detail-scroll");
+    const librarySlot = document.getElementById("library-slot");
+    const detailSlot = document.getElementById("detail-slot");
+    const back = document.getElementById("back");
+    const backSlot = document.getElementById("back-slot");
+    const parentTitle = document.getElementById("parent-title");
+    const childTitle = document.getElementById("child-title");
+    const rows = [...document.querySelectorAll(".row")];
+
+    let push = 0;
+    let scrollTuck = 0;
+    let active = null;
+    let frame = 0;
+    let drag = null;
+    let suppressClick = false;
+
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function bez(t, c1, c2) {
+      const s = 1 - t;
+      return 3 * s * s * t * c1 + 3 * s * t * t * c2 + t * t * t;
+    }
+    function bezDeriv(t, c1, c2) {
+      const s = 1 - t;
+      return 3 * s * s * c1 + 6 * s * t * (c2 - c1) + 3 * t * t * (1 - c2);
+    }
+    function ease(time) {
+      if (time <= 0) return 0;
+      if (time >= 1) return 1;
+      let u = time;
+      for (let i = 0; i < 8; i++) {
+        const slope = bezDeriv(u, 0.32, 0);
+        if (Math.abs(slope) < 1e-6) break;
+        u = clamp(u - (bez(u, 0.32, 0) - time) / slope, 0, 1);
+      }
+      return bez(u, 0.72, 1);
+    }
+
+    function layoutBox(el) {
+      let x = 0;
+      let y = 0;
+      let node = el;
+      while (node && node !== app) {
+        x += node.offsetLeft;
+        y += node.offsetTop;
+        node = node.offsetParent;
+      }
+      return { left: x, top: y, width: el.offsetWidth, height: el.offsetHeight, cy: y + el.offsetHeight / 2 };
+    }
+    function place(el, left, cy, scale) {
+      const y = cy - (el.offsetHeight * scale) / 2;
+      el.style.transform = "translate3d(" + left + "px," + y + "px,0) scale(" + scale + ")";
+    }
+    function stop() {
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+    }
+    function resetScroll() {
+      detailScroll.scrollTop = 0;
+      scrollTuck = 0;
+    }
+
+    function render() {
+      const width = stage.clientWidth || 1;
+      library.style.transform = "translate3d(" + (-0.3 * push * width) + "px,0,0)";
+      detail.style.transform = "translate3d(" + ((1 - push) * width) + "px,0,0)";
+      const shownTuck = clamp(scrollTuck * push, 0, 1);
+
+      const parentFrom = layoutBox(librarySlot);
+      parentFrom.cy -= library.scrollTop;
+      const parentTo = layoutBox(backSlot);
+      place(
+        parentTitle,
+        lerp(parentFrom.left, parentTo.left, push),
+        lerp(parentFrom.cy, parentTo.cy, push),
+        lerp(1, BACK_SCALE, push)
+      );
+      back.style.opacity = String(push);
+      back.inert = push < 0.02;
+      back.setAttribute("aria-hidden", push < 0.02 ? "true" : "false");
+
+      const moving = active && push > 0.001;
+      childTitle.classList.toggle("is-off", !moving);
+      for (const row of rows) {
+        row.querySelector(".row-label").style.opacity = row === active && moving ? "0" : "1";
+      }
+      if (moving) {
+        const from = layoutBox(active.querySelector(".row-label"));
+        from.cy -= library.scrollTop;
+        const large = layoutBox(detailSlot);
+        const openScale = lerp(ROW_SCALE, 1, push);
+        const scale = lerp(openScale, BAR_SCALE, shownTuck);
+        const openLeft = lerp(from.left, large.left, push);
+        const openCy = lerp(from.cy, large.cy, push);
+        const barBox = layoutBox(bar);
+        const centeredLeft = barBox.left + (barBox.width - childTitle.offsetWidth * scale) / 2;
+        const centeredCy = barBox.top + barBox.height / 2;
+        place(
+          childTitle,
+          lerp(openLeft, centeredLeft, shownTuck),
+          lerp(openCy, centeredCy, shownTuck),
+          scale
+        );
+      }
+
+      const open = push > 0.98;
+      if (open !== detailScroll.classList.contains("is-open")) {
+        const saved = detailScroll.scrollTop;
+        detailScroll.classList.toggle("is-open", open);
+        if (detailScroll.scrollTop !== saved) detailScroll.scrollTop = saved;
+      }
+      library.inert = push > 0.5;
+      detail.inert = push < 0.5;
+      app.dataset.push = push.toFixed(3);
+      app.dataset.tuck = shownTuck.toFixed(3);
+    }
+
+    function animateTo(target, done) {
+      stop();
+      target = target > 0 ? 1 : 0;
+      if (reduce.matches) {
+        push = target;
+        if (target === 0) {
+          resetScroll();
+          active = null;
+        }
+        render();
+        if (done) done();
+        return;
+      }
+      const from = push;
+      const dist = Math.abs(target - from);
+      if (dist < 0.001) {
+        push = target;
+        if (target === 0) {
+          resetScroll();
+          active = null;
+        }
+        render();
+        if (done) done();
+        return;
+      }
+      if (from === 0 && target === 1) {
+        push = 0.001;
+        render();
+      }
+      const start = performance.now();
+      const dur = DURATION * Math.abs(target - push);
+      const origin = push;
+      const tick = (now) => {
+        const u = clamp((now - start) / dur, 0, 1);
+        push = origin + (target - origin) * ease(u);
+        if (u < 1) {
+          render();
+          frame = requestAnimationFrame(tick);
+          return;
+        }
+        frame = 0;
+        push = target;
+        if (target === 0) {
+          resetScroll();
+          active = null;
+        }
+        render();
+        if (done) done();
+      };
+      frame = requestAnimationFrame(tick);
+    }
+
+    function openRow(row, focusBack) {
+      if (push > 0.2) return;
+      active = row;
+      const title = row.dataset.title;
+      childTitle.textContent = title;
+      detailSlot.textContent = title;
+      const first = detail.querySelector(".note .swatch");
+      if (first) first.style.background = row.dataset.color;
+      if (detailScroll.scrollTop !== 0) resetScroll();
+      animateTo(1, () => { if (focusBack) back.focus(); });
+    }
+
+    rows.forEach((row) => {
+      row.addEventListener("click", (ev) => {
+        if (suppressClick) return;
+        openRow(row, ev.detail === 0);
+      });
+    });
+    back.addEventListener("click", (ev) => {
+      if (suppressClick || push < 0.02) return;
+      const returnFocus = ev.detail === 0;
+      const row = active;
+      animateTo(0, () => { if (returnFocus && row) row.focus(); });
+    });
+
+    detailScroll.addEventListener("scroll", () => {
+      if (push < 0.98) return;
+      const next = clamp(detailScroll.scrollTop / TUCK_AT, 0, 1);
+      if (next === scrollTuck) return;
+      scrollTuck = next;
+      render();
+    }, { passive: true });
+
+    stage.addEventListener("pointerdown", (ev) => {
+      if (ev.button > 0 || push < 0.02) return;
+      const edge = ev.clientX - stage.getBoundingClientRect().left < 32;
+      const mid = push < 0.98;
+      if (!edge && !mid) return;
+      drag = {
+        id: ev.pointerId,
+        x: ev.clientX,
+        y: ev.clientY,
+        push,
+        locked: "",
+        lastX: ev.clientX,
+        lastT: performance.now(),
+        vx: 0
+      };
+    });
+    window.addEventListener("pointermove", (ev) => {
+      if (!drag || ev.pointerId !== drag.id) return;
+      const dx = ev.clientX - drag.x;
+      const dy = ev.clientY - drag.y;
+      if (!drag.locked) {
+        if (Math.hypot(dx, dy) < 10) return;
+        drag.locked = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        if (drag.locked === "y") {
+          drag = null;
+          return;
+        }
+        stop();
+        suppressClick = true;
+      }
+      const now = performance.now();
+      const dt = now - drag.lastT;
+      if (dt > 0) drag.vx = (ev.clientX - drag.lastX) / dt;
+      drag.lastX = ev.clientX;
+      drag.lastT = now;
+      push = clamp(drag.push - dx / (stage.clientWidth || 1), 0, 1);
+      render();
+    }, { passive: false });
+    function endDrag(ev) {
+      if (!drag || ev.pointerId !== drag.id) return;
+      const horizontal = drag.locked === "x";
+      const vx = drag.vx;
+      drag = null;
+      if (!horizontal) return;
+      let target = 1;
+      if (vx > 0.05) target = 0;
+      else if (vx < -0.05) target = 1;
+      else target = push <= 0.5 ? 0 : 1;
+      if (reduce.matches) {
+        push = target;
+        if (target === 0) {
+          resetScroll();
+          active = null;
+        }
+        render();
+        return;
+      }
+      animateTo(target);
+    }
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
+    window.addEventListener("click", (ev) => {
+      if (!suppressClick) return;
+      suppressClick = false;
+      ev.preventDefault();
+      ev.stopPropagation();
+    }, true);
+
+    window.addEventListener("resize", () => render());
+    render();
+  </script>
+</body>
+</html>
