@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>北线</title>
+  <style>
+    html { overflow-x: hidden; }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background: #d5e0e2;
+      color: #1c2420;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .copy {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: max(1.1rem, 8vh);
+      width: 100%;
+      max-width: 40rem;
+      box-sizing: border-box;
+      padding: 0 1.25rem 0 2.1rem;
+      pointer-events: none;
+    }
+    h1, p { margin: 0; overflow-wrap: anywhere; }
+    h1 {
+      font-size: clamp(2.1rem, 8vw, 4.6rem);
+      font-weight: 560;
+      letter-spacing: 0.08em;
+      line-height: 1.05;
+    }
+    p {
+      margin-top: 0.55rem;
+      max-width: 28em;
+      font-size: clamp(0.95rem, 2.6vw, 1.15rem);
+      line-height: 1.45;
+    }
+    .rail {
+      position: fixed;
+      left: 0.9rem;
+      top: 16vh;
+      bottom: 16vh;
+      width: 2px;
+      background: rgba(28, 36, 32, 0.16);
+      pointer-events: none;
+    }
+    .rail i {
+      display: block;
+      width: 100%;
+      height: 0;
+      background: #1c2420;
+    }
+    #track { height: 480vh; }
+  </style>
+</head>
+<body>
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div class="copy">
+    <h1 id="title">北线</h1>
+    <p id="line">向下滚动，镜头就往前；往回滚动，同一段路倒放。</p>
+  </div>
+  <div class="rail" aria-hidden="true"><i id="mark"></i></div>
+  <div id="track"></div>
+  <script>
+    const canvas = document.getElementById("scene");
+    const ctx = canvas.getContext("2d");
+    const titleEl = document.getElementById("title");
+    const lineEl = document.getElementById("line");
+    const markEl = document.getElementById("mark");
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduce = motion.matches;
+    let queued = false;
+    let frame = 0;
+    let viewW = 1;
+    let viewH = 1;
+
+    const sun = norm([0.28, 0.9, 0.34]);
+
+    function norm(v) {
+      const l = Math.hypot(v[0], v[1], v[2]) || 1;
+      return [v[0] / l, v[1] / l, v[2] / l];
+    }
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function mix(a, b, t) { return a + (b - a) * t; }
+    function shade(rgb, nrm, depth) {
+      const lit = 0.46 + 0.54 * Math.max(0, nrm[0] * sun[0] + nrm[1] * sun[1] + nrm[2] * sun[2]);
+      const fog = clamp((depth - 7) / 28, 0, 0.82);
+      const sky = [214, 222, 218];
+      const r = mix(rgb[0] * lit, sky[0], fog);
+      const g = mix(rgb[1] * lit, sky[1], fog);
+      const b = mix(rgb[2] * lit, sky[2], fog);
+      return "rgb(" + r.toFixed(0) + "," + g.toFixed(0) + "," + b.toFixed(0) + ")";
+    }
+    function faceNormal(pts) {
+      const ax = pts[1][0] - pts[0][0], ay = pts[1][1] - pts[0][1], az = pts[1][2] - pts[0][2];
+      const bx = pts[2][0] - pts[0][0], by = pts[2][1] - pts[0][1], bz = pts[2][2] - pts[0][2];
+      return norm([ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx]);
+    }
+    function progress() {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (max <= 0) return 0;
+      return clamp(window.scrollY / max, 0, 1);
+    }
+    function camera(t) {
+      const keys = [
+        { t: 0, x: 0.4, y: 16.5, z: 9.2, look: [0.3, 0.6, 4.6] },
+        { t: 0.22, x: 4.6, y: 8.2, z: 13.4, look: [0.4, 1.4, 4.8] },
+        { t: 0.46, x: 1.2, y: 3.1, z: 14.2, look: [0.2, 1.8, 4.2] },
+        { t: 0.7, x: 0.15, y: 1.7, z: 10.4, look: [0.1, 1.65, 2.2] },
+        { t: 0.86, x: 0.05, y: 1.62, z: 5.6, look: [0.05, 1.9, 0.2] },
+        { t: 1, x: -0.1, y: 1.58, z: 3.55, look: [0, 2.6, -4] }
+      ];
+      let i = 0;
+      while (i < keys.length - 2 && t > keys[i + 1].t) i++;
+      const a = keys[i];
+      const b = keys[i + 1];
+      const u = clamp((t - a.t) / (b.t - a.t), 0, 1);
+      const s = u * u * (3 - 2 * u);
+      const eye = [mix(a.x, b.x, s), mix(a.y, b.y, s), mix(a.z, b.z, s)];
+      const look = [mix(a.look[0], b.look[0], s), mix(a.look[1], b.look[1], s), mix(a.look[2], b.look[2], s)];
+      const forward = norm([look[0] - eye[0], look[1] - eye[1], look[2] - eye[2]]);
+      let right = norm([-forward[2], 0, forward[0]]);
+      if (Math.hypot(-forward[2], forward[0]) < 0.08) right = [1, 0, 0];
+      const up = norm([
+        right[1] * forward[2] - right[2] * forward[1],
+        right[2] * forward[0] - right[0] * forward[2],
+        right[0] * forward[1] - right[1] * forward[0]
+      ]);
+      return { x: eye[0], y: eye[1], z: eye[2], forward, right, up };
+    }
+    function toCam(p, cam) {
+      const dx = p[0] - cam.x;
+      const dy = p[1] - cam.y;
+      const dz = p[2] - cam.z;
+      return {
+        x: dx * cam.right[0] + dy * cam.right[1] + dz * cam.right[2],
+        y: dx * cam.up[0] + dy * cam.up[1] + dz * cam.up[2],
+        z: dx * cam.forward[0] + dy * cam.forward[1] + dz * cam.forward[2]
+      };
+    }
+    function clipNear(pts) {
+      const near = 0.16;
+      const out = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        const aIn = a.z >= near;
+        const bIn = b.z >= near;
+        if (aIn && bIn) out.push(b);
+        else if (aIn !== bIn) {
+          const u = (near - a.z) / (b.z - a.z);
+          out.push({
+            x: a.x + (b.x - a.x) * u,
+            y: a.y + (b.y - a.y) * u,
+            z: near
+          });
+          if (bIn) out.push(b);
+        }
+      }
+      return out;
+    }
+    function project(p) {
+      const f = Math.min(viewW, viewH) * 1.22;
+      return { x: viewW / 2 + p.x / p.z * f, y: viewH / 2 - p.y / p.z * f };
+    }
+    function addFace(bag, world, rgb, alpha) {
+      if (world.length < 3) return;
+      const nrm = faceNormal(world);
+      const cam = bag.cam;
+      const center = [
+        (world[0][0] + world[1][0] + world[2][0]) / 3,
+        (world[0][1] + world[1][1] + world[2][1]) / 3,
+        (world[0][2] + world[1][2] + world[2][2]) / 3
+      ];
+      const vx = cam.x - center[0];
+      const vy = cam.y - center[1];
+      const vz = cam.z - center[2];
+      if (!alpha && nrm[0] * vx + nrm[1] * vy + nrm[2] * vz <= 0) return;
+      const clipped = clipNear(world.map((p) => toCam(p, cam)));
+      if (clipped.length < 3) return;
+      const depth = clipped.reduce((s, p) => s + p.z, 0) / clipped.length;
+      bag.list.push({
+        pts: clipped.map(project),
+        depth,
+        color: shade(rgb, nrm, depth),
+        alpha: alpha || 1
+      });
+    }
+    function quad(bag, a, b, c, d, rgb, alpha) {
+      addFace(bag, [a, b, c, d], rgb, alpha);
+    }
+    function box(bag, x0, y0, z0, x1, y1, z1, rgb) {
+      quad(bag, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], rgb);
+      quad(bag, [x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], rgb);
+      quad(bag, [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], rgb);
+      quad(bag, [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], rgb);
+      quad(bag, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], rgb);
+      quad(bag, [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], rgb);
+    }
+    function pyramid(bag, x, y, z, r, h, rgb) {
+      const apex = [x, y + h, z];
+      const base = [[x - r, y, z - r], [x + r, y, z - r], [x + r, y, z + r], [x - r, y, z + r]];
+      for (let i = 0; i < 4; i++) addFace(bag, [base[i], base[(i + 1) % 4], apex], rgb);
+      addFace(bag, [base[0], base[3], base[2], base[1]], rgb);
+    }
+    function band(t, a, b, c, d) {
+      if (t < a || t > d) return 0;
+      if (b > a && t < b) return (t - a) / (b - a);
+      if (t > c) return Math.max(0, (d - t) / (d - c));
+      return 1;
+    }
+    function resize() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      viewW = Math.max(1, window.innerWidth);
+      viewH = Math.max(1, window.innerHeight);
+      canvas.width = Math.floor(viewW * dpr);
+      canvas.height = Math.floor(viewH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function paint() {
+      const t = progress();
+      const cam = camera(t);
+      const bag = { cam, list: [] };
+      const opaque = [];
+      const glass = [];
+      bag.list = opaque;
+
+      quad(bag, [-46, 0, -36], [-46, 0, 28], [46, 0, 28], [46, 0, -36], [104, 142, 150]);
+      quad(bag, [-18, 0.02, -22], [-18, 0.02, -8], [16, 0.02, -6], [14, 0.02, -24], [86, 122, 118]);
+      quad(bag, [-9, 0.42, -1.2], [-9, 0.42, 11.2], [8.2, 0.42, 11.2], [8.2, 0.42, -1.2], [184, 176, 166]);
+      box(bag, 3.4, 0.05, 1.5, 6.3, 0.28, 4.7, [62, 96, 104]);
+      for (let i = 0; i < 5; i++) {
+        const z = 0.4 + i * 2.2;
+        quad(bag, [-8.4, 0.45, z], [-8.4, 0.45, z + 0.06], [7.6, 0.45, z + 0.06], [7.6, 0.45, z], [140, 132, 122]);
+      }
+      box(bag, -3.15, 0.42, 1.35, 3.55, 0.92, 8.15, [168, 160, 150]);
+      box(bag, -2.85, 0.92, 1.55, 3.25, 1.02, 7.85, [214, 186, 146]);
+      box(bag, -3.15, 0.92, 1.35, -2.72, 3.25, 8.15, [232, 226, 216]);
+      box(bag, 2.95, 0.92, 1.35, 3.55, 3.25, 8.15, [214, 206, 196]);
+      box(bag, -3.55, 3.18, 0.95, 3.95, 3.52, 8.55, [246, 242, 234]);
+      box(bag, -3.35, 2.92, 1.15, 3.75, 3.18, 8.35, [156, 112, 72]);
+      box(bag, -0.35, 1.02, 3.15, 1.15, 1.42, 4.55, [112, 82, 54]);
+      box(bag, -1.55, 1.02, 5.4, 0.15, 1.16, 6.55, [92, 68, 46]);
+      box(bag, -3.28, 0.92, 7.85, -2.72, 3.25, 8.15, [46, 44, 40]);
+      box(bag, 2.95, 0.92, 7.85, 3.55, 3.25, 8.15, [46, 44, 40]);
+      box(bag, -2.72, 2.72, 7.9, 2.95, 3.25, 8.2, [46, 44, 40]);
+      box(bag, -3.28, 0.92, 1.28, -2.72, 3.25, 1.58, [46, 44, 40]);
+      box(bag, 2.95, 0.92, 1.28, 3.55, 3.25, 1.58, [46, 44, 40]);
+      box(bag, -2.72, 2.72, 1.22, 2.95, 3.25, 1.52, [46, 44, 40]);
+      box(bag, -6.35, 0, 5.1, -5.95, 1.15, 5.5, [92, 70, 48]);
+      pyramid(bag, -6.15, 1.05, 5.3, 1.35, 1.7, [36, 74, 58]);
+      pyramid(bag, -6.15, 2.15, 5.3, 1.05, 1.45, [28, 86, 64]);
+      pyramid(bag, -6.15, 3.15, 5.3, 0.7, 1.15, [48, 98, 72]);
+      box(bag, -7.6, 0.15, 8.4, -6.7, 0.7, 9.5, [120, 116, 110]);
+      box(bag, 6.5, 0.1, 6.2, 7.8, 0.85, 7.6, [132, 126, 118]);
+
+      bag.list = glass;
+      quad(bag, [-2.72, 0.92, 7.95], [2.95, 0.92, 7.95], [2.95, 2.72, 7.95], [-2.72, 2.72, 7.95], [186, 214, 210], 0.22);
+      quad(bag, [2.95, 0.92, 1.4], [-2.72, 0.92, 1.4], [-2.72, 2.72, 1.4], [2.95, 2.72, 1.4], [198, 222, 216], 0.16);
+
+      const sky = ctx.createLinearGradient(0, 0, 0, viewH);
+      sky.addColorStop(0, "#8eabbc");
+      sky.addColorStop(0.42, "#d5e2e4");
+      sky.addColorStop(1, "#f4ecdf");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, viewW, viewH);
+      const glowY = viewH * (0.22 + cam.forward[1] * 0.45);
+      const glow = ctx.createRadialGradient(viewW * 0.74, glowY, 8, viewW * 0.74, glowY, viewW * 0.42);
+      glow.addColorStop(0, "rgba(255,236,206,0.9)");
+      glow.addColorStop(1, "rgba(255,236,206,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, viewW, viewH);
+
+      const drawList = (list) => {
+        list.sort((a, b) => b.depth - a.depth);
+        for (const face of list) {
+          ctx.beginPath();
+          ctx.moveTo(face.pts[0].x, face.pts[0].y);
+          for (let i = 1; i < face.pts.length; i++) ctx.lineTo(face.pts[i].x, face.pts[i].y);
+          ctx.closePath();
+          ctx.globalAlpha = face.alpha;
+          ctx.fillStyle = face.color;
+          ctx.fill();
+        }
+      };
+      drawList(opaque);
+      drawList(glass);
+      ctx.globalAlpha = 1;
+
+      const titleIn = band(t, 0, 0, 0.34, 0.5);
+      const lineIn = band(t, 0.4, 0.54, 0.8, 0.94);
+      titleEl.style.opacity = String(titleIn);
+      lineEl.style.opacity = String(lineIn);
+      titleEl.style.transform = "translateY(" + ((1 - titleIn) * 14) + "px)";
+      lineEl.style.transform = "translateY(" + ((1 - lineIn) * 12) + "px)";
+      markEl.style.height = (t * 100) + "%";
+    }
+    function requestPaint() {
+      if (reduce) {
+        if (frame) cancelAnimationFrame(frame);
+        frame = 0;
+        queued = false;
+        paint();
+        return;
+      }
+      if (queued) return;
+      queued = true;
+      frame = requestAnimationFrame(() => {
+        queued = false;
+        frame = 0;
+        paint();
+      });
+    }
+    function nudge(dy) {
+      window.scrollBy({ top: dy, left: 0, behavior: "auto" });
+      if (reduce) paint();
+    }
+    window.addEventListener("scroll", requestPaint, { passive: true });
+    window.addEventListener("resize", () => {
+      resize();
+      requestPaint();
+    });
+    window.addEventListener("keydown", (event) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const page = Math.max(120, window.innerHeight * 0.86);
+      const steps = { ArrowDown: 56, ArrowUp: -56, PageDown: page, PageUp: -page };
+      if (!(event.key in steps)) return;
+      event.preventDefault();
+      nudge(steps[event.key]);
+    });
+    if (typeof motion.addEventListener === "function") {
+      motion.addEventListener("change", () => {
+        reduce = motion.matches;
+        if (reduce && frame) {
+          cancelAnimationFrame(frame);
+          frame = 0;
+          queued = false;
+        }
+        resize();
+        paint();
+      });
+    }
+    resize();
+    if (reduce) paint();
+    else requestPaint();
+  </script>
+</body>
+</html>
