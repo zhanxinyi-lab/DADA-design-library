@@ -993,13 +993,14 @@ window.ITEMS=[
     "poster": "assets/2120651303156130285/poster0.jpg",
     "video": "assets/2120651303156130285/preview.mp4",
     "preview": "assets/2120651303156130285/preview.webm",
-    "duration_s": 14,
+    "duration_s": 8,
     "has_animation": true,
-    "code_status": "pending_cindy",
-    "code": null,
+    "code_status": "ai_recreated",
+    "code": "effects/offerpost-board/code/index.html",
     "added_at": "2026-11-12T23:00:38+08:00",
     "effect_zh": "sonia_axion：Offerpost 求职跟进看板，把投递状态收成一块卡片式 Dashboard，带切换动效",
     "platform": "x",
+    "title": "跟进看板：切换时间范围时，投递摘要在同一张卡片里连续过渡",
     "cindy_job": "cindy-jobs/2120651303156130285"
   },
   {
