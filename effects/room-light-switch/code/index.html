@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>房间光照切换</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow-x: clip; }
+  body {
+    background: #141311;
+    color: #f3eee6;
+    font-family: system-ui, sans-serif;
+  }
+  main {
+    height: 100%;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 12px 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+  header { min-width: 0; }
+  h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+  }
+  .note {
+    margin: 4px 0 0;
+    color: #c9c0b4;
+    font-size: 13px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+  .modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .modes button {
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: #242220;
+    color: #f3eee6;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: 600 14px/1 system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .modes button[aria-pressed="true"] {
+    background: #f3eee6;
+    color: #1a1714;
+    border-color: #f3eee6;
+  }
+  .modes button:focus-visible { outline: 2px solid #f0c27a; outline-offset: 2px; }
+  .hint {
+    margin: 8px 0 0;
+    color: #9d9488;
+    font-size: 12px;
+  }
+  .live {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .stage {
+    flex: 1 1 auto;
+    min-height: 220px;
+    min-width: 0;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #161412;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+  @media (max-width: 390px) {
+    main { padding: 10px; }
+    h1 { font-size: 17px; }
+    .modes button { padding: 8px 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>房间光照</h1>
+    <p class="note">同一间房间。白天、傍晚和线框共用一套状态，切换时光照连续过渡。</p>
+    <div class="modes" role="radiogroup" aria-label="房间状态">
+      <button type="button" id="mode-day" role="radio" aria-pressed="true">白天</button>
+      <button type="button" id="mode-evening" role="radio" aria-pressed="false">傍晚</button>
+      <button type="button" id="mode-wire" role="radio" aria-pressed="false">线框</button>
+    </div>
+    <p class="hint">方向键或 1 / 2 / 3</p>
+    <p id="live" class="live" aria-live="polite">当前是白天</p>
+  </header>
+  <div class="stage" id="stage"><canvas id="room"></canvas></div>
+</main>
+<script>
+(function () {
+  const KEYS = ['warmth', 'elevation', 'wire', 'sun', 'lamp', 'ambient'];
+  const PRESETS = {
+    day:     { warmth: 0.04, elevation: 0.88, wire: 0, sun: 0.55, lamp: 0.02, ambient: 0.92 },
+    evening: { warmth: 1,    elevation: 0.14, wire: 0, sun: 1,    lamp: 0.95, ambient: 0.20 },
+    wire:    { warmth: 0.28, elevation: 0.42, wire: 1, sun: 0.16, lamp: 0.06, ambient: 0.08 }
+  };
+  const NAMES = { day: '白天', evening: '傍晚', wire: '线框' };
+  const ORDER = ['day', 'evening', 'wire'];
+  const DURATION = 880;
+
+  const canvas = document.getElementById('room');
+  const stage = document.getElementById('stage');
+  const live = document.getElementById('live');
+  const buttons = {
+    day: document.getElementById('mode-day'),
+    evening: document.getElementById('mode-evening'),
+    wire: document.getElementById('mode-wire')
+  };
+  const ctx = canvas.getContext('2d');
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  let mode = 'day';
+  let current = Object.assign({}, PRESETS.day);
+  let from = Object.assign({}, current);
+  let target = Object.assign({}, current);
+  let started = 0;
+  let frame = 0;
+  const cam = { x: -0.55, y: 1.28, z: 4.15 };
+
+  function reduced() { return motion.matches; }
+  function mix(a, b, t) { return a + (b - a) * t; }
+  function mixColor(a, b, t) {
+    return [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
+  }
+  function clamp(v) { return Math.max(0, Math.min(255, v)); }
+  function rgba(c, a) {
+    return 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a + ')';
+  }
+
+  const faces = [];
+  function face(pts, normal, base, kind) {
+    faces.push({ p: pts, n: normal, base: base, kind: kind || 'solid' });
+  }
+  function box(x0, y0, z0, x1, y1, z1, base, kind) {
+    face([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], [0, 0, 1], base, kind);
+    face([[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], [0, 0, -1], base, kind);
+    face([[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], [-1, 0, 0], base, kind);
+    face([[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], [1, 0, 0], base, kind);
+    face([[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]], [0, 1, 0], base, kind);
+    face([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], [0, -1, 0], base, kind);
+  }
+
+  const wall = [222, 216, 206];
+  const floorC = [158, 128, 98];
+  const wood = [118, 78, 52];
+  const dark = [34, 32, 30];
+  const metal = [72, 76, 80];
+
+  face([[-1.7, 0, 0], [1.85, 0, 0], [1.85, 2.15, 0], [-1.7, 2.15, 0]], [0, 0, 1], wall);
+  face([[-1.7, 0, 2.35], [1.85, 0, 2.35], [1.85, 0, 0], [-1.7, 0, 0]], [0, 1, 0], floorC);
+  face([[-1.7, 2.15, 0], [1.85, 2.15, 0], [1.85, 2.15, 2.35], [-1.7, 2.15, 2.35]], [0, -1, 0], [198, 192, 184]);
+  face([[-1.7, 0, 2.35], [-1.7, 0, 0], [-1.7, 2.15, 0], [-1.7, 2.15, 2.35]], [1, 0, 0], [204, 198, 190]);
+
+  face([[1.85, 0, 0], [1.85, 0, 2.35], [1.85, 0.72, 2.35], [1.85, 0.72, 0]], [-1, 0, 0], wall);
+  face([[1.85, 1.92, 0], [1.85, 1.92, 2.35], [1.85, 2.15, 2.35], [1.85, 2.15, 0]], [-1, 0, 0], wall);
+  face([[1.85, 0.72, 0], [1.85, 0.72, 0.28], [1.85, 1.92, 0.28], [1.85, 1.92, 0]], [-1, 0, 0], wall);
+  face([[1.85, 0.72, 1.62], [1.85, 0.72, 2.35], [1.85, 1.92, 2.35], [1.85, 1.92, 1.62]], [-1, 0, 0], wall);
+  face([[1.72, 0.72, 0.28], [1.72, 0.72, 1.62], [1.72, 1.92, 1.62], [1.72, 1.92, 0.28]], [-1, 0, 0], [176, 214, 230], 'glass');
+  box(1.68, 0.66, 0.22, 1.86, 1.98, 0.3, [236, 234, 228]);
+  box(1.68, 0.66, 1.58, 1.86, 1.98, 1.68, [236, 234, 228]);
+  box(1.68, 1.88, 0.28, 1.86, 1.98, 1.62, [236, 234, 228]);
+  box(1.68, 0.66, 0.28, 1.86, 0.76, 1.62, [236, 234, 228]);
+  for (let i = 0; i < 8; i++) {
+    const y0 = 0.82 + i * 0.13;
+    box(1.7, y0, 0.32, 1.84, y0 + 0.028, 1.58, [42, 40, 38]);
+  }
+
+  box(-1.35, 0.68, 0.18, 0.55, 0.78, 1.2, wood);
+  box(-1.28, 0.06, 0.24, -1.14, 0.68, 0.38, wood);
+  box(0.38, 0.06, 0.24, 0.5, 0.68, 0.38, wood);
+  box(-1.28, 0.06, 1.02, -1.14, 0.68, 1.14, wood);
+  box(0.38, 0.06, 1.02, 0.5, 0.68, 1.14, wood);
+
+  box(-0.98, 0.78, 0.28, 0.12, 1.42, 0.4, dark);
+  face([[-0.9, 0.86, 0.41], [0.04, 0.86, 0.41], [0.04, 1.34, 0.41], [-0.9, 1.34, 0.41]], [0, 0, 1], [226, 230, 234], 'screen');
+  box(-0.62, 0.78, 0.72, 0.05, 0.82, 1.05, [26, 26, 28]);
+  box(0.16, 0.78, 0.82, 0.3, 0.82, 0.94, [214, 214, 210]);
+
+  box(-0.05, 0.42, 1.45, 0.42, 0.5, 1.95, metal);
+  box(0.02, 0.5, 1.52, 0.34, 1.05, 1.62, metal);
+  box(0.0, 0.06, 1.5, 0.07, 0.42, 1.6, metal);
+  box(0.3, 0.06, 1.5, 0.37, 0.42, 1.6, metal);
+  box(0.0, 0.06, 1.82, 0.07, 0.42, 1.92, metal);
+  box(0.3, 0.06, 1.82, 0.37, 0.42, 1.92, metal);
+
+  box(0.72, 0.06, 0.1, 1.22, 1.7, 0.42, [132, 94, 64]);
+  box(0.68, 0.52, 0.08, 1.26, 0.58, 0.46, [154, 112, 76]);
+  box(0.68, 1.02, 0.08, 1.26, 1.08, 0.46, [154, 112, 76]);
+  box(0.68, 1.48, 0.08, 1.26, 1.54, 0.46, [154, 112, 76]);
+  box(0.76, 1.54, 0.14, 0.96, 1.68, 0.32, [178, 96, 80]);
+  box(1.0, 1.08, 0.14, 1.18, 1.4, 0.34, [74, 108, 148]);
+  box(0.78, 0.58, 0.14, 1.05, 0.92, 0.32, [198, 178, 96]);
+
+  box(1.18, 0, 1.55, 1.48, 0.26, 1.88, [156, 98, 70]);
+  box(1.12, 0.26, 1.5, 1.52, 0.62, 1.92, [56, 110, 72]);
+  box(1.05, 0.46, 1.42, 1.36, 0.88, 1.78, [46, 96, 64]);
+
+  box(0.78, 1.54, 0.5, 0.84, 1.82, 0.64, dark);
+  box(0.7, 1.78, 0.44, 0.96, 1.86, 0.72, [24, 22, 20]);
+
+  for (let i = 0; i < 7; i++) {
+    const y = 0.86 + i * 0.16;
+    face([[-1.55, y, 0.03], [0.62, y, 0.03], [0.62, y + 0.055, 0.03], [-1.55, y + 0.055, 0.03]], [0, 0, 1], [255, 236, 210], 'stripe');
+  }
+  for (let i = 0; i < 6; i++) {
+    const z = 0.26 + i * 0.14;
+    face([[-1.28, 0.785, z], [0.48, 0.785, z], [0.48, 0.785, z + 0.05], [-1.28, 0.785, z + 0.05]], [0, 1, 0], [255, 236, 210], 'stripe');
+  }
+
+  function project(p, w, h) {
+    const dz = Math.max(0.3, cam.z - p[2]);
+    const f = (Math.min(w, h) * 1.05) / dz;
+    return {
+      x: w * 0.46 + (p[0] - cam.x) * f,
+      y: h * 0.56 - (p[1] - cam.y) * f,
+      z: dz
+    };
+  }
+
+  function facingCamera(item) {
+    let cx = 0, cy = 0, cz = 0;
+    for (let i = 0; i < item.p.length; i++) {
+      cx += item.p[i][0]; cy += item.p[i][1]; cz += item.p[i][2];
+    }
+    const n = item.p.length;
+    const vx = cam.x - cx / n, vy = cam.y - cy / n, vz = cam.z - cz / n;
+    return item.n[0] * vx + item.n[1] * vy + item.n[2] * vz > 0.0001;
+  }
+
+  function lit(base, normal) {
+    const ly = 0.2 + current.elevation * 1.35;
+    const key = [-0.15, ly, 0.45];
+    const win = [-1, 0.08 + current.elevation * 0.35, 0.05];
+    const kn = Math.hypot(key[0], key[1], key[2]) || 1;
+    const wn = Math.hypot(win[0], win[1], win[2]) || 1;
+    const nd = Math.max(0, (normal[0] * key[0] + normal[1] * key[1] + normal[2] * key[2]) / kn);
+    const nw = Math.max(0, (normal[0] * win[0] + normal[1] * win[1] + normal[2] * win[2]) / wn);
+    const gain = current.ambient * 0.72 + current.sun * (0.28 * nd + 0.95 * nw);
+    const warm = current.warmth;
+    const r = base[0] + warm * 22;
+    const g = base[1] - warm * 10;
+    const b = base[2] - warm * 28;
+    return [clamp(r * gain), clamp(g * gain), clamp(b * gain * (1 - warm * 0.35))];
+  }
+
+  function path(pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+  }
+
+  function paint() {
+    const rect = stage.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(2, rect.width);
+    const h = Math.max(2, rect.height);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const bg = mixColor(
+      mixColor([214, 208, 198], [28, 20, 16], current.warmth),
+      [12, 14, 16],
+      current.wire
+    );
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = rgba(bg, 1);
+    ctx.fillRect(0, 0, w, h);
+
+    const wire = current.wire;
+    const visible = faces.filter(facingCamera);
+    visible.sort(function (a, b) {
+      const da = a.p.reduce(function (s, p) { return s + (cam.z - p[2]); }, 0) / a.p.length;
+      const db = b.p.reduce(function (s, p) { return s + (cam.z - p[2]); }, 0) / b.p.length;
+      return db - da;
+    });
+
+    for (let i = 0; i < visible.length; i++) {
+      const item = visible[i];
+      const pts = item.p.map(function (p) { return project(p, w, h); });
+      path(pts);
+      if (item.kind === 'stripe') {
+        const col = mixColor([255, 248, 230], [255, 164, 70], current.warmth);
+        const alpha = (0.08 + current.sun * (0.12 + current.warmth * 0.55)) * (1 - wire);
+        if (alpha > 0.015 && wire < 0.995) {
+          ctx.fillStyle = rgba(col, alpha);
+          ctx.fill();
+        }
+      } else if (wire < 0.995) {
+        let col = lit(item.base, item.n);
+        if (item.kind === 'glass') {
+          col = mixColor([168, 210, 232], [255, 120, 48], current.warmth).map(function (v) {
+            return clamp(v * (0.78 + current.sun * 0.4));
+          });
+        } else if (item.kind === 'screen') {
+          col = mixColor([236, 240, 244], [86, 58, 44], current.warmth);
+        }
+        ctx.globalAlpha = 1 - wire * 0.92;
+        ctx.fillStyle = rgba(col, 1);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      if (wire > 0.02 && item.kind !== 'stripe') {
+        const col = item.kind === 'glass'
+          ? mixColor([168, 210, 232], [255, 176, 110], current.warmth)
+          : lit(item.base, item.n);
+        ctx.strokeStyle = rgba(mixColor(col, [236, 240, 244], 0.75), Math.min(1, wire));
+        ctx.lineWidth = 1.15;
+        ctx.stroke();
+      }
+    }
+
+    const glow = current.lamp * (1 - wire);
+    if (glow > 0.02) {
+      const lp = project([0.84, 1.82, 0.58], w, h);
+      const rad = Math.min(w, h) * 0.28;
+      const g = ctx.createRadialGradient(lp.x, lp.y, 2, lp.x, lp.y, rad);
+      g.addColorStop(0, 'rgba(255,188,100,' + (glow * 0.7) + ')');
+      g.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(lp.x, lp.y, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function sync(name) {
+    ORDER.forEach(function (id) {
+      buttons[id].setAttribute('aria-pressed', id === name ? 'true' : 'false');
+    });
+    document.body.dataset.mode = name;
+    live.textContent = '当前是' + NAMES[name];
+  }
+
+  function go(name) {
+    if (!PRESETS[name]) return;
+    mode = name;
+    sync(name);
+    target = Object.assign({}, PRESETS[name]);
+    if (reduced()) {
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      current = Object.assign({}, target);
+      paint();
+      return;
+    }
+    from = Object.assign({}, current);
+    started = performance.now();
+    if (!frame) frame = requestAnimationFrame(step);
+  }
+
+  function step(now) {
+    const u = Math.min(1, (now - started) / DURATION);
+    const e = u * u * (3 - 2 * u);
+    KEYS.forEach(function (k) { current[k] = from[k] + (target[k] - from[k]) * e; });
+    paint();
+    if (u < 1) frame = requestAnimationFrame(step);
+    else {
+      frame = 0;
+      current = Object.assign({}, target);
+      paint();
+    }
+  }
+
+  ORDER.forEach(function (id) {
+    buttons[id].addEventListener('click', function () { go(id); });
+  });
+
+  window.addEventListener('keydown', function (e) {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    const index = ORDER.indexOf(mode);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      go(ORDER[(index + 1) % ORDER.length]);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      go(ORDER[(index + ORDER.length - 1) % ORDER.length]);
+    } else if (e.key === '1') go('day');
+    else if (e.key === '2') go('evening');
+    else if (e.key === '3') go('wire');
+  });
+
+  function onMotionChange() {
+    if (!reduced()) return;
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    current = Object.assign({}, target);
+    paint();
+  }
+  if (motion.addEventListener) motion.addEventListener('change', onMotionChange);
+  else if (motion.addListener) motion.addListener(onMotionChange);
+
+  window.addEventListener('resize', function () {
+    if (frame) return;
+    paint();
+  });
+
+  const hash = (location.hash || '').replace('#', '');
+  if (PRESETS[hash]) {
+    mode = hash;
+    current = Object.assign({}, PRESETS[hash]);
+    from = Object.assign({}, current);
+    target = Object.assign({}, current);
+  }
+  sync(mode);
+  paint();
+  window.__roomLight = {
+    go: go,
+    frames: function () { return frame; },
+    state: function () { return Object.assign({ mode: mode }, current); }
+  };
+})();
+</script>
+</body>
+</html>
