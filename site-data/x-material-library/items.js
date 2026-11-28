@@ -5858,17 +5858,14 @@ window.ITEMS=[
     "code_links": [],
     "code_snippets": [],
     "images": [
-      "assets/2116551748848345362/poster0.jpg",
-      "assets/2116551748848345362/poster1.jpg",
-      "assets/2116551748848345362/poster2.jpg",
-      "assets/2116551748848345362/poster3.jpg"
+      "assets/2116551748848345362/poster0.jpg"
     ],
     "poster": "assets/2116551748848345362/poster0.jpg",
-    "video": "assets/2116551748848345362/preview.mp4",
-    "preview": null,
+    "video": "assets/2116551748848345362/preview.webm",
+    "preview": "assets/2116551748848345362/preview.webm",
     "gif_local": null,
     "full_video_local": null,
-    "duration_s": 6,
+    "duration_s": 8,
     "has_animation": true,
     "code_status": "ai_recreated",
     "code": "effects/october-interaction-studies/code/index.html",
